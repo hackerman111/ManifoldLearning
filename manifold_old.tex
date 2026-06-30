@@ -1,0 +1,1389 @@
+% !TEX root = ../EDRmain.tex
+\def\nmin{\mathbbmsl{N}}
+\def\hiso{h}
+\def\haniso{b}
+\def\BEDR{\mathcal{B}}
+\def\TEDR{\mathbbmsl{T}}
+\def\JEDR{\mathcal{J}}
+\def\Kern{\mathcal{K}}
+\def\sigmaX{\sigma_{\!_{X}}}
+\def\KSme{\mathbbmsl{V}}
+
+
+%\Section{Efficient dimension reduction in regression}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  new section  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\Section{A single-index model}
+\label{Ssingind}
+
+Consider the e.d.r. regression problem
+\begin{EQA}
+	Y_{i}
+	&=&
+	\fs(\betav^{\T} \Xv_{i}) + \eps_{i} \, ,
+\label{YifXieiedrSI}
+\end{EQA}
+where \( \Xv_{i} \in \R^{\dimd} \) for large \( \dimd \), \( \betav \) is an index vector and
+\( \fs \) is a univariate \emph{link function}.
+Introduce also a function \( \gs(x) = \E \bigl( Y \cond \Xv=\xv \bigr) \).
+A structural single-index assumption yields the relations
+\begin{EQA}
+	\gs(\xv)
+	&=&
+	\fs(\betav^{\T} \xv) ,
+	\\
+	\nabla \gs(\xv)
+	&=&
+	\fs'(\betav^{\T} \xv) \betav.
+\label{fxgKxedrSI}
+\end{EQA} 
+In particular, the derivative of \( \gs \) at any point \( \xv \) is proportional
+to the target vector \( \betav \).
+This suggests recovering \( \betav \) from the nonparametrically estimated gradient of \( \gs \).
+
+
+\Subsection{Preliminaries}
+%Define \( \Psi(\xv) = \bigl( \psi_{m}(\xv) \bigr) \in \R^{\dimd+1} \) for \( \psi_{0}(\xv) \equiv 1 \), 
+%\(	\psi_{m}(\xv) =	\langle \xv ,\ev_{m} \rangle \), \( m = 1,\ldots,\dimd \). 
+For a collection of centers \( \{ \xv_{j} \}_{j \leq J} \),
+localizing tensor \( \TEDR \), 
+and a localizing kernel \( \Kern \), consider the weights
+\begin{EQA}
+	\weight_{ij}
+	&=&
+	\Kern\bigl( \| \TEDR(\Xv_{i} - \xv_{j}) \|^{2} \bigr) 
+	\, ,
+	\qquad
+	i=1,\ldots,n,
+	\quad
+	j \leq \JJJ
+	\, .
+\label{s7cuqkdwywdhbjwbfjwbdj}
+\end{EQA}
+At the first step, we apply \( \TEDR = \hiso^{-2} \Id_{\dimp} \)
+leading to isotropic weights 
+\( \weight_{ij} = \Kern\bigl( \hiso^{-2} \| \Xv_{i} - \xv_{j} \|^{2} \bigr) \).
+The bandwidth \( \hiso \) has to be selected to ensure sufficiently many points in almost every vicinity of \( \xv_{j} \)
+of radius \( \hiso \). 
+Compute for each \( j \leq \JJJ \)
+\begin{EQA}
+	\Imav_{j}
+	&=&
+	\sumi Y_{i} \linv{\Xv_{i} - \xv_{j}} \weight_{ij} \in \R^{\dimd+1} 
+	\, ,
+\label{ytd7e7ydwuhd5eythdY}
+\end{EQA}
+and also \( \dimd+1 \)-symmetric matrix
+\begin{EQA}
+	\KSe_{j}
+	&=&
+	\sumi \linv{\Xv_{i} - \xv_{j}} \, \linv{\Xv_{i} - \xv_{j}}^{\T} \weight_{ij}
+	=
+	\begin{pmatrix}
+		N_{j} & \Sv_{j}
+		\\
+		\Sv_{j}^{T} & \VP_{j}
+	\end{pmatrix} 
+	\, ,
+\label{ytd7e7ydwuhd5eythd}
+\end{EQA}
+where
+\begin{EQA}[c]
+	N_{j}
+	\eqdef
+	\sumi \weight_{ij}
+	\, ,
+	\quad
+	\Sv_{j}
+	\eqdef
+	\sumi (\Xv_{i} - \xv_{j}) \weight_{ij}
+	\, ,
+	\quad
+	\VP_{j}
+	\eqdef
+	\sumi (\Xv_{i} - \xv_{j})(\Xv_{i} - \xv_{j})^{\T} \weight_{ij}
+	\, .
+\end{EQA}
+Model equation \eqref{YifXieiedrSI} implies
+\begin{EQA}
+	\Ima_{j}
+	&=&
+	\sumi Y_{i} \linv{\Xv_{i} - \xv_{j}} \weight_{ij}  
+	=
+	\sumi \fs(\betav^{\T} \Xv_{i}) \linv{\Xv_{i} - \xv_{j}} \weight_{ij}
+	+ \sumi \eps_{i} \linv{\Xv_{i} - \xv_{j}} \weight_{ij} \, .
+\label{hgghjkklvddfrdshwey}
+\end{EQA}
+Further, localization by the weights 
+\( \weight_{ij} = \Kern\bigl( \hiso^{-2} \| \Xv_{i} - \xv_{j} \|^{2} \bigr) \) enables us to locally approximate \( \fs(t) \) 
+in a vicinity of \( t_{j} = \langle \betav, \xv_{j} \rangle \) by a linear function
+\( \fcn_{j} + \fcl_{j} (t - t_{j}) \).
+This leads to the approximation 
+\begin{EQA}
+	&& \nquad
+	\sumi  \fs(\betav^{\T} \Xv_{i}) \linv{\Xv_{i} - \xv_{j}} \weight_{ij} 
+	\approx 
+	\sumi \bigl\{ \fcn_{j} + \fcl_{j} (\Xv_{i} - \xv_{j})^{\T} \betav \bigr\} \linv{\Xv_{i} - \xv_{j}} \weight_{ij} 
+	\\
+	&=&
+	\KSe_{j} \binom{\fcn_{j}}{\fcl_{j} \, \betav} 
+	=
+	\begin{pmatrix}
+		\fcn_{j} N_{j} + \fcl_{j} \Sv_{j}^{\T} \betav
+		\\
+		\fcn_{j} \Sv_{j} + \fcl_{j} \VP_{j} \betav
+	\end{pmatrix}.
+\label{yd6x5ewbduwuqf64wfgfy6}
+\end{EQA}
+The calming device suggests introducing additional parameters (observables) 
+\( \imav_{j} = \E \Imav_{j} \).
+The full dimensional parameter vector \( \prmtv \) includes
+the target parameter \( \betav \), the observables \( \imav = (\imav_{j}) \in \R^{J(\dimd+1)} \), 
+and the coefficients \( \thetav = (\fcn_{j},\fcl_{j})_{j \leq J} \in \R^{2J} \).
+The corresponding objective function reads
+\begin{EQA}
+	\LL(\prmtv)
+	&=&
+	\LL(\betav,\thetav,\imav)
+	=
+	\frac{1}{2} \| \Imav - \imav \|^{2} 
+	+ \frac{1}{2} \sum_{j} 
+		\Bigl\| \imav_{j} - \KSe_{j} \binom{\fcn_{j}}{\fcl_{j} \, \betav} \Bigr\|^{2} \, .
+\label{gtgyuy6ew5dtde32322jt}
+\end{EQA}
+Due to the product \( \fcl_{j} \betav \), this objective function is not quadratic in the scope of parameters.
+More precisely, it is a polynomial of order 4 and it can be considered as a special case of the error-in-operator model.
+The challenge for a careful analysis is a lack of identifiability: rescaling the vector \( \betav \) by any constant
+\( c \) and all the coefficients \( \fcl_{j} \) by \( c^{-1} \) does not change the model equation. 
+To overcome this problem and enforce identifiability, we introduce an additional penalty which push 
+\( \betav \) to be as close as possible to a fixed vector \( \betav_{0} \in \R^{\dimd} \)
+meaning a starting guess.
+One can use \( \betav_{0} = (1,0,\ldots,0)^{\T} \).
+It is only important that \( \langle \betav,\ev_{1} \rangle \) significantly deviates from zero.
+With a tuning parameter \( \lambda \), this leads to
+\begin{EQA}
+	\LL_{\lambda}(\prmtv)
+	&=&
+	\frac{1}{2} \| \Imav - \imav \|^{2} 
+	+ \frac{1}{2} \sum_{j} \Bigl\| \imav_{j} - \KSe_{j} \binom{\fcn_{j}}{\fcl_{j} \, \betav} \Bigr\|^{2} 
+	+ \frac{\lambda}{2} \| \betav - \betav_{0} \|^{2} \, .
+\label{tjjc7c6f5fd5e5erjwyhfd}
+\end{EQA}
+%
+
+\paragraph{Elimination of the observables \( \zv_{j} \)}
+Representation \eqref{tjjc7c6f5fd5e5erjwyhfd} is useful for theoretical analysis.
+Numerically, one can eliminate the auxiliary variables \( \zv = (\zv_{j}) \).
+
+\begin{lemma}
+For any \( j \leq \JJJ \) and any
+\( \fcn_{j},\fcl_{j} \, , \betav \), it holds
+\begin{EQA}[c]
+	\inf_{\zv_{j}} \Bigl\{ \| \Imav_{j} - \imav_{j} \|^{2} 
+	+ \Bigl\| \imav_{j} - \KSe_{j} \binom{\fcn_{j}}{\fcl_{j} \, \betav} \Bigr\|^{2} \Bigr\} 
+	=
+	\frac{1}{2} \Bigl\| \Imav_{j} - \KSe_{j} \binom{\fcn_{j}}{\fcl_{j} \, \betav} \Bigr\|^{2}
+	\, .
+\end{EQA}
+\end{lemma}
+
+{\color{blue} Please, check.}
+
+This result reduces problem \eqref{tjjc7c6f5fd5e5erjwyhfd} to
+\begin{EQA}[c]
+	\sum_{j} \Bigl\| \Imav_{j} - \KSe_{j} \binom{\fcn_{j}}{\fcl_{j} \, \betav} \Bigr\|^{2} + 2 \lambda \| \betav - \betav_{0} \|^{2}
+	\to
+	\min_{\betav,(\fcn_{j},\fcl_{j})}
+	\, .
+\label{ikdfjoiefjoieuvbjmr3e}
+\end{EQA}
+
+\Subsection{Minimization of \( \LL_{\lambda}(\prmtv) \) by alternating}
+Now we describe the alternating optimization procedure for minimization of \eqref{ikdfjoiefjoieuvbjmr3e}.
+The idea is to iterate optimization of the objective function w.r.t. \( (\fcn_{j},\fcl_{j}) \) for \( \betav \) fixed
+and w.r.t. \( \betav \) for \( (\fcn_{j},\fcl_{j})_{j \leq \JJJ} \) fixed.
+Note that for a fixed \( \betav \), the optimization problem \eqref{ikdfjoiefjoieuvbjmr3e}
+can be decomposed into small subproblems 
+\begin{EQA}[c]
+%	\inf_{(\fcn_{j},\fcl_{j})} 
+	\Bigl\| \Imav_{j} - \KSe_{j} \binom{\fcn_{j}}{\fcl_{j} \, \betav} \Bigr\|^{2}
+	\to \min_{(\fcn_{j},\fcl_{j})}
+	\, ,
+	\qquad
+	j \leq \JJJ
+	\, .
+\end{EQA}
+Each of them is quadratic in \( (\fcn_{j},\fcl_{j}) \) and can be solved analytically.
+
+\begin{lemma}
+\label{Lcjlj}
+It holds with \( \Imav_{j} = (\Ima_{j,0},\Imav_{j,1}) \)
+\begin{EQA}[rcl]
+%	&& \nquad
+	\inf_{\fcn_{j},\fcl_{j}} \Bigl\| \Imav_{j} - \KSe_{j} \binom{\fcn_{j}}{\fcl_{j} \, \betav} \Bigr\|^{2}
+	&=&
+	\inf_{\fcn_{j},\fcl_{j}} \bigl\{ 
+		| \Ima_{j,0} - \fcn_{j} N_{j} - \fcl_{j} \Sv_{j}^{\T} \betav |^{2}
+		+ \| \Imav_{j,1} - \fcn_{j} \Sv_{j} - \fcl_{j} \VP_{j} \betav \|^{2} 
+	\bigr\}
+	\, .
+\end{EQA}
+{\color{blue} please, provide a closed-form solution in terms of \( \Ima_{j,0} \), \( N_{j} \), \( \Sv_{j}^{\T} \betav \),
+\( \Imav_{j,1}^{\T} \Sv_{j} \), \( \Imav_{j,1}^{\T} \VP_{j} \betav \), \( \| \Sv_{j} \|^{2} \), \( \| \VP_{j} \betav \|^{2} \), 
+\( \Sv_{j}^{\T} \VP_{j} \betav \).
+Check
+\begin{EQA}[c]
+	(\fcn_{j},\fcl_{j})
+	=
+	\begin{pmatrix}
+		N_{j}^{2} + \| \Sv_{j} \|^{2} & N_{j} \Sv_{j}^{\T} \betav + \Sv_{j}^{\T} \VP_{j} \betav
+		\\
+		N_{j} \Sv_{j}^{\T} \betav + \Sv_{j}^{\T} \VP_{j} \betav & | \Sv_{j}^{\T} \betav |^{2} + \| \VP_{j} \betav \|^{2}
+	\end{pmatrix}^{-1} \binom{\Ima_{j,0} N_{j} + \Imav_{j,1}^{\T} \Sv_{j}}{\Ima_{j,0} \Sv_{j}^{\T} \betav + \Imav_{j,1}^{\T} \VP_{j} \betav}
+	\, .
+\end{EQA}
+}
+\end{lemma}
+
+
+Similarly, for fixed \( \{ (\fcn_{j},\fcl_{j}), j \leq \JJJ \} \), minimization of \eqref{ikdfjoiefjoieuvbjmr3e} w.r.t. \( \betav \)
+is quadratic and can be solved analytically.
+
+\begin{lemma}
+\label{Lbeta}
+It holds with \( \Imav_{j} = (\Ima_{j,0},\Imav_{j,1}) \)
+\begin{EQA}[rcl]
+	&& \nquad
+	\inf_{\betav} \Bigl\{ \sum_{j} \Bigl\| \Imav_{j} - \KSe_{j} \binom{\fcn_{j}}{\fcl_{j} \, \betav} \Bigr\|^{2}
+		+ \lambda \| \betav - \betav_{0} \|^{2} 
+	\Bigr\}	
+	\\
+	&=&
+	\inf_{\betav} \sum_{j} \bigl\{ \| \Ima_{j,0} - \fcn_{j} N_{j} - \fcl_{j} \Sv_{j}^{\T} \betav \|^{2}
+		+ \| \Imav_{j,1} - \fcn_{j} \Sv_{j} - \fcl_{j} \VP_{j} \betav \|^{2} 
+	\bigr\}
+	+ \lambda \| \betav - \betav_{0} \|^{2}
+	\, .
+\end{EQA}
+{\color{blue} please, provide a closed-form solution in terms of 
+\begin{EQA}[c]
+	\sum_{j} \fcl_{j} \Sv_{j} (\Ima_{j,0} - \fcn_{j} N_{j})
+	\, ,
+	\qquad
+	\sum_{j} \fcl_{j} \VP_{j} (\Imav_{j,1} - \fcn_{j} \Sv_{j})
+	\, ,
+	\qquad
+	\sum_{j} \fcl_{j}^{2} \bigl( \Sv_{j} \Sv_{j}^{\T} + \VP_{j}^{2} \bigr)
+\end{EQA}
+yielding
+\begin{EQA}[c]
+	\betav
+	=
+	\biggl\{ \sum_{j} \fcl_{j}^{2} \bigl( \Sv_{j} \Sv_{j}^{\T} + \VP_{j}^{2} \bigr) + \lambda \Id_{\dimp} \biggr\}^{-1}
+	\sum_{j} \bigl\{ \fcl_{j} \Sv_{j} (\Ima_{j,0} - \fcn_{j} N_{j})
+	+ \fcl_{j} \VP_{j} (\Imav_{j,1} - \fcn_{j} \Sv_{j}) 
+	+ \lambda \betav_{0}
+	\bigr\}
+\end{EQA}
+}
+\end{lemma}
+
+
+The alternating minimization can be described as follows.
+\begin{mylist}
+
+\item 
+Initialize \( \betav^{(0)} \) by a prior information or other procedure like PCA.
+Set \( m=1 \).
+\item 
+With \( \betav^{(m-1)} \) fixed, compute for every \( j \leq \JJJ \)
+\begin{EQA}[c]
+	(\fcn_{j}^{(m)},\fcl_{j}^{(m)})
+	=
+	\inf_{(\fcn_{j},\fcl_{j})} \Bigl\| \Imav_{j} - \KSe_{j} \binom{\fcn_{j}}{\fcl_{j} \, \betav^{(m-1)}} \Bigr\|^{2}
+\end{EQA}
+as suggested in Lemma~\ref{Lcjlj}.
+\item 
+Then with these \( (\fcn_{j}^{(m)},\fcl_{j}^{(m)}) \), update \( \betav^{(m)} \):
+\begin{EQA}[c]
+	\betav^{(m)}
+	=
+	\inf_{\betav} \Bigl\{ \sum_{j} \Bigl\| \Imav_{j} - \KSe_{j} \binom{\fcn_{j}^{(m)}}{\fcl_{j}^{(m)} \, \betav} \Bigr\|^{2}
+		+ \lambda \| \betav - \betav^{(m-1)} \|^{2} 
+	\Bigr\}	
+	\, ,
+\end{EQA}
+as suggested in Lemma~\ref{Lbeta}.
+\item 
+Iterate several time for \( m=1,2,\ldots, \) until convergence.
+\end{mylist}
+
+\Subsection{Anisotropic weights and local tensor \( \TEDR \)}
+The local weights \( \weight_{ij} \) from \eqref{s7cuqkdwywdhbjwbfjwbdj} involve a local tensor \( \TEDR \).
+The single-index model structure \( \gs(\xv) = \fs(\betav^{\T} \xv) \) in \eqref{YifXieiedrSI} suggests
+anisotropic weights
+\begin{EQA}
+	\weight_{ij}
+	&=&
+	\Kern\bigl( h^{-2} |(\Xv_{i} - \xv_{j})^{\T} \betavs|^{2} \bigr) .
+\label{s7cuqkdwywdhbjwbfjwbdji}
+\end{EQA}
+Unfortunately, such defined weights require knowledge of the index vector \( \betavs \) and 
+a correctly specified single-index model. 
+We follow the structure-adaptive approach from \cite{HJPS}, which applies anisotropic weights 
+with an increasing anisotropy parameter during iterations.
+As mentioned earlier, for initialization, we apply a non-informative choice 
+\begin{EQA}[c]
+	\weight_{ij} = \Kern\bigl( \hiso_{0}^{-2} \| \Xv_{i} - \xv_{j} \|^{2} \bigr) 
+	\, .
+\end{EQA}
+The bandwidth \( \hiso_{0} \) can be selected as the smallest value ensuring
+\begin{EQA}[c]
+	\frac{1}{J}\sum_{j=1}^{J} \sumi \Kern\bigl( \hiso^{-2} \| \Xv_{i} - \xv_{j} \|^{2} \bigr)
+%	=
+%	\frac{1}{J}\sum_{j=1}^{J} \sumi \weight_{ij}
+	\geq 
+	\nmin
+	\, .
+\label{jhgiverkytde4w34etycj}
+\end{EQA}
+%
+Anisotropic weights assume some prior information about the structure of the model, which is accumulated 
+in the localizing tensor \( \TEDR \).
+Namely, for two values \( \hiso \) and \( \haniso \) and a current guess \( \betav \), anisotropic weights \( \weight_{ij} \)
+correspond to the tensor 
+\begin{EQA}[rcl]
+	\TEDR^{2}
+	&=&
+	\hiso^{-2} \Id_{\dimd} + \haniso^{-2} \betav \betav^{\T}
+\label{iufhvu8kjbmnll475edf}
+\end{EQA}
+leading to 
+\begin{EQA}[c]
+	\weight_{ij}
+	=
+	\Kern\bigl( \| \TEDR (\Xv_{i} - \xv_{j}) \|^{2} \bigr)
+	=
+	\Kern\bigl( \hiso^{-2} \| \Xv_{i} - \xv_{j} \|^{2} + \haniso^{-2} \langle \Xv_{i} - \xv_{j}, \betav \rangle^{2} \bigr)
+	\, .
+\end{EQA}
+The ratio \( \hiso/\haniso \) describes the anisotropy strength.
+Large values of \( \hiso/\haniso \) correspond to strong localization in direction \( \betav \)
+and a mild localization in orthogonal directions. 
+During iteration, the procedure increases the anisotropy parameter \( \hiso/\haniso \).
+For fixed \( \haniso \) and \( \betav \), the bandwidth \( \hiso \) is determined by the condition
+\begin{EQA}[c]
+	\frac{1}{J} \sum_{j=1}^{J} \sumi 
+		\Kern\bigl( \hiso^{-2} \| \Xv_{i} - \xv_{j} \|^{2} + \haniso^{-2} \langle \Xv_{i} - \xv_{j}, \betav \rangle^{2} \bigr)
+%	=
+%	\frac{1}{J}\sum_{j=1}^{J} \sumi \weight_{ij}
+	\geq 
+	\nmin
+	\, .
+\label{jhgiverkytde4w34etycja}
+\end{EQA}
+It is easy to see that a decay of \( \haniso \) leads to an increase of \( \hiso \).
+
+
+\Subsection{Design of experiments and implementation}
+Fix the values \( d \) and \( n \) such that \( n \geq 10 d \).
+Also, fix the values \( \sigma_{\eps} \), \( \sigmaX \), \( q \in (0,1] \), and \( \rho \in [0,1) \).
+Finally, fix a unit vector \( \betavs \) and a univariate function \( \fs(x) \); e.g \( f(x) = \sin(x) \).
+\begin{mylist}
+
+\item 
+generate a correlated design \( \Xv_{i} = \sigmaX \bigl\{ \rho \gaussv_{0} + (1 - \rho) \gaussv_{i} \bigr\} \),
+where \( \gaussv_{i} \) are i.i.d. standard gaussian in \( \R^{\dimd} \), \( i=0,1,\ldots,n \);
+\item 
+for each \( \Xv_{i} \), decide by Bernoulli experiment with positive probability \( q \), if this point is used for 
+constructing the center \( \xv_{j} \) by \( \xv_{j} = \Xv_{i} + \sigmaX \gaussv_{j} \);
+fix \( \JJJ = \#(\xv_{j}) \approx q n \);
+\item 
+generate errors \( \eps_{i} \sim \ND(0,\sigma_{\eps}^{2}) \) and compute \( Y_{i} = \fs(\Xv_{i}^{\T} \betavs) + \eps_{i} \);
+\end{mylist}
+
+\paragraph{Implementation. Tuning parameters}
+For the procedure, we have to fix
+\begin{mylist}
+
+\item 
+the value \( \nmin \gg 1 \); par defaut, \( \nmin = 10 \);
+\item 
+the factor \( a > 1 \); par defaut, \( a = \sqrt{2} \);
+\item 
+the kernel \( \Kern \); par defaut, Epanechnikov kernel \( \Kern(t) = (1-t^{2})_{+} \);
+\item 
+the Lagrange penalizing constant \( \lambda \), par defaut, \( \lambda = \nmin \);
+\end{mylist}
+
+\paragraph{Implementation. Step 0}
+Fix \( \hiso_{0} \) as the smallest value ensuring
+\begin{EQA}[c]
+	\frac{1}{J}\sum_{j=1}^{J} 
+	\sumi \Kern\bigl( \hiso_{0}^{-2} \| \Xv_{i} - \xv_{j} \|^{2} \bigr)
+%	=
+%	\frac{1}{J}\sum_{j=1}^{J} \sumi \weight_{ij}
+	\geq 
+	\nmin
+	\, ;
+\end{EQA}
+Also, set \( \haniso_{0} = \hiso_{0} \);
+\begin{mylist}
+
+\item 
+for every \( j \leq \JJJ \), compute and store \( \Imav_{j} \) and \( \KSe_{j} \) by \eqref{ytd7e7ydwuhd5eythdY} and \eqref{ytd7e7ydwuhd5eythd}
+with 
+\begin{EQA}[c]
+	\weight_{ij} = \Kern\bigl( \hiso_{0}^{-2} \| \Xv_{i} - \xv_{j} \|^{2} \bigr) 
+	\, ;
+\end{EQA}
+\item 
+Find \( \prmtv^{(0)} = \{ \betav^{(0)},(\fcn_{j}^{(0)},\fcl_{j}^{(0)}) \} \) as minimizer of 
+\( \LL_{\lambda}(\prmtv) \) from \eqref{tjjc7c6f5fd5e5erjwyhfd} by alternating minimization.
+\item 
+%:
+rescale \( \betav^{(0)} \) by \( \| \betav^{(0)} \|^{-1} \) and \( (\fcl_{j}^{(0)}) \) by \( \| \betav^{(0)} \| \) to ensure 
+\( \| \betav^{(0)} \| = 1 \).
+\end{mylist}
+
+\paragraph{Implementation. Step \( k \)}
+For \( k \geq 1 \), 
+\begin{mylist}
+
+\item 
+update \( \haniso_{k} = \haniso_{k-1} / a \);
+\item 
+define \( \hiso_{k} \) by the condition
+\begin{EQA}[c]
+	\frac{1}{J} \sum_{j=1}^{J} \sumi 
+		\Kern\bigl( \hiso_{k}^{-2} \| \Xv_{i} - \xv_{j} \|^{2} + \haniso_{k}^{-2} \langle \Xv_{i} - \xv_{j}, \betav^{(k-1)} \rangle^{2} \bigr)
+%	=
+%	\frac{1}{J}\sum_{j=1}^{J} \sumi \weight_{ij}
+	\geq 
+	\nmin
+	\, ,
+\label{jhgiverkytde4w34etycja}
+\end{EQA}
+and fix \( \TEDR_{k} \) in the form \eqref{iufhvu8kjbmnll475edf} with \( \betav = \betav^{(k-1)} \),
+\( \haniso = \haniso_{k} \), and \( \hiso = \hiso_{k} \):
+\begin{EQA}[rcl]
+	\TEDR_{k}^{2}
+	&=&
+	\hiso_{k}^{-2} \Id_{\dimd} + \haniso_{k}^{-2} \betav^{(k-1)} {\betav^{(k-1)}}^{\T}
+	\, .
+\label{iufhvu8kjbmnll475edfk}
+\end{EQA}
+
+\item 
+for every \( j \leq \JJJ \), recompute and store \( \Imav_{j} \) and \( \KSe_{j} \) by \eqref{ytd7e7ydwuhd5eythdY} and \eqref{ytd7e7ydwuhd5eythd}
+with 
+\begin{EQA}[c]
+	\weight_{ij} 
+	= 
+	\weight_{ij}^{(k)}
+	= 
+	\Kern\bigl( \| \TEDR_{k} (\Xv_{i} - \xv_{j}) \|^{2} \bigr) 
+	\, ;
+\end{EQA}
+
+\item 
+Find \( \prmtv^{(k)} = \{ \betav^{(k)},(\fcn_{j}^{(k)},\fcl_{j}^{(k)}) \} \) as minimizer of 
+\( \LL_{\lambda}(\prmtv) \) from \eqref{tjjc7c6f5fd5e5erjwyhfd} 
+%with \( \weight_{ij} = \weight_{ij}^{(k)} = \Kern\bigl( \| \TEDR_{k} (\Xv_{i} - \xv_{j}) \|^{2} \bigr) \)
+ by alternating minimization.
+\item 
+%:
+rescale \( \betav^{(k)} \) by \( \| \betav^{(k)} \|^{-1} \) and \( (\fcl_{j}^{(k)}) \) by \( \| \betav^{(k)} \| \) to ensure 
+\( \| \betav^{(k)} \| = 1 \).
+\end{mylist}
+
+
+\paragraph{Loop}
+%
+Increase \( k \) and repeat until convergence.
+
+{\color{blue} 
+\begin{mylist}
+\item
+Fix \( \dimd = 10 \) and explore the performance of the method 
+for different values of tuning parameters, especially \( \nmin \) and \( \lambda \);
+
+\item
+behavior for different \( \sigma_{\eps} \), \( \sigmaX \), \( q \in (0,1] \), and \( \rho \in [0,1) \);
+
+\item
+try with different \( \dimd \) and find a breakdown dimension \( \dimd \).
+
+\end{mylist}
+ 
+}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  new section  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\Section{Multi-index model}
+\label{Smultind}
+
+
+Consider the e.d.r. regression problem
+\begin{EQA}
+	Y_{i}
+	&=&
+	\fs(\PEDR \Xv_{i}) + \eps_{i}
+\label{YifXieiedr}
+\end{EQA}
+where \( \Xv_{i} \in \R^{\dimd} \) for large \( \dimd \), 
+\( \PEDR \) is an unknown element from the set \( \PROJ_{\dimd,\dimm} \) 
+of orthogonal mappings from 
+from \( \R^{\dimd} \) to \( \R^{\dimm} \) for \( \dimm \ll \dimd \), and
+\( \fs \) is a function on \( \R^{\dimm} \).
+The mapping \( \PEDR \) can be written as 
+\begin{EQA}
+	\PEDR \xv
+	&=&
+	(\betav_{1}^{\T} \xv) \betav_{1} + \ldots + (\betav_{\dimm}^{\T} \xv) \betav_{\dimm}
+	\, ,
+\label{ydgenb8jejohkou90tkr}
+\end{EQA}
+where \( \betav_{m}^{\T} \) are the orthonormal rows of \( \PEDR \).
+Here the identifiability issue is even more severe than in the single-index model, because 
+the set of the vectors \( \betav_{j} \) can be exchanged, rotated, etc. 
+%To get rid of this problem, consider the spectral decomposition of \( \PEDR \) leading to representation
+%\eqref{ydgenb8jejohkou90tkr}
+%with orthogonal vectors \( \betav_{m} \) satisfying 
+%\( \| \betav_{1} \| \geq \ldots \geq \| \betav_{\dimm} \| \).
+%If all the eigenvalues of \( \PEDR \PEDR^{\T} \) are different, representation
+%\eqref{ydgenb8jejohkou90tkr} is unique up to the sign of each \( \betav_{m} \).
+%This will be assumed in what follows. 
+
+%Now we proceed as in the single-index situation.
+%Let a collection of centers \( \{ \xv_{j} \} \) and the localizing kernel \( \Kern \) be fixed.
+%This allows to define \( \Ima_{j} \) and \( \KSe_{j} \) 
+
+\Subsection{Preliminaries}
+For a collection of centers \( \{ \xv_{j} \}_{j \leq J} \),
+localizing tensor \( \TEDR \) (symmetric \( \dimd \)-matrix), 
+and a localizing kernel \( \Kern \), consider the weights
+\begin{EQA}
+	\weight_{ij}
+	&=&
+	\Kern\bigl( \TEDR(\Xv_{i} - \xv_{j}) \bigr) .
+\label{s7cuqkdwywdhbjwbfjwbdjm}
+\end{EQA}
+Compute a \( (\dimd+1) \)-vector \( \Ima_{j} \) and \( (\dimd+1) \)-quadratic matrix \( \KSe_{j} \)
+\begin{EQ}[rcl]
+	\Ima_{j}
+	&=&
+	\sumi Y_{i} \linv{\Xv_{i} - \xv_{j}} \weight_{ij} \in \R^{\dimd+1} \, ,
+\label{ytd7e7ydwuhd5eythdYm}
+%\end{EQA}
+%and also
+%\begin{EQA}
+	\\
+	\KSe_{j}
+	&=&
+	\sumi \linv{\Xv_{i} - \xv_{j}} \, \linv{\Xv_{i} - \xv_{j}}^{\T} \weight_{ij} 
+%	\in \Matr_{\dimd+1} 
+	\, .
+\label{ytd7e7ydwuhd5eythdm}
+\end{EQ}
+Model equation \eqref{YifXieiedrSI} implies
+\begin{EQA}
+	\Ima_{j}
+	&=&
+	\sumi Y_{i} \linv{\Xv_{i} - \xv_{j}} \weight_{ij}  
+	=
+	\sumi \fs(\PEDR \Xv_{i}) \linv{\Xv_{i} - \xv_{j}} \weight_{ij}
+	+ \sumi \eps_{i} \linv{\Xv_{i} - \xv_{j}} \weight_{ij} \, .
+\label{hgghjkklvddfrdshweym}
+\end{EQA}
+%
+%as in \eqref{ytd7e7ydwuhd5eythd}.
+The function \( \fs \) is now \( \dimm \)-variate, and we consider a linear approximation 
+\begin{EQA}
+	\fs(\PEDR \xv) 
+	& \approx &
+	\fcn_{j} + \fclv_{j}^{\T} \PEDR (\xv - \xv_{j})
+	=
+	\fcn_{j} + \biggl( \sum_{m=1}^{\dimm} \fcl_{j,m} \, \betav_{m} \biggr)^{\T} (\xv - \xv_{j}) ,
+\label{ucjcvjuvyvyf6r6rwjdy}
+\end{EQA}
+where \( \fclv_{j} = (\fcl_{j,m}) \in \R^{\dimm} \).
+Correspondingly
+\begin{EQA}[c]
+%	&& \nquad
+	\sumi \fs(\PEDR \Xv_{i}) \, \linv{\Xv_{i} - \xv_{j}} \weight_{ij} 
+	\approx 
+	\sumi 
+	\Bigl\{ \fcn_{j} 
+%	+ \sum_{m=1}^{\dimm} \fcl_{j,m} \, (\Xv_{i} - \xv_{j})^{\T} \betav_{m} \Bigr\}
+	+ \fclv_{j}^{\T} \PEDR (\Xv_{i} - \xv_{j})
+	\linv{\Xv_{i} - \xv_{j}} \weight_{ij} 
+	=
+	\KSe_{j} \binom{\fcn_{j}}{\PEDR^{\T} \fclv_{j}} 
+%	( \mue_{1} \, a_{j} \, \betav_{1} + \ldots + \mue_{\dimm} \, a_{j,\dimm} \, \betav_{\dimm}) 
+	\, .
+\label{yd6x5ewbduwuqf64wfgfymi}
+\end{EQA}
+%where \( \fclv_{j} \cdot \betav = \fcl_{j,1} \, \betav_{1} + \ldots + \fcl_{j,\dimm} \, \betav_{\dimm} \).
+The full dimensional parameter \( \prmtv \) includes
+%the corresponding loading factors \( \mue_{1},\ldots,\mue_{\dimm} \), 
+the observables \( \imav = (\imav_{j}) \in \R^{J(\dimq+1)} \), 
+the coefficients \( \thetav = (\fcn_{j},\fclv_{j})_{j \leq J} \in \R^{J(\dimm+1)} \),
+and the target mapping \( \PEDR = (\betav_{1},\ldots,\betav_{\dimm})^{\T} \)
+which should be orthonormal with \( \PEDR \PEDR^{\T} = \Id_{\dimm} \).
+This makes the problem computationally hard.
+We relax this condition and optimize w.r.t. \( \BEDR = (\betav_{1},\ldots,\betav_{\dimm})^{\T} \in \R^{\dimm \times \dimd} \). 
+For \( \prmtv = (\BEDR,\imav,\thetav) \), the objective function reads
+\begin{EQA}
+	\LL(\prmtv)
+	&=&
+	\frac{1}{2} \| \Imav - \imav \|^{2} 
+	+ \frac{1}{2} \sum_{j} 
+	\Bigl\| \imav_{j} - \KSe_{j} \binom{\fcn_{j}}{\BEDR^{\T} \fclv_{j}} 
+	\Bigr\|^{2} 
+	=
+	\frac{1}{4} \sum_{j} \biggl\| \Imav_{j} - \KSe_{j} \binom{\fcn_{j}}{\BEDR^{\T} \fclv_{j}} \biggr\|^{2}	
+	\, .
+	\qquad
+\label{gtgyuy6ew5dtde32322jtmi}
+\end{EQA}
+To ensure identifiability, we add the penalty term \( \lambda \| \BEDR - \PEDR_{0} \|_{\Fr}^{2} \).
+This leads to
+\begin{EQA}
+	\LL_{\lambda}(\prmtv)
+	&=&
+	\LL(\PEDR,\thetav) +  \frac{\lambda}{2} \| \BEDR - \PEDR_{0} \|_{\Fr}^{2}
+	=
+	\frac{1}{4} \sum_{j} \biggl\| \Imav_{j} - \KSe_{j} \binom{\fcn_{j}}{\BEDR^{\T} \fclv_{j}} \biggr\|^{2} 
+	+ \frac{\lambda}{2} \| \BEDR - \PEDR_{0} \|_{\Fr}^{2}
+	\, .
+\label{gtgyuy6ew5dtde32322jtmiG}
+\end{EQA}
+Now define
+\begin{EQA}[c]
+	\prmtv_{0}
+	= 
+	\{ \BEDR_{0} \, , (\fcn_{j}^{(0)},\fclv_{j}^{(0)}) \} 
+	=
+	\arginf_{\prmtv} \LL_{\lambda}(\prmtv)
+	\, .
+\end{EQA}
+
+\Subsection{Structural adaptation}
+\label{SEDRsa}
+As already mentioned, the structural multi-index information about the model
+can be recoved from the gradient vectors \( \nabla \fs(\xv) \).
+More precisely, under \eqref{ucjcvjuvyvyf6r6rwjdy}, the matrix
+%by orthogonality of \( \betav_{1}, \ldots,\betav_{m} \)
+\begin{EQA}[c]
+	\JEDR
+	\eqdef
+	\sum_{j} \nabla \fs(\xv_{j}) \, \nabla \fs(\xv_{j})^{\T}
+	=
+	\sum_{j} \PEDR \fclv_{j} \, \bigl( \PEDR \fclv_{j} \bigr)^{\T}
+%	\biggl( \sum_{m=1}^{\dimm} \fcl_{j,m} \, \betav_{m} \biggr)^{\T}
+	=
+	\PEDR \biggl( \sum_{j} \fclv_{j} \, \fclv_{j}^{\T} \biggr) \PEDR^{\T}
+	\, .
+\end{EQA}
+accumulates the structural information about the model.
+The sum
+\begin{EQA}
+	\JEDR_{0}
+	\eqdef 
+	\sum_{j} (\BEDR_{0}^{\T} \fclv_{j}^{(0)}) \, (\BEDR_{0}^{\T} \fclv_{j}^{(0)})^{\T}
+	&=&
+	\BEDR_{0}^{\T} \Bigl( \sum_{j} \fclv_{j}^{(0)} \, {\fclv_{j}^{(0)}}^{\T} \Bigr) \BEDR_{0}
+\label{uhehdisnckncw9ud9}
+\end{EQA}
+is the first-step estimate 
+of \( \JEDR \) and represents the structural information learned after the first step.
+It can be used to improve the procedure.
+Namely, recompute \( \TEDR \) as
+\begin{EQA}
+	\TEDR^{2}
+	&=&
+	\hiso^{-2} \Id_{\dimd} + \haniso^{-2} \, \JEDR_{0}
+%	\sum_{m} \biggl( \sum_{j} \fcl_{j,m}^{2} \biggr) \betav_{m} \betav_{m}^{\T} 
+	\, ,
+\label{yfijowjdo76dvuienk}
+\end{EQA}
+with \( \hiso > \haniso \).
+The ratio \( \hiso / \haniso \) describes the degree of the kernel anisotropy.
+Also fix \( \PEDR_{0} \) using the eigenvalue decomposition of \( \JEDR_{0} \):
+\begin{EQA}[c]
+	\JEDR_{0}
+	=
+	\PEDR_{0}^{\T} \Lambda_{0} \, \PEDR_{0}
+	\; ,
+\end{EQA}
+where \( \Lambda_{0} \) is a diagonal matrix of rank \( \dimm \) with decreasing eigenvalues.
+
+This step can be iterated several times.
+The values \( \hiso, \haniso \) may change during iterations: 
+\( \haniso \) decreases at every step with a fixed factor 
+\( 2^{-1/\dimm} \), while \( \hiso \) is fixed by condition similar to \eqref{jhgiverkytde4w34etycja}.
+
+
+\Subsection{Implementation}
+\paragraph{Step 0}
+\begin{mylist}
+\item
+Generate the set \( (\xv_{j} \, , j \leq \JJJ) \).
+
+\item
+Fix \( \hiso_{0} \) as the smallest value ensuring
+\begin{EQA}[c]
+	\frac{1}{J}\sum_{j=1}^{J} 
+	\sumi \Kern\bigl( \hiso_{0}^{-2} \| \Xv_{i} - \xv_{j} \|^{2} \bigr)
+%	=
+%	\frac{1}{J}\sum_{j=1}^{J} \sumi \weight_{ij}
+	\geq 
+	\nmin
+	\, ;
+\end{EQA}
+Also, set \( \haniso_{0} = \hiso_{0} \);
+\item 
+for every \( j \leq \JJJ \), compute and store \( \Imav_{j}^{(0)} \) and \( \KSe_{j}^{(0)} \) by \eqref{ytd7e7ydwuhd5eythdY} and \eqref{ytd7e7ydwuhd5eythd}
+with 
+\begin{EQA}[c]
+	\weight_{ij} 
+	= 
+	\weight_{ij}^{(0)}
+	= 
+	\Kern\bigl( \hiso_{0}^{-2} \| \Xv_{i} - \xv_{j} \|^{2} \bigr) 
+	\, ;
+\end{EQA}
+\item 
+Find 
+\begin{EQA}[c]
+	\prmtv^{(0)} = \{ \BEDR_{0} \, , (\fcn_{j}^{(0)},\fclv_{j}^{(0)}) \} 
+	= 
+	\arginf_{\prmtv = \{ \BEDR \, , (\fcn_{j},\fclv_{j}) \}} \sum_{j} \biggl\| \Imav_{j}^{(0)} - \KSe_{j}^{(0)} \binom{\fcn_{j}}{\BEDR^{\T} \fclv_{j}} \biggr\|^{2}
+	\, .
+\end{EQA} 
+Here, the solution is not unique; any minimizer can be used.  
+%from \eqref{gtgyuy6ew5dtde32322jtmi by alternating minimization.
+
+\item 
+Compute
+\begin{EQA}[rcl]
+	\JEDR_{0}
+	\eqdef
+	\sum_{j} (\BEDR_{0}^{\T} {\fclv}_{j}^{(0)}) \, \bigl( \BEDR_{0}^{\T} {\fclv}_{j}^{(0)} \bigr)^{\T}
+	&=&
+	\BEDR_{0}^{\T} \Bigl( \sum_{j} {\fclv}_{j}^{(0)} \, ({\fclv}_{j}^{(0)})^{\T} \Bigr) \BEDR_{0}
+\end{EQA}
+and its SVD
+\begin{EQA}[c]
+	\JEDR_{0}
+	=
+	\PEDR_{0}^{\T} \Lambda_{0} \, \PEDR_{0}
+	\, ,
+	\qquad
+	\PEDR_{0} \, \PEDR_{0}^{\T}
+	= 
+	\Id_{\dimm}
+	\, ,
+	\quad
+	\Lambda_{0} = \diag(\lambda_{1} \geq \ldots \geq \lambda_{\dimm})
+	\, .
+\end{EQA}
+\end{mylist}
+
+
+\paragraph{Step \( k \)}
+
+\begin{mylist}
+\item 
+%:
+Increase \( k \) by one. 
+
+\item
+Update \( \haniso_{k} = \haniso_{k-1} / a \).
+
+\item
+With \( \TEDR_{k}(\hiso) \) given by
+\begin{EQA}[c]
+	\TEDR_{k}^{2}(\hiso)
+	\eqdef
+	\hiso^{-2} \Id_{\dimd} + \haniso_{k}^{-2} \, \JEDR_{k-1}
+	\qquad
+	\text{or }
+	\quad
+	\hiso^{-2} (\Id_{\dimd} - \PEDR_{k-1}^{\T} \PEDR_{k-1}) + \haniso^{-2} \, \JEDR_{k-1}
+	\, ,
+\end{EQA}
+{\color{blue} please, implement and compare both options}
+\\
+define \( \hiso_{k} \) by the condition
+\begin{EQA}[c]
+	\frac{1}{J} \sum_{j=1}^{J} \sumi 
+		\Kern\bigl( \| \TEDR_{k}(\hiso) \; (\Xv_{i} - \xv_{j}) \|^{2} \bigr)
+%	=
+%	\frac{1}{J}\sum_{j=1}^{J} \sumi \weight_{ij}
+	\geq 
+	\nmin
+	\, ,
+\label{jhgiverkytde4w34etycjam}
+\end{EQA}
+and fix \( \TEDR_{k} \) by 
+\begin{EQA}[rcl]
+	\TEDR_{k}
+	&=&
+	\TEDR_{k}(\hiso_{k})
+	\, .
+\end{EQA}
+
+\item 
+With \( \weight_{ij} = \weight_{ij}^{(k)} = \Kern\bigl( \TEDR_{k} (\Xv_{i} - \xv_{j}) \bigr) \), compute
+\( \Imav_{j}^{(k)} \), \( \KSe_{j}^{(k)} \) by \eqref{ytd7e7ydwuhd5eythdm} for all \( j \leq \JJJ \).
+
+\item
+For \( \prmtv = (\BEDR,(\fcn_{j},\fclv_{j})_{j \leq J}) \) with 
+\( \BEDR = (\betav_{1}, \ldots, \betav_{\dimm})^{\T} \in \R^{\dimm \times \dimd} \), 
+\( (\fcn_{j},\fclv_{j}) \in \R^{\dimm+1} \),
+solve by alternating optimization
+\begin{EQA}[c]
+	\prmtv^{(k)}
+	=
+	\arginf_{\prmtv = (\BEDR,(\fcn_{j},\fclv_{j})_{j \leq J})}
+	\sum_{j} \biggl\| \Imav_{j}^{(k)} - \KSe_{j}^{(k)} \binom{\fcn_{j}}{\BEDR^{\T} \fclv_{j}} \biggr\|^{2} 
+	+ \lambda \| \BEDR - \PEDR_{k-1} \|_{\Fr}^{2}
+	\, .
+\end{EQA}
+
+
+\item
+Compute the Jacobian matrix
+\begin{EQA}[rcl]
+	\JEDR_{k}
+	\eqdef
+	\sum_{j} (\BEDR_{k}^{\T} {\fclv}_{j}^{(k)}) \, \bigl( \BEDR_{k}^{\T} {\fclv}_{j}^{(k)} \bigr)^{\T}
+	&=&
+	\BEDR_{k}^{\T} \Bigl( \sum_{j} {\fclv}_{j}^{(k)} \, ({\fclv}_{j}^{(k)})^{\T} \Bigr) \BEDR_{k}
+\end{EQA}
+and its SVD
+\begin{EQA}[c]
+	\JEDR_{k}
+	=
+	\PEDR_{k}^{\T} \Lambda_{k} \, \PEDR_{k}
+	\, ,
+	\qquad
+	\PEDR_{k} \, \PEDR_{k}^{\T}
+	= 
+	\Id_{\dimm}
+	\, ,
+	\quad
+	\Lambda_{k} = \diag(\lambda_{1} \geq \ldots \geq \lambda_{\dimm})
+	\, .
+\end{EQA}
+
+\item
+Loop while \( \haniso_{k} \geq \haniso_{\min} \).
+
+\end{mylist}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  new section  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\Section{Manifold learning}
+
+Consider a regression \( Y_{i} = \fs(\Xv_{i}) + \eps_{i} \) with a high-dimensional \( \Xv_{i} \).
+The manifold hypothesis assumes that the function \( \fs(\cdot) \) has a nearly multi-index structure in a local vicinity 
+of each point \( \xv \in \R^{\dimd} \).
+The goal is to extend the multi-index procedure from Section~\ref{Smultind} to this situation 
+by allowing the mapping \( \PEDR \) to depend on the location \( \xv \) with a strong penalty on their variability.
+
+Suppose that the procedure has been initialized and a current solution is given in terms of 
+Jacobians \( \JEDR_{j}^{(k-1)} = \JEDR^{(k-1)}(\xv_{j}) \) and their SVD representation
+\begin{EQA}[c]
+	\JEDR_{j}^{(k-1)}
+	=
+	{\PEDR_{j}^{(k-1)}}^{\T} \Lambda_{j}^{(k-1)} \, \PEDR_{j}^{(k-1)} 
+	\, , 
+	\qquad
+	\PEDR_{j}^{(k-1)} \, {\PEDR_{j}^{(k-1)}}^{\T}
+	=
+	\Id_{\dimm}
+	\, .
+\end{EQA}
+Define \( \TEDR_{j}^{(k)}(\hiso) \) by
+\begin{EQA}[rcl]
+	\TEDR_{j}^{(k)}(\hiso)^{2}
+	&=&
+	\frac{1}{\hiso^{2}} \Id_{\dimd} + \frac{1}{\haniso_{k}^{2}} \, \JEDR_{j}^{(k-1)}
+	\qquad
+	\text{or }
+	\quad
+	\TEDR_{j}^{(k)}(\hiso)^{2}
+	=
+	\frac{1}{\hiso^{2}} (\Id_{\dimd} - {\PEDR_{j}^{(k-1)}}^{\T} \PEDR_{j}^{(k-1)}) 
+	+ \frac{1}{\haniso_{k}^{2}} \, \JEDR_{j}^{(k-1)}
+	\, ,
+\end{EQA}
+and fix \( \hiso_{k} \) by the condition
+\begin{EQA}[c]
+	\hiso_{k}
+	=
+	\inf \biggl\{ h \colon
+	\frac{1}{J} \sum_{j=1}^{J} \sumi 
+		\Kern\bigl( \| \TEDR_{j}^{(k)}(\hiso) \; (\Xv_{i} - \xv_{j}) \|^{2} \bigr)
+%	=
+%	\frac{1}{J}\sum_{j=1}^{J} \sumi \weight_{ij}
+	\geq 
+	\nmin
+	\biggr\}
+	\, .
+\label{jhgiverkytde4w34etycjamM}
+\end{EQA}
+Define 
+\begin{EQA}[c]
+	\TEDR_{j}^{(k)} = \TEDR_{j}^{(k)}(\hiso_{k}) 
+	\, ,
+	\qquad 	 
+	\weight_{ij}^{(k)} = \Kern\bigl( \TEDR_{j}^{(k)} (\Xv_{i} - \xv_{j}) \bigr) 
+	\, . 
+\end{EQA}
+Compute
+\( \Ima_{j}^{(k)} \), \( \KSe_{j}^{(k)} \) by \eqref{ytd7e7ydwuhd5eythdm} 
+with \( \weight_{ij} = \weight_{ij}^{(k)} \) for all \( j \leq \JJJ \).
+
+With \( \BEDR = (\BEDR_{j} \, , j \leq \JJJ) \) for 
+\( \BEDR_{j} = (\betav_{j,1}, \ldots, \betav_{j,\dimm})^{\T} \in \R^{\dimm \times \dimd} \), solve 
+\begin{EQA}[c]
+	\prmtv^{(k)}
+	=
+	\arginf_{\prmtv = (\BEDR,(\fcn_{j},\fclv_{j})_{j \leq J})}
+	\sum_{j} \biggl\| \Imav_{j}^{(k)} - \KSe_{j}^{(k)} \binom{\fcn_{j}}{\BEDR_{j}^{\T} \fclv_{j}} \biggr\|^{2} 
+	+ \lambda \| \BEDR - \PEDR_{k-1} \|_{\Fr}^{2}
+	+ \lambda_{\BEDR} \pent(\BEDR)
+	\, ,
+\end{EQA}
+where
+\begin{EQA}[c]
+	\pent(\BEDR)
+	\eqdef
+	\sum_{j,\jc} \| \BEDR_{\jc} (\Id_{\dimd} - \BEDR_{j}^{\T} \BEDR_{j}) \|_{\Fr}^{2} 
+	\;
+	\Kern\bigl( \| \TEDR_{j}^{(k)} (\xv_{\jc} - \xv_{j}) \|^{2} \bigr)
+	\, .
+\end{EQA}
+Compute
+\begin{EQA}[rcl]
+	\JEDR_{j}^{(k)}
+	\eqdef
+	\sum_{j} ({\BEDR_{j}^{(k)}}^{\T} {\fclv}_{j}^{(k)}) \, \bigl( {\BEDR_{j}^{(k)}}^{\T} {\fclv}_{j}^{(k)} \bigr)^{\T}
+	&=&
+	{\BEDR_{j}^{(k)}}^{\T} \Bigl( \sum_{j} {\fclv}_{j}^{(k)} \, ({\fclv}_{j}^{(k)})^{\T} \Bigr) \BEDR_{j}^{(k)}
+\end{EQA}
+and its SVD
+\begin{EQA}[c]
+	\JEDR_{j}^{(k)}
+	=
+	{\PEDR_{j}^{(k)}}^{\T} \Lambda_{j}^{(k)} \, \PEDR_{j}^{(k)}
+	\, ,
+	\qquad
+	\PEDR_{j}^{(k)} \, {\PEDR_{j}^{(k)}}^{\T}
+	= 
+	\Id_{\dimm}
+	\, ,
+	\quad
+	\Lambda_{j}^{(k)} = \diag(\lambda_{1} \geq \ldots \geq \lambda_{\dimm})
+	\, .
+\end{EQA}
+{\color{blue} first check that \( \lambda_{\BEDR} \approx \infty \) leads back to the multi-index solution.}
+\\
+Update \( \haniso_{k} \) by \( \haniso_{k+1} = \haniso_{k}/a \).
+If \( \haniso_{k+1} \geq \haniso_{\min} \),
+increase \( k \) by one and iterate.
+ 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  new section  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\Section{Average derivative procedure}
+\label{Saverder}
+
+One limitation of the proposed approach is its memory requirements: the \( (\dimd+1) \)-matrix \( \KSe_{j} \)
+has to be stored at every point \( \xv_{j} \).
+%
+This section provides a light modification of the method 
+which relaxes the memory requirements and is focused on estimation of the index subspace \( \EDR \).
+
+
+\Subsection{Single-index}
+\label{Saverdersi}
+The single-index procedure from Section~\ref{Ssingind} recovers 
+as the single-index vector \( \betav \), as the coefficients \( \fcn_{j}, \fcl_{j} \)
+describing the value and slope coefficients of the function \( \fs \) at the point \( \xv_{j} \).
+The average derivative approach focuses on estimation of directional derivatives. 
+We use the notations of Section~\ref{Ssingind}.
+
+Given a tensor \( \TEDR \), let the weights \( \weight_{ij} \) be defined as in \eqref{s7cuqkdwywdhbjwbfjwbdj}
+for all \( i=1,\ldots,n \) and \( j \leq \JJJ \).
+The main difference with the approach of Section~\ref{Ssingind} is the use of directional averaging. 
+For each point \( \xv_{j} \), we also generate a direction \( \ellv_{j} \in \R^{\dimd} \) and compute
+\begin{EQA}[c]
+	Z_{j}
+	\eqdef
+	\sumi Y_{i} \, \langle \Xv_{i} - \Sv_{j} \, ,\uv_{j} \rangle \, \weight_{ij}
+	\, ,
+	\qquad
+	\Sv_{j}
+	=
+	\sumi \Xv_{i} \, \weight_{ij}
+	\, .
+\label{juu8hjfioee433erhAVE}
+\end{EQA}
+The model equation \eqref{YifXieiedrSI} yields
+\begin{EQA}[c]
+	\E Z_{j}
+	=
+	\sumi \fs(\betav^{\T} \Xv_{i}) \, \langle \Xv_{i} - \Sv_{j} \, ,\uv_{j} \rangle \, \weight_{ij}
+	\, .
+\end{EQA}
+Moreover, an approximation \( \fs(t) \approx \fcn_{j} + \fcl_{j} (t - t_{j}) \) implies by definition of \( \Sv_{j} \)
+\begin{EQA}[rcl]
+	\E Z_{j}
+	& \approx &
+	\sumi \bigl\{ \fcn_{j} + \fcl_{j} \, \betav^{\T} (\Xv_{i} - \xv_{j}) \bigr\} \, \langle \Xv_{i} - \Sv_{j} \, ,\uv_{j} \rangle \, \weight_{ij}
+	\\
+	&=&
+	\sumi \fcl_{j} \, \betav^{\T} (\Xv_{i} - \Sv_{j}) \, \langle \Xv_{i} - \Sv_{j} \, ,\uv_{j} \rangle \, \weight_{ij}
+%	=
+%	\fcl_{j} \, \uv_{j}^{\T} \KSme_{j} \betav
+	=
+	\fcl_{j} \, \Uv_{j}^{\T} \betav
+	\, ,
+\end{EQA}
+where
+\begin{EQA}[c]
+	\Uv_{j}
+	\eqdef
+	\sumi (\Xv_{i} - \Sv_{j}) \, \langle \Xv_{i} - \Sv_{j} \, ,\uv_{j} \rangle  \, \weight_{ij}
+	=
+	\biggl\{ \sumi (\Xv_{i} - \Sv_{j}) \, (\Xv_{i} - \Sv_{j})^{\T} \, \weight_{ij} \biggr\} \, \uv_{j}
+	\, .
+	\qquad
+\label{uyhvvy883hierwfewAVE}
+\end{EQA}
+%Now we define
+%\begin{EQA}
+%	\LL_{\lambda}(\prmtv)
+%	&=&
+%	\frac{1}{2} \| \Imav - \imav \|^{2} 
+%	+ \frac{1}{2} \sum_{j} \Bigl\| \imav_{j} - \fcl_{j} \, \Uv_{j}^{\T} \betav \Bigr\|^{2} 
+%	+ \frac{\lambda}{2} \| \betav - \betav_{0} \|^{2} \, .
+%\label{tjjc7c6f5fAVE}
+%\end{EQA}
+This leads to the optimization problem
+\begin{EQA}[c]
+	\sum_{j} \bigl\| \Ima_{j} - \fcl_{j} \, \Uv_{j}^{\T} \betav \bigr\|^{2} + \lambda \| \betav - \betav_{0} \|^{2}
+	\to
+	\min_{\betav,(\fcl_{j})}
+	\, ,
+\label{ikdfjoiefjoieuAVE}
+\end{EQA}
+which can be solved by alternating minimization as for \eqref{ikdfjoiefjoieuvbjmr3e}.
+
+\paragraph{Implementation. Step 0}
+\begin{mylist}
+\item
+Generate points \( \xv_{j} \in \R^{\dimd} \) and directions \( \uv_{j} \in \R^{\dimd} \), \( j \leq \JJJ \).
+Fix \( \hiso_{0} \) as the smallest value ensuring
+\begin{EQA}[c]
+	\frac{1}{J}\sum_{j=1}^{J} 
+	\sumi \Kern\bigl( \hiso_{0}^{-2} \| \Xv_{i} - \xv_{j} \|^{2} \bigr)
+%	=
+%	\frac{1}{J}\sum_{j=1}^{J} \sumi \weight_{ij}
+	\geq 
+	\nmin
+	\, ;
+\end{EQA}
+Also, set \( \haniso_{0} = \hiso_{0} \);
+
+\item 
+for every \( j \leq \JJJ \), compute and store \( \Ima_{j} \) from \eqref{juu8hjfioee433erhAVE} and \( \Uv_{j} \) from \eqref{uyhvvy883hierwfewAVE}
+with 
+\begin{EQA}[c]
+	\weight_{ij} = \Kern\bigl( \hiso_{0}^{-2} \| \Xv_{i} - \xv_{j} \|^{2} \bigr) 
+	\, .
+\end{EQA}
+\item 
+Find \( \prmtv^{(0)} = \{ \betav^{(0)},(\fcl_{j}^{(0)}) \} \) by solving \eqref{ikdfjoiefjoieuAVE} using alternating minimization.
+\item 
+%:
+rescale \( \betav^{(0)} \) by \( \| \betav^{(0)} \|^{-1} \) and \( (\fcl_{j}^{(0)}) \) by \( \| \betav^{(0)} \| \) to ensure 
+\( \| \betav^{(0)} \| = 1 \).
+\end{mylist}
+
+\paragraph{Implementation. Step \( k \)}
+For \( k \geq 1 \), 
+\begin{mylist}
+
+\item 
+update \( \haniso_{k} = \haniso_{k-1} / a \);
+\item 
+define \( \hiso_{k} \) by the condition
+\begin{EQA}[c]
+	\frac{1}{J} \sum_{j=1}^{J} \sumi 
+		\Kern\Bigl( \hiso_{k}^{-2} \| \Xv_{i} - \xv_{j} \|^{2} + \haniso_{k}^{-2} \langle \Xv_{i} - \xv_{j}, \betav^{(k-1)} \rangle^{2} \Bigr)
+%	=
+%	\frac{1}{J}\sum_{j=1}^{J} \sumi \weight_{ij}
+	\geq 
+	\nmin
+	\, ,
+\label{jhgiverkytde4w34etyAVE}
+\end{EQA}
+and fix \( \TEDR_{k} \) in the form \eqref{iufhvu8kjbmnll475edf} with \( \betav = \betav^{(k-1)} \),
+\( \haniso = \haniso_{k} \), and \( \hiso = \hiso_{k} \):
+\begin{EQA}[rcl]
+	\TEDR_{k}^{2}
+	&=&
+	\hiso_{k}^{-2} \Id_{\dimd} + \haniso_{k}^{-2} \betav^{(k-1)} {\betav^{(k-1)}}^{\T}
+	\, .
+\label{iufhvu8kjbmnll475eAVE}
+\end{EQA}
+
+\item 
+for every \( j \leq \JJJ \), recompute and store \( \Ima_{j} \) and \( \Uv_{j} \) by \eqref{juu8hjfioee433erhAVE} and \eqref{uyhvvy883hierwfewAVE}
+with 
+\begin{EQA}[c]
+	\weight_{ij} 
+	= 
+	\weight_{ij}^{(k)}
+	= 
+	\Kern\bigl( \| \TEDR_{k} (\Xv_{i} - \xv_{j}) \|^{2} \bigr) 
+	\, ;
+\end{EQA}
+
+\item 
+Find \( \prmtv^{(k)} = \{ \betav^{(k)},(\fcl_{j}^{(k)}) \} \) by solving \eqref{ikdfjoiefjoieuAVE} 
+%with \( \weight_{ij} = \weight_{ij}^{(k)} = \Kern\bigl( \| \TEDR_{k} (\Xv_{i} - \xv_{j}) \|^{2} \bigr) \)
+ using alternating minimization.
+\item 
+%:
+rescale \( \betav^{(k)} \) by \( \| \betav^{(k)} \|^{-1} \) and \( (\fcl_{j}^{(k)}) \) by \( \| \betav^{(k)} \| \) to ensure 
+\( \| \betav^{(k)} \| = 1 \).
+\end{mylist}
+
+
+\paragraph{Loop}
+%
+Increase \( k \) and repeat while \( \haniso_{k} \geq \haniso_{\min} \).
+
+\Subsection{Multiple index procedure}
+\label{Saverdermi}
+An extension to a multiple index procedure is straightforward.
+Consider the e.d.r. regression problem
+\begin{EQA}
+	Y_{i}
+	&=&
+	\fs(\PEDR \Xv_{i}) + \eps_{i}
+\label{YifXieiedrAVE}
+\end{EQA}
+where \( \Xv_{i} \in \R^{\dimd} \) for large \( \dimd \), 
+\( \PEDR \) is an unknown element from the set \( \PROJ_{\dimd,\dimm} \) 
+of orthogonal mappings from 
+from \( \R^{\dimd} \) to \( \R^{\dimm} \) for \( \dimm \ll \dimd \), and
+\( \fs \) is a function on \( \R^{\dimm} \).
+The mapping \( \PEDR \) can be written as 
+\begin{EQA}
+	\PEDR \xv
+	&=&
+	(\betav_{1}^{\T} \xv) \betav_{1} + \ldots + (\betav_{\dimm}^{\T} \xv) \betav_{\dimm}
+	\, ,
+\label{ydgenb8jejAVE}
+\end{EQA}
+where \( \betav_{m}^{\T} \) are the orthonormal rows of \( \PEDR \).
+
+Suppose to be given a tensor \( \TEDR \), let the weights \( \weight_{ij} \) be defined as in \eqref{s7cuqkdwywdhbjwbfjwbdj}
+for all \( i=1,\ldots,n \) and \( j \leq \JJJ \).
+The sums \( Z_{j} \) from \eqref{juu8hjfioee433erhAVE} can be expanded as
+\begin{EQA}[rcl]
+	\E Z_{j}
+	& \approx &
+	\sumi \biggl\{ \fcn_{j} + \sum_{\mm=1}^{\dimm} \fcl_{j,\mm} \, \betav_{\mm}^{\T} (\Xv_{i} - \xv_{j}) \biggr\} \, \langle \Xv_{i} - \Sv_{j} \, ,\uv_{j} \rangle \, \weight_{ij}
+	\\
+	&=&
+	\sum_{\mm=1}^{\dimm} \sumi \fcl_{j,\mm} \, \betav_{\mm}^{\T} (\Xv_{i} - \Sv_{j}) \, \langle \Xv_{i} - \Sv_{j} \, ,\uv_{j} \rangle \, \weight_{ij}
+%	=
+%	\fcl_{j} \, \uv_{j}^{\T} \KSme_{j} \betav
+	=
+	\Uv_{j}^{\T} \sum_{\mm=1}^{\dimm} \fcl_{j,\mm} \, \betav_{\mm}
+	=
+	\fclv_{j}^{\T} \PEDR \, \Uv_{j}
+	\, .
+\end{EQA}
+Therefore, each step of the procedure can be reduced to optimization
+\begin{EQA}[c]
+	\sum_{j} \bigl\| \Ima_{j} - \fclv_{j}^{\T} \BEDR \, \Uv_{j} \bigr\|^{2} + \lambda \| \BEDR - \PEDR_{0} \|_{\Fr}^{2}
+	\to
+	\min_{\BEDR,(\fclv_{j})}
+	\, ,
+\label{ikdfjoiefjoieuAVEmi}
+\end{EQA}
+where \( \BEDR \in \R^{\dimm \times \dimd} \), \( \fclv_{j} \in \R^{\dimm} \).
+This problem can be effectively solved by alternating optimization.
+The obtained solution can be used for structural adaptation as described in Section~\ref{SEDRsa}.
+%
+The whole procedure reads as follows. 
+
+
+\paragraph{Implementation. Step 0}
+\begin{mylist}
+\item
+Generate the set \( (\xv_{j} \, , \uv_{j} \, , j \leq \JJJ) \).
+
+\item
+Fix \( \hiso_{0} \) as the smallest value ensuring
+\begin{EQA}[c]
+	\frac{1}{J}\sum_{j=1}^{J} 
+	\sumi \Kern\bigl( \hiso_{0}^{-2} \| \Xv_{i} - \xv_{j} \|^{2} \bigr)
+%	=
+%	\frac{1}{J}\sum_{j=1}^{J} \sumi \weight_{ij}
+	\geq 
+	\nmin
+	\, ;
+\end{EQA}
+Also, set \( \haniso_{0} = \hiso_{0} \);
+\item 
+for every \( j \leq \JJJ \), compute and store \( \Ima_{j}^{(0)} \) and \( \Uv_{j}^{(0)} \) 
+by \eqref{juu8hjfioee433erhAVE} and \eqref{uyhvvy883hierwfewAVE} with 
+\begin{EQA}[c]
+	\weight_{ij} 
+	= 
+	\weight_{ij}^{(0)}
+	= 
+	\Kern\bigl( \hiso_{0}^{-2} \| \Xv_{i} - \xv_{j} \|^{2} \bigr) 
+	\, .
+\end{EQA}
+\item 
+Find 
+\begin{EQA}[c]
+	\prmtv^{(0)} = \{ \BEDR_{0} \, , (\fclv_{j}^{(0)}) \} 
+	= 
+	\arginf_{\prmtv = \{ \BEDR \, , (\fclv_{j}) \}} \sum_{j} \biggl\| \Ima_{j}^{(0)} - \fclv_{j}^{\T} \BEDR \, \Uv_{j} \biggr\|^{2}
+	\, .
+\end{EQA} 
+Here, the solution is not unique; any minimizer can be used.  
+%from \eqref{gtgyuy6ew5dtde32322jtmi by alternating minimization.
+
+\item 
+Compute
+\begin{EQA}[rcl]
+	\JEDR_{0}
+	\eqdef
+	\sum_{j} (\BEDR_{0}^{\T} {\fclv}_{j}^{(0)}) \, \bigl( \BEDR_{0}^{\T} {\fclv}_{j}^{(0)} \bigr)^{\T}
+	&=&
+	\BEDR_{0}^{\T} \Bigl( \sum_{j} {\fclv}_{j}^{(0)} \, ({\fclv}_{j}^{(0)})^{\T} \Bigr) \BEDR_{0}
+\end{EQA}
+and its SVD
+\begin{EQA}[c]
+	\JEDR_{0}
+	=
+	\PEDR_{0}^{\T} \Lambda_{0} \, \PEDR_{0}
+	\, ,
+	\qquad
+	\PEDR_{0} \, \PEDR_{0}^{\T}
+	= 
+	\Id_{\dimm}
+	\, ,
+	\quad
+	\Lambda_{0} = \diag(\lambda_{1} \geq \ldots \geq \lambda_{\dimm})
+	\, .
+\end{EQA}
+\end{mylist}
+
+
+\paragraph{Step \( k \)}
+
+\begin{mylist}
+\item 
+%:
+Increase \( k \) by one. 
+
+\item
+Update \( \haniso_{k} = \haniso_{k-1} / a \).
+
+\item
+With \( \TEDR_{k}(\hiso) \) given by
+\begin{EQA}[c]
+	\TEDR_{k}^{2}(\hiso)
+	\eqdef
+	\hiso^{-2} \Id_{\dimd} + \haniso_{k}^{-2} \, \JEDR_{k-1}
+	\qquad
+	\text{or }
+	\quad
+	\hiso^{-2} (\Id_{\dimd} - \PEDR_{k-1}^{\T} \PEDR_{k-1}) + \haniso^{-2} \, \JEDR_{k-1}
+	\, ,
+\end{EQA}
+{\color{blue} please, implement and compare both options}
+\\
+define \( \hiso_{k} \) by the condition
+\begin{EQA}[c]
+	\frac{1}{J} \sum_{j=1}^{J} \sumi 
+		\Kern\bigl( \| \TEDR_{k}(\hiso) \; (\Xv_{i} - \xv_{j}) \|^{2} \bigr)
+%	=
+%	\frac{1}{J}\sum_{j=1}^{J} \sumi \weight_{ij}
+	\geq 
+	\nmin
+	\, ,
+\label{jhgiverkytde4w34etycjam}
+\end{EQA}
+and fix \( \TEDR_{k} \) by 
+\begin{EQA}[rcl]
+	\TEDR_{k}
+	&=&
+	\TEDR_{k}(\hiso_{k})
+	\, .
+\end{EQA}
+
+\item 
+With \( \weight_{ij} = \weight_{ij}^{(k)} = \Kern\bigl( \TEDR_{k} (\Xv_{i} - \xv_{j}) \bigr) \), compute
+\( \Ima_{j}^{(k)} \), \( \Uv_{j}^{(k)} \) by \eqref{ytd7e7ydwuhd5eythdm} for all \( j \leq \JJJ \).
+
+\item
+For \( \prmtv = (\BEDR,(\fclv_{j})_{j \leq J}) \) with 
+\( \BEDR = (\betav_{1}, \ldots, \betav_{\dimm})^{\T} \in \R^{\dimm \times \dimd} \), 
+\( \fclv_{j} \in \R^{\dimm} \), solve by alternating optimization
+\begin{EQA}[c]
+	\prmtv^{(k)}
+	=
+	\arginf_{\prmtv = (\BEDR,(\fclv_{j})_{j \leq J})}
+	\sum_{j} \bigl\| \Ima_{j}^{(k)} - \fclv_{j}^{\T} \BEDR \, \Uv_{j}^{(k)} \bigr\|^{2} 
+	+ \lambda \| \BEDR - \PEDR_{k-1} \|_{\Fr}^{2}
+	\, .
+\end{EQA}
+
+
+\item
+Compute the Jacobian matrix
+\begin{EQA}[rcl]
+	\JEDR_{k}
+	\eqdef
+	\sum_{j} (\BEDR_{k}^{\T} {\fclv}_{j}^{(k)}) \, \bigl( \BEDR_{k}^{\T} {\fclv}_{j}^{(k)} \bigr)^{\T}
+	&=&
+	\BEDR_{k}^{\T} \Bigl( \sum_{j} {\fclv}_{j}^{(k)} \, ({\fclv}_{j}^{(k)})^{\T} \Bigr) \BEDR_{k}
+\end{EQA}
+and its SVD
+\begin{EQA}[c]
+	\JEDR_{k}
+	=
+	\PEDR_{k}^{\T} \Lambda_{k} \, \PEDR_{k}
+	\, ,
+	\qquad
+	\PEDR_{k} \, \PEDR_{k}^{\T}
+	= 
+	\Id_{\dimm}
+	\, ,
+	\quad
+	\Lambda_{k} = \diag(\lambda_{1} \geq \ldots \geq \lambda_{\dimm})
+	\, .
+\end{EQA}
+
+\item
+Loop while \( \haniso_{k} \geq \haniso_{\min} \).
+
+\end{mylist}
