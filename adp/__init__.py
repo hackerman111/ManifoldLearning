@@ -17,7 +17,7 @@ from .core import (
     RandomProjectionADP,
     TrainingStep,
 )
-from .benchmarks import BenchmarkScenario, benchmark_summary, default_scenarios, run_benchmark_suite, save_benchmark_report
+from .benchmarks import BenchmarkScenario, benchmark_summary, default_scenarios, grid_scenarios, run_benchmark_suite, save_benchmark_report
 
 __all__ = [
     "ADP",
@@ -31,6 +31,7 @@ __all__ = [
     "BenchmarkScenario",
     "benchmark_summary",
     "default_scenarios",
+    "grid_scenarios",
     "run_benchmark_suite",
     "save_benchmark_report",
 ]

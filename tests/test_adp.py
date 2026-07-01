@@ -1,4 +1,7 @@
+from pathlib import Path
+
 import numpy as np
+import pytest
 
 import adp.core as adp_core
 from adp import ADP, ADPConfig
@@ -73,7 +76,16 @@ def test_old_variant_uses_full_local_moment_statistics_without_random_projection
     assert metrics["cosine_abs"] > 0.8
 
 
-def test_torch_backend_smoke_uses_same_public_api():
+def test_backend_is_numpy_only():
+    with pytest.raises(ValueError, match="Only numpy"):
+        ADP.create("new", ADPConfig(backend="gpu"))
+
+    package_text = "\n".join(path.read_text() for path in Path("adp").rglob("*.py"))
+    assert "torch" not in package_text.lower()
+    assert "cupy" not in package_text.lower()
+
+
+def test_numpy_backend_smoke_uses_public_api():
     model = ADP.create(
         "new",
         ADPConfig(
@@ -82,7 +94,6 @@ def test_torch_backend_smoke_uses_same_public_api():
             min_neighbors=5,
             outer_steps=1,
             inner_steps=3,
-            backend="torch",
             show_progress=False,
             random_state=4,
         ),
@@ -91,7 +102,7 @@ def test_torch_backend_smoke_uses_same_public_api():
 
     result = model.fit(data.X, data.y, beta0=data.beta)
 
-    assert result.backend == "torch"
+    assert result.backend == "numpy"
     assert np.isfinite(result.objective)
     assert np.isclose(np.linalg.norm(result.beta), 1.0)
 
