@@ -7,8 +7,23 @@ from typing import Any
 import pandas as pd
 
 
-def save_benchmark_report(frame: pd.DataFrame, output_dir: str | Path, *, prefix: str = "adp_benchmark", dpi: int = 150) -> dict[str, Path]:
-    """Сохранить CSV и обзорные графики качества/времени."""
+def save_benchmark_report(
+    frame: pd.DataFrame,  # Таблица benchmark-результатов.
+    output_dir: str | Path,  # Каталог отчета.
+    *,
+    prefix: str = "adp_benchmark",  # Префикс файлов.
+    dpi: int = 150,  # Разрешение PNG.
+) -> dict[str, Path]:
+    """Сохраняет CSV и обзорные графики benchmark.
+
+    Вход:
+        frame: таблица результатов.
+        output_dir: каталог для файлов.
+        prefix: префикс имен.
+        dpi: разрешение PNG.
+    Выход:
+        Словарь имя_артефакта -> Path.
+    """
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -40,8 +55,16 @@ def save_benchmark_report(frame: pd.DataFrame, output_dir: str | Path, *, prefix
     return saved
 
 
-def benchmark_summary(frame: pd.DataFrame) -> pd.DataFrame:
-    """Сводная таблица по качеству и времени."""
+def benchmark_summary(
+    frame: pd.DataFrame,  # Таблица benchmark-результатов.
+) -> pd.DataFrame:
+    """Строит сводную таблицу по качеству, времени и памяти.
+
+    Вход:
+        frame: таблица результатов run_benchmark_suite.
+    Выход:
+        DataFrame со средними, std и 95% CI.
+    """
 
     summary = (
         frame.groupby(["scenario", "method"])
@@ -62,8 +85,16 @@ def benchmark_summary(frame: pd.DataFrame) -> pd.DataFrame:
     return add_confidence_intervals(summary)
 
 
-def add_confidence_intervals(summary: pd.DataFrame) -> pd.DataFrame:
-    """Добавляет 95% доверительные интервалы для средних значений."""
+def add_confidence_intervals(
+    summary: pd.DataFrame,  # Сводная таблица без CI.
+) -> pd.DataFrame:
+    """Добавляет 95% доверительные интервалы для средних значений.
+
+    Вход:
+        summary: таблица со средними, std и count.
+    Выход:
+        Копия таблицы с *_ci95_low/high колонками.
+    """
 
     result = summary.copy()
     for value in ("cosine_abs", "angle_deg", "fit_time_sec", "peak_memory_kib"):
@@ -78,8 +109,25 @@ def add_confidence_intervals(summary: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
-def plot_grouped_bars(ax: Any, frame: pd.DataFrame, *, value: str, ylabel: str, title: str) -> None:
-    """Рисует grouped bar chart для benchmark-таблицы."""
+def plot_grouped_bars(
+    ax: Any,  # Matplotlib axis.
+    frame: pd.DataFrame,  # Таблица scenario/method/value.
+    *,
+    value: str,  # Имя числовой колонки.
+    ylabel: str,  # Подпись оси y.
+    title: str,  # Заголовок графика.
+) -> None:
+    """Рисует grouped bar chart для benchmark-таблицы.
+
+    Вход:
+        ax: axis для рисования.
+        frame: таблица со столбцами scenario, method и value.
+        value: имя значения.
+        ylabel: подпись оси y.
+        title: заголовок.
+    Выход:
+        None; график рисуется на ax.
+    """
 
     pivot = frame.pivot(index="scenario", columns="method", values=value)
     pivot.plot(kind="bar", ax=ax)
@@ -90,8 +138,21 @@ def plot_grouped_bars(ax: Any, frame: pd.DataFrame, *, value: str, ylabel: str, 
     ax.legend(title="method", fontsize="small")
 
 
-def save_figure(fig: Any, path: Path, *, dpi: int = 150) -> Path:
-    """Сохраняет figure и закрывает её."""
+def save_figure(
+    fig: Any,  # Matplotlib figure.
+    path: Path,  # Путь сохранения.
+    *,
+    dpi: int = 150,  # Разрешение PNG.
+) -> Path:
+    """Сохраняет figure и закрывает ее.
+
+    Вход:
+        fig: matplotlib figure.
+        path: путь к файлу.
+        dpi: разрешение.
+    Выход:
+        Path сохраненного файла.
+    """
 
     fig.tight_layout()
     fig.savefig(path, dpi=dpi)
@@ -103,7 +164,13 @@ def save_figure(fig: Any, path: Path, *, dpi: int = 150) -> Path:
 
 
 def ensure_matplotlib_config_dir() -> None:
-    """Готовит MPLCONFIGDIR для headless-окружений."""
+    """Готовит MPLCONFIGDIR для headless-окружений.
+
+    Вход:
+        Нет явных аргументов.
+    Выход:
+        None; при необходимости обновляет os.environ.
+    """
 
     if "MPLCONFIGDIR" in os.environ:
         return

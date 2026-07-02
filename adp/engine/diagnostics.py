@@ -9,14 +9,18 @@ from ..common.plotting import ensure_matplotlib_config_dir, save_figure
 from ..common.types import ADPResult
 from ..common.utils import unit_vector
 
-class DiagnosticsMixin:
-    """Методы оценки результата и сохранения диагностик."""
 
-    def score(self, beta_true: np.ndarray) -> dict[str, float]:
+class DiagnosticsMixin:
+    """Оценка качества, summary и диагностические графики."""
+
+    def score(
+        self,
+        beta_true: np.ndarray,  # Истинное EDR-направление.
+    ) -> dict[str, float]:
         """Считает метрики восстановления направления beta.
 
         Вход:
-            beta_true: истинное EDR-направление.
+            beta_true: истинное направление beta.
         Выход:
             Словарь cosine, cosine_abs, angle_deg и signed_l2.
         """
@@ -34,13 +38,15 @@ class DiagnosticsMixin:
             "signed_l2": float(signed_l2),
         }
 
-    def summary(self) -> dict[str, Any]:
+    def summary(
+        self,  # Обученная модель ADP.
+    ) -> dict[str, Any]:
         """Возвращает краткую сводку обученной модели.
 
         Вход:
-            self: обученная модель ADP.
+            self: модель после fit(...).
         Выход:
-            Словарь с параметрами варианта, прогрессом и путями диагностик.
+            Словарь параметров, прогресса, timings и путей графиков.
         """
 
         result = self._require_result()
@@ -57,16 +63,23 @@ class DiagnosticsMixin:
             "timings": dict(result.timings),
         }
 
-    def plot_history(self, ax: Any = None, *, save_path: str | Path | None = None, dpi: int = 150, close: bool = False) -> Any:
+    def plot_history(
+        self,
+        ax: Any = None,  # Существующая matplotlib axis или None.
+        *,
+        save_path: str | Path | None = None,  # Путь сохранения или None.
+        dpi: int = 150,  # Разрешение PNG.
+        close: bool = False,  # Закрыть figure после сохранения.
+    ) -> Any:
         """Рисует историю objective.
 
         Вход:
-            ax: существующая matplotlib axis или None.
-            save_path: путь сохранения графика или None.
-            dpi: разрешение сохраняемого изображения.
-            close: закрыть figure после сохранения.
+            ax: axis для рисования или None.
+            save_path: путь сохранения или None.
+            dpi: разрешение.
+            close: закрывать ли figure.
         Выход:
-            Axis с нарисованной историей.
+            Axis с графиком.
         """
 
         result = self._require_result()
@@ -86,23 +99,23 @@ class DiagnosticsMixin:
 
     def save_diagnostics(
         self,
-        output_dir: str | Path,
+        output_dir: str | Path,  # Каталог для PNG-файлов.
         *,
-        beta_true: np.ndarray | None = None,
-        prefix: str = "adp",
-        dpi: int = 150,
-        close: bool = True,
+        beta_true: np.ndarray | None = None,  # Истинное beta для сравнения.
+        prefix: str = "adp",  # Префикс имен файлов.
+        dpi: int = 150,  # Разрешение PNG.
+        close: bool = True,  # Закрывать figures после сохранения.
     ) -> dict[str, Path]:
         """Строит и сохраняет стандартные диагностические графики.
 
         Вход:
-            output_dir: каталог для PNG-файлов.
-            beta_true: истинное направление beta для сравнительного графика.
-            prefix: префикс имён файлов.
-            dpi: разрешение изображений.
-            close: закрывать figures после сохранения.
+            output_dir: каталог для графиков.
+            beta_true: истинное направление beta или None.
+            prefix: префикс файлов.
+            dpi: разрешение.
+            close: закрывать ли figures.
         Выход:
-            Словарь имя_графика -> путь.
+            Словарь имя_графика -> Path.
         """
 
         result = self._require_result()
@@ -172,27 +185,33 @@ class DiagnosticsMixin:
             self._remember_diagnostic_plot(name, path)
         return saved
 
-    def _remember_diagnostic_plot(self, name: str, path: Path) -> None:
+    def _remember_diagnostic_plot(
+        self,
+        name: str,  # Логическое имя графика.
+        path: Path,  # Путь к сохраненному PNG.
+    ) -> None:
         """Запоминает путь к диагностическому графику.
 
         Вход:
-            name: логическое имя графика.
-            path: путь к сохранённому файлу.
+            name: имя графика.
+            path: путь к файлу.
         Выход:
-            None; обновляет модель и текущий ADPResult.
+            None; обновляет модель и ADPResult.
         """
 
         self.diagnostic_plots_[name] = path
         if self.result_ is not None:
             self.result_.diagnostic_plots[name] = path
 
-    def _require_result(self) -> ADPResult:
-        """Возвращает обученный результат или ошибку.
+    def _require_result(
+        self,  # Модель ADP.
+    ) -> ADPResult:
+        """Возвращает обученный результат или выбрасывает ошибку.
 
         Вход:
             self: модель ADP.
         Выход:
-            ADPResult последнего fit.
+            Последний ADPResult.
         """
 
         if self.result_ is None:

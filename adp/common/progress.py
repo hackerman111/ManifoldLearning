@@ -5,13 +5,15 @@ from typing import Any
 import numpy as np
 
 
-def format_float(value: float) -> str:
-    """Форматирует число для компактного вывода прогресса.
+def format_float(
+    value: float,  # Число для вывода.
+) -> str:
+    """Форматирует число для компактного tqdm postfix.
 
     Вход:
         value: исходное число.
     Выход:
-        Строка с обычной или scientific notation записью.
+        Строка для отображения в progress bar.
     """
 
     number = float(value)
@@ -24,13 +26,15 @@ def format_float(value: float) -> str:
     return f"{number:.4g}"
 
 
-def format_progress_postfix(record: dict[str, Any]) -> dict[str, Any]:
-    """Готовит значения postfix для tqdm.
+def format_progress_postfix(
+    record: dict[str, Any],  # Сырой словарь прогресса.
+) -> dict[str, Any]:
+    """Готовит словарь postfix для tqdm.
 
     Вход:
-        record: сырой словарь прогресса после outer-шага.
+        record: диагностический словарь одного outer-шага.
     Выход:
-        Словарь компактных строк и чисел для отображения.
+        Словарь с короткими строками для tqdm.set_postfix(...).
     """
 
     postfix: dict[str, Any] = {

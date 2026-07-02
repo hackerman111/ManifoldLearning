@@ -16,10 +16,16 @@ BackendName = Literal["numpy"]
 
 @dataclass(slots=True)
 class ADPConfig:
-    """Настройки ADP.
+    """Настройки Average Derivative Procedure.
 
-    Сейчас реализован одномерный EDR-вектор beta. Поле target_dim оставлено,
-    чтобы позже расширить solver до multi-index варианта из manifold_new.tex.
+    Смысл:
+        Хранит все численные параметры обучения. Сейчас реализован один
+        EDR-вектор beta, а поле target_dim оставлено для будущего multi-index
+        расширения из TeX-файлов.
+    Вход:
+        Значения полей dataclass.
+    Выход:
+        Объект конфигурации, который передается в ADP.create(...).
     """
 
     n_centers: int | None = None
@@ -43,33 +49,45 @@ class ADPConfig:
     random_state: int | None = None
     use_neighbor_index: bool = True
 
-    def __post_init__(self) -> None:
-        """Проверяет корректность backend.
+    def __post_init__(
+        self,  # Текущая конфигурация ADP.
+    ) -> None:
+        """Проверяет поддерживаемость backend.
 
         Вход:
-            self: текущий объект конфигурации.
+            self: текущая конфигурация.
         Выход:
-            None; выбрасывает ValueError для неподдержанного backend.
+            None; при неподдержанном backend выбрасывает ValueError.
         """
 
         if self.backend != "numpy":
             raise ValueError("Only numpy backend is supported")
 
-    def resolved_lambda(self) -> float:
-        """Возвращает штраф регуляризации beta.
+    def resolved_lambda(
+        self,  # Текущая конфигурация ADP.
+    ) -> float:
+        """Возвращает штраф регуляризации для beta.
 
         Вход:
-            self: текущий объект конфигурации.
+            self: текущая конфигурация.
         Выход:
-            Число lambda_penalty или min_neighbors, если lambda_penalty не задан.
+            lambda_penalty, если он задан, иначе min_neighbors.
         """
 
-        return float(self.min_neighbors if self.lambda_penalty is None else self.lambda_penalty)
+        if self.lambda_penalty is None:
+            return float(self.min_neighbors)
+        return float(self.lambda_penalty)
 
 
 @dataclass(slots=True)
 class ADPData:
-    """Сгенерированные данные single-index модели."""
+    """Сгенерированные данные single-index модели.
+
+    Вход:
+        Поля dataclass после генерации данных.
+    Выход:
+        Контейнер с X, y, истинным beta, центрами и направлениями.
+    """
 
     X: np.ndarray
     y: np.ndarray
@@ -82,7 +100,13 @@ class ADPData:
 
 @dataclass(slots=True)
 class LocalStatistics:
-    """Локальные суммы, нужные конкретному варианту ADP."""
+    """Локальные суммы, которые входят в objective ADP.
+
+    Вход:
+        Поля dataclass после вычисления локальных статистик.
+    Выход:
+        Контейнер со статистиками конкретного варианта new или old.
+    """
 
     variant: VariantName
     imav: np.ndarray
@@ -100,7 +124,13 @@ class LocalStatistics:
 
 @dataclass(slots=True)
 class TrainingStep:
-    """Одна внутренняя итерация обучения ADP."""
+    """Одна внутренняя итерация alternating solver.
+
+    Вход:
+        Поля dataclass после внутреннего шага.
+    Выход:
+        Запись истории обучения.
+    """
 
     outer: int
     inner: int
@@ -113,7 +143,13 @@ class TrainingStep:
 
 @dataclass(slots=True)
 class ADPResult:
-    """Итог обучения ADP."""
+    """Итог обучения ADP.
+
+    Вход:
+        Поля dataclass после model.fit(...).
+    Выход:
+        Контейнер с beta, локальными коэффициентами и диагностикой.
+    """
 
     beta: np.ndarray
     intercepts: np.ndarray
@@ -127,13 +163,15 @@ class ADPResult:
     diagnostic_plots: dict[str, Path] = field(default_factory=dict)
 
     @property
-    def projector(self) -> np.ndarray:
-        """Строит проектор на EDR-направление.
+    def projector(
+        self,  # Результат обучения с найденным beta.
+    ) -> np.ndarray:
+        """Строит ортогональный проектор на найденное EDR-направление.
 
         Вход:
-            self: результат с найденным beta.
+            self: результат ADP.
         Выход:
-            Матрица ортогонального проектора beta beta^T.
+            Матрица beta beta^T размера d x d.
         """
 
         beta = np.asarray(self.beta, dtype=float).reshape(-1)
@@ -141,14 +179,17 @@ class ADPResult:
         return np.outer(beta, beta)
 
     @property
-    def basis(self) -> np.ndarray:
+    def basis(
+        self,  # Результат обучения с найденным beta.
+    ) -> np.ndarray:
         """Возвращает EDR-базис через eig/SVD-совместимый API.
 
         Вход:
-            self: результат с найденным beta.
+            self: результат ADP.
         Выход:
-            Матрица размера 1 x d с ведущим базисным направлением.
+            Матрица размера 1 x d с ведущим направлением.
         """
 
         values, vectors = linalg.eigh(self.projector)
-        return vectors[:, np.argsort(values)[::-1][:1]].T
+        order = np.argsort(values)[::-1][:1]
+        return vectors[:, order].T

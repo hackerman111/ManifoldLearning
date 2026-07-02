@@ -1,1 +1,1 @@
-"""Общий цикл обучения и mixin-части ADP."""
+"""Общий training engine ADP."""

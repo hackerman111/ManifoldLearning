@@ -8,51 +8,64 @@ from ..common.types import KernelName
 
 
 class NumpyBackend:
-    """NumPy-реализация тяжёлых локальных сумм."""
+    """NumPy-реализация тяжелых локальных сумм."""
 
-    def __init__(self, dtype: str = "float64"):
-        """Создаёт backend с нужной точностью.
+    def __init__(
+        self,
+        dtype: str = "float64",  # Числовая точность backend.
+    ) -> None:
+        """Создает backend с нужной точностью.
 
         Вход:
-            dtype: строковое имя точности, поддерживаются float64 и float32.
+            dtype: строковое имя точности, float64 или float32.
         Выход:
-            None; сохраняет параметры backend в объекте.
+            None; параметры сохраняются в объекте.
         """
 
         self.name = "numpy"
         self.dtype_name = dtype
         self.dtype = np.float64 if dtype == "float64" else np.float32
 
-    def asarray(self, value: np.ndarray) -> Any:
-        """Приводит массив к backend dtype.
+    def asarray(
+        self,
+        value: np.ndarray,  # Исходное значение.
+    ) -> Any:
+        """Приводит массив к dtype backend.
 
         Вход:
-            value: исходный массив.
+            value: объект, совместимый с np.asarray.
         Выход:
-            NumPy-массив с выбранной точностью.
+            NumPy-массив выбранной точности.
         """
 
         return np.asarray(value, dtype=self.dtype)
 
-    def to_numpy(self, value: Any) -> np.ndarray:
+    def to_numpy(
+        self,
+        value: Any,  # Значение backend.
+    ) -> np.ndarray:
         """Возвращает значение как NumPy-массив.
 
         Вход:
-            value: объект, совместимый с np.asarray.
+            value: значение backend.
         Выход:
             NumPy-представление value.
         """
 
         return np.asarray(value)
 
-    def kernel(self, q: Any, name: KernelName) -> Any:
-        """Вычисляет веса ядра.
+    def kernel(
+        self,
+        q: Any,  # Значения квадратичной формы.
+        name: KernelName,  # Имя ядра.
+    ) -> Any:
+        """Вычисляет локальные веса ядра.
 
         Вход:
-            q: квадратичная форма расстояний.
-            name: имя ядра.
+            q: массив значений квадратичной формы.
+            name: epanechnikov, quartic или gaussian.
         Выход:
-            Массив весов той же формы, что и q.
+            Массив весов той же формы.
         """
 
         if name == "gaussian":
@@ -63,67 +76,67 @@ class NumpyBackend:
 
     def random_projection_sums(
         self,
-        diff: np.ndarray,
-        y: np.ndarray,
-        directions: np.ndarray,
-        q: np.ndarray,
-        kernel: KernelName,
+        diff: np.ndarray,  # Разности X_i - c_j для блока центров.
+        y: np.ndarray,  # Вектор ответов длины n.
+        directions: np.ndarray,  # Направления блока C x P x d.
+        q: np.ndarray,  # Значения квадратичной формы C x n.
+        kernel: KernelName,  # Имя ядра.
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
         """Считает суммы Ima, S, U для new-варианта.
 
         Вход:
-            diff: разности X_i - c_j для блока центров.
+            diff: массив C x n x d.
             y: вектор ответов.
-            directions: случайные направления для блока центров.
-            q: значения квадратичной формы для ядра.
+            directions: массив C x P x d.
+            q: значения локальной квадратичной формы.
             kernel: имя ядра.
         Выход:
-            Кортеж imav, S, U и среднего локального веса.
+            Кортеж imav, S, U и средней локальной массы.
         """
 
         xdiff = self.asarray(diff)
         xy = self.asarray(y)
         xdirs = self.asarray(directions)
         xq = self.asarray(q)
-        w = self.kernel(xq, kernel)
-        proj = np.einsum("cnd,cpd->cnp", xdiff, xdirs)
-        imav = np.einsum("n,cn,cnp->cp", xy, w, proj)
-        s_vec = np.einsum("cn,cnp->cp", w, proj)
-        u_mat = np.einsum("cnd,cn,cnp->cpd", xdiff, w, proj)
+        weights = self.kernel(xq, kernel)
+        projected = np.einsum("cnd,cpd->cnp", xdiff, xdirs)
+        imav = np.einsum("n,cn,cnp->cp", xy, weights, projected)
+        s_vec = np.einsum("cn,cnp->cp", weights, projected)
+        u_mat = np.einsum("cnd,cn,cnp->cpd", xdiff, weights, projected)
         return (
             self.to_numpy(imav),
             self.to_numpy(s_vec),
             self.to_numpy(u_mat),
-            float(self.to_numpy(w.sum(axis=1)).mean()),
+            float(self.to_numpy(weights.sum(axis=1)).mean()),
         )
 
     def full_moment_sums(
         self,
-        diff: np.ndarray,
-        y: np.ndarray,
-        q: np.ndarray,
-        kernel: KernelName,
+        diff: np.ndarray,  # Разности X_i - c_j для блока центров.
+        y: np.ndarray,  # Вектор ответов длины n.
+        q: np.ndarray,  # Значения квадратичной формы C x n.
+        kernel: KernelName,  # Имя ядра.
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
         """Считает Ima, N, S, VP для old-варианта.
 
         Вход:
-            diff: разности X_i - c_j для блока центров.
+            diff: массив C x n x d.
             y: вектор ответов.
-            q: значения квадратичной формы для ядра.
+            q: значения локальной квадратичной формы.
             kernel: имя ядра.
         Выход:
-            Кортеж imav, N, S, VP и среднего локального веса.
+            Кортеж imav, N, S, VP и средней локальной массы.
         """
 
         xdiff = self.asarray(diff)
         xy = self.asarray(y)
         xq = self.asarray(q)
-        w = self.kernel(xq, kernel)
-        im0 = np.einsum("n,cn->c", xy, w)
-        im1 = np.einsum("n,cn,cnd->cd", xy, w, xdiff)
-        n_vec = w.sum(axis=1)
-        s_vec = np.einsum("cn,cnd->cd", w, xdiff)
-        vp = np.einsum("cn,cnd,cne->cde", w, xdiff, xdiff)
+        weights = self.kernel(xq, kernel)
+        im0 = np.einsum("n,cn->c", xy, weights)
+        im1 = np.einsum("n,cn,cnd->cd", xy, weights, xdiff)
+        n_vec = weights.sum(axis=1)
+        s_vec = np.einsum("cn,cnd->cd", weights, xdiff)
+        vp = np.einsum("cn,cnd,cne->cde", weights, xdiff, xdiff)
         imav = np.concatenate([im0[:, None], im1], axis=1)
         return (
             self.to_numpy(imav),

@@ -7,6 +7,7 @@
     result = model.fit(data.X, data.y)
 """
 
+from .benchmarks import BenchmarkScenario, benchmark_summary, default_scenarios, grid_scenarios, run_benchmark_suite, save_benchmark_report
 from .core import (
     ADP,
     ADPConfig,
@@ -17,7 +18,6 @@ from .core import (
     RandomProjectionADP,
     TrainingStep,
 )
-from .benchmarks import BenchmarkScenario, benchmark_summary, default_scenarios, grid_scenarios, run_benchmark_suite, save_benchmark_report
 
 __all__ = [
     "ADP",

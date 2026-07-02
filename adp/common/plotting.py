@@ -5,16 +5,22 @@ from pathlib import Path
 from typing import Any
 
 
-def save_figure(fig: Any, path: str | Path, *, dpi: int = 150, close: bool = False) -> Path:
-    """Сохраняет matplotlib figure.
+def save_figure(
+    fig: Any,  # Matplotlib figure.
+    path: str | Path,  # Путь сохранения.
+    *,
+    dpi: int = 150,  # Разрешение PNG.
+    close: bool = False,  # Закрыть figure после сохранения.
+) -> Path:
+    """Сохраняет matplotlib figure на диск.
 
     Вход:
-        fig: объект figure.
-        path: путь сохранения.
-        dpi: разрешение изображения.
-        close: закрыть figure после сохранения.
+        fig: объект matplotlib.figure.Figure.
+        path: путь к файлу.
+        dpi: разрешение.
+        close: закрывать ли figure.
     Выход:
-        Path к сохранённому файлу.
+        Path к сохраненному файлу.
     """
 
     save_path = Path(path)
@@ -30,12 +36,12 @@ def save_figure(fig: Any, path: str | Path, *, dpi: int = 150, close: bool = Fal
 
 
 def ensure_matplotlib_config_dir() -> None:
-    """Готовит временный MPLCONFIGDIR, если он не задан.
+    """Готовит MPLCONFIGDIR для headless-окружений.
 
     Вход:
         Нет явных аргументов.
     Выход:
-        None; при необходимости меняет os.environ.
+        None; при необходимости обновляет os.environ.
     """
 
     if "MPLCONFIGDIR" in os.environ:

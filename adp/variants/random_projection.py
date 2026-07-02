@@ -14,28 +14,28 @@ class RandomProjectionADP(ADPBase):
 
     def _compute_statistics(
         self,
-        X: np.ndarray,
-        y: np.ndarray,
-        centers: np.ndarray,
-        h: float,
-        beta: np.ndarray,
-        directions: np.ndarray | None,
-        anisotropy: float | None,
-        b_value: float | None,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+        y: np.ndarray,  # Вектор ответов длины n.
+        centers: np.ndarray,  # Матрица центров J x d.
+        h: float,  # Текущий bandwidth.
+        beta: np.ndarray,  # Текущее направление beta.
+        directions: np.ndarray | None,  # Направления J x P x d.
+        anisotropy: float | None,  # rho или None на первом шаге.
+        b_value: float | None,  # Не используется в new.
     ) -> LocalStatistics:
         """Вычисляет new-статистики Ima, S, U.
 
         Вход:
-            X: матрица наблюдений n x d.
-            y: вектор ответов длины n.
-            centers: матрица центров J x d.
-            h: текущая bandwidth.
-            beta: текущее направление EDR.
-            directions: направления J x P x d.
-            anisotropy: значение rho или None.
-            b_value: не используется в new-варианте.
+            X: матрица наблюдений.
+            y: вектор ответов.
+            centers: локальные центры.
+            h: текущий bandwidth.
+            beta: текущее EDR-направление.
+            directions: случайные направления для каждого центра.
+            anisotropy: rho для адаптивных весов или None.
+            b_value: не используется.
         Выход:
-            LocalStatistics для RandomProjectionADP.
+            LocalStatistics с imav, S, U и directions.
         """
 
         if directions is None:
@@ -56,6 +56,7 @@ class RandomProjectionADP(ADPBase):
             else:
                 proj2 = np.square(np.einsum("cnd,d->cn", diff, beta))
                 q = (rho * rho * norm2 + proj2) / (h * h)
+
             chunk_imav, chunk_s, chunk_u, weight_mean = self.backend.random_projection_sums(
                 diff,
                 y,
@@ -80,12 +81,16 @@ class RandomProjectionADP(ADPBase):
             anisotropy=anisotropy,
         )
 
-    def _solve_local_coefficients(self, stats: LocalStatistics, beta: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _solve_local_coefficients(
+        self,
+        stats: LocalStatistics,  # Статистики с S и U.
+        beta: np.ndarray,  # Текущее beta.
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Решает локальные коэффициенты new-варианта.
 
         Вход:
-            stats: статистики с матрицами S и U.
-            beta: текущее направление EDR.
+            stats: статистики с S_j и U_j.
+            beta: текущее направление.
         Выход:
             Кортеж intercepts и slopes.
         """
@@ -106,22 +111,22 @@ class RandomProjectionADP(ADPBase):
 
     def _solve_beta(
         self,
-        stats: LocalStatistics,
-        intercepts: np.ndarray,
-        slopes: np.ndarray,
-        prior: np.ndarray,
-        lambda_penalty: float,
+        stats: LocalStatistics,  # Статистики с S и U.
+        intercepts: np.ndarray,  # Локальные свободные члены.
+        slopes: np.ndarray,  # Локальные наклоны.
+        prior: np.ndarray,  # beta предыдущего outer-шага.
+        lambda_penalty: float,  # Сила регуляризации.
     ) -> np.ndarray:
         """Решает beta для new-варианта.
 
         Вход:
-            stats: статистики с матрицами S и U.
+            stats: статистики с U_j.
             intercepts: локальные свободные члены.
             slopes: локальные наклоны.
-            prior: beta предыдущего outer-шага.
+            prior: направление регуляризации.
             lambda_penalty: сила регуляризации.
         Выход:
-            Новый ненормированный вектор beta.
+            Новый ненормированный beta.
         """
 
         if stats.S is None or stats.U is None:
@@ -138,21 +143,21 @@ class RandomProjectionADP(ADPBase):
 
     def _objective(
         self,
-        stats: LocalStatistics,
-        beta: np.ndarray,
-        intercepts: np.ndarray,
-        slopes: np.ndarray,
-        prior: np.ndarray,
-        lambda_penalty: float,
+        stats: LocalStatistics,  # Статистики с S и U.
+        beta: np.ndarray,  # Текущее beta.
+        intercepts: np.ndarray,  # Локальные свободные члены.
+        slopes: np.ndarray,  # Локальные наклоны.
+        prior: np.ndarray,  # Направление регуляризации.
+        lambda_penalty: float,  # Сила регуляризации.
     ) -> float:
         """Считает objective для new-варианта.
 
         Вход:
-            stats: статистики с матрицами S и U.
-            beta: текущее направление EDR.
+            stats: статистики с imav, S, U.
+            beta: текущее направление.
             intercepts: локальные свободные члены.
             slopes: локальные наклоны.
-            prior: beta предыдущего outer-шага.
+            prior: направление регуляризации.
             lambda_penalty: сила регуляризации.
         Выход:
             Значение objective.

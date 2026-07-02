@@ -9,40 +9,27 @@ from .types import ADPResult, LocalStatistics
 
 
 def store_fit_result(
-    model: Any,
-    beta: np.ndarray,
-    intercepts: np.ndarray,
-    slopes: np.ndarray,
-    statistics: LocalStatistics,
-    history: list[Any],
-    progress: list[dict[str, Any]],
-    timings: dict[str, float],
-    started: float,
-    X: np.ndarray,
-    y: np.ndarray,
-    centers: np.ndarray,
-    directions: np.ndarray | None,
-    objective: float,
+    model: Any,  # Модель ADP, куда записывается состояние.
+    beta: np.ndarray,  # Финальное направление beta.
+    intercepts: np.ndarray,  # Локальные свободные члены.
+    slopes: np.ndarray,  # Локальные наклоны.
+    statistics: LocalStatistics,  # Последние локальные статистики.
+    history: list[Any],  # История inner-итераций.
+    progress: list[dict[str, Any]],  # История outer-прогресса.
+    timings: dict[str, float],  # Накопленные времена этапов.
+    started: float,  # time.perf_counter() начала fit.
+    X: np.ndarray,  # Приведенная матрица наблюдений.
+    y: np.ndarray,  # Приведенный вектор ответов.
+    centers: np.ndarray,  # Использованные центры.
+    directions: np.ndarray | None,  # Использованные направления или None.
+    objective: float,  # Финальное значение objective.
 ) -> ADPResult:
-    """Сохраняет итог fit в объекте модели.
+    """Сохраняет итог fit в модель и возвращает ADPResult.
 
     Вход:
-        model: модель ADP, в которую записывается результат.
-        beta: финальное направление EDR.
-        intercepts: локальные свободные члены.
-        slopes: локальные наклоны.
-        statistics: последние локальные статистики.
-        history: история inner-итераций.
-        progress: история outer-прогресса.
-        timings: накопленные времена этапов.
-        started: время начала fit.
-        X: приведённая матрица наблюдений.
-        y: приведённый вектор ответов.
-        centers: использованные центры.
-        directions: использованные направления или None.
-        objective: финальное значение целевой функции.
+        Все аргументы описывают финальное состояние model.fit(...).
     Выход:
-        ADPResult, также сохранённый в model.result_.
+        ADPResult, записанный в model.result_.
     """
 
     timings["total"] = time.perf_counter() - started

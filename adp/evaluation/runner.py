@@ -14,13 +14,22 @@ from .scenarios import BenchmarkMethod, BenchmarkScenario, default_scenarios
 
 
 def run_benchmark_suite(
-    scenarios: Iterable[BenchmarkScenario] | None = None,
+    scenarios: Iterable[BenchmarkScenario] | None = None,  # Сценарии или None.
     *,
     methods: Iterable[BenchmarkMethod] = ("adp_new", "adp_old", "statsmodels_sir", "statsmodels_save", "statsmodels_phd", "sklearn_pls"),
-    random_state: int = 0,
-    show_progress: bool = False,
+    random_state: int = 0,  # Общий seed.
+    show_progress: bool = False,  # Показывать прогресс ADP.
 ) -> pd.DataFrame:
-    """Запустить набор сценариев и вернуть таблицу результатов."""
+    """Запускает набор benchmark-сценариев.
+
+    Вход:
+        scenarios: список сценариев или None для default_scenarios().
+        methods: имена методов.
+        random_state: общий seed.
+        show_progress: флаг tqdm для ADP.
+    Выход:
+        DataFrame со строкой на каждый метод и trial.
+    """
 
     scenario_list = list(scenarios) if scenarios is not None else default_scenarios()
     method_list = list(methods)
@@ -41,8 +50,18 @@ def run_benchmark_suite(
     return pd.DataFrame(rows)
 
 
-def make_data(scenario: BenchmarkScenario, seed: int) -> ADPData:
-    """Генерирует данные для одного benchmark-сценария."""
+def make_data(
+    scenario: BenchmarkScenario,  # Benchmark-сценарий.
+    seed: int,  # Seed генерации данных.
+) -> ADPData:
+    """Генерирует данные для одного benchmark-сценария.
+
+    Вход:
+        scenario: параметры задачи.
+        seed: seed генератора.
+    Выход:
+        ADPData с X, y и истинным beta.
+    """
 
     generator = ADP.create(
         "new",
@@ -66,14 +85,25 @@ def make_data(scenario: BenchmarkScenario, seed: int) -> ADPData:
 
 
 def run_method(
-    method: BenchmarkMethod,
-    scenario: BenchmarkScenario,
-    data: ADPData,
-    trial: int,
-    seed: int,
-    show_progress: bool,
+    method: BenchmarkMethod,  # Имя benchmark-метода.
+    scenario: BenchmarkScenario,  # Сценарий.
+    data: ADPData,  # Данные сценария.
+    trial: int,  # Номер повтора.
+    seed: int,  # Seed метода.
+    show_progress: bool,  # Показывать прогресс.
 ) -> dict[str, Any]:
-    """Запускает один метод на одном наборе данных."""
+    """Запускает один метод на одном наборе данных.
+
+    Вход:
+        method: имя метода.
+        scenario: параметры сценария.
+        data: сгенерированные данные.
+        trial: номер повтора.
+        seed: seed метода.
+        show_progress: флаг tqdm.
+    Выход:
+        Словарь метрик, времени и памяти.
+    """
 
     started = time.perf_counter()
     failed = False
@@ -116,7 +146,6 @@ def run_method(
             tracemalloc.stop()
 
     fit_time = time.perf_counter() - started
-    peak_memory_kib = peak_memory / 1024.0
     metrics = direction_metrics(beta_hat, data.beta)
     return {
         "scenario": scenario.name,
@@ -136,7 +165,7 @@ def run_method(
         "angle_deg": metrics["angle_deg"],
         "signed_l2": metrics["signed_l2"],
         "fit_time_sec": fit_time,
-        "peak_memory_kib": peak_memory_kib,
+        "peak_memory_kib": peak_memory / 1024.0,
         "objective": objective,
         "failed": failed,
         "error": error,

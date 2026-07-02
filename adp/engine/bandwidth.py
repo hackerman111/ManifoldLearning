@@ -1,5 +1,3 @@
-# Добавить больше переменных для более тщательного тестирования в подборе весов
-
 from __future__ import annotations
 
 import math
@@ -15,16 +13,19 @@ class BandwidthMixin:
     """Методы выбора локальных масштабов ADP."""
 
     def _select_isotropic_bandwidth(
-        self, X: np.ndarray, centers: np.ndarray, index: NeighborIndex | None = None
+        self,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+        centers: np.ndarray,  # Матрица центров J x d.
+        index: NeighborIndex | None = None,  # Индекс соседей для верхней оценки.
     ) -> float:
-        """Подбирает начальную isotropic bandwidth.
+        """Подбирает начальную isotropic bandwidth h.
 
         Вход:
-            X: матрица наблюдений n x d.
-            centers: матрица центров J x d.
-            index: индекс соседей для начальной верхней оценки.
+            X: матрица наблюдений.
+            centers: матрица центров.
+            index: faiss/sklearn индекс или None.
         Выход:
-            Положительное значение h.
+            Положительный масштаб h.
         """
 
         diff_norm2 = pairwise_norm2(X, centers)
@@ -35,44 +36,40 @@ class BandwidthMixin:
             if kth is not None and np.all(np.isfinite(kth)):
                 high_hint = float(np.nanmedian(kth))
 
-        def avg_for(h: float) -> float:
-            """Считает среднюю массу для isotropic h.
-
-            Вход:
-                h: кандидат bandwidth.
-            Выход:
-                Средняя локальная масса ядра.
-            """
+        def avg_for(
+            h: float,  # Кандидат bandwidth.
+        ) -> float:
+            """Считает среднюю локальную массу для isotropic h."""
 
             return average_kernel_weight(diff_norm2 / (h * h), self.config.kernel)
 
         return self._binary_search_scale(avg_for, high_hint)
 
     def _select_new_anisotropy(
-        self, X: np.ndarray, centers: np.ndarray, h: float, beta: np.ndarray
+        self,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+        centers: np.ndarray,  # Матрица центров J x d.
+        h: float,  # Текущий bandwidth.
+        beta: np.ndarray,  # Текущее направление beta.
     ) -> float:
         """Подбирает rho для anisotropic new-варианта.
 
         Вход:
-            X: матрица наблюдений n x d.
-            centers: матрица центров J x d.
-            h: текущая bandwidth.
-            beta: текущее направление EDR.
+            X: матрица наблюдений.
+            centers: матрица центров.
+            h: текущий масштаб.
+            beta: текущее EDR-направление.
         Выход:
-            Значение rho в диапазоне [0, 1].
+            rho в диапазоне [0, 1].
         """
 
         norm2 = pairwise_norm2(X, centers)
         proj2 = pairwise_projection2(X, centers, beta)
 
-        def avg_for(rho: float) -> float:
-            """Считает среднюю массу для фиксированного rho.
-
-            Вход:
-                rho: кандидат anisotropy.
-            Выход:
-                Средняя локальная масса ядра.
-            """
+        def avg_for(
+            rho: float,  # Кандидат anisotropy.
+        ) -> float:
+            """Считает среднюю массу при фиксированном rho."""
 
             q = (rho * rho * norm2 + proj2) / (h * h)
             return average_kernel_weight(q, self.config.kernel)
@@ -91,15 +88,19 @@ class BandwidthMixin:
         return float(low)
 
     def _select_old_bandwidth(
-        self, X: np.ndarray, centers: np.ndarray, beta: np.ndarray, b_value: float
+        self,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+        centers: np.ndarray,  # Матрица центров J x d.
+        beta: np.ndarray,  # Текущее направление beta.
+        b_value: float,  # Продольный old-bandwidth b.
     ) -> float:
         """Подбирает h при фиксированном b для old-варианта.
 
         Вход:
-            X: матрица наблюдений n x d.
-            centers: матрица центров J x d.
-            beta: текущее направление EDR.
-            b_value: продольная bandwidth.
+            X: матрица наблюдений.
+            centers: матрица центров.
+            beta: текущее EDR-направление.
+            b_value: bandwidth вдоль beta.
         Выход:
             Положительное значение h.
         """
@@ -107,14 +108,10 @@ class BandwidthMixin:
         norm2 = pairwise_norm2(X, centers)
         proj2 = pairwise_projection2(X, centers, beta)
 
-        def avg_for(h: float) -> float:
-            """Считает среднюю массу для фиксированного h.
-
-            Вход:
-                h: кандидат bandwidth.
-            Выход:
-                Средняя локальная масса ядра.
-            """
+        def avg_for(
+            h: float,  # Кандидат bandwidth.
+        ) -> float:
+            """Считает среднюю массу при фиксированном h."""
 
             q = norm2 / (h * h) + proj2 / (b_value * b_value)
             return average_kernel_weight(q, self.config.kernel)
@@ -122,15 +119,17 @@ class BandwidthMixin:
         return self._binary_search_scale(avg_for, b_value)
 
     def _binary_search_scale(
-        self, avg_fn: Callable[[float], float], high_hint: float | None = None
+        self,
+        avg_fn: Callable[[float], float],  # Средняя масса от масштаба.
+        high_hint: float | None = None,  # Начальная верхняя оценка.
     ) -> float:
         """Ищет минимальный масштаб с достаточной локальной массой.
 
         Вход:
-            avg_fn: функция средней массы от масштаба.
-            high_hint: начальная верхняя оценка масштаба.
+            avg_fn: функция средней массы.
+            high_hint: начальная верхняя оценка или None.
         Выход:
-            Найденный положительный масштаб.
+            Положительный масштаб.
         """
 
         target = float(self.config.min_neighbors)

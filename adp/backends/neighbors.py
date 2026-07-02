@@ -6,26 +6,32 @@ import numpy as np
 
 
 class NeighborIndex:
-    """Опциональный индекс соседей для оценки масштаба."""
+    """Опциональный faiss/sklearn индекс для оценки локального масштаба."""
 
-    def __init__(self, enabled: bool = True):
-        """Создаёт пустой индекс.
+    def __init__(
+        self,
+        enabled: bool = True,  # Включать ли попытку построить индекс.
+    ) -> None:
+        """Создает пустой индекс соседей.
 
         Вход:
-            enabled: включает попытку построить faiss/sklearn индекс.
+            enabled: если False, индекс не строится.
         Выход:
-            None; инициализирует состояние индекса.
+            None; состояние индекса сохраняется в объекте.
         """
 
         self.backend = "none"
         self.index: Any = None
         self.enabled = enabled
 
-    def fit(self, X: np.ndarray) -> "NeighborIndex":
-        """Строит доступный индекс по матрице X.
+    def fit(
+        self,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+    ) -> "NeighborIndex":
+        """Строит доступный faiss или sklearn индекс.
 
         Вход:
-            X: матрица наблюдений размера n x d.
+            X: матрица наблюдений n x d.
         Выход:
             self с заполненным индексом или backend='none'.
         """
@@ -54,14 +60,18 @@ class NeighborIndex:
             self.backend = "none"
         return self
 
-    def kth_distances(self, centers: np.ndarray, k: int) -> np.ndarray | None:
+    def kth_distances(
+        self,
+        centers: np.ndarray,  # Центры локальных окрестностей J x d.
+        k: int,  # Номер соседа.
+    ) -> np.ndarray | None:
         """Возвращает расстояния до k-го соседа.
 
         Вход:
-            centers: центры локальных окрестностей.
-            k: номер соседа для оценки масштаба.
+            centers: матрица центров J x d.
+            k: номер соседа для масштаба.
         Выход:
-            Вектор расстояний или None, если индекс недоступен.
+            Вектор расстояний длины J или None, если индекс недоступен.
         """
 
         if self.index is None or k <= 0:

@@ -17,7 +17,7 @@ from .training import TrainingMixin
 
 try:
     from tqdm.auto import tqdm
-except Exception:  # pragma: no cover - tqdm является удобством, а не ядром.
+except Exception:  # pragma: no cover - tqdm не является ядром алгоритма.
     tqdm = None
 
 
@@ -29,16 +29,16 @@ class ADP:
     @classmethod
     def create(
         cls,
-        variant: VariantName = "new",
-        config: ADPConfig | None = None,
-        **config_kwargs: Any,
+        variant: VariantName = "new",  # Имя варианта: new или old.
+        config: ADPConfig | None = None,  # Готовая конфигурация или None.
+        **config_kwargs: Any,  # Точечные переопределения ADPConfig.
     ) -> "ADPBase":
-        """Создаёт ADP-модель нужного варианта.
+        """Создает ADP-модель нужного варианта.
 
         Вход:
-            variant: имя варианта, 'new' или 'old'.
-            config: готовая конфигурация или None.
-            config_kwargs: точечные переопределения ADPConfig.
+            variant: 'new' для случайных проекций или 'old' для полных моментов.
+            config: готовая конфигурация.
+            config_kwargs: поля ADPConfig, если config не задан или надо переопределить.
         Выход:
             Экземпляр RandomProjectionADP или FullMomentADP.
         """
@@ -69,20 +69,21 @@ class ADPBase(
 
     variant: VariantName = "new"
 
-    def __init__(self, config: ADPConfig | None = None):
+    def __init__(
+        self,
+        config: ADPConfig | None = None,  # Конфигурация модели или None.
+    ) -> None:
         """Инициализирует модель ADP.
 
         Вход:
-            config: конфигурация модели или None для ADPConfig().
+            config: настройки ADP.
         Выход:
-            None; создаёт rng, backend и пустое состояние fit.
+            None; создает rng, backend и пустое состояние fit.
         """
 
         self.config = config or ADPConfig()
         if self.config.target_dim != 1:
-            raise NotImplementedError(
-                "Сейчас реализован target_dim=1; multi-index оставлен следующим слоем."
-            )
+            raise NotImplementedError("Сейчас реализован target_dim=1; multi-index оставлен следующим слоем.")
         self.rng = np.random.default_rng(self.config.random_state)
         self.backend = NumpyBackend(self.config.dtype)
         self.result_: ADPResult | None = None
@@ -94,86 +95,84 @@ class ADPBase(
 
     def _compute_statistics(
         self,
-        X: np.ndarray,
-        y: np.ndarray,
-        centers: np.ndarray,
-        h: float,
-        beta: np.ndarray,
-        directions: np.ndarray | None,
-        anisotropy: float | None,
-        b_value: float | None,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+        y: np.ndarray,  # Вектор ответов длины n.
+        centers: np.ndarray,  # Матрица центров J x d.
+        h: float,  # Текущий bandwidth.
+        beta: np.ndarray,  # Текущее направление beta.
+        directions: np.ndarray | None,  # Направления для new или None.
+        anisotropy: float | None,  # rho для new или None.
+        b_value: float | None,  # b для old или None.
     ) -> LocalStatistics:
         """Вычисляет локальные статистики конкретного варианта.
 
         Вход:
-            X: матрица наблюдений n x d.
-            y: вектор ответов длины n.
-            centers: матрица центров J x d.
-            h: текущая bandwidth.
-            beta: текущее направление EDR.
-            directions: направления для new-варианта.
-            anisotropy: значение rho или None.
-            b_value: значение b для old-варианта или None.
+            X, y, centers, h, beta: данные текущего outer-шага.
+            directions: случайные направления для new-варианта.
+            anisotropy: rho из new-варианта.
+            b_value: продольный bandwidth из old-варианта.
         Выход:
-            LocalStatistics, определённые подклассом.
+            LocalStatistics, определенные подклассом.
         """
 
         raise NotImplementedError
 
     def _solve_local_coefficients(
-        self, stats: LocalStatistics, beta: np.ndarray
+        self,
+        stats: LocalStatistics,  # Локальные статистики варианта.
+        beta: np.ndarray,  # Текущее направление beta.
     ) -> tuple[np.ndarray, np.ndarray]:
         """Решает локальные intercepts и slopes.
 
         Вход:
-            stats: локальные статистики варианта.
-            beta: текущее направление EDR.
+            stats: локальные статистики.
+            beta: текущее направление.
         Выход:
-            Кортеж intercepts и slopes.
+            Кортеж intercepts, slopes.
         """
 
         raise NotImplementedError
 
     def _solve_beta(
         self,
-        stats: LocalStatistics,
-        intercepts: np.ndarray,
-        slopes: np.ndarray,
-        prior: np.ndarray,
-        lambda_penalty: float,
+        stats: LocalStatistics,  # Локальные статистики варианта.
+        intercepts: np.ndarray,  # Локальные свободные члены.
+        slopes: np.ndarray,  # Локальные наклоны.
+        prior: np.ndarray,  # beta предыдущего outer-шага.
+        lambda_penalty: float,  # Сила регуляризации.
     ) -> np.ndarray:
         """Решает глобальный шаг по beta.
 
         Вход:
-            stats: локальные статистики варианта.
+            stats: локальные статистики.
             intercepts: локальные свободные члены.
             slopes: локальные наклоны.
-            prior: beta предыдущего outer-шага.
-            lambda_penalty: сила регуляризации к prior.
+            prior: направление регуляризации.
+            lambda_penalty: сила регуляризации.
         Выход:
-            Новый ненормированный вектор beta.
+            Новый ненормированный beta.
         """
 
         raise NotImplementedError
 
     def _objective(
         self,
-        stats: LocalStatistics,
-        beta: np.ndarray,
-        intercepts: np.ndarray,
-        slopes: np.ndarray,
-        prior: np.ndarray,
-        lambda_penalty: float,
+        stats: LocalStatistics,  # Локальные статистики варианта.
+        beta: np.ndarray,  # Текущее направление beta.
+        intercepts: np.ndarray,  # Локальные свободные члены.
+        slopes: np.ndarray,  # Локальные наклоны.
+        prior: np.ndarray,  # Направление регуляризации.
+        lambda_penalty: float,  # Сила регуляризации.
     ) -> float:
         """Считает целевую функцию варианта ADP.
 
         Вход:
-            stats: локальные статистики варианта.
-            beta: текущее направление EDR.
+            stats: локальные статистики.
+            beta: текущее направление.
             intercepts: локальные свободные члены.
             slopes: локальные наклоны.
-            prior: beta предыдущего outer-шага.
-            lambda_penalty: сила регуляризации к prior.
+            prior: направление регуляризации.
+            lambda_penalty: сила регуляризации.
         Выход:
             Значение objective.
         """

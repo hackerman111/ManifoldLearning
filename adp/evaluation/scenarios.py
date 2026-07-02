@@ -34,7 +34,21 @@ class BenchmarkScenario:
     inner_steps: int = 8
     trials: int = 3
 
-    def adp_config(self, *, random_state: int, show_progress: bool) -> ADPConfig:
+    def adp_config(
+        self,
+        *,
+        random_state: int,  # Seed ADP-модели.
+        show_progress: bool,  # Показывать tqdm или нет.
+    ) -> ADPConfig:
+        """Строит ADPConfig для сценария.
+
+        Вход:
+            random_state: seed модели.
+            show_progress: флаг progress bar.
+        Выход:
+            ADPConfig с параметрами сценария.
+        """
+
         return ADPConfig(
             n_centers=self.n_centers or min(self.n, max(20, self.n // 4)),
             n_directions=self.n_directions,
@@ -46,24 +60,37 @@ class BenchmarkScenario:
         )
 
 
-def default_scenarios(*, quick: bool = False) -> list[BenchmarkScenario]:
-    """Набор сценариев, закрывающий несколько типичных режимов."""
+def default_scenarios(
+    *,
+    quick: bool = False,  # Уменьшить размеры для smoke-запуска.
+) -> list[BenchmarkScenario]:
+    """Возвращает набор типичных benchmark-сценариев.
+
+    Вход:
+        quick: если True, уменьшает размеры и trials.
+    Выход:
+        Список BenchmarkScenario.
+    """
 
     trials = 1 if quick else 5
     scale = 0.55 if quick else 1.0
 
-    def n(value: int) -> int:
+    def scaled_n(
+        value: int,  # Базовый размер.
+    ) -> int:
+        """Масштабирует размер сценария."""
+
         return max(80, int(value * scale))
 
     return [
         BenchmarkScenario(
             name="linear_low_noise",
-            n=n(240),
+            n=scaled_n(240),
             d=8,
             link="linear",
             noise=0.03,
             corr=0.2,
-            n_centers=n(60),
+            n_centers=scaled_n(60),
             n_directions=8,
             min_neighbors=8,
             outer_steps=2 if quick else 4,
@@ -72,12 +99,12 @@ def default_scenarios(*, quick: bool = False) -> list[BenchmarkScenario]:
         ),
         BenchmarkScenario(
             name="sin_correlated",
-            n=n(280),
+            n=scaled_n(280),
             d=10,
             link="sin",
             noise=0.08,
             corr=0.55,
-            n_centers=n(70),
+            n_centers=scaled_n(70),
             n_directions=10,
             min_neighbors=10,
             outer_steps=2 if quick else 4,
@@ -86,12 +113,12 @@ def default_scenarios(*, quick: bool = False) -> list[BenchmarkScenario]:
         ),
         BenchmarkScenario(
             name="quadratic_symmetric",
-            n=n(320),
+            n=scaled_n(320),
             d=10,
             link="quadratic",
             noise=0.05,
             corr=0.35,
-            n_centers=n(80),
+            n_centers=scaled_n(80),
             n_directions=12,
             min_neighbors=10,
             outer_steps=2 if quick else 5,
@@ -100,12 +127,12 @@ def default_scenarios(*, quick: bool = False) -> list[BenchmarkScenario]:
         ),
         BenchmarkScenario(
             name="dimension_stress",
-            n=n(360),
+            n=scaled_n(360),
             d=18,
             link="linear",
             noise=0.05,
             corr=0.4,
-            n_centers=n(90),
+            n_centers=scaled_n(90),
             n_directions=12,
             min_neighbors=12,
             outer_steps=2 if quick else 4,
@@ -117,19 +144,35 @@ def default_scenarios(*, quick: bool = False) -> list[BenchmarkScenario]:
 
 def grid_scenarios(
     *,
-    d_values: tuple[int, ...] = (10, 25, 50, 100, 200),
-    direction_values: tuple[int, ...] = (5, 10, 20, 40),
-    n: int = 360,
-    n_centers: int = 90,
-    outer_steps: int = 4,
-    inner_steps: int = 10,
-    trials: int = 5,
-    link: str = "linear",
-    noise: float = 0.05,
-    corr: float = 0.4,
-    min_neighbors: float = 12.0,
+    d_values: tuple[int, ...] = (10, 25, 50, 100, 200),  # Сетка размерностей.
+    direction_values: tuple[int, ...] = (5, 10, 20, 40),  # Сетка P.
+    n: int = 360,  # Число наблюдений.
+    n_centers: int = 90,  # Число центров.
+    outer_steps: int = 4,  # Число outer-шагов.
+    inner_steps: int = 10,  # Число inner-шагов.
+    trials: int = 5,  # Повторы для статистики.
+    link: str = "linear",  # Функция связи.
+    noise: float = 0.05,  # Шум.
+    corr: float = 0.4,  # Корреляция признаков.
+    min_neighbors: float = 12.0,  # Минимальная локальная масса.
 ) -> list[BenchmarkScenario]:
-    """Строит строгую сетку сценариев по размерности d и числу направлений P."""
+    """Строит строгую сетку сценариев по d и числу направлений P.
+
+    Вход:
+        d_values: набор размерностей d.
+        direction_values: набор чисел направлений P.
+        n: число наблюдений.
+        n_centers: число центров.
+        outer_steps: число внешних шагов.
+        inner_steps: число внутренних шагов.
+        trials: число повторов.
+        link: имя функции связи.
+        noise: уровень шума.
+        corr: корреляция признаков.
+        min_neighbors: минимальная локальная масса.
+    Выход:
+        Список BenchmarkScenario для всех пар d x P.
+    """
 
     scenarios: list[BenchmarkScenario] = []
     for d in d_values:

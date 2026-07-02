@@ -16,24 +16,24 @@ class SolverMixin:
     def _progress_record(
         self,
         *,
-        stats: LocalStatistics,
-        step: TrainingStep,
-        outer_index: int,
-        outer_total: int,
-        inner_count: int,
-        started: float,
+        stats: LocalStatistics,  # Статистики текущего outer-шага.
+        step: TrainingStep,  # Последний inner-шаг.
+        outer_index: int,  # Номер outer-шага с нуля.
+        outer_total: int,  # Общее число outer-шагов.
+        inner_count: int,  # Число выполненных inner-шагов.
+        started: float,  # time.perf_counter() начала fit.
     ) -> dict[str, Any]:
         """Формирует программный снимок прогресса.
 
         Вход:
-            stats: локальные статистики текущего outer-шага.
-            step: последняя внутренняя итерация.
-            outer_index: индекс outer-шага с нуля.
-            outer_total: общее число outer-шагов.
-            inner_count: число выполненных inner-шагов.
+            stats: локальные статистики.
+            step: последняя запись истории.
+            outer_index: номер outer-шага.
+            outer_total: число outer-шагов.
+            inner_count: число inner-шагов в этом outer.
             started: время начала fit.
         Выход:
-            Словарь числовых диагностик прогресса.
+            Словарь числовых диагностик.
         """
 
         record: dict[str, Any] = {
@@ -58,22 +58,22 @@ class SolverMixin:
 
     def _alternating_solve(
         self,
-        stats: LocalStatistics,
-        beta_start: np.ndarray,
-        lambda_penalty: float,
-        outer: int,
-        outer_started: float,
+        stats: LocalStatistics,  # Локальные статистики варианта.
+        beta_start: np.ndarray,  # Начальное beta для outer-шага.
+        lambda_penalty: float,  # Регуляризация к prior.
+        outer: int,  # Номер outer-шага.
+        outer_started: float,  # Время начала outer-шага.
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[TrainingStep]]:
         """Запускает внутреннюю попеременную оптимизацию.
 
         Вход:
-            stats: локальные статистики варианта ADP.
-            beta_start: начальное beta для outer-шага.
-            lambda_penalty: сила регуляризации к prior.
+            stats: локальные статистики.
+            beta_start: стартовое направление beta.
+            lambda_penalty: сила штрафа к prior.
             outer: номер внешнего шага.
             outer_started: время начала внешнего шага.
         Выход:
-            Кортеж beta, intercepts, slopes и истории inner-шагов.
+            Кортеж beta, intercepts, slopes и history.
         """
 
         beta = unit_vector(beta_start)

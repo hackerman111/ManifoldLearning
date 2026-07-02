@@ -18,24 +18,25 @@ class TrainingMixin:
 
     def fit(
         self,
-        X: np.ndarray,
-        y: np.ndarray,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+        y: np.ndarray,  # Вектор ответов длины n.
         *,
-        centers: np.ndarray | None = None,
-        beta0: np.ndarray | None = None,
-        directions: np.ndarray | None = None,
+        centers: np.ndarray | None = None,  # Пользовательские центры или None.
+        beta0: np.ndarray | None = None,  # Начальное beta или None.
+        directions: np.ndarray | None = None,  # Направления для new или None.
     ) -> ADPResult:
         """Обучает ADP-модель.
 
         Вход:
-            X: матрица наблюдений n x d.
-            y: вектор ответов длины n.
-            centers: пользовательские центры или None.
-            beta0: начальное направление beta или None.
-            directions: пользовательские направления для new-варианта.
+            X: матрица наблюдений.
+            y: вектор ответов.
+            centers: готовые центры или None.
+            beta0: стартовое направление beta или None.
+            directions: готовые случайные направления для new-варианта.
         Выход:
             ADPResult с beta, локальными коэффициентами и историей.
         """
+
         X_arr = as_2d_float(X, "X")
         y_arr = as_1d_float(y, "y")
         if X_arr.shape[0] != y_arr.shape[0]:
@@ -81,8 +82,18 @@ class TrainingMixin:
                     directions_arr,
                     d,
                 )
+
                 stats_started = time.perf_counter()
-                statistics = self._compute_statistics(X_arr, y_arr, centers_arr, h, beta_prev, directions_arr, anisotropy, b_value)
+                statistics = self._compute_statistics(
+                    X_arr,
+                    y_arr,
+                    centers_arr,
+                    h,
+                    beta_prev,
+                    directions_arr,
+                    anisotropy,
+                    b_value,
+                )
                 timings["statistics"] = timings.get("statistics", 0.0) + time.perf_counter() - stats_started
 
                 solve_started = time.perf_counter()
@@ -122,6 +133,7 @@ class TrainingMixin:
         objective = history[-1].objective if history else self._objective(statistics, beta_prev, intercepts, slopes, beta_prev, lambda_penalty)
         if progress:
             progress[-1]["objective"] = float(objective)
+
         return store_fit_result(
             self,
             beta_prev,
@@ -139,14 +151,18 @@ class TrainingMixin:
             float(objective),
         )
 
-    def _make_progress_bar(self, outer_iter: range) -> Any:
-        """Создаёт tqdm progress bar при включённом выводе.
+    def _make_progress_bar(
+        self,
+        outer_iter: range,  # Диапазон outer-итераций.
+    ) -> Any:
+        """Создает tqdm progress bar при включенном выводе.
 
         Вход:
             outer_iter: range внешних шагов.
         Выход:
-            tqdm-обёртка или None.
+            tqdm-обертка или None.
         """
+
         if not self.config.show_progress:
             return None
         from .base import tqdm
@@ -158,29 +174,30 @@ class TrainingMixin:
 
     def _prepare_outer_step(
         self,
-        outer: int,
-        X: np.ndarray,
-        centers: np.ndarray,
-        h: float,
-        b_old: float,
-        beta: np.ndarray,
-        directions: np.ndarray | None,
-        d: int,
+        outer: int,  # Номер внешнего шага.
+        X: np.ndarray,  # Матрица наблюдений n x d.
+        centers: np.ndarray,  # Матрица центров J x d.
+        h: float,  # Текущий h.
+        b_old: float,  # Текущий old-bandwidth b.
+        beta: np.ndarray,  # Текущее beta.
+        directions: np.ndarray | None,  # Текущие directions или None.
+        d: int,  # Размерность признаков.
     ) -> tuple[float | None, float | None, float, float, np.ndarray | None]:
         """Готовит bandwidth, anisotropy и directions для outer-шага.
 
         Вход:
-            outer: номер внешнего шага.
-            X: матрица наблюдений n x d.
-            centers: матрица центров J x d.
-            h: текущая bandwidth.
-            b_old: текущая old-bandwidth b.
-            beta: текущее направление EDR.
-            directions: текущие направления new-варианта.
+            outer: номер outer-шага.
+            X: матрица наблюдений.
+            centers: матрица центров.
+            h: текущий bandwidth.
+            b_old: текущий old-bandwidth.
+            beta: текущее направление.
+            directions: текущие направления.
             d: размерность признаков.
         Выход:
             Кортеж anisotropy, b_value, h, b_old, directions.
         """
+
         if outer == 0:
             return None, None, h, b_old, directions
         if self.variant == "new":
@@ -195,6 +212,7 @@ class TrainingMixin:
                     anisotropy=anisotropy,
                 )
             return anisotropy, None, h, b_old, directions
+
         b_old = max(b_old / self.config.bandwidth_decay, np.finfo(float).eps)
         h = self._select_old_bandwidth(X, centers, beta, b_old)
         return None, b_old, h, b_old, directions

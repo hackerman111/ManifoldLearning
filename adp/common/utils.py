@@ -8,14 +8,17 @@ from scipy import linalg
 from .types import KernelName
 
 
-def as_2d_float(value: np.ndarray | None, name: str) -> np.ndarray:
+def as_2d_float(
+    value: np.ndarray | None,  # Исходное значение.
+    name: str,  # Имя аргумента для сообщения об ошибке.
+) -> np.ndarray:
     """Проверяет и приводит значение к двумерному float-массиву.
 
     Вход:
-        value: исходное значение.
-        name: имя аргумента для текста ошибки.
+        value: объект, который должен стать матрицей.
+        name: имя аргумента для ошибки.
     Выход:
-        Двумерный NumPy-массив dtype=float.
+        NumPy-массив размера n x d.
     """
 
     if value is None:
@@ -26,14 +29,17 @@ def as_2d_float(value: np.ndarray | None, name: str) -> np.ndarray:
     return arr
 
 
-def as_1d_float(value: np.ndarray, name: str) -> np.ndarray:
+def as_1d_float(
+    value: np.ndarray,  # Исходное значение.
+    name: str,  # Имя аргумента для сообщения об ошибке.
+) -> np.ndarray:
     """Проверяет и приводит значение к одномерному float-массиву.
 
     Вход:
-        value: исходное значение.
-        name: имя аргумента для текста ошибки.
+        value: объект, который должен стать вектором.
+        name: имя аргумента для ошибки.
     Выход:
-        Одномерный NumPy-массив dtype=float.
+        NumPy-вектор длины n.
     """
 
     arr = np.asarray(value, dtype=float)
@@ -42,7 +48,9 @@ def as_1d_float(value: np.ndarray, name: str) -> np.ndarray:
     return arr
 
 
-def unit_vector(value: np.ndarray) -> np.ndarray:
+def unit_vector(
+    value: np.ndarray,  # Исходный вектор.
+) -> np.ndarray:
     """Нормирует вектор до единичной длины.
 
     Вход:
@@ -58,13 +66,15 @@ def unit_vector(value: np.ndarray) -> np.ndarray:
     return arr / norm
 
 
-def normalize_rows(value: np.ndarray) -> np.ndarray:
+def normalize_rows(
+    value: np.ndarray,  # Массив направлений.
+) -> np.ndarray:
     """Нормирует последнюю ось массива.
 
     Вход:
-        value: массив направлений.
+        value: массив вида ... x d.
     Выход:
-        Массив с единичной нормой вдоль последней оси.
+        Массив той же формы с единичной нормой по последней оси.
     """
 
     norms = np.linalg.norm(value, axis=-1, keepdims=True)
@@ -72,43 +82,53 @@ def normalize_rows(value: np.ndarray) -> np.ndarray:
     return value / norms
 
 
-def pairwise_norm2(X: np.ndarray, centers: np.ndarray) -> np.ndarray:
-    """Считает попарные квадраты расстояний до центров.
+def pairwise_norm2(
+    X: np.ndarray,  # Матрица наблюдений n x d.
+    centers: np.ndarray,  # Матрица центров J x d.
+) -> np.ndarray:
+    """Считает квадраты расстояний от наблюдений до центров.
 
     Вход:
         X: матрица наблюдений n x d.
         centers: матрица центров J x d.
     Выход:
-        Матрица размера J x n с ||X_i - c_j||^2.
+        Матрица J x n со значениями ||X_i - c_j||^2.
     """
 
     diff = X[None, :, :] - centers[:, None, :]
     return np.einsum("jnd,jnd->jn", diff, diff)
 
 
-def pairwise_projection2(X: np.ndarray, centers: np.ndarray, beta: np.ndarray) -> np.ndarray:
+def pairwise_projection2(
+    X: np.ndarray,  # Матрица наблюдений n x d.
+    centers: np.ndarray,  # Матрица центров J x d.
+    beta: np.ndarray,  # Направление проекции.
+) -> np.ndarray:
     """Считает квадраты проекций разностей на beta.
 
     Вход:
         X: матрица наблюдений n x d.
         centers: матрица центров J x d.
-        beta: направление проекции.
+        beta: направление beta длины d.
     Выход:
-        Матрица размера J x n с ((X_i - c_j), beta)^2.
+        Матрица J x n со значениями <X_i - c_j, beta>^2.
     """
 
     diff = X[None, :, :] - centers[:, None, :]
     return np.square(np.einsum("jnd,d->jn", diff, beta))
 
 
-def kernel_np(q: np.ndarray, name: KernelName) -> np.ndarray:
-    """Вычисляет NumPy-веса выбранного ядра.
+def kernel_np(
+    q: np.ndarray,  # Значения квадратичной формы.
+    name: KernelName,  # Имя ядра.
+) -> np.ndarray:
+    """Вычисляет веса ядра.
 
     Вход:
-        q: квадратичная форма расстояний.
-        name: имя ядра.
+        q: массив значений неотрицательной квадратичной формы.
+        name: epanechnikov, quartic или gaussian.
     Выход:
-        Массив весов ядра.
+        Массив весов той же формы.
     """
 
     if name == "gaussian":
@@ -118,11 +138,14 @@ def kernel_np(q: np.ndarray, name: KernelName) -> np.ndarray:
     return np.maximum(1.0 - q, 0.0)
 
 
-def average_kernel_weight(q: np.ndarray, name: KernelName) -> float:
-    """Возвращает среднюю локальную массу ядра.
+def average_kernel_weight(
+    q: np.ndarray,  # Матрица значений квадратичной формы J x n.
+    name: KernelName,  # Имя ядра.
+) -> float:
+    """Возвращает среднюю массу локальных весов.
 
     Вход:
-        q: матрица значений квадратичной формы.
+        q: матрица квадратичной формы J x n.
         name: имя ядра.
     Выход:
         Средняя сумма весов по центрам.
@@ -131,12 +154,15 @@ def average_kernel_weight(q: np.ndarray, name: KernelName) -> float:
     return float(kernel_np(q, name).sum(axis=1).mean())
 
 
-def safe_solve(lhs: np.ndarray, rhs: np.ndarray) -> np.ndarray:
+def safe_solve(
+    lhs: np.ndarray,  # Левая матрица системы.
+    rhs: np.ndarray,  # Правая часть.
+) -> np.ndarray:
     """Решает линейную систему с fallback на least squares.
 
     Вход:
-        lhs: левая матрица системы.
-        rhs: правая часть системы.
+        lhs: квадратная матрица.
+        rhs: правая часть.
     Выход:
         Вектор решения.
     """
@@ -147,13 +173,15 @@ def safe_solve(lhs: np.ndarray, rhs: np.ndarray) -> np.ndarray:
         return linalg.lstsq(lhs, rhs)[0]
 
 
-def link_function(link: str | Callable[[np.ndarray], np.ndarray]) -> tuple[Callable[[np.ndarray], np.ndarray], str]:
-    """Возвращает функцию связи для генерации данных.
+def link_function(
+    link: str | Callable[[np.ndarray], np.ndarray],  # Имя связи или callable.
+) -> tuple[Callable[[np.ndarray], np.ndarray], str]:
+    """Возвращает функцию связи для генерации single-index данных.
 
     Вход:
         link: имя встроенной связи или callable.
     Выход:
-        Кортеж функции связи и её имени.
+        Пара (функция, имя функции).
     """
 
     if callable(link):
@@ -169,25 +197,29 @@ def link_function(link: str | Callable[[np.ndarray], np.ndarray]) -> tuple[Calla
     raise ValueError("link должен быть callable или одним из: linear, sin, quadratic, tanh")
 
 
-def linear_link(z: np.ndarray) -> np.ndarray:
+def linear_link(
+    z: np.ndarray,  # Одномерный индекс X beta.
+) -> np.ndarray:
     """Возвращает линейную функцию связи.
 
     Вход:
-        z: одномерный индекс X beta.
+        z: значения X beta.
     Выход:
-        Значение z без изменений.
+        z без изменений.
     """
 
     return z
 
 
-def quadratic_link(z: np.ndarray) -> np.ndarray:
+def quadratic_link(
+    z: np.ndarray,  # Одномерный индекс X beta.
+) -> np.ndarray:
     """Возвращает квадратичную функцию связи.
 
     Вход:
-        z: одномерный индекс X beta.
+        z: значения X beta.
     Выход:
-        Значение z^2.
+        z^2.
     """
 
     return z**2

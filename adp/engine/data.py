@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from typing import Callable
 
 import numpy as np
@@ -11,33 +10,33 @@ from ..common.utils import link_function, normalize_rows, unit_vector
 
 
 class DataPreparationMixin:
-    """Методы генерации данных, центров, направлений и масштабов."""
+    """Генерация входных данных, центров и случайных направлений."""
 
     def generate_data(
         self,
-        n: int,
-        d: int,
+        n: int,  # Число наблюдений.
+        d: int,  # Размерность признаков.
         *,
-        n_centers: int | None = None,
-        n_directions: int | None = None,
-        beta: np.ndarray | None = None,
-        noise: float = 0.1,
-        sigma_x: float = 1.0,
-        corr: float = 0.5,
-        link: str | Callable[[np.ndarray], np.ndarray] = "quadratic",
+        n_centers: int | None = None,  # Число локальных центров.
+        n_directions: int | None = None,  # Число направлений на центр для new.
+        beta: np.ndarray | None = None,  # Истинное направление или None.
+        noise: float = 0.1,  # Стандартное отклонение шума.
+        sigma_x: float = 1.0,  # Масштаб признаков.
+        corr: float = 0.5,  # Сила общей компоненты признаков.
+        link: str | Callable[[np.ndarray], np.ndarray] = "quadratic",  # Связь f.
     ) -> ADPData:
-        """Генерирует single-index данные из TeX-описания.
+        """Генерирует single-index данные из manifold_*.tex.
 
         Вход:
             n: число наблюдений.
             d: размерность признаков.
-            n_centers: число локальных центров.
-            n_directions: число случайных направлений.
-            beta: истинное EDR-направление или None для случайного.
-            noise: стандартное отклонение шума.
-            sigma_x: масштаб признаков.
-            corr: сила общей компоненты признаков.
-            link: функция связи или её имя.
+            n_centers: число центров или None для значения из config.
+            n_directions: число случайных направлений для new-варианта.
+            beta: истинный EDR-вектор или None для случайного.
+            noise: стандартное отклонение шума eps.
+            sigma_x: масштаб признаков X.
+            corr: коррелированность признаков в диапазоне [0, 1).
+            link: имя или callable функции f.
         Выход:
             ADPData с X, y, beta, центрами, направлениями и шумом.
         """
@@ -58,7 +57,8 @@ class DataPreparationMixin:
         j_count = int(n_centers or self.config.n_centers or n)
         j_count = min(max(j_count, 1), n)
         selected = self.rng.choice(n, size=j_count, replace=False)
-        centers = X[selected] + self.config.center_noise_scale * sigma_x * self.rng.normal(size=(j_count, d))
+        center_noise = self.config.center_noise_scale * sigma_x * self.rng.normal(size=(j_count, d))
+        centers = X[selected] + center_noise
 
         directions = None
         if self.variant == "new":
@@ -66,8 +66,11 @@ class DataPreparationMixin:
             directions = self._sample_directions(j_count, p_count, d)
         return ADPData(X=X, y=y, beta=beta_vec, centers=centers, directions=directions, noise=eps, link_name=link_name)
 
-    def _choose_centers(self, X: np.ndarray) -> np.ndarray:
-        """Выбирает и зашумляет центры из X.
+    def _choose_centers(
+        self,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+    ) -> np.ndarray:
+        """Выбирает центры из X и добавляет небольшой шум.
 
         Вход:
             X: матрица наблюдений n x d.
@@ -82,15 +85,20 @@ class DataPreparationMixin:
         scale = float(np.std(X)) if np.std(X) > 0 else 1.0
         return X[selected] + self.config.center_noise_scale * scale * self.rng.normal(size=(j_count, d))
 
-    def _prepare_directions(self, centers: np.ndarray, d: int, directions: np.ndarray | None) -> np.ndarray | None:
+    def _prepare_directions(
+        self,
+        centers: np.ndarray,  # Матрица центров J x d.
+        d: int,  # Размерность признаков.
+        directions: np.ndarray | None,  # Пользовательские направления или None.
+    ) -> np.ndarray | None:
         """Готовит направления для new-варианта.
 
         Вход:
-            centers: матрица центров J x d.
+            centers: матрица центров.
             d: размерность признаков.
-            directions: пользовательские направления или None.
+            directions: готовый массив направлений или None.
         Выход:
-            Нормированные направления J x P x d или None для old-варианта.
+            Нормированный массив J x P x d или None для old-варианта.
         """
 
         if self.variant == "old":
@@ -105,38 +113,42 @@ class DataPreparationMixin:
 
     def _sample_directions(
         self,
-        n_centers: int,
-        n_directions: int,
-        d: int,
+        n_centers: int,  # Число центров.
+        n_directions: int,  # Число направлений на центр.
+        d: int,  # Размерность признаков.
         *,
-        beta: np.ndarray | None = None,
-        anisotropy: float | None = None,
+        beta: np.ndarray | None = None,  # Текущее beta для anisotropic sampling.
+        anisotropy: float | None = None,  # rho или None.
     ) -> np.ndarray:
-        """Сэмплирует нормированные случайные направления.
+        """Сэмплирует направления на единичной сфере.
 
         Вход:
             n_centers: число центров.
             n_directions: число направлений на центр.
             d: размерность признаков.
-            beta: текущее EDR-направление для anisotropic sampling.
-            anisotropy: коэффициент rho или None.
+            beta: текущее направление для anisotropic обновления.
+            anisotropy: коэффициент rho из new-варианта.
         Выход:
-            Массив направлений размера n_centers x n_directions x d.
+            Массив направлений n_centers x n_directions x d.
         """
 
         z = self.rng.normal(size=(n_centers, n_directions, d))
         if beta is not None and anisotropy is not None:
             beta_unit = unit_vector(beta)
-            noise = self.rng.normal(size=(n_centers, n_directions, 1))
-            z = float(anisotropy) * z + noise * beta_unit
+            along_beta = self.rng.normal(size=(n_centers, n_directions, 1))
+            z = float(anisotropy) * z + along_beta * beta_unit
         return normalize_rows(z)
 
-    def _initial_beta(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
+    def _initial_beta(
+        self,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+        y: np.ndarray,  # Вектор ответов длины n.
+    ) -> np.ndarray:
         """Строит начальное направление beta.
 
         Вход:
-            X: матрица наблюдений n x d.
-            y: вектор ответов длины n.
+            X: матрица наблюдений.
+            y: вектор ответов.
         Выход:
             Единичный начальный вектор beta.
         """
