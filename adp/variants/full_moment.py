@@ -17,11 +17,11 @@ class FullMomentADP(ADPBase):
         X: np.ndarray,  # Матрица наблюдений n x d.
         y: np.ndarray,  # Вектор ответов длины n.
         centers: np.ndarray,  # Матрица центров J x d.
-        h: float,  # Текущий bandwidth.
+        h: float,  # Текущий масштаб h.
         beta: np.ndarray,  # Текущее beta.
         directions: np.ndarray | None,  # Не используется в old.
         anisotropy: float | None,  # Не используется в old.
-        b_value: float | None,  # Продольный bandwidth b или None.
+        b_value: float | None,  # Продольный масштаб b или None.
     ) -> LocalStatistics:
         """Вычисляет old-статистики Ima, N, S, VP.
 
@@ -46,15 +46,20 @@ class FullMomentADP(ADPBase):
         weight_means: list[float] = []
 
         for start in range(0, J, self.config.chunk_size):
+            # Блочная обработка нужна особенно old-варианту: VP_j хранит d x d
+            # матрицу для каждого центра.
             stop = min(start + self.config.chunk_size, J)
             diff = X[None, :, :] - centers[start:stop, None, :]
             norm2 = np.einsum("cnd,cnd->cn", diff, diff)
             if b_value is None:
+                # Первый внешний шаг manifold_old.tex: изотропные веса.
                 q = norm2 / (h * h)
             else:
+                # Дальше old использует q = ||dx||^2 / h^2 + <dx,beta>^2 / b^2.
                 proj2 = np.square(np.einsum("cnd,d->cn", diff, beta))
                 q = norm2 / (h * h) + proj2 / (b_value * b_value)
 
+            # Вычислитель собирает полный локальный момент KSe_j и Ima_j.
             chunk_imav, chunk_n, chunk_s, chunk_vp, weight_mean = self.backend.full_moment_sums(
                 diff,
                 y,
@@ -99,6 +104,9 @@ class FullMomentADP(ADPBase):
         intercepts = np.zeros(J)
         slopes = np.zeros(J)
         for j in range(J):
+            # Лемма Lcjlj в manifold_old.tex: для фиксированного beta
+            # решается двумерная задача наименьших квадратов с колонками
+            # [N_j, S_j] и [S_j^T beta, VP_j beta].
             col0 = np.concatenate([[stats.N[j]], stats.S[j]])
             col1 = np.concatenate([[stats.S[j] @ beta], stats.VP[j] @ beta])
             design = np.column_stack([col0, col1])
@@ -112,7 +120,7 @@ class FullMomentADP(ADPBase):
         stats: LocalStatistics,  # Статистики с N, S, VP.
         intercepts: np.ndarray,  # Локальные свободные члены.
         slopes: np.ndarray,  # Локальные наклоны.
-        prior: np.ndarray,  # beta предыдущего outer-шага.
+        prior: np.ndarray,  # beta предыдущего внешнего шага.
         lambda_penalty: float,  # Сила регуляризации.
     ) -> np.ndarray:
         """Решает beta для old-варианта.
@@ -130,6 +138,8 @@ class FullMomentADP(ADPBase):
         if stats.N is None or stats.S is None or stats.VP is None:
             raise ValueError("Некорректные статистики old-варианта")
         d = stats.S.shape[1]
+        # Лемма Lbeta в manifold_old.tex: собираем нормальные уравнения по beta
+        # из скалярной части Ima_{j,0} и векторной части Ima_{j,1}.
         lhs = lambda_penalty * np.eye(d)
         rhs = lambda_penalty * prior
         for j, slope in enumerate(slopes):
@@ -168,6 +178,7 @@ class FullMomentADP(ADPBase):
             raise ValueError("Некорректные статистики old-варианта")
         total = 0.0
         for j, slope in enumerate(slopes):
+            # Цель old: ||Ima_j - KSe_j [c_j, l_j beta]^T||^2.
             pred0 = intercepts[j] * stats.N[j] + slope * (stats.S[j] @ beta)
             pred1 = intercepts[j] * stats.S[j] + slope * (stats.VP[j] @ beta)
             residual = stats.imav[j] - np.concatenate([[pred0], pred1])

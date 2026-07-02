@@ -39,7 +39,7 @@ class NeighborIndex:
         if not self.enabled:
             return self
         try:
-            import faiss  # type: ignore
+            import faiss
 
             index = faiss.IndexFlatL2(X.shape[1])
             index.add(np.asarray(X, dtype=np.float32))

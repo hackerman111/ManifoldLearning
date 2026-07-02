@@ -37,8 +37,8 @@ class BenchmarkScenario:
     def adp_config(
         self,
         *,
-        random_state: int,  # Seed ADP-модели.
-        show_progress: bool,  # Показывать tqdm или нет.
+        random_state: int,  # Начальное число ADP-модели.
+        show_progress: bool,  # Показывать индикатор или нет.
     ) -> ADPConfig:
         """Строит ADPConfig для сценария.
 
@@ -62,7 +62,7 @@ class BenchmarkScenario:
 
 def default_scenarios(
     *,
-    quick: bool = False,  # Уменьшить размеры для smoke-запуска.
+    quick: bool = False,  # Уменьшить размеры для быстрой проверки.
 ) -> list[BenchmarkScenario]:
     """Возвращает набор типичных benchmark-сценариев.
 
@@ -148,8 +148,8 @@ def grid_scenarios(
     direction_values: tuple[int, ...] = (5, 10, 20, 40),  # Сетка P.
     n: int = 360,  # Число наблюдений.
     n_centers: int = 90,  # Число центров.
-    outer_steps: int = 4,  # Число outer-шагов.
-    inner_steps: int = 10,  # Число inner-шагов.
+    outer_steps: int = 4,  # Число внешних шагов.
+    inner_steps: int = 10,  # Число внутренних шагов.
     trials: int = 5,  # Повторы для статистики.
     link: str = "linear",  # Функция связи.
     noise: float = 0.05,  # Шум.

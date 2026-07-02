@@ -6,11 +6,11 @@ from typing import Any
 
 
 def save_figure(
-    fig: Any,  # Matplotlib figure.
+    fig: Any,  # Объект рисунка.
     path: str | Path,  # Путь сохранения.
     *,
-    dpi: int = 150,  # Разрешение PNG.
-    close: bool = False,  # Закрыть figure после сохранения.
+    dpi: int = 150,  # Разрешение изображения.
+    close: bool = False,  # Закрыть рисунок после сохранения.
 ) -> Path:
     """Сохраняет matplotlib figure на диск.
 

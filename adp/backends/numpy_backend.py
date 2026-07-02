@@ -12,7 +12,7 @@ class NumpyBackend:
 
     def __init__(
         self,
-        dtype: str = "float64",  # Числовая точность backend.
+        dtype: str = "float64",  # Числовая точность вычислителя.
     ) -> None:
         """Создает backend с нужной точностью.
 
@@ -42,7 +42,7 @@ class NumpyBackend:
 
     def to_numpy(
         self,
-        value: Any,  # Значение backend.
+        value: Any,  # Значение вычислителя.
     ) -> np.ndarray:
         """Возвращает значение как NumPy-массив.
 
@@ -99,6 +99,9 @@ class NumpyBackend:
         xdirs = self.asarray(directions)
         xq = self.asarray(q)
         weights = self.kernel(xq, kernel)
+
+        # manifold_new.tex: для каждого центра j и направления phi считаем
+        # <X_i - x_j, phi>, а затем суммы Ima_{j,phi}, S_{j,phi}, U_{j,phi}.
         projected = np.einsum("cnd,cpd->cnp", xdiff, xdirs)
         imav = np.einsum("n,cn,cnp->cp", xy, weights, projected)
         s_vec = np.einsum("cn,cnp->cp", weights, projected)
@@ -132,6 +135,9 @@ class NumpyBackend:
         xy = self.asarray(y)
         xq = self.asarray(q)
         weights = self.kernel(xq, kernel)
+
+        # manifold_old.tex: старая версия хранит полный локальный момент
+        # [N_j, S_j; S_j^T, VP_j], без сжатия через случайные направления.
         im0 = np.einsum("n,cn->c", xy, weights)
         im1 = np.einsum("n,cn,cnd->cd", xy, weights, xdiff)
         n_vec = weights.sum(axis=1)

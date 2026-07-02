@@ -8,11 +8,11 @@ import pandas as pd
 
 
 def save_benchmark_report(
-    frame: pd.DataFrame,  # Таблица benchmark-результатов.
+    frame: pd.DataFrame,  # Таблица результатов замеров.
     output_dir: str | Path,  # Каталог отчета.
     *,
     prefix: str = "adp_benchmark",  # Префикс файлов.
-    dpi: int = 150,  # Разрешение PNG.
+    dpi: int = 150,  # Разрешение изображения.
 ) -> dict[str, Path]:
     """Сохраняет CSV и обзорные графики benchmark.
 
@@ -29,6 +29,8 @@ def save_benchmark_report(
     output_path.mkdir(parents=True, exist_ok=True)
     saved: dict[str, Path] = {}
 
+    # Таблица сохраняется до графиков, чтобы численный результат был доступен
+    # даже при сбое отрисовки в окружении без экрана.
     csv_path = output_path / f"{prefix}.csv"
     frame.to_csv(csv_path, index=False)
     saved["csv"] = csv_path
@@ -36,6 +38,8 @@ def save_benchmark_report(
     ensure_matplotlib_config_dir()
     import matplotlib.pyplot as plt
 
+    # Графики строятся по средним значениям: детальная статистика с
+    # доверительными интервалами живет отдельно в benchmark_summary(...).
     quality = frame.groupby(["scenario", "method"], as_index=False)["cosine_abs"].mean()
     fig, ax = plt.subplots(figsize=(max(7, 1.2 * quality["scenario"].nunique()), 4.5))
     plot_grouped_bars(ax, quality, value="cosine_abs", ylabel="среднее |cos(beta, beta_hat)|", title="Качество восстановления EDR")
@@ -47,6 +51,7 @@ def save_benchmark_report(
     saved["time_plot"] = save_figure(fig, output_path / f"{prefix}_time.png", dpi=dpi)
 
     if "peak_memory_kib" in frame.columns:
+        # Память есть не у старых таблиц, поэтому график строится условно.
         memory = frame.groupby(["scenario", "method"], as_index=False)["peak_memory_kib"].mean()
         fig, ax = plt.subplots(figsize=(max(7, 1.2 * memory["scenario"].nunique()), 4.5))
         plot_grouped_bars(ax, memory, value="peak_memory_kib", ylabel="пиковая память, КиБ", title="Пиковая память EDR")
@@ -56,7 +61,7 @@ def save_benchmark_report(
 
 
 def benchmark_summary(
-    frame: pd.DataFrame,  # Таблица benchmark-результатов.
+    frame: pd.DataFrame,  # Таблица результатов замеров.
 ) -> pd.DataFrame:
     """Строит сводную таблицу по качеству, времени и памяти.
 
@@ -66,6 +71,8 @@ def benchmark_summary(
         DataFrame со средними, std и 95% CI.
     """
 
+    # Группировка по scenario/method сохраняет возможность сравнивать old/new
+    # ADP с готовыми EDR-методами на одной сетке параметров.
     summary = (
         frame.groupby(["scenario", "method"])
         .agg(
@@ -86,7 +93,7 @@ def benchmark_summary(
 
 
 def add_confidence_intervals(
-    summary: pd.DataFrame,  # Сводная таблица без CI.
+    summary: pd.DataFrame,  # Сводная таблица без доверительных интервалов.
 ) -> pd.DataFrame:
     """Добавляет 95% доверительные интервалы для средних значений.
 
@@ -98,6 +105,8 @@ def add_confidence_intervals(
 
     result = summary.copy()
     for value in ("cosine_abs", "angle_deg", "fit_time_sec", "peak_memory_kib"):
+        # Для одного повтора стандартное отклонение становится NaN;
+        # тогда интервал вырождается в среднее.
         mean_col = f"{value}_mean"
         std_col = f"{value}_std"
         low_col = f"{value}_ci95_low"
@@ -110,7 +119,7 @@ def add_confidence_intervals(
 
 
 def plot_grouped_bars(
-    ax: Any,  # Matplotlib axis.
+    ax: Any,  # Ось графика.
     frame: pd.DataFrame,  # Таблица scenario/method/value.
     *,
     value: str,  # Имя числовой колонки.
@@ -139,10 +148,10 @@ def plot_grouped_bars(
 
 
 def save_figure(
-    fig: Any,  # Matplotlib figure.
+    fig: Any,  # Объект рисунка.
     path: Path,  # Путь сохранения.
     *,
-    dpi: int = 150,  # Разрешение PNG.
+    dpi: int = 150,  # Разрешение изображения.
 ) -> Path:
     """Сохраняет figure и закрывает ее.
 

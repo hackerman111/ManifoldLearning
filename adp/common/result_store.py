@@ -14,15 +14,15 @@ def store_fit_result(
     intercepts: np.ndarray,  # Локальные свободные члены.
     slopes: np.ndarray,  # Локальные наклоны.
     statistics: LocalStatistics,  # Последние локальные статистики.
-    history: list[Any],  # История inner-итераций.
-    progress: list[dict[str, Any]],  # История outer-прогресса.
+    history: list[Any],  # История внутренних итераций.
+    progress: list[dict[str, Any]],  # История внешних шагов.
     timings: dict[str, float],  # Накопленные времена этапов.
-    started: float,  # time.perf_counter() начала fit.
+    started: float,  # Момент начала обучения.
     X: np.ndarray,  # Приведенная матрица наблюдений.
     y: np.ndarray,  # Приведенный вектор ответов.
     centers: np.ndarray,  # Использованные центры.
     directions: np.ndarray | None,  # Использованные направления или None.
-    objective: float,  # Финальное значение objective.
+    objective: float,  # Финальное значение целевой функции.
 ) -> ADPResult:
     """Сохраняет итог fit в модель и возвращает ADPResult.
 

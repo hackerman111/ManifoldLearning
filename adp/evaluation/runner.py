@@ -17,7 +17,7 @@ def run_benchmark_suite(
     scenarios: Iterable[BenchmarkScenario] | None = None,  # Сценарии или None.
     *,
     methods: Iterable[BenchmarkMethod] = ("adp_new", "adp_old", "statsmodels_sir", "statsmodels_save", "statsmodels_phd", "sklearn_pls"),
-    random_state: int = 0,  # Общий seed.
+    random_state: int = 0,  # Общее начальное число.
     show_progress: bool = False,  # Показывать прогресс ADP.
 ) -> pd.DataFrame:
     """Запускает набор benchmark-сценариев.
@@ -34,6 +34,9 @@ def run_benchmark_suite(
     scenario_list = list(scenarios) if scenarios is not None else default_scenarios()
     method_list = list(methods)
     rows: list[dict[str, Any]] = []
+
+    # Последовательность начальных чисел раздает независимые значения на повтор,
+    # чтобы методы сравнивались на одних данных, но не делили random_state обучения.
     seed_seq = np.random.SeedSequence(random_state)
     scenario_seeds = seed_seq.spawn(sum(scenario.trials for scenario in scenario_list))
     seed_index = 0
@@ -51,8 +54,8 @@ def run_benchmark_suite(
 
 
 def make_data(
-    scenario: BenchmarkScenario,  # Benchmark-сценарий.
-    seed: int,  # Seed генерации данных.
+    scenario: BenchmarkScenario,  # Сценарий замеров.
+    seed: int,  # Начальное число генерации данных.
 ) -> ADPData:
     """Генерирует данные для одного benchmark-сценария.
 
@@ -63,6 +66,8 @@ def make_data(
         ADPData с X, y и истинным beta.
     """
 
+    # Данные генерирует тот же интерфейс ADP, чтобы замеры использовали ровно ту
+    # одноиндексную модель, на которую настроены old/new варианты.
     generator = ADP.create(
         "new",
         ADPConfig(
@@ -85,11 +90,11 @@ def make_data(
 
 
 def run_method(
-    method: BenchmarkMethod,  # Имя benchmark-метода.
+    method: BenchmarkMethod,  # Имя метода для замера.
     scenario: BenchmarkScenario,  # Сценарий.
     data: ADPData,  # Данные сценария.
     trial: int,  # Номер повтора.
-    seed: int,  # Seed метода.
+    seed: int,  # Начальное число метода.
     show_progress: bool,  # Показывать прогресс.
 ) -> dict[str, Any]:
     """Запускает один метод на одном наборе данных.
@@ -111,17 +116,21 @@ def run_method(
     objective = np.nan
     beta_hat: np.ndarray
 
+    # Окно измерения памяти намеренно охватывает только один вызов метода; так
+    # peak_memory_kib сопоставим между ADP и базовыми методами.
     started_tracing = not tracemalloc.is_tracing()
     if started_tracing:
         tracemalloc.start()
     tracemalloc.reset_peak()
     try:
         if method == "adp_new":
+            # new соответствует manifold_new.tex: случайные проекции phi.
             model = ADP.create("new", scenario.adp_config(random_state=seed, show_progress=show_progress))
             result = model.fit(data.X, data.y, centers=data.centers)
             beta_hat = result.beta
             objective = result.objective
         elif method == "adp_old":
+            # old соответствует manifold_old.tex: полные локальные моменты без phi.
             model = ADP.create("old", scenario.adp_config(random_state=seed, show_progress=show_progress))
             result = model.fit(data.X, data.y, centers=data.centers)
             beta_hat = result.beta

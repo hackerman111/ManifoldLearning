@@ -46,14 +46,22 @@ class DataPreparationMixin:
         if not 0 <= corr < 1:
             raise ValueError("corr должен лежать в [0, 1)")
 
+        # Истинный beta задает одномерный индекс beta^T X из одноиндексной
+        # модели Y = f(beta^T X) + eps в обоих TeX-файлах.
         beta_vec = unit_vector(beta if beta is not None else self.rng.normal(size=d))
+
+        # Простая коррелированная схема X: общая компонента + индивидуальный
+        # шум. Она нужна для воспроизводимых сценариев замеров, не для теории.
         shared = self.rng.normal(size=d)
         individual = self.rng.normal(size=(n, d))
         X = sigma_x * (corr * shared[None, :] + (1.0 - corr) * individual)
+
         eps = self.rng.normal(scale=noise, size=n)
         link_fn, link_name = link_function(link)
         y = link_fn(X @ beta_vec) + eps
 
+        # Центры x_j выбираются из облака X и слегка зашумляются, чтобы
+        # локальные окрестности не сводились только к исходным наблюдениям.
         j_count = int(n_centers or self.config.n_centers or n)
         j_count = min(max(j_count, 1), n)
         selected = self.rng.choice(n, size=j_count, replace=False)
@@ -62,6 +70,7 @@ class DataPreparationMixin:
 
         directions = None
         if self.variant == "new":
+            # Только manifold_new.tex требует наборы phi_j случайных направлений.
             p_count = int(n_directions or self.config.n_directions)
             directions = self._sample_directions(j_count, p_count, d)
         return ADPData(X=X, y=y, beta=beta_vec, centers=centers, directions=directions, noise=eps, link_name=link_name)
@@ -117,7 +126,7 @@ class DataPreparationMixin:
         n_directions: int,  # Число направлений на центр.
         d: int,  # Размерность признаков.
         *,
-        beta: np.ndarray | None = None,  # Текущее beta для anisotropic sampling.
+        beta: np.ndarray | None = None,  # Текущее beta для анизотропной выборки.
         anisotropy: float | None = None,  # rho или None.
     ) -> np.ndarray:
         """Сэмплирует направления на единичной сфере.
@@ -134,6 +143,8 @@ class DataPreparationMixin:
 
         z = self.rng.normal(size=(n_centers, n_directions, d))
         if beta is not None and anisotropy is not None:
+            # При обновлении new-варианта направления смещаются к текущему beta,
+            # как обновление направлений после обновления локального тензора.
             beta_unit = unit_vector(beta)
             along_beta = self.rng.normal(size=(n_centers, n_directions, 1))
             z = float(anisotropy) * z + along_beta * beta_unit
@@ -153,6 +164,9 @@ class DataPreparationMixin:
             Единичный начальный вектор beta.
         """
 
+        # Стартовый beta нужен только как prior. Метод наименьших квадратов
+        # хорошо работает для линейной связи, а для сложной связи дает
+        # устойчивое ненулевое зерно.
         x_centered = X - X.mean(axis=0, keepdims=True)
         y_centered = y - y.mean()
         try:

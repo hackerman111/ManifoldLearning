@@ -65,11 +65,11 @@ class DiagnosticsMixin:
 
     def plot_history(
         self,
-        ax: Any = None,  # Существующая matplotlib axis или None.
+        ax: Any = None,  # Существующая ось графика или None.
         *,
         save_path: str | Path | None = None,  # Путь сохранения или None.
-        dpi: int = 150,  # Разрешение PNG.
-        close: bool = False,  # Закрыть figure после сохранения.
+        dpi: int = 150,  # Разрешение изображения.
+        close: bool = False,  # Закрыть рисунок после сохранения.
     ) -> Any:
         """Рисует историю objective.
 
@@ -99,12 +99,12 @@ class DiagnosticsMixin:
 
     def save_diagnostics(
         self,
-        output_dir: str | Path,  # Каталог для PNG-файлов.
+        output_dir: str | Path,  # Каталог для изображений.
         *,
         beta_true: np.ndarray | None = None,  # Истинное beta для сравнения.
         prefix: str = "adp",  # Префикс имен файлов.
-        dpi: int = 150,  # Разрешение PNG.
-        close: bool = True,  # Закрывать figures после сохранения.
+        dpi: int = 150,  # Разрешение изображения.
+        close: bool = True,  # Закрывать рисунки после сохранения.
     ) -> dict[str, Path]:
         """Строит и сохраняет стандартные диагностические графики.
 
@@ -128,6 +128,8 @@ class DiagnosticsMixin:
         saved: dict[str, Path] = {}
         iterations = np.arange(len(result.history))
 
+        # График цели показывает, как попеременный решатель уменьшал целевую
+        # функцию после исключения наблюдаемых величин в manifold_old.tex/manifold_new.tex.
         fig, ax = plt.subplots()
         ax.plot(iterations, [step.objective for step in result.history], marker="o")
         ax.set_xlabel("iteration")
@@ -135,6 +137,7 @@ class DiagnosticsMixin:
         ax.set_title("ADP objective")
         saved["objective"] = save_figure(fig, output_path / f"{prefix}_objective.png", dpi=dpi, close=close)
 
+        # Изменение показывает стабилизацию направления beta между внутренними шагами.
         fig, ax = plt.subplots()
         ax.plot(iterations, [step.beta_delta for step in result.history], marker="o")
         ax.set_xlabel("iteration")
@@ -143,7 +146,11 @@ class DiagnosticsMixin:
         ax.set_yscale("log")
         saved["delta"] = save_figure(fig, output_path / f"{prefix}_delta.png", dpi=dpi, close=close)
 
+        # График масштабов полезен для проверки адаптивной локализации:
+        # new добавляет rho, old добавляет b.
         outer = np.arange(1, len(result.progress) + 1)
+        # Средняя масса весов должна оставаться около min_neighbors, иначе
+        # локальные задачи наименьших квадратов становятся плохо обусловленными.
         fig, ax = plt.subplots()
         ax.plot(outer, [record["h"] for record in result.progress], marker="o", label="h")
         if any("rho" in record for record in result.progress):
@@ -166,6 +173,8 @@ class DiagnosticsMixin:
         saved["weights"] = save_figure(fig, output_path / f"{prefix}_weights.png", dpi=dpi, close=close)
 
         if beta_true is not None:
+            # Знак EDR-направления не идентифицируется, поэтому перед сравнением
+            # разворачиваем оценку к истинному beta.
             expected = unit_vector(beta_true)
             estimated = unit_vector(result.beta)
             if expected @ estimated < 0:
@@ -188,7 +197,7 @@ class DiagnosticsMixin:
     def _remember_diagnostic_plot(
         self,
         name: str,  # Логическое имя графика.
-        path: Path,  # Путь к сохраненному PNG.
+        path: Path,  # Путь к сохраненному изображению.
     ) -> None:
         """Запоминает путь к диагностическому графику.
 

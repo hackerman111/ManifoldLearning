@@ -6,7 +6,7 @@ import numpy as np
 def fit_statsmodels_dimred(
     X: np.ndarray,  # Матрица наблюдений n x d.
     y: np.ndarray,  # Вектор ответов длины n.
-    kind: str,  # Тип statsmodels метода: sir, save или phd.
+    kind: str,  # Тип готового метода: sir, save или phd.
 ) -> np.ndarray:
     """Обучает готовый baseline из statsmodels.
 

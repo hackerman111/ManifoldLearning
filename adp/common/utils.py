@@ -174,7 +174,7 @@ def safe_solve(
 
 
 def link_function(
-    link: str | Callable[[np.ndarray], np.ndarray],  # Имя связи или callable.
+    link: str | Callable[[np.ndarray], np.ndarray],  # Имя связи или вызываемый объект.
 ) -> tuple[Callable[[np.ndarray], np.ndarray], str]:
     """Возвращает функцию связи для генерации single-index данных.
 

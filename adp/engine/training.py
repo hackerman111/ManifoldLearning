@@ -37,6 +37,8 @@ class TrainingMixin:
             ADPResult с beta, локальными коэффициентами и историей.
         """
 
+        # Приводим вход к строгой форме n x d и n, чтобы дальше все формулы
+        # из manifold_old.tex/manifold_new.tex работали с ожидаемыми осями.
         X_arr = as_2d_float(X, "X")
         y_arr = as_1d_float(y, "y")
         if X_arr.shape[0] != y_arr.shape[0]:
@@ -44,15 +46,24 @@ class TrainingMixin:
 
         started = time.perf_counter()
         _, d = X_arr.shape
+
+        # Центры x_j задают локальные окрестности из предварительного раздела.
         centers_arr = as_2d_float(centers, "centers") if centers is not None else self._choose_centers(X_arr)
         if centers_arr.shape[1] != d:
             raise ValueError("centers должны иметь ту же размерность d, что и X")
 
+        # beta_prev играет роль текущего prior: beta_0 на первом внешнем шаге
+        # и beta_{k-1} в адаптивных шагах TeX-алгоритма.
         beta_prev = unit_vector(beta0 if beta0 is not None else self._initial_beta(X_arr, y_arr))
         lambda_penalty = self.config.resolved_lambda()
+
+        # Индекс соседей нужен только для быстрой верхней оценки h; сами веса
+        # потом считаются векторизованными формулами ядра, как в TeX.
         neighbor_index = NeighborIndex(self.config.use_neighbor_index).fit(X_arr)
         self.neighbor_index_ = neighbor_index
 
+        # Первый шаг всегда изотропный: T = h^{-2} I. Для new заранее готовим
+        # случайные направления phi, для old направления останутся None.
         h = self._select_isotropic_bandwidth(X_arr, centers_arr, neighbor_index)
         b_old = h
         directions_arr = self._prepare_directions(centers_arr, d, directions)
@@ -72,6 +83,9 @@ class TrainingMixin:
         try:
             for outer in outer_iter:
                 step_started = time.perf_counter()
+
+                # На внешних шагах после первого локализация становится адаптивной:
+                # new обновляет rho и направления phi, old обновляет пару h/b.
                 anisotropy, b_value, h, b_old, directions_arr = self._prepare_outer_step(
                     outer,
                     X_arr,
@@ -83,6 +97,8 @@ class TrainingMixin:
                     d,
                 )
 
+                # Здесь строятся наблюдаемые локальные суммы Ima/S/U или
+                # Ima/N/S/VP. Это единственный дорогой шаг по данным X.
                 stats_started = time.perf_counter()
                 statistics = self._compute_statistics(
                     X_arr,
@@ -96,6 +112,8 @@ class TrainingMixin:
                 )
                 timings["statistics"] = timings.get("statistics", 0.0) + time.perf_counter() - stats_started
 
+                # При фиксированных статистиках решаем попеременно локальные
+                # коэффициенты (c_j, l_j) и глобальное направление beta.
                 solve_started = time.perf_counter()
                 beta_new, intercepts, slopes, inner_history = self._alternating_solve(
                     statistics,
@@ -109,6 +127,8 @@ class TrainingMixin:
                 beta_prev = beta_new
 
                 if inner_history:
+                    # Запись остается машинно-читаемой, а индикатор получает только
+                    # компактно отформатированную версию этого же состояния.
                     record = self._progress_record(
                         stats=statistics,
                         step=inner_history[-1],
@@ -122,6 +142,8 @@ class TrainingMixin:
                         progress_bar.set_postfix(format_progress_postfix(record), refresh=True)
 
                 if self.config.anisotropy_min is not None and self.variant == "new" and anisotropy is not None:
+                    # Для new можно остановиться, когда rho уже достиг заданного
+                    # уровня сильной локализации вокруг текущего beta.
                     if anisotropy <= self.config.anisotropy_min:
                         break
         finally:
@@ -130,6 +152,10 @@ class TrainingMixin:
 
         if statistics is None:
             raise RuntimeError("fit не смог вычислить локальные статистики")
+
+        # Финальное значение цели берем из последнего внутреннего шага.
+        # Запасной путь нужен только для формально пустой истории, если
+        # inner_steps был обнулен извне.
         objective = history[-1].objective if history else self._objective(statistics, beta_prev, intercepts, slopes, beta_prev, lambda_penalty)
         if progress:
             progress[-1]["objective"] = float(objective)
@@ -153,7 +179,7 @@ class TrainingMixin:
 
     def _make_progress_bar(
         self,
-        outer_iter: range,  # Диапазон outer-итераций.
+        outer_iter: range,  # Диапазон внешних шагов.
     ) -> Any:
         """Создает tqdm progress bar при включенном выводе.
 
@@ -178,9 +204,9 @@ class TrainingMixin:
         X: np.ndarray,  # Матрица наблюдений n x d.
         centers: np.ndarray,  # Матрица центров J x d.
         h: float,  # Текущий h.
-        b_old: float,  # Текущий old-bandwidth b.
+        b_old: float,  # Текущий масштаб b для old.
         beta: np.ndarray,  # Текущее beta.
-        directions: np.ndarray | None,  # Текущие directions или None.
+        directions: np.ndarray | None,  # Текущие направления или None.
         d: int,  # Размерность признаков.
     ) -> tuple[float | None, float | None, float, float, np.ndarray | None]:
         """Готовит bandwidth, anisotropy и directions для outer-шага.
@@ -199,8 +225,12 @@ class TrainingMixin:
         """
 
         if outer == 0:
+            # Стартовый шаг соответствует изотропным весам из предварительного раздела:
+            # K(h^{-2} ||X_i - x_j||^2), без анизотропных поправок.
             return None, None, h, b_old, directions
         if self.variant == "new":
+            # manifold_new.tex: уменьшаем h, выбираем rho из условия на
+            # локальную массу и при необходимости пересэмплируем phi.
             h = max(h / self.config.bandwidth_decay, np.finfo(float).eps)
             anisotropy = self._select_new_anisotropy(X, centers, h, beta)
             if self.config.renew_directions:
@@ -213,6 +243,8 @@ class TrainingMixin:
                 )
             return anisotropy, None, h, b_old, directions
 
+        # manifold_old.tex: случайных направлений нет; адаптация идет через
+        # продольный масштаб b вдоль beta и новый h в ортогональной части.
         b_old = max(b_old / self.config.bandwidth_decay, np.finfo(float).eps)
         h = self._select_old_bandwidth(X, centers, beta, b_old)
         return None, b_old, h, b_old, directions

@@ -17,7 +17,7 @@ from .training import TrainingMixin
 
 try:
     from tqdm.auto import tqdm
-except Exception:  # pragma: no cover - tqdm не является ядром алгоритма.
+except Exception:
     tqdm = None
 
 
@@ -98,7 +98,7 @@ class ADPBase(
         X: np.ndarray,  # Матрица наблюдений n x d.
         y: np.ndarray,  # Вектор ответов длины n.
         centers: np.ndarray,  # Матрица центров J x d.
-        h: float,  # Текущий bandwidth.
+        h: float,  # Текущий масштаб h.
         beta: np.ndarray,  # Текущее направление beta.
         directions: np.ndarray | None,  # Направления для new или None.
         anisotropy: float | None,  # rho для new или None.
@@ -138,7 +138,7 @@ class ADPBase(
         stats: LocalStatistics,  # Локальные статистики варианта.
         intercepts: np.ndarray,  # Локальные свободные члены.
         slopes: np.ndarray,  # Локальные наклоны.
-        prior: np.ndarray,  # beta предыдущего outer-шага.
+        prior: np.ndarray,  # beta предыдущего внешнего шага.
         lambda_penalty: float,  # Сила регуляризации.
     ) -> np.ndarray:
         """Решает глобальный шаг по beta.

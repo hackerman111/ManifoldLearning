@@ -16,12 +16,12 @@ class SolverMixin:
     def _progress_record(
         self,
         *,
-        stats: LocalStatistics,  # Статистики текущего outer-шага.
-        step: TrainingStep,  # Последний inner-шаг.
-        outer_index: int,  # Номер outer-шага с нуля.
-        outer_total: int,  # Общее число outer-шагов.
-        inner_count: int,  # Число выполненных inner-шагов.
-        started: float,  # time.perf_counter() начала fit.
+        stats: LocalStatistics,  # Статистики текущего внешнего шага.
+        step: TrainingStep,  # Последний внутренний шаг.
+        outer_index: int,  # Номер внешнего шага с нуля.
+        outer_total: int,  # Общее число внешних шагов.
+        inner_count: int,  # Число выполненных внутренних шагов.
+        started: float,  # Момент начала обучения.
     ) -> dict[str, Any]:
         """Формирует программный снимок прогресса.
 
@@ -59,10 +59,10 @@ class SolverMixin:
     def _alternating_solve(
         self,
         stats: LocalStatistics,  # Локальные статистики варианта.
-        beta_start: np.ndarray,  # Начальное beta для outer-шага.
+        beta_start: np.ndarray,  # Начальное beta для внешнего шага.
         lambda_penalty: float,  # Регуляризация к prior.
-        outer: int,  # Номер outer-шага.
-        outer_started: float,  # Время начала outer-шага.
+        outer: int,  # Номер внешнего шага.
+        outer_started: float,  # Время начала внешнего шага.
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[TrainingStep]]:
         """Запускает внутреннюю попеременную оптимизацию.
 
@@ -85,11 +85,19 @@ class SolverMixin:
 
         for inner in range(max(1, self.config.inner_steps)):
             old_beta = beta.copy()
+
+            # Первый полу-шаг попеременной оптимизации из TeX: при фиксированном beta каждая
+            # локальная задача по (c_j, l_j) решается независимо.
             intercepts, slopes = self._solve_local_coefficients(stats, beta)
+
+            # Второй полу-шаг: при фиксированных (c_j, l_j) решается одна
+            # квадратичная задача по beta с регуляризацией к prior.
             beta = self._solve_beta(stats, intercepts, slopes, prior, lambda_penalty)
 
             norm = np.linalg.norm(beta)
             if norm > 0:
+                # Из-за неидентифицируемости l_j * beta нормируем beta до 1 и
+                # переносим масштаб в slopes, как в конце шагов TeX-алгоритма.
                 beta = beta / norm
                 slopes = slopes * norm
 
