@@ -1,4 +1,5 @@
 import numpy as np
+from pathlib import Path
 
 import ADP_Data_Gen as data
 import ADP_step0 as step0
@@ -7,7 +8,10 @@ import ADP_Runtime as runtime_tools
 import ADP_Trace as trace_tools
 import Main_ADP as main
 import MyADP
+import ADP_single_index as single_index_module
 from ADP_single_index import ADP_single_index
+
+ADP_DIR = Path(__file__).resolve().parent
 
 # Основные настройки теста. Для дальнейших экспериментов редактируй сначала их.
 TEST_CONFIG = {
@@ -207,6 +211,94 @@ def test_single_index_class_api():
     assert_shape("generated_beta", generated_beta, (4,))
 
 
+def test_single_index_dataclass_and_method_api():
+    assert hasattr(single_index_module, "ADPDataConfig"), (
+        "генерация данных должна быть оформлена отдельным dataclass"
+    )
+    ADPDataConfig = single_index_module.ADPDataConfig
+
+    data_config = ADPDataConfig(
+        function="linear",
+        data_type="uniform",
+        noise_std=0.0,
+        low=-0.5,
+        high=0.5,
+    )
+    model = ADP_single_index(
+        n_J=12,
+        n_min=6,
+        n_directions=3,
+        seed=4,
+        data_config=data_config,
+    )
+
+    assert model.show_progress is True, "tqdm должен быть включен по умолчанию"
+    assert model.data_config == data_config
+
+    method_names = [
+        "GenerateX",
+        "FunctionValue",
+        "GenerateNoise",
+        "MakeData",
+        "ChooseJ",
+        "ChooseH0",
+        "ComputeWeight",
+        "GenerateDirection",
+        "GenerateDirectionsForCenters",
+        "PrepareADPInitialState",
+        "StandardizeFeatures",
+        "LocalLinearGradient",
+        "EstimateLocalGradients",
+        "AverageDerivativeProcedure",
+        "RunADP",
+        "FitADP",
+        "AlteringOptimisation",
+        "CosineSimilarity",
+    ]
+
+    for method_name in method_names:
+        assert callable(getattr(model, method_name)), f"{method_name} должен быть методом"
+
+    X, Y, beta, info = model.MakeData(n=30, d=3, return_info=True)
+    assert_shape("dataclass X", X, (30, 3))
+    assert_shape("dataclass Y", Y, (30,))
+    assert_shape("dataclass beta", beta, (3,))
+    assert info["function"] == "linear"
+    assert info["data_type"] == "uniform"
+    assert np.isclose(info["noise_std"], 0.0)
+
+    X_generated = model.GenerateX(n=8, d=3, seed=1)
+    assert_shape("GenerateX", X_generated, (8, 3))
+
+    model.set_params(function="sin", noise_std=0.2)
+    assert model.data_config.function == "sin"
+    assert np.isclose(model.data_config.noise_std, 0.2)
+
+
+def test_adp_files_are_sorted_into_subdirectories():
+    expected_files = [
+        ADP_DIR / "data" / "generation.py",
+        ADP_DIR / "algorithm" / "step0.py",
+        ADP_DIR / "algorithm" / "stepk.py",
+        ADP_DIR / "runtime" / "monitoring.py",
+        ADP_DIR / "diagnostics" / "trace.py",
+        ADP_DIR / "pipeline" / "main.py",
+        ADP_DIR / "models" / "single_index.py",
+        ADP_DIR / "facades" / "myadp.py",
+    ]
+
+    for path in expected_files:
+        assert path.exists(), f"ожидался файл {path.relative_to(ADP_DIR)}"
+
+    assert hasattr(data, "MakeData")
+    assert hasattr(step0, "ChooseH0")
+    assert hasattr(stepk, "EstimateLocalGradients")
+    assert hasattr(runtime_tools, "CreateRuntimeMonitor")
+    assert hasattr(trace_tools, "SaveADPDiagnostics")
+    assert hasattr(main, "RunADP")
+    assert hasattr(MyADP, "ADP_single_index")
+
+
 def run_all_tests(config=None):
     if config is None:
         config = TEST_CONFIG
@@ -217,6 +309,8 @@ def run_all_tests(config=None):
     result, cosine = test_main_pipeline(config, X, Y, beta)
     test_compatibility_facade(config, X, Y)
     test_single_index_class_api()
+    test_single_index_dataclass_and_method_api()
+    test_adp_files_are_sorted_into_subdirectories()
 
     return {
         "cosine": cosine,
