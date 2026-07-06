@@ -1,7 +1,5 @@
 import numpy as np
-
 from algorithm.step0 import NormVector
-
 
 rng = np.random.default_rng(seed=42)
 

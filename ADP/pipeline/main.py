@@ -1,5 +1,4 @@
 import numpy as np
-
 from algorithm.step0 import (
     ChooseH0,
     ChooseJ,
@@ -18,8 +17,8 @@ from algorithm.stepk import (
     StandardizeFeatures,
     _as_response_vector,
 )
-from runtime.monitoring import CreateRuntimeMonitor, RuntimeStage, RuntimeSummary
 from diagnostics.trace import CreateTrace, SaveADPDiagnostics, TraceStep
+from runtime.monitoring import CreateRuntimeMonitor, RuntimeStage, RuntimeSummary
 
 
 def AverageDerivativeProcedure(
