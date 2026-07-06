@@ -1,6 +1,6 @@
 import numpy as np
 
-from ADP_Trace import TraceStep
+from diagnostics.trace import TraceStep
 
 rng = np.random.default_rng(seed=42)
 

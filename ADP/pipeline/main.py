@@ -1,6 +1,6 @@
 import numpy as np
 
-from ADP_step0 import (
+from algorithm.step0 import (
     ChooseH0,
     ChooseJ,
     ComputeWeight,
@@ -11,15 +11,15 @@ from ADP_step0 import (
     _as_feature_matrix,
     _local_rng,
 )
-from ADP_stepk import (
+from algorithm.stepk import (
     CosineSimilarity,
     EstimateLocalGradients,
     LocalLinearGradient,
     StandardizeFeatures,
     _as_response_vector,
 )
-from ADP_Runtime import CreateRuntimeMonitor, RuntimeStage, RuntimeSummary
-from ADP_Trace import CreateTrace, SaveADPDiagnostics, TraceStep
+from runtime.monitoring import CreateRuntimeMonitor, RuntimeStage, RuntimeSummary
+from diagnostics.trace import CreateTrace, SaveADPDiagnostics, TraceStep
 
 
 def AverageDerivativeProcedure(

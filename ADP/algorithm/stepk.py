@@ -1,8 +1,8 @@
 import numpy as np
 
-from ADP_Runtime import IterateWithProgress
-from ADP_Trace import TraceStep
-from ADP_step0 import (
+from runtime.monitoring import IterateWithProgress
+from diagnostics.trace import TraceStep
+from algorithm.step0 import (
     ComputeWeight,
     Kernel,
     NormVector,

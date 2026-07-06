@@ -1,15 +1,15 @@
 import numpy as np
 from dataclasses import asdict, dataclass
 
-from ADP_Data_Gen import (
+from data.generation import (
     FunctionValue as _FunctionValue,
     GenerateNoise as _GenerateNoise,
     GenerateX as _GenerateX,
     MakeData as _MakeData,
 )
-from ADP_Runtime import CreateRuntimeMonitor
-from ADP_Trace import CreateTrace, SaveADPDiagnostics
-from ADP_step0 import (
+from runtime.monitoring import CreateRuntimeMonitor
+from diagnostics.trace import CreateTrace, SaveADPDiagnostics
+from algorithm.step0 import (
     ChooseH0 as _ChooseH0,
     ChooseJ as _ChooseJ,
     ComputeWeight as _ComputeWeight,
@@ -22,7 +22,7 @@ from ADP_step0 import (
     PrepareADPInitialState as _PrepareADPInitialState,
     _as_feature_matrix,
 )
-from ADP_stepk import (
+from algorithm.stepk import (
     CalculateRho as _CalculateRho,
     CosineSimilarity as _CosineSimilarity,
     EstimateLocalGradients as _EstimateLocalGradients,
@@ -30,7 +30,7 @@ from ADP_stepk import (
     StandardizeFeatures as _StandardizeFeatures,
     _as_response_vector,
 )
-from Main_ADP import AverageDerivativeProcedure as _AverageDerivativeProcedure
+from pipeline.main import AverageDerivativeProcedure as _AverageDerivativeProcedure
 
 
 @dataclass
@@ -58,7 +58,7 @@ class ADP_single_index:
     """
     Единый класс для работы с single-index ADP.
 
-    Класс не заменяет низкоуровневые функции из ADP_step0.py и ADP_stepk.py,
+    Класс не заменяет низкоуровневые функции из algorithm/step0.py и algorithm/stepk.py,
     а собирает их в удобный объектный интерфейс для экспериментов.
     """
 

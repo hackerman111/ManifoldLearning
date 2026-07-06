@@ -1,5 +1,5 @@
-from ADP_Data_Gen import FunctionValue, GenerateNoise, GenerateX, MakeData
-from ADP_step0 import (
+from data.generation import FunctionValue, GenerateNoise, GenerateX, MakeData
+from algorithm.step0 import (
     ChooseH0,
     ChooseJ,
     ComputeWeight,
@@ -11,21 +11,21 @@ from ADP_step0 import (
     NormalizeRows,
     PrepareADPInitialState,
 )
-from ADP_stepk import (
+from algorithm.stepk import (
     CalculateRho,
     CosineSimilarity,
     EstimateLocalGradients,
     LocalLinearGradient,
     StandardizeFeatures,
 )
-from ADP_Runtime import (
+from runtime.monitoring import (
     CreateRuntimeMonitor,
     IterateWithProgress,
     LogRuntimeEvent,
     RuntimeStage,
     RuntimeSummary,
 )
-from ADP_Trace import (
+from diagnostics.trace import (
     CreateTrace,
     GetTraceTable,
     PlotADPDiagnostics,
@@ -33,8 +33,8 @@ from ADP_Trace import (
     SaveTraceSummary,
     TraceStep,
 )
-from Main_ADP import AlteringOptimisation, AverageDerivativeProcedure, FitADP, RunADP
-from ADP_single_index import ADPSingleIndex, ADP_single_index
+from pipeline.main import AlteringOptimisation, AverageDerivativeProcedure, FitADP, RunADP
+from models.single_index import ADPSingleIndex, ADP_single_index
 
 
 # Этот файл остается общей точкой входа для учебного проекта.
