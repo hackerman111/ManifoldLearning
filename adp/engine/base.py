@@ -29,21 +29,21 @@ class ADP:
     @classmethod
     def create(
         cls,
-        variant: VariantName = "new",  # Имя варианта: new или old.
+        variant: VariantName = "new",  # Единственный рабочий вариант.
         config: ADPConfig | None = None,  # Готовая конфигурация или None.
         **config_kwargs: Any,  # Точечные переопределения ADPConfig.
     ) -> "ADPBase":
         """Создает ADP-модель нужного варианта.
 
         Вход:
-            variant: 'new' для случайных проекций или 'old' для полных моментов.
+            variant: 'new' для случайных проекций.
             config: готовая конфигурация.
             config_kwargs: поля ADPConfig, если config не задан или надо переопределить.
         Выход:
-            Экземпляр RandomProjectionADP или FullMomentADP.
+            Экземпляр RandomProjectionADP.
         """
 
-        from ..variants import FullMomentADP, RandomProjectionADP
+        from ..variants import RandomProjectionADP
 
         if config is None:
             config = ADPConfig(**config_kwargs)
@@ -52,9 +52,7 @@ class ADP:
 
         if variant == "new":
             return RandomProjectionADP(config)
-        if variant == "old":
-            return FullMomentADP(config)
-        raise ValueError("variant должен быть 'new' или 'old'")
+        raise ValueError("variant должен быть только 'new'")
 
 
 class ADPBase(
@@ -92,6 +90,7 @@ class ADPBase(
         self.directions_: np.ndarray | None = None
         self.neighbor_index_: NeighborIndex | None = None
         self.diagnostic_plots_: dict[str, Path] = {}
+        self._pairwise_cache: dict[tuple[Any, ...], np.ndarray] = {}
 
     def _compute_statistics(
         self,
@@ -102,7 +101,6 @@ class ADPBase(
         beta: np.ndarray,  # Текущее направление beta.
         directions: np.ndarray | None,  # Направления для new или None.
         anisotropy: float | None,  # rho для new или None.
-        b_value: float | None,  # b для old или None.
     ) -> LocalStatistics:
         """Вычисляет локальные статистики конкретного варианта.
 
@@ -110,7 +108,6 @@ class ADPBase(
             X, y, centers, h, beta: данные текущего outer-шага.
             directions: случайные направления для new-варианта.
             anisotropy: rho из new-варианта.
-            b_value: продольный bandwidth из old-варианта.
         Выход:
             LocalStatistics, определенные подклассом.
         """
@@ -140,6 +137,7 @@ class ADPBase(
         slopes: np.ndarray,  # Локальные наклоны.
         prior: np.ndarray,  # beta предыдущего внешнего шага.
         lambda_penalty: float,  # Сила регуляризации.
+        x0: np.ndarray | None = None,  # Старт CG или None.
     ) -> np.ndarray:
         """Решает глобальный шаг по beta.
 
@@ -149,6 +147,7 @@ class ADPBase(
             slopes: локальные наклоны.
             prior: направление регуляризации.
             lambda_penalty: сила регуляризации.
+            x0: warm-start для численного solve.
         Выход:
             Новый ненормированный beta.
         """

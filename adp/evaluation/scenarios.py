@@ -8,7 +8,6 @@ from ..core import ADPConfig
 
 BenchmarkMethod = Literal[
     "adp_new",
-    "adp_old",
     "statsmodels_sir",
     "statsmodels_save",
     "statsmodels_phd",

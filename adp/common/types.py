@@ -10,7 +10,7 @@ from scipy import linalg
 
 
 KernelName = Literal["epanechnikov", "quartic", "gaussian"]
-VariantName = Literal["new", "old"]
+VariantName = Literal["new"]
 BackendName = Literal["numpy"]
 
 
@@ -38,6 +38,11 @@ class ADPConfig:
     tol: float = 1e-6
     bandwidth_decay: float = math.sqrt(2.0)
     anisotropy_min: float | None = None
+    local_mass_quantile: float = 0.05
+    scale_expand_steps: int = 30
+    scale_search_steps: int = 24
+    anisotropy_search_steps: int = 24
+    use_cg_preconditioner: bool = True
     kernel: KernelName = "epanechnikov"
     backend: BackendName = "numpy"
     dtype: str = "float64"
@@ -62,6 +67,14 @@ class ADPConfig:
 
         if self.backend != "numpy":
             raise ValueError("Only numpy backend is supported")
+        if not 0.0 <= self.local_mass_quantile <= 1.0:
+            raise ValueError("local_mass_quantile должен быть в диапазоне [0, 1]")
+        if self.scale_expand_steps < 1:
+            raise ValueError("scale_expand_steps должен быть положительным")
+        if self.scale_search_steps < 1:
+            raise ValueError("scale_search_steps должен быть положительным")
+        if self.anisotropy_search_steps < 1:
+            raise ValueError("anisotropy_search_steps должен быть положительным")
 
     def resolved_lambda(
         self,  # Текущая конфигурация ADP.
@@ -105,7 +118,7 @@ class LocalStatistics:
     Вход:
         Поля dataclass после вычисления локальных статистик.
     Выход:
-        Контейнер со статистиками конкретного варианта new или old.
+        Контейнер со статистиками new-варианта.
     """
 
     variant: VariantName
@@ -117,9 +130,7 @@ class LocalStatistics:
     S: np.ndarray | None = None
     U: np.ndarray | None = None
     N: np.ndarray | None = None
-    VP: np.ndarray | None = None
     anisotropy: float | None = None
-    b: float | None = None
 
 
 @dataclass(slots=True)

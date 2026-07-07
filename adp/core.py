@@ -13,11 +13,10 @@ from .common.utils import (
     normalize_rows,
     pairwise_norm2,
     pairwise_projection2,
-    safe_solve,
     unit_vector,
 )
 from .engine.base import ADP, ADPBase, tqdm
-from .variants import FullMomentADP, RandomProjectionADP
+from .variants import RandomProjectionADP
 
 _NumpyBackend = NumpyBackend
 _NeighborIndex = NeighborIndex
@@ -30,7 +29,6 @@ _link_function = link_function
 _normalize_rows = normalize_rows
 _pairwise_norm2 = pairwise_norm2
 _pairwise_projection2 = pairwise_projection2
-_safe_solve = safe_solve
 _unit_vector = unit_vector
 
 __all__ = [
@@ -40,7 +38,6 @@ __all__ = [
     "ADPData",
     "ADPResult",
     "BackendName",
-    "FullMomentADP",
     "KernelName",
     "LocalStatistics",
     "NeighborIndex",
@@ -57,7 +54,6 @@ __all__ = [
     "normalize_rows",
     "pairwise_norm2",
     "pairwise_projection2",
-    "safe_solve",
     "tqdm",
     "unit_vector",
     "_NumpyBackend",
@@ -71,6 +67,5 @@ __all__ = [
     "_normalize_rows",
     "_pairwise_norm2",
     "_pairwise_projection2",
-    "_safe_solve",
     "_unit_vector",
 ]

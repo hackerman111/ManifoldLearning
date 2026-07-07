@@ -142,7 +142,7 @@ class DiagnosticsMixin:
         iterations = np.arange(len(result.history))
 
         # График цели показывает, как попеременный решатель уменьшал целевую
-        # функцию после исключения наблюдаемых величин в manifold_old.tex/manifold_new.tex.
+        # функцию после исключения наблюдаемых величин в manifold_new.tex.
         fig, ax = plt.subplots()
         set_adp_figure_size(fig)
         prepare_adp_axis(ax)
@@ -169,8 +169,7 @@ class DiagnosticsMixin:
         )
         saved["delta"] = save_figure(fig, output_path / f"{prefix}_delta.png", dpi=dpi, close=close)
 
-        # График масштабов полезен для проверки адаптивной локализации:
-        # new добавляет rho, old добавляет b.
+        # График масштабов полезен для проверки адаптивной локализации через rho.
         outer = np.arange(1, len(result.progress) + 1)
         # Средняя масса весов должна оставаться около min_neighbors, иначе
         # локальные задачи наименьших квадратов становятся плохо обусловленными.
@@ -186,15 +185,6 @@ class DiagnosticsMixin:
                 linewidth=2.1,
                 markersize=5,
                 label="rho",
-            )
-        if any("b" in record for record in result.progress):
-            ax.plot(
-                outer,
-                [record.get("b", np.nan) for record in result.progress],
-                marker="D",
-                linewidth=2.1,
-                markersize=5,
-                label="b",
             )
         ax.legend()
         apply_adp_axis_style(

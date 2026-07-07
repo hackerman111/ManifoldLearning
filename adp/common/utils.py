@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Callable
 
 import numpy as np
-from scipy import linalg
 
 from .types import KernelName
 
@@ -156,25 +155,6 @@ def average_kernel_weight(
     """
 
     return float(kernel_np(q, name).sum(axis=1).mean())
-
-
-def safe_solve(
-    lhs: np.ndarray,  # Левая матрица системы.
-    rhs: np.ndarray,  # Правая часть.
-) -> np.ndarray:
-    """Решает линейную систему с fallback на least squares.
-
-    Вход:
-        lhs: квадратная матрица.
-        rhs: правая часть.
-    Выход:
-        Вектор решения.
-    """
-
-    try:
-        return linalg.solve(lhs, rhs, assume_a="pos")
-    except Exception:
-        return linalg.lstsq(lhs, rhs)[0]
 
 
 def link_function(

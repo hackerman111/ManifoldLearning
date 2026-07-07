@@ -50,8 +50,6 @@ def format_progress_postfix(
     }
     if "rho" in record:
         postfix["rho"] = format_float(record["rho"])
-    if "b" in record:
-        postfix["b"] = format_float(record["b"])
     if "directions" in record:
         postfix["dirs"] = record["directions"]
     return postfix

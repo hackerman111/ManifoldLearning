@@ -6,11 +6,61 @@ from typing import Callable
 import numpy as np
 
 from ..backends.neighbors import NeighborIndex
-from ..common.utils import average_kernel_weight, pairwise_norm2, pairwise_projection2
+from ..common.utils import pairwise_norm2, pairwise_projection2
 
 
 class BandwidthMixin:
     """Методы выбора локальных масштабов ADP."""
+
+    def _clear_pairwise_cache(
+        self,
+    ) -> None:
+        """Очищает cache матриц расстояний для одного вызова fit."""
+
+        self._pairwise_cache = {}
+
+    def _cached_pairwise_norm2(
+        self,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+        centers: np.ndarray,  # Матрица центров J x d.
+    ) -> np.ndarray:
+        """Возвращает ||X_i - c_j||^2 с cache на текущий fit."""
+
+        cache = getattr(self, "_pairwise_cache", None)
+        if cache is None:
+            cache = {}
+            self._pairwise_cache = cache
+        key = ("norm2", id(X), X.shape, id(centers), centers.shape)
+        if key not in cache:
+            cache[key] = pairwise_norm2(X, centers)
+        return cache[key]
+
+    def _cached_pairwise_projection2(
+        self,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+        centers: np.ndarray,  # Матрица центров J x d.
+        beta: np.ndarray,  # Направление beta.
+    ) -> np.ndarray:
+        """Возвращает <X_i - c_j, beta>^2 с cache на текущий fit."""
+
+        cache = getattr(self, "_pairwise_cache", None)
+        if cache is None:
+            cache = {}
+            self._pairwise_cache = cache
+        beta_arr = np.asarray(beta, dtype=float)
+        key = ("proj2", id(X), X.shape, id(centers), centers.shape, beta_arr.shape, beta_arr.tobytes())
+        if key not in cache:
+            cache[key] = pairwise_projection2(X, centers, beta_arr)
+        return cache[key]
+
+    def _local_mass_score(
+        self,
+        q: np.ndarray,  # Матрица квадратичной формы J x n.
+    ) -> float:
+        """Возвращает lower-quantile локальной массы вместо среднего."""
+
+        masses = np.asarray(self.backend.kernel(q, self.config.kernel)).sum(axis=1)
+        return float(np.quantile(masses, self.config.local_mass_quantile))
 
     def _select_isotropic_bandwidth(
         self,
@@ -30,7 +80,7 @@ class BandwidthMixin:
 
         # В TeX h выбирается как минимальный масштаб, при котором почти каждая
         # локальная окрестность содержит достаточно массы ядра.
-        diff_norm2 = pairwise_norm2(X, centers)
+        diff_norm2 = self._cached_pairwise_norm2(X, centers)
         high_hint = None
         if index is not None:
             # Индекс соседей дает только стартовую верхнюю оценку для бинарного
@@ -38,16 +88,17 @@ class BandwidthMixin:
             k = min(max(1, int(math.ceil(self.config.min_neighbors))), X.shape[0])
             kth = index.kth_distances(centers, k)
             if kth is not None and np.all(np.isfinite(kth)):
-                high_hint = float(np.nanmedian(kth))
+                hint_quantile = min(1.0, max(0.0, 1.0 - self.config.local_mass_quantile))
+                high_hint = float(np.nanquantile(kth, hint_quantile))
 
-        def avg_for(
+        def score_for(
             h: float,  # Кандидат масштаба h.
         ) -> float:
-            """Считает среднюю локальную массу для isotropic h."""
+            """Считает lower-quantile локальной массы для isotropic h."""
 
-            return average_kernel_weight(diff_norm2 / (h * h), self.config.kernel)
+            return self._local_mass_score(diff_norm2 / (h * h))
 
-        return self._binary_search_scale(avg_for, high_hint)
+        return self._binary_search_scale(score_for, high_hint)
 
     def _select_new_anisotropy(
         self,
@@ -69,73 +120,40 @@ class BandwidthMixin:
 
         # manifold_new.tex использует q = (rho^2 ||dx||^2 + <dx,beta>^2) / h^2.
         # Чем меньше rho, тем слабее штрафуются направления, ортогональные beta.
-        norm2 = pairwise_norm2(X, centers)
-        proj2 = pairwise_projection2(X, centers, beta)
+        norm2 = self._cached_pairwise_norm2(X, centers)
+        proj2 = self._cached_pairwise_projection2(X, centers, beta)
 
-        def avg_for(
+        def score_for(
             rho: float,  # Кандидат rho.
         ) -> float:
-            """Считает среднюю массу при фиксированном rho."""
+            """Считает lower-quantile массу при фиксированном rho."""
 
             q = (rho * rho * norm2 + proj2) / (h * h)
-            return average_kernel_weight(q, self.config.kernel)
+            return self._local_mass_score(q)
 
-        # Ищем наименьшее rho, которое еще сохраняет нужную массу.
-        if avg_for(1.0) >= self.config.min_neighbors:
+        # Ищем максимальное rho, которое еще сохраняет нужную локальную массу.
+        if score_for(1.0) >= self.config.min_neighbors:
             return 1.0
-        if avg_for(0.0) < self.config.min_neighbors:
+        if score_for(0.0) < self.config.min_neighbors:
             return 0.0
         low, high = 0.0, 1.0
-        for _ in range(50):
+        for _ in range(self.config.anisotropy_search_steps):
             mid = (low + high) / 2.0
-            if avg_for(mid) >= self.config.min_neighbors:
+            if score_for(mid) >= self.config.min_neighbors:
                 low = mid
             else:
                 high = mid
         return float(low)
 
-    def _select_old_bandwidth(
-        self,
-        X: np.ndarray,  # Матрица наблюдений n x d.
-        centers: np.ndarray,  # Матрица центров J x d.
-        beta: np.ndarray,  # Текущее направление beta.
-        b_value: float,  # Продольный масштаб b для old.
-    ) -> float:
-        """Подбирает h при фиксированном b для old-варианта.
-
-        Вход:
-            X: матрица наблюдений.
-            centers: матрица центров.
-            beta: текущее EDR-направление.
-            b_value: bandwidth вдоль beta.
-        Выход:
-            Положительное значение h.
-        """
-
-        # manifold_old.tex задает анизотропные веса через два масштаба:
-        # h для полной нормы и b для проекции на текущее beta.
-        norm2 = pairwise_norm2(X, centers)
-        proj2 = pairwise_projection2(X, centers, beta)
-
-        def avg_for(
-            h: float,  # Кандидат масштаба h.
-        ) -> float:
-            """Считает среднюю массу при фиксированном h."""
-
-            q = norm2 / (h * h) + proj2 / (b_value * b_value)
-            return average_kernel_weight(q, self.config.kernel)
-
-        return self._binary_search_scale(avg_for, b_value)
-
     def _binary_search_scale(
         self,
-        avg_fn: Callable[[float], float],  # Средняя масса от масштаба.
+        avg_fn: Callable[[float], float],  # Локальная масса от масштаба.
         high_hint: float | None = None,  # Начальная верхняя оценка.
     ) -> float:
         """Ищет минимальный масштаб с достаточной локальной массой.
 
         Вход:
-            avg_fn: функция средней массы.
+            avg_fn: функция локальной массы.
             high_hint: начальная верхняя оценка или None.
         Выход:
             Положительный масштаб.
@@ -146,11 +164,11 @@ class BandwidthMixin:
         target = float(self.config.min_neighbors)
         low = np.finfo(float).eps
         high = max(float(high_hint or 1.0), low * 2.0)
-        for _ in range(80):
+        for _ in range(self.config.scale_expand_steps):
             if avg_fn(high) >= target:
                 break
             high *= 2.0
-        for _ in range(70):
+        for _ in range(self.config.scale_search_steps):
             mid = (low + high) / 2.0
             if avg_fn(mid) >= target:
                 high = mid

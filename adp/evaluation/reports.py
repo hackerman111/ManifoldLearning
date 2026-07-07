@@ -83,8 +83,8 @@ def benchmark_summary(
         DataFrame со средними, std и 95% CI.
     """
 
-    # Группировка по scenario/method сохраняет возможность сравнивать old/new
-    # ADP с готовыми EDR-методами на одной сетке параметров.
+    # Группировка по scenario/method сохраняет возможность сравнивать рабочий
+    # ADP new с готовыми EDR-методами на одной сетке параметров.
     summary = (
         frame.groupby(["scenario", "method"])
         .agg(

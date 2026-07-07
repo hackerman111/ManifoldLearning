@@ -25,7 +25,7 @@ class DataPreparationMixin:
         corr: float = 0.5,  # Сила общей компоненты признаков.
         link: str | Callable[[np.ndarray], np.ndarray] = "quadratic",  # Связь f.
     ) -> ADPData:
-        """Генерирует single-index данные из manifold_*.tex.
+        """Генерирует single-index данные из manifold_new.tex.
 
         Вход:
             n: число наблюдений.
@@ -70,7 +70,6 @@ class DataPreparationMixin:
 
         directions = None
         if self.variant == "new":
-            # Только manifold_new.tex требует наборы phi_j случайных направлений.
             p_count = int(n_directions or self.config.n_directions)
             directions = self._sample_directions(j_count, p_count, d)
         return ADPData(X=X, y=y, beta=beta_vec, centers=centers, directions=directions, noise=eps, link_name=link_name)
@@ -107,11 +106,9 @@ class DataPreparationMixin:
             d: размерность признаков.
             directions: готовый массив направлений или None.
         Выход:
-            Нормированный массив J x P x d или None для old-варианта.
+            Нормированный массив J x P x d.
         """
 
-        if self.variant == "old":
-            return None
         if directions is None:
             return self._sample_directions(centers.shape[0], self.config.n_directions, d)
         directions_arr = np.asarray(directions, dtype=float)

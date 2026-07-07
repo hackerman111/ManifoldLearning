@@ -53,27 +53,9 @@ def test_new_variant_fits_beta_with_random_projection_statistics():
     assert result.statistics.directions is not None
 
 
-def test_old_variant_uses_full_local_moment_statistics_without_random_projections():
-    model = ADP.create(
-        "old",
-        ADPConfig(
-            n_centers=28,
-            min_neighbors=8,
-            outer_steps=1,
-            inner_steps=5,
-            backend="numpy",
-            show_progress=False,
-            random_state=3,
-        ),
-    )
-    data = model.generate_data(n=150, d=5, noise=0.02, link="linear")
-
-    result = model.fit(data.X, data.y, centers=data.centers, beta0=data.beta)
-    metrics = model.score(data.beta)
-
-    assert result.statistics.directions is None
-    assert result.statistics.imav.shape == (model.config.n_centers, 6)
-    assert metrics["cosine_abs"] > 0.8
+def test_factory_rejects_removed_old_variant():
+    with pytest.raises(ValueError, match="только 'new'"):
+        ADP.create("old", ADPConfig(show_progress=False))
 
 
 def test_backend_is_numpy_only():

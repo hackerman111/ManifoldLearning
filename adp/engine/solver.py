@@ -50,8 +50,6 @@ class SolverMixin:
         }
         if stats.anisotropy is not None:
             record["rho"] = float(stats.anisotropy)
-        if stats.b is not None:
-            record["b"] = float(stats.b)
         if stats.directions is not None:
             record["directions"] = int(stats.directions.shape[1])
         return record
@@ -92,7 +90,7 @@ class SolverMixin:
 
             # Второй полу-шаг: при фиксированных (c_j, l_j) решается одна
             # квадратичная задача по beta с регуляризацией к prior.
-            beta = self._solve_beta(stats, intercepts, slopes, prior, lambda_penalty)
+            beta = self._solve_beta(stats, intercepts, slopes, prior, lambda_penalty, x0=beta)
 
             norm = np.linalg.norm(beta)
             if norm > 0:

@@ -76,78 +76,55 @@ class NumpyBackend:
 
     def random_projection_sums(
         self,
-        diff: np.ndarray,  # Разности X_i - c_j для блока центров.
+        *,
+        X: np.ndarray,  # Матрица наблюдений n x d.
         y: np.ndarray,  # Вектор ответов длины n.
+        centers: np.ndarray,  # Центры блока C x d.
         directions: np.ndarray,  # Направления блока C x P x d.
         q: np.ndarray,  # Значения квадратичной формы C x n.
         kernel: KernelName,  # Имя ядра.
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-        """Считает суммы Ima, S, U для new-варианта.
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
+        """Считает блочные суммы Ima, S, U для new-варианта.
 
         Вход:
-            diff: массив C x n x d.
+            X: матрица наблюдений n x d.
             y: вектор ответов.
+            centers: центры блока C x d.
             directions: массив C x P x d.
             q: значения локальной квадратичной формы.
             kernel: имя ядра.
         Выход:
-            Кортеж imav, S, U и средней локальной массы.
+            Кортеж imav, S, U, N и средней локальной массы.
         """
 
-        xdiff = self.asarray(diff)
+        x = self.asarray(X)
         xy = self.asarray(y)
+        xcenters = self.asarray(centers)
         xdirs = self.asarray(directions)
         xq = self.asarray(q)
+        if xcenters.shape[0] != xdirs.shape[0] or xq.shape[0] != xdirs.shape[0]:
+            raise ValueError("centers, directions и q должны иметь одинаковое число центров")
+        if xq.shape[1] != x.shape[0]:
+            raise ValueError("q должен иметь форму C x n")
         weights = self.kernel(xq, kernel)
+        counts = self.to_numpy(weights.sum(axis=1))
+        safe_counts = np.maximum(counts, np.finfo(float).eps)
 
-        # manifold_new.tex: для каждого центра j и направления phi считаем
-        # <X_i - x_j, phi>, а затем суммы Ima_{j,phi}, S_{j,phi}, U_{j,phi}.
-        projected = np.einsum("cnd,cpd->cnp", xdiff, xdirs)
-        imav = np.einsum("n,cn,cnp->cp", xy, weights, projected)
-        s_vec = np.einsum("cn,cnp->cp", weights, projected)
-        u_mat = np.einsum("cnd,cn,cnp->cpd", xdiff, weights, projected)
+        # centered_i = X_i - Xbar_j, где Xbar_j нормируется на N_j.
+        # Алгебра ниже избегает временного массива C x n x d.
+        xbar = (weights @ x) / safe_counts[:, None]
+        projected = np.matmul(x[None, :, :], np.swapaxes(xdirs, 1, 2))
+        xbar_projected = np.einsum("cd,cpd->cp", xbar, xdirs, optimize=True)
+        projected -= xbar_projected[:, None, :]
+        imav = np.einsum("n,cn,cnp->cp", xy, weights, projected, optimize=True)
+        s_vec = np.einsum("cn,cnp->cp", weights, projected, optimize=True)
+        projected *= weights[:, :, None]
+        u_raw = np.matmul(np.swapaxes(projected, 1, 2), x)
+        u_mat = u_raw - s_vec[:, :, None] * xbar[:, None, :]
         return (
             self.to_numpy(imav),
             self.to_numpy(s_vec),
             self.to_numpy(u_mat),
-            float(self.to_numpy(weights.sum(axis=1)).mean()),
-        )
-
-    def full_moment_sums(
-        self,
-        diff: np.ndarray,  # Разности X_i - c_j для блока центров.
-        y: np.ndarray,  # Вектор ответов длины n.
-        q: np.ndarray,  # Значения квадратичной формы C x n.
-        kernel: KernelName,  # Имя ядра.
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
-        """Считает Ima, N, S, VP для old-варианта.
-
-        Вход:
-            diff: массив C x n x d.
-            y: вектор ответов.
-            q: значения локальной квадратичной формы.
-            kernel: имя ядра.
-        Выход:
-            Кортеж imav, N, S, VP и средней локальной массы.
-        """
-
-        xdiff = self.asarray(diff)
-        xy = self.asarray(y)
-        xq = self.asarray(q)
-        weights = self.kernel(xq, kernel)
-
-        # manifold_old.tex: старая версия хранит полный локальный момент
-        # [N_j, S_j; S_j^T, VP_j], без сжатия через случайные направления.
-        im0 = np.einsum("n,cn->c", xy, weights)
-        im1 = np.einsum("n,cn,cnd->cd", xy, weights, xdiff)
-        n_vec = weights.sum(axis=1)
-        s_vec = np.einsum("cn,cnd->cd", weights, xdiff)
-        vp = np.einsum("cn,cnd,cne->cde", weights, xdiff, xdiff)
-        imav = np.concatenate([im0[:, None], im1], axis=1)
-        return (
-            self.to_numpy(imav),
-            self.to_numpy(n_vec),
-            self.to_numpy(s_vec),
-            self.to_numpy(vp),
-            float(self.to_numpy(n_vec).mean()),
+            counts,
+            float(counts.mean()),
         )

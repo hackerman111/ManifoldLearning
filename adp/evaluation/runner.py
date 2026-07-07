@@ -16,7 +16,7 @@ from .scenarios import BenchmarkMethod, BenchmarkScenario, default_scenarios
 def run_benchmark_suite(
     scenarios: Iterable[BenchmarkScenario] | None = None,  # Сценарии или None.
     *,
-    methods: Iterable[BenchmarkMethod] = ("adp_new", "adp_old", "statsmodels_sir", "statsmodels_save", "statsmodels_phd", "sklearn_pls"),
+    methods: Iterable[BenchmarkMethod] = ("adp_new", "statsmodels_sir", "statsmodels_save", "statsmodels_phd", "sklearn_pls"),
     random_state: int = 0,  # Общее начальное число.
     show_progress: bool = False,  # Показывать прогресс ADP.
 ) -> pd.DataFrame:
@@ -67,7 +67,7 @@ def make_data(
     """
 
     # Данные генерирует тот же интерфейс ADP, чтобы замеры использовали ровно ту
-    # одноиндексную модель, на которую настроены old/new варианты.
+    # одноиндексную модель, на которую настроен рабочий new-вариант.
     generator = ADP.create(
         "new",
         ADPConfig(
@@ -126,12 +126,6 @@ def run_method(
         if method == "adp_new":
             # new соответствует manifold_new.tex: случайные проекции phi.
             model = ADP.create("new", scenario.adp_config(random_state=seed, show_progress=show_progress))
-            result = model.fit(data.X, data.y, centers=data.centers)
-            beta_hat = result.beta
-            objective = result.objective
-        elif method == "adp_old":
-            # old соответствует manifold_old.tex: полные локальные моменты без phi.
-            model = ADP.create("old", scenario.adp_config(random_state=seed, show_progress=show_progress))
             result = model.fit(data.X, data.y, centers=data.centers)
             beta_hat = result.beta
             objective = result.objective

@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
+from typing import get_args
 
 from adp.benchmarks import BenchmarkScenario, benchmark_summary, grid_scenarios, run_benchmark_suite, save_benchmark_report
+from adp.evaluation.scenarios import BenchmarkMethod
 from adp.evaluation import reports
 
 
@@ -84,6 +86,13 @@ def test_benchmark_suite_compares_adp_with_ready_edr_baselines(tmp_path):
     assert saved["csv"].read_text().startswith("scenario,trial,method")
 
 
+def test_benchmark_methods_keep_only_new_adp_variant():
+    methods = set(get_args(BenchmarkMethod))
+
+    assert "adp_new" in methods
+    assert "adp_old" not in methods
+
+
 def test_benchmark_summary_includes_confidence_intervals_and_memory():
     frame = pd.DataFrame(
         [
@@ -103,15 +112,6 @@ def test_benchmark_summary_includes_confidence_intervals_and_memory():
                 "angle_deg": 2.0,
                 "fit_time_sec": 1.4,
                 "peak_memory_kib": 140.0,
-                "failed": False,
-            },
-            {
-                "scenario": "grid_d10_p5",
-                "method": "adp_old",
-                "cosine_abs": 0.85,
-                "angle_deg": 6.0,
-                "fit_time_sec": 1.8,
-                "peak_memory_kib": 180.0,
                 "failed": False,
             },
         ]
@@ -134,12 +134,8 @@ def test_benchmark_summary_includes_confidence_intervals_and_memory():
     }
     assert expected_columns.issubset(summary.columns)
     new_row = summary[(summary["scenario"] == "grid_d10_p5") & (summary["method"] == "adp_new")].iloc[0]
-    old_row = summary[(summary["scenario"] == "grid_d10_p5") & (summary["method"] == "adp_old")].iloc[0]
     assert new_row["count"] == 2
     assert new_row["cosine_abs_ci95_low"] < new_row["cosine_abs_mean"] < new_row["cosine_abs_ci95_high"]
-    assert old_row["count"] == 1
-    assert old_row["fit_time_sec_ci95_low"] == old_row["fit_time_sec_mean"]
-    assert old_row["fit_time_sec_ci95_high"] == old_row["fit_time_sec_mean"]
 
 
 def test_benchmark_report_uses_russian_plot_labels(tmp_path, monkeypatch):

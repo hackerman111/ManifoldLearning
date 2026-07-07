@@ -4,7 +4,6 @@ import numpy as np
 from scipy.sparse.linalg import LinearOperator, cg
 
 from ..common.types import LocalStatistics, VariantName
-from ..common.utils import pairwise_norm2, pairwise_projection2
 from ..engine.base import ADPBase
 
 
@@ -22,7 +21,6 @@ class RandomProjectionADP(ADPBase):
         beta: np.ndarray,  # Текущее направление beta.
         directions: np.ndarray | None,  # Направления J x P x d.
         anisotropy: float | None,  # rho или None на первом шаге.
-        b_value: float | None,  # Не используется в new.
     ) -> LocalStatistics:
         """Вычисляет new-статистики Ima, S, U.
 
@@ -34,7 +32,6 @@ class RandomProjectionADP(ADPBase):
             beta: текущее EDR-направление.
             directions: случайные направления для каждого центра.
             anisotropy: rho для адаптивных весов или None.
-            b_value: не используется.
         Выход:
             LocalStatistics с imav, S, U и directions.
         """
@@ -47,35 +44,36 @@ class RandomProjectionADP(ADPBase):
         u_all = np.zeros((J, P, d))
         n_all = np.zeros(J)
         weight_means: list[float] = []
+        norm2_all = self._cached_pairwise_norm2(X, centers)
+        proj2_all = self._cached_pairwise_projection2(X, centers, beta) if anisotropy is not None else None
 
         for start in range(0, J, self.config.chunk_size):
             stop = min(start + self.config.chunk_size, J)
             center_chunk = centers[start:stop]
-            norm2 = pairwise_norm2(X, center_chunk)
+            norm2 = norm2_all[start:stop]
             if anisotropy is None:
                 # Первый внешний шаг из manifold_new.tex: изотропные веса.
                 q = norm2 / (h * h)
             else:
                 # Адаптивные веса new: q = (rho^2 ||dx||^2 + <dx,beta>^2) / h^2.
-                proj2 = pairwise_projection2(X, center_chunk, beta)
+                if proj2_all is None:
+                    raise RuntimeError("projection cache не подготовлен")
+                proj2 = proj2_all[start:stop]
                 q = (float(anisotropy) * float(anisotropy) * norm2 + proj2) / (h * h)
 
-            weights = self.backend.kernel(q, self.config.kernel)
-            n_chunk = np.asarray(weights.sum(axis=1), dtype=float)
+            imav_chunk, s_chunk, u_chunk, n_chunk, weights_mean = self.backend.random_projection_sums(
+                X=X,
+                y=y,
+                centers=center_chunk,
+                directions=directions[start:stop],
+                q=q,
+                kernel=self.config.kernel,
+            )
             n_all[start:stop] = n_chunk
-            weight_means.append(float(n_chunk.mean()))
-
-            for local_index, j in enumerate(range(start, stop)):
-                w = np.asarray(weights[local_index], dtype=float)
-                safe_count = max(float(n_chunk[local_index]), np.finfo(float).eps)
-                # Важный пункт из efficient reference: Xbar_j нормируется на N_j.
-                xbar = (w @ X) / safe_count
-                centered = X - xbar
-                projected = centered @ directions[j].T
-                weighted_projected = projected * w[:, None]
-                s_all[j] = weighted_projected.sum(axis=0)
-                imav[j] = (w * y) @ projected
-                u_all[j] = weighted_projected.T @ centered
+            weight_means.append(weights_mean)
+            imav[start:stop] = imav_chunk
+            s_all[start:stop] = s_chunk
+            u_all[start:stop] = u_chunk
 
         return LocalStatistics(
             variant="new",
@@ -107,9 +105,9 @@ class RandomProjectionADP(ADPBase):
         if stats.U is None:
             raise ValueError("Некорректные статистики new-варианта")
         intercepts = np.zeros(stats.U.shape[0])
-        ubeta = np.einsum("jpd,d->jp", stats.U, beta)
-        numerator = np.einsum("jp,jp->j", stats.imav, ubeta)
-        denominator = np.einsum("jp,jp->j", ubeta, ubeta)
+        ubeta = np.einsum("jpd,d->jp", stats.U, beta, optimize=True)
+        numerator = np.einsum("jp,jp->j", stats.imav, ubeta, optimize=True)
+        denominator = np.einsum("jp,jp->j", ubeta, ubeta, optimize=True)
         denominator = np.maximum(denominator, np.finfo(float).tiny)
         slopes = numerator / denominator
         return intercepts, slopes
@@ -121,6 +119,7 @@ class RandomProjectionADP(ADPBase):
         slopes: np.ndarray,  # Локальные наклоны.
         prior: np.ndarray,  # beta предыдущего внешнего шага.
         lambda_penalty: float,  # Сила регуляризации.
+        x0: np.ndarray | None = None,  # Стартовая точка CG или None.
     ) -> np.ndarray:
         """Решает beta для new-варианта.
 
@@ -130,6 +129,7 @@ class RandomProjectionADP(ADPBase):
             slopes: локальные наклоны.
             prior: направление регуляризации.
             lambda_penalty: сила регуляризации.
+            x0: warm-start для CG; регуляризация все равно идет к prior.
         Выход:
             Новый ненормированный beta.
         """
@@ -141,18 +141,29 @@ class RandomProjectionADP(ADPBase):
         regularization = float(lambda_penalty) + float(self.config.ridge)
 
         def matvec(vector: np.ndarray) -> np.ndarray:
-            projected = np.einsum("jpd,d->jp", stats.U, vector)
-            result = np.einsum("j,jp,jpd->d", slopes**2, projected, stats.U)
+            projected = np.einsum("jpd,d->jp", stats.U, vector, optimize=True)
+            result = np.einsum("j,jp,jpd->d", slopes**2, projected, stats.U, optimize=True)
             result += regularization * vector
             return result
 
-        rhs = np.einsum("j,jp,jpd->d", slopes, residual, stats.U)
+        rhs = np.einsum("j,jp,jpd->d", slopes, residual, stats.U, optimize=True)
         rhs += float(lambda_penalty) * prior
         operator = LinearOperator((d, d), matvec=matvec, dtype=float)
+        preconditioner = None
+        if self.config.use_cg_preconditioner:
+            diagonal = np.einsum("j,jpd,jpd->d", slopes**2, stats.U, stats.U, optimize=True)
+            diagonal += regularization
+            inverse_diagonal = 1.0 / np.maximum(diagonal, np.finfo(float).tiny)
+            preconditioner = LinearOperator(
+                (d, d),
+                matvec=lambda vector: inverse_diagonal * vector,
+                dtype=float,
+            )
         beta, info = cg(
             operator,
             rhs,
-            x0=prior,
+            x0=prior if x0 is None else x0,
+            M=preconditioner,
             rtol=self.config.tol,
             atol=0.0,
             maxiter=max(50, min(500, 5 * d)),
@@ -185,7 +196,7 @@ class RandomProjectionADP(ADPBase):
 
         if stats.S is None or stats.U is None:
             raise ValueError("Некорректные статистики new-варианта")
-        ubeta = np.einsum("jpd,d->jp", stats.U, beta)
+        ubeta = np.einsum("jpd,d->jp", stats.U, beta, optimize=True)
         pred = intercepts[:, None] * stats.S + slopes[:, None] * ubeta
         total = float(np.sum((stats.imav - pred) ** 2))
         total += lambda_penalty * float(np.sum((beta - prior) ** 2))
