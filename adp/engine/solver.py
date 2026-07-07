@@ -80,6 +80,7 @@ class SolverMixin:
         intercepts = np.zeros(stats.centers.shape[0])
         slopes = np.ones(stats.centers.shape[0])
         last_objective = math.inf
+        objective_interval = max(1, int(self.config.objective_check_every))
 
         for inner in range(max(1, self.config.inner_steps)):
             old_beta = beta.copy()
@@ -99,7 +100,14 @@ class SolverMixin:
                 beta = beta / norm
                 slopes = slopes * norm
 
-            objective = self._objective(stats, beta, intercepts, slopes, prior, lambda_penalty)
+            should_check_objective = inner == 0 or inner % objective_interval == 0
+            objective_delta = math.inf
+            if should_check_objective:
+                objective = self._objective(stats, beta, intercepts, slopes, prior, lambda_penalty)
+                objective_delta = abs(last_objective - objective)
+                last_objective = objective
+            else:
+                objective = last_objective
             beta_delta = float(np.linalg.norm(beta - old_beta))
             history.append(
                 TrainingStep(
@@ -112,8 +120,9 @@ class SolverMixin:
                     elapsed=time.perf_counter() - outer_started,
                 )
             )
-            if beta_delta < self.config.tol or abs(last_objective - objective) < self.config.tol:
+            if beta_delta < self.config.tol or objective_delta < self.config.tol:
                 break
-            last_objective = objective
 
+        if history and history[-1].inner % objective_interval != 0:
+            history[-1].objective = float(self._objective(stats, beta, intercepts, slopes, prior, lambda_penalty))
         return unit_vector(beta), intercepts, slopes, history

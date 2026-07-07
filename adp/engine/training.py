@@ -39,8 +39,8 @@ class TrainingMixin:
 
         # Приводим вход к строгой форме n x d и n, чтобы дальше формулы
         # из manifold_new.tex работали с ожидаемыми осями.
-        X_arr = as_2d_float(X, "X")
-        y_arr = as_1d_float(y, "y")
+        X_arr = self.backend.asarray(as_2d_float(X, "X"))
+        y_arr = self.backend.asarray(as_1d_float(y, "y"))
         if X_arr.shape[0] != y_arr.shape[0]:
             raise ValueError("X и y имеют разные размеры по n")
         self._clear_pairwise_cache()
@@ -49,13 +49,13 @@ class TrainingMixin:
         _, d = X_arr.shape
 
         # Центры x_j задают локальные окрестности из предварительного раздела.
-        centers_arr = as_2d_float(centers, "centers") if centers is not None else self._choose_centers(X_arr)
+        centers_arr = self.backend.asarray(as_2d_float(centers, "centers")) if centers is not None else self._choose_centers(X_arr)
         if centers_arr.shape[1] != d:
             raise ValueError("centers должны иметь ту же размерность d, что и X")
 
         # beta_prev играет роль текущего prior: beta_0 на первом внешнем шаге
         # и beta_{k-1} в адаптивных шагах TeX-алгоритма.
-        beta_prev = unit_vector(beta0 if beta0 is not None else self._initial_beta(X_arr, y_arr))
+        beta_prev = self.backend.asarray(unit_vector(beta0 if beta0 is not None else self._initial_beta(X_arr, y_arr)))
         lambda_penalty = self.config.resolved_lambda()
 
         # Индекс соседей нужен только для быстрой верхней оценки h; сами веса

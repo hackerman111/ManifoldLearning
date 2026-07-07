@@ -38,11 +38,12 @@ class RandomProjectionADP(ADPBase):
 
         if directions is None:
             raise ValueError("new-вариант требует directions")
+        directions = self.backend.asarray(directions)
         J, P, d = directions.shape
-        imav = np.zeros((J, P))
-        s_all = np.zeros((J, P))
-        u_all = np.zeros((J, P, d))
-        n_all = np.zeros(J)
+        imav = np.zeros((J, P), dtype=self.backend.dtype)
+        s_all = np.zeros((J, P), dtype=self.backend.dtype)
+        u_all = np.zeros((J, P, d), dtype=self.backend.dtype)
+        n_all = np.zeros(J, dtype=self.backend.dtype)
         weight_means: list[float] = []
         norm2_all = self._cached_pairwise_norm2(X, centers)
         proj2_all = self._cached_pairwise_projection2(X, centers, beta) if anisotropy is not None else None
@@ -139,10 +140,11 @@ class RandomProjectionADP(ADPBase):
         d = stats.U.shape[2]
         residual = stats.imav - intercepts[:, None] * stats.S
         regularization = float(lambda_penalty) + float(self.config.ridge)
+        slope_sq = slopes**2
 
         def matvec(vector: np.ndarray) -> np.ndarray:
             projected = np.einsum("jpd,d->jp", stats.U, vector, optimize=True)
-            result = np.einsum("j,jp,jpd->d", slopes**2, projected, stats.U, optimize=True)
+            result = np.einsum("j,jp,jpd->d", slope_sq, projected, stats.U, optimize=True)
             result += regularization * vector
             return result
 
@@ -151,7 +153,7 @@ class RandomProjectionADP(ADPBase):
         operator = LinearOperator((d, d), matvec=matvec, dtype=float)
         preconditioner = None
         if self.config.use_cg_preconditioner:
-            diagonal = np.einsum("j,jpd,jpd->d", slopes**2, stats.U, stats.U, optimize=True)
+            diagonal = np.einsum("j,jpd,jpd->d", slope_sq, stats.U, stats.U, optimize=True)
             diagonal += regularization
             inverse_diagonal = 1.0 / np.maximum(diagonal, np.finfo(float).tiny)
             preconditioner = LinearOperator(

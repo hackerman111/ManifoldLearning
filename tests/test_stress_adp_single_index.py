@@ -290,3 +290,65 @@ def test_latex_mode_enables_usetex_and_latex_labels(tmp_path, monkeypatch):
     assert matplotlib.rcParams["text.usetex"] is True
     assert r"\hat{\beta}" in captured["quality_ylabel"]
     stress.configure_stress_matplotlib(use_latex=False)
+
+
+def test_stress_summary_includes_timing_split_and_throughput_metrics():
+    case = stress.build_cases(["smoke"], base_seed=9, max_cases=1)[0]
+    record = case.to_manifest_record()
+    record.update(
+        {
+            "failed": False,
+            "case_passed_quality_gate": True,
+            "cosine_abs": 0.95,
+            "angle_deg": 18.0,
+            "N_min": 4.0,
+            "N_frac_below_min_neighbors": 0.0,
+            "U_beta_denominator_min": 0.1,
+            "cg_iterations_total": 3,
+            "statistics_time_sec": 0.16,
+            "solve_time_sec": 0.04,
+            "fit_time_sec": 0.25,
+            "peak_memory_kib": 100.0,
+            "complexity_proxy_nJ_n_d_P": 4000,
+        }
+    )
+
+    summary = stress.summarize_records([record], breakdown_threshold=0.7)
+
+    assert summary.loc[0, "statistics_time_sec_mean"] == pytest.approx(0.16)
+    assert summary.loc[0, "solve_time_sec_mean"] == pytest.approx(0.04)
+    assert summary.loc[0, "statistics_share_mean"] == pytest.approx(0.64)
+    assert summary.loc[0, "statistics_throughput_proxy_mean"] == pytest.approx(25000.0)
+
+
+def test_stress_cli_overrides_optimization_parameters(tmp_path):
+    exit_code = stress.main(
+        [
+            "--profile",
+            "smoke",
+            "--dry-run",
+            "--max-cases",
+            "1",
+            "--output",
+            str(tmp_path),
+            "--no-latex",
+            "--dtype",
+            "float32",
+            "--local-mass-quantile",
+            "0.2",
+            "--scale-search-steps",
+            "7",
+            "--anisotropy-search-steps",
+            "6",
+            "--objective-check-every",
+            "3",
+        ]
+    )
+
+    assert exit_code == 0
+    records = (tmp_path / "adp_single_index_stress_records.csv").read_text()
+    assert "float32" in records
+    assert "0.2" in records
+    assert "7" in records
+    assert "6" in records
+    assert "3" in records

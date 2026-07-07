@@ -7,7 +7,7 @@ import json
 import math
 import time
 import tracemalloc
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
@@ -74,6 +74,12 @@ class StressProfile:
     chunk_size: int = 32
     tol: float = 1e-6
     ridge: float = 1e-10
+    dtype: str = "float64"
+    local_mass_quantile: float = 0.05
+    scale_expand_steps: int = 12
+    scale_search_steps: int = 12
+    anisotropy_search_steps: int = 12
+    objective_check_every: int = 2
     use_neighbor_index: bool = True
     min_cosine_abs: float = 0.70
 
@@ -124,6 +130,12 @@ class StressCase:
     chunk_size: int
     tol: float
     ridge: float
+    dtype: str
+    local_mass_quantile: float
+    scale_expand_steps: int
+    scale_search_steps: int
+    anisotropy_search_steps: int
+    objective_check_every: int
     use_neighbor_index: bool
     min_cosine_abs: float
 
@@ -167,6 +179,12 @@ class StressCase:
             "chunk_size": self.chunk_size,
             "tol": self.tol,
             "ridge": self.ridge,
+            "dtype": self.dtype,
+            "local_mass_quantile": self.local_mass_quantile,
+            "scale_expand_steps": self.scale_expand_steps,
+            "scale_search_steps": self.scale_search_steps,
+            "anisotropy_search_steps": self.anisotropy_search_steps,
+            "objective_check_every": self.objective_check_every,
             "use_neighbor_index": self.use_neighbor_index,
             "algorithm_variant": "single-index-random-projection",
             "localizing_tensor_form": LOCALIZING_TENSOR_FORM,
@@ -191,6 +209,12 @@ class StressCase:
             renew_directions=self.renew_directions,
             chunk_size=self.chunk_size,
             ridge=self.ridge,
+            dtype=self.dtype,
+            local_mass_quantile=self.local_mass_quantile,
+            scale_expand_steps=self.scale_expand_steps,
+            scale_search_steps=self.scale_search_steps,
+            anisotropy_search_steps=self.anisotropy_search_steps,
+            objective_check_every=self.objective_check_every,
             show_progress=show_progress,
             random_state=random_state,
             use_neighbor_index=self.use_neighbor_index,
@@ -361,6 +385,12 @@ def build_cases(
                                                     chunk_size=profile.chunk_size,
                                                     tol=profile.tol,
                                                     ridge=profile.ridge,
+                                                    dtype=profile.dtype,
+                                                    local_mass_quantile=profile.local_mass_quantile,
+                                                    scale_expand_steps=profile.scale_expand_steps,
+                                                    scale_search_steps=profile.scale_search_steps,
+                                                    anisotropy_search_steps=profile.anisotropy_search_steps,
+                                                    objective_check_every=profile.objective_check_every,
                                                     use_neighbor_index=profile.use_neighbor_index,
                                                     min_cosine_abs=profile.min_cosine_abs,
                                                 )
@@ -698,6 +728,8 @@ def summarize_records(records: list[dict[str, Any]], *, breakdown_threshold: flo
         "U_beta_denominator_min": math.nan,
         "cg_iterations_total": math.nan,
         "fit_time_sec": math.nan,
+        "statistics_time_sec": math.nan,
+        "solve_time_sec": math.nan,
         "peak_memory_kib": math.nan,
         "complexity_proxy_nJ_n_d_P": math.nan,
     }
@@ -719,11 +751,18 @@ def summarize_records(records: list[dict[str, Any]], *, breakdown_threshold: flo
             U_beta_denominator_min_mean=("U_beta_denominator_min", "mean"),
             cg_iterations_total_mean=("cg_iterations_total", "mean"),
             fit_time_sec_mean=("fit_time_sec", "mean"),
+            statistics_time_sec_mean=("statistics_time_sec", "mean"),
+            solve_time_sec_mean=("solve_time_sec", "mean"),
             peak_memory_kib_mean=("peak_memory_kib", "mean"),
             complexity_proxy_mean=("complexity_proxy_nJ_n_d_P", "mean"),
         )
         .reset_index()
     )
+    fit_time = summary["fit_time_sec_mean"].replace(0.0, math.nan)
+    statistics_time = summary["statistics_time_sec_mean"].replace(0.0, math.nan)
+    summary["statistics_share_mean"] = summary["statistics_time_sec_mean"] / fit_time
+    summary["solve_share_mean"] = summary["solve_time_sec_mean"] / fit_time
+    summary["statistics_throughput_proxy_mean"] = summary["complexity_proxy_mean"] / statistics_time
     summary["breakdown_dimension"] = _breakdown_dimension(frame, breakdown_threshold)
     return summary
 
@@ -1029,6 +1068,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--show-progress", action="store_true", help="Show ADP progress bars during fit.")
     parser.add_argument("--breakdown-threshold", type=float, default=0.70, help="Mean |cos| threshold for breakdown dimension.")
     parser.add_argument("--fail-on-quality", action="store_true", help="Return non-zero if any completed case misses its quality gate.")
+    parser.add_argument("--dtype", choices=("float64", "float32"), default=None, help="Override ADP numeric dtype for stress cases.")
+    parser.add_argument("--local-mass-quantile", type=float, default=None, help="Override lower quantile used for local mass bandwidth selection.")
+    parser.add_argument("--scale-expand-steps", type=int, default=None, help="Override bandwidth scale expansion budget.")
+    parser.add_argument("--scale-search-steps", type=int, default=None, help="Override bandwidth scale binary-search budget.")
+    parser.add_argument("--anisotropy-search-steps", type=int, default=None, help="Override rho binary-search budget.")
+    parser.add_argument("--objective-check-every", type=int, default=None, help="Check full objective every N inner iterations.")
     parser.add_argument(
         "--latex",
         action=argparse.BooleanOptionalAction,
@@ -1036,6 +1081,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Render plot text through LaTeX. Use --no-latex to disable.",
     )
     return parser.parse_args(argv)
+
+
+def apply_case_overrides(cases: list[StressCase], args: argparse.Namespace) -> list[StressCase]:
+    overrides: dict[str, Any] = {}
+    for arg_name, field_name in (
+        ("dtype", "dtype"),
+        ("local_mass_quantile", "local_mass_quantile"),
+        ("scale_expand_steps", "scale_expand_steps"),
+        ("scale_search_steps", "scale_search_steps"),
+        ("anisotropy_search_steps", "anisotropy_search_steps"),
+        ("objective_check_every", "objective_check_every"),
+    ):
+        value = getattr(args, arg_name, None)
+        if value is not None:
+            overrides[field_name] = value
+    if not overrides:
+        return cases
+    return [replace(case, **overrides) for case in cases]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1046,6 +1109,7 @@ def main(argv: list[str] | None = None) -> int:
 
     profile_names = args.profile or ["smoke"]
     cases = build_cases(profile_names, base_seed=args.seed, max_cases=args.max_cases)
+    cases = apply_case_overrides(cases, args)
     if args.dry_run:
         records = [case.to_manifest_record() for case in cases]
     else:

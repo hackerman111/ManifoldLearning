@@ -54,25 +54,25 @@ class DataPreparationMixin:
         # шум. Она нужна для воспроизводимых сценариев замеров, не для теории.
         shared = self.rng.normal(size=d)
         individual = self.rng.normal(size=(n, d))
-        X = sigma_x * (corr * shared[None, :] + (1.0 - corr) * individual)
+        X = self.backend.asarray(sigma_x * (corr * shared[None, :] + (1.0 - corr) * individual))
 
-        eps = self.rng.normal(scale=noise, size=n)
+        eps = self.backend.asarray(self.rng.normal(scale=noise, size=n))
         link_fn, link_name = link_function(link)
-        y = link_fn(X @ beta_vec) + eps
+        y = self.backend.asarray(link_fn(X @ beta_vec) + eps)
 
         # Центры x_j выбираются из облака X и слегка зашумляются, чтобы
         # локальные окрестности не сводились только к исходным наблюдениям.
         j_count = int(n_centers or self.config.n_centers or n)
         j_count = min(max(j_count, 1), n)
         selected = self.rng.choice(n, size=j_count, replace=False)
-        center_noise = self.config.center_noise_scale * sigma_x * self.rng.normal(size=(j_count, d))
-        centers = X[selected] + center_noise
+        center_noise = self.backend.asarray(self.config.center_noise_scale * sigma_x * self.rng.normal(size=(j_count, d)))
+        centers = self.backend.asarray(X[selected] + center_noise)
 
         directions = None
         if self.variant == "new":
             p_count = int(n_directions or self.config.n_directions)
             directions = self._sample_directions(j_count, p_count, d)
-        return ADPData(X=X, y=y, beta=beta_vec, centers=centers, directions=directions, noise=eps, link_name=link_name)
+        return ADPData(X=X, y=y, beta=self.backend.asarray(beta_vec), centers=centers, directions=directions, noise=eps, link_name=link_name)
 
     def _choose_centers(
         self,
@@ -91,7 +91,8 @@ class DataPreparationMixin:
         j_count = min(max(j_count, 1), n)
         selected = self.rng.choice(n, size=j_count, replace=False)
         scale = float(np.std(X)) if np.std(X) > 0 else 1.0
-        return X[selected] + self.config.center_noise_scale * scale * self.rng.normal(size=(j_count, d))
+        centers = X[selected] + self.config.center_noise_scale * scale * self.rng.normal(size=(j_count, d))
+        return self.backend.asarray(centers)
 
     def _prepare_directions(
         self,
@@ -111,11 +112,11 @@ class DataPreparationMixin:
 
         if directions is None:
             return self._sample_directions(centers.shape[0], self.config.n_directions, d)
-        directions_arr = np.asarray(directions, dtype=float)
+        directions_arr = self.backend.asarray(directions)
         expected = (centers.shape[0], self.config.n_directions, d)
         if directions_arr.shape != expected:
             raise ValueError(f"directions должны иметь форму {expected}, получено {directions_arr.shape}")
-        return normalize_rows(directions_arr)
+        return self.backend.asarray(normalize_rows(directions_arr))
 
     def _sample_directions(
         self,
@@ -138,14 +139,14 @@ class DataPreparationMixin:
             Массив направлений n_centers x n_directions x d.
         """
 
-        z = self.rng.normal(size=(n_centers, n_directions, d))
+        z = self.backend.asarray(self.rng.normal(size=(n_centers, n_directions, d)))
         if beta is not None and anisotropy is not None:
             # При обновлении new-варианта направления смещаются к текущему beta,
             # как обновление направлений после обновления локального тензора.
             beta_unit = unit_vector(beta)
-            along_beta = self.rng.normal(size=(n_centers, n_directions, 1))
+            along_beta = self.backend.asarray(self.rng.normal(size=(n_centers, n_directions, 1)))
             z = float(anisotropy) * z + along_beta * beta_unit
-        return normalize_rows(z)
+        return self.backend.asarray(normalize_rows(z))
 
     def _initial_beta(
         self,

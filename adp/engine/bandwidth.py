@@ -32,7 +32,7 @@ class BandwidthMixin:
             self._pairwise_cache = cache
         key = ("norm2", id(X), X.shape, id(centers), centers.shape)
         if key not in cache:
-            cache[key] = pairwise_norm2(X, centers)
+            cache[key] = self.backend.asarray(pairwise_norm2(X, centers))
         return cache[key]
 
     def _cached_pairwise_projection2(
@@ -47,10 +47,13 @@ class BandwidthMixin:
         if cache is None:
             cache = {}
             self._pairwise_cache = cache
-        beta_arr = np.asarray(beta, dtype=float)
-        key = ("proj2", id(X), X.shape, id(centers), centers.shape, beta_arr.shape, beta_arr.tobytes())
-        if key not in cache:
-            cache[key] = pairwise_projection2(X, centers, beta_arr)
+        beta_arr = np.asarray(beta, dtype=float).reshape(-1)
+        key = ("proj2", id(X), X.shape, id(centers), centers.shape)
+        beta_key = ("proj2_beta", id(X), X.shape, id(centers), centers.shape)
+        cached_beta = cache.get(beta_key)
+        if cached_beta is None or not np.array_equal(cached_beta, beta_arr):
+            cache[key] = self.backend.asarray(pairwise_projection2(X, centers, beta_arr))
+            cache[beta_key] = beta_arr.copy()
         return cache[key]
 
     def _local_mass_score(
@@ -143,6 +146,8 @@ class BandwidthMixin:
                 low = mid
             else:
                 high = mid
+            if high - low <= 1e-3:
+                break
         return float(low)
 
     def _binary_search_scale(
@@ -174,4 +179,6 @@ class BandwidthMixin:
                 high = mid
             else:
                 low = mid
+            if high > 0.0 and (high - low) / high <= 1e-3:
+                break
         return float(high)

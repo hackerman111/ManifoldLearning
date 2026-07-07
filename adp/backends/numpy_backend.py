@@ -24,6 +24,8 @@ class NumpyBackend:
 
         self.name = "numpy"
         self.dtype_name = dtype
+        if dtype not in {"float64", "float32"}:
+            raise ValueError("dtype должен быть 'float64' или 'float32'")
         self.dtype = np.float64 if dtype == "float64" else np.float32
 
     def asarray(
@@ -106,6 +108,20 @@ class NumpyBackend:
             raise ValueError("centers, directions и q должны иметь одинаковое число центров")
         if xq.shape[1] != x.shape[0]:
             raise ValueError("q должен иметь форму C x n")
+        if kernel in {"epanechnikov", "quartic"}:
+            return self._compact_random_projection_sums(x, xy, xdirs, xq, kernel)
+        return self._dense_random_projection_sums(x, xy, xdirs, xq, kernel)
+
+    def _dense_random_projection_sums(
+        self,
+        x: np.ndarray,  # Матрица наблюдений n x d.
+        xy: np.ndarray,  # Вектор ответов длины n.
+        xdirs: np.ndarray,  # Направления блока C x P x d.
+        xq: np.ndarray,  # Значения квадратичной формы C x n.
+        kernel: KernelName,  # Имя ядра.
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
+        """Считает суммы плотным блочным путем для Gaussian kernel."""
+
         weights = self.kernel(xq, kernel)
         counts = self.to_numpy(weights.sum(axis=1))
         safe_counts = np.maximum(counts, np.finfo(float).eps)
@@ -126,5 +142,47 @@ class NumpyBackend:
             self.to_numpy(s_vec),
             self.to_numpy(u_mat),
             counts,
+            float(counts.mean()),
+        )
+
+    def _compact_random_projection_sums(
+        self,
+        x: np.ndarray,  # Матрица наблюдений n x d.
+        xy: np.ndarray,  # Вектор ответов длины n.
+        xdirs: np.ndarray,  # Направления блока C x P x d.
+        xq: np.ndarray,  # Значения квадратичной формы C x n.
+        kernel: KernelName,  # Имя compact-ядра.
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
+        """Считает суммы compact kernels только по точкам с ненулевым весом."""
+
+        c_count, p_count, d = xdirs.shape
+        imav = np.zeros((c_count, p_count), dtype=self.dtype)
+        s_vec = np.zeros((c_count, p_count), dtype=self.dtype)
+        u_mat = np.zeros((c_count, p_count, d), dtype=self.dtype)
+        counts = np.zeros(c_count, dtype=self.dtype)
+        tiny = np.finfo(float).eps
+        for center_index in range(c_count):
+            active = xq[center_index] < 1.0
+            if not np.any(active):
+                continue
+            q_active = xq[center_index, active]
+            weights = self.kernel(q_active, kernel).astype(self.dtype, copy=False)
+            count = weights.sum(dtype=self.dtype)
+            counts[center_index] = count
+            safe_count = max(float(count), tiny)
+            x_active = x[active]
+            y_active = xy[active]
+            xbar = (weights @ x_active) / safe_count
+            centered = x_active - xbar[None, :]
+            projected = centered @ xdirs[center_index].T
+            weighted_projected = projected * weights[:, None]
+            s_vec[center_index] = weighted_projected.sum(axis=0)
+            imav[center_index] = (weights * y_active) @ projected
+            u_mat[center_index] = weighted_projected.T @ centered
+        return (
+            self.to_numpy(imav),
+            self.to_numpy(s_vec),
+            self.to_numpy(u_mat),
+            self.to_numpy(counts),
             float(counts.mean()),
         )

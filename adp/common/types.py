@@ -39,10 +39,11 @@ class ADPConfig:
     bandwidth_decay: float = math.sqrt(2.0)
     anisotropy_min: float | None = None
     local_mass_quantile: float = 0.05
-    scale_expand_steps: int = 30
-    scale_search_steps: int = 24
-    anisotropy_search_steps: int = 24
+    scale_expand_steps: int = 12
+    scale_search_steps: int = 12
+    anisotropy_search_steps: int = 12
     use_cg_preconditioner: bool = True
+    objective_check_every: int = 2
     kernel: KernelName = "epanechnikov"
     backend: BackendName = "numpy"
     dtype: str = "float64"
@@ -75,6 +76,10 @@ class ADPConfig:
             raise ValueError("scale_search_steps должен быть положительным")
         if self.anisotropy_search_steps < 1:
             raise ValueError("anisotropy_search_steps должен быть положительным")
+        if self.objective_check_every < 1:
+            raise ValueError("objective_check_every должен быть положительным")
+        if self.dtype not in {"float64", "float32"}:
+            raise ValueError("dtype должен быть 'float64' или 'float32'")
 
     def resolved_lambda(
         self,  # Текущая конфигурация ADP.
