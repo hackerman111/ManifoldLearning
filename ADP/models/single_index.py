@@ -82,6 +82,13 @@ class ADP_single_index:
         log_runtime=False,
         runtime_log_path=None,
         use_rich=False,
+        outer_steps=4,
+        inner_steps=5,
+        bandwidth_decay=np.sqrt(2.0),
+        h_min=1e-2,
+        lambda_penalty=None,
+        cg_tol=1e-8,
+        cg_maxiter=250,
         data_config=None,
         function="sin",
         data_type="normal",
@@ -115,6 +122,13 @@ class ADP_single_index:
         self.log_runtime = log_runtime
         self.runtime_log_path = runtime_log_path
         self.use_rich = use_rich
+        self.outer_steps = outer_steps
+        self.inner_steps = inner_steps
+        self.bandwidth_decay = bandwidth_decay
+        self.h_min = h_min
+        self.lambda_penalty = lambda_penalty
+        self.cg_tol = cg_tol
+        self.cg_maxiter = cg_maxiter
 
         # --- Параметры генерации данных ---
         if data_config is None:
@@ -189,6 +203,13 @@ class ADP_single_index:
             "log_runtime": self.log_runtime,
             "runtime_log_path": self.runtime_log_path,
             "use_rich": self.use_rich,
+            "outer_steps": self.outer_steps,
+            "inner_steps": self.inner_steps,
+            "bandwidth_decay": self.bandwidth_decay,
+            "h_min": self.h_min,
+            "lambda_penalty": self.lambda_penalty,
+            "cg_tol": self.cg_tol,
+            "cg_maxiter": self.cg_maxiter,
         }
 
     def _data_params(self):

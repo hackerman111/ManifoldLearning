@@ -7,13 +7,16 @@ from algorithm.step0 import (
     Kernel,
     NormVector,
     PrepareADPInitialState,
+    SquaredDistancesGram,
     _as_feature_matrix,
     _local_rng,
 )
 from algorithm.stepk import (
+    AlternatingProjectionMinimization,
     CosineSimilarity,
     EstimateLocalGradients,
     LocalLinearGradient,
+    ProjectionStatistics,
     StandardizeFeatures,
     _as_response_vector,
 )
@@ -44,6 +47,13 @@ def AverageDerivativeProcedure(
     log_runtime=False,
     runtime_log_path=None,
     use_rich=False,
+    outer_steps=4,
+    inner_steps=5,
+    bandwidth_decay=np.sqrt(2.0),
+    h_min=1e-2,
+    lambda_penalty=None,
+    cg_tol=1e-8,
+    cg_maxiter=250,
 ):
     """
     Оркестратор полного учебного пайплайна Average Derivative Procedure.
@@ -53,6 +63,24 @@ def AverageDerivativeProcedure(
 
     if ridge < 0:
         raise ValueError("ridge должен быть неотрицательным")
+
+    if outer_steps <= 0:
+        raise ValueError("outer_steps должно быть положительным")
+
+    if inner_steps <= 0:
+        raise ValueError("inner_steps должно быть положительным")
+
+    if bandwidth_decay <= 1:
+        raise ValueError("bandwidth_decay должен быть больше 1")
+
+    if h_min <= 0:
+        raise ValueError("h_min должен быть положительным")
+
+    if lambda_penalty is None:
+        lambda_penalty = max(1.0, float(n_min))
+
+    if lambda_penalty < 0:
+        raise ValueError("lambda_penalty должен быть неотрицательным")
 
     local_rng = _local_rng(seed)
 
@@ -83,6 +111,11 @@ def AverageDerivativeProcedure(
             ridge=ridge,
             standardize=standardize,
             n_directions=n_directions,
+            outer_steps=outer_steps,
+            inner_steps=inner_steps,
+            bandwidth_decay=bandwidth_decay,
+            h_min=h_min,
+            lambda_penalty=lambda_penalty,
         )
 
         with RuntimeStage(runtime_monitor, "standardize"):
@@ -103,7 +136,7 @@ def AverageDerivativeProcedure(
         )
 
         if n_directions is None:
-            n_directions = X.shape[1]
+            n_directions = min(20, X.shape[1])
 
         with RuntimeStage(runtime_monitor, "step0_centers"):
             J, centers_work = ChooseJ(
@@ -151,26 +184,74 @@ def AverageDerivativeProcedure(
             weight_sums=weights.sum(axis=1),
         )
 
-        with RuntimeStage(runtime_monitor, "stepk_local_gradients"):
-            local_gradients_work = EstimateLocalGradients(
-                X=X_work,
-                Y=Y,
-                x_j=centers_work,
-                h=h0,
-                kernel=kernel,
-                ridge=ridge,
-                weights=weights,
-                trace=trace,
-                runtime_monitor=runtime_monitor,
-            )
+        beta_seed = X_work.T @ (Y - Y.mean())
+        if np.linalg.norm(beta_seed) == 0:
+            beta_seed = local_rng.normal(size=X_work.shape[1])
+        beta_work = NormVector(beta_seed)
+        history = []
+        h_history = [h0]
+        fcl = np.ones(centers_work.shape[0])
+        projection_state = None
+        h = h0
+        current_weights = weights
+        current_directions = directions
+        isotropic_squared_distances = SquaredDistancesGram(X_work, centers_work)
 
-        # --- Трассировка: локальные градиенты в рабочем пространстве ---
-        TraceStep(
-            trace,
-            "stepk_local_gradients",
-            local_gradients_work=local_gradients_work,
-            local_gradient_norms=np.linalg.norm(local_gradients_work, axis=1),
-        )
+        with RuntimeStage(runtime_monitor, "stepk_projection_outer"):
+            for outer in range(int(outer_steps)):
+                if outer > 0:
+                    h = max(h / bandwidth_decay, h_min)
+                    projected_X = X_work @ beta_work
+                    projected_centers = centers_work @ beta_work
+                    projected_squared_distances = (
+                        projected_centers[:, None] - projected_X[None, :]
+                    ) ** 2
+                    current_weights = kernel(
+                        (isotropic_squared_distances + projected_squared_distances) / h**2
+                    )
+                    raw_directions = local_rng.normal(
+                        size=(centers_work.shape[0], n_directions, X_work.shape[1])
+                    )
+                    raw_directions += 2.0 * beta_work[None, None, :]
+                    current_directions = raw_directions / np.maximum(
+                        np.linalg.norm(raw_directions, axis=2, keepdims=True),
+                        np.finfo(float).eps,
+                    )
+                    h_history.append(h)
+
+                projection_state = ProjectionStatistics(
+                    X_work,
+                    Y,
+                    current_weights,
+                    current_directions,
+                    trace=trace,
+                )
+                beta_work, fcl, inner_history = AlternatingProjectionMinimization(
+                    projection_state["Ima"],
+                    projection_state["U"],
+                    beta_work,
+                    lambda_penalty=lambda_penalty,
+                    ridge=ridge,
+                    n_inner=inner_steps,
+                    cg_tol=cg_tol,
+                    cg_maxiter=cg_maxiter,
+                )
+                history.extend(inner_history)
+
+                TraceStep(
+                    trace,
+                    "stepk_projection_outer",
+                    outer=outer,
+                    h=h,
+                    beta_work=beta_work,
+                    fcl=fcl,
+                    weight_sums=current_weights.sum(axis=1),
+                )
+
+                if h <= h_min:
+                    break
+
+        local_gradients_work = np.repeat(beta_work.reshape(1, -1), centers_work.shape[0], axis=0)
 
         with RuntimeStage(runtime_monitor, "final_estimate"):
             local_gradients = local_gradients_work / x_scale
@@ -196,13 +277,21 @@ def AverageDerivativeProcedure(
             "local_gradients_work": local_gradients_work,
             "h0": h0,
             "weights": weights,
+            "final_weights": current_weights,
             "J": J,
             "x_j": centers,
             "x_j_work": centers_work,
-            "directions": directions,
+            "directions": current_directions,
+            "initial_directions": directions,
             "x_mean": x_mean,
             "x_scale": x_scale,
             "standardize": standardize,
+            "algorithm": "projection_average_derivative",
+            "history": history,
+            "h": h,
+            "h_history": h_history,
+            "fcl": fcl,
+            "projection_state": projection_state,
         }
 
         if trace is not None:
@@ -217,6 +306,9 @@ def AverageDerivativeProcedure(
                 "n_min": n_min,
                 "n_J": centers_work.shape[0],
                 "n_directions": n_directions,
+                "outer_steps": outer_steps,
+                "inner_steps": inner_steps,
+                "lambda_penalty": lambda_penalty,
             }
 
     if runtime_monitor is not None:

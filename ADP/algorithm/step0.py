@@ -103,6 +103,31 @@ def Kernel(t):
     return np.maximum(1.0 - t**2, 0.0)
 
 
+def SquaredDistancesGram(X, x_j):
+    """
+    Считает ||X_i - x_j||^2 для всех центров через тождество Грама.
+
+    Возвращает матрицу размера n_J x n без промежуточного тензора n_J x n x d.
+    """
+    X = _as_feature_matrix(X)
+    x_j = np.asarray(x_j, dtype=float)
+
+    if x_j.ndim == 1:
+        x_j = x_j.reshape(1, -1)
+
+    x_j = _as_feature_matrix(x_j, name="x_j")
+
+    if X.shape[1] != x_j.shape[1]:
+        raise ValueError("X и x_j должны иметь одинаковое число признаков")
+
+    x_sq = np.einsum("ij,ij->i", X, X)
+    xj_sq = np.einsum("ij,ij->i", x_j, x_j)
+    squared_distances = xj_sq[:, None] + x_sq[None, :] - 2.0 * (x_j @ X.T)
+    np.maximum(squared_distances, 0.0, out=squared_distances)
+
+    return squared_distances
+
+
 def ComputeWeight(X, x_j, h, kernel=Kernel):
     """
     Считает матрицу весов w_{j,i} = K(||X_i - x_j||^2 / h^2).
@@ -121,8 +146,7 @@ def ComputeWeight(X, x_j, h, kernel=Kernel):
     if h <= 0:
         raise ValueError("h должен быть положительным")
 
-    differences = X[None, :, :] - x_j[:, None, :]
-    squared_distances = np.sum(differences**2, axis=2)
+    squared_distances = SquaredDistancesGram(X, x_j)
 
     return kernel(squared_distances / h**2)
 
@@ -175,11 +199,9 @@ def ChooseH0(
     if tol <= 0:
         raise ValueError("tol должен быть положительным")
 
-    # --- Оптимизация ChooseH0 ---
     # Бинарный поиск много раз проверяет разные h на одних и тех же X и x_j.
-    # Поэтому расстояния считаем один раз, а затем меняем только масштаб h.
-    differences = X[None, :, :] - x_j[:, None, :]
-    squared_distances = np.sum(differences**2, axis=2)
+    # Поэтому расстояния считаем один раз через Грам-трюк, а затем меняем масштаб h.
+    squared_distances = SquaredDistancesGram(X, x_j)
 
     def weights_for_h(h):
         return kernel(squared_distances / h**2)

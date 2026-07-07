@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.sparse.linalg import LinearOperator, cg
 
 from runtime.monitoring import IterateWithProgress
 from diagnostics.trace import TraceStep
@@ -168,6 +169,157 @@ def EstimateLocalGradients(
     )
 
     return gradients
+
+
+def ProjectionStatistics(X, Y, weights, directions, trace=None):
+    """
+    Считает проекционные статистики Ima_{j,phi}, S_{j,phi}, U_{j,phi}.
+
+    Xbar_j берется как нормированное взвешенное среднее, а не как сырая сумма.
+    """
+    X = _as_feature_matrix(X)
+    Y = _as_response_vector(Y, X.shape[0])
+    weights = np.asarray(weights, dtype=float)
+    directions = np.asarray(directions, dtype=float)
+
+    if weights.ndim != 2:
+        raise ValueError("weights должен быть матрицей n_J x n")
+
+    if weights.shape[1] != X.shape[0]:
+        raise ValueError("weights должен иметь форму n_J x n")
+
+    if directions.ndim != 3:
+        raise ValueError("directions должен иметь форму n_J x n_directions x d")
+
+    if directions.shape[0] != weights.shape[0] or directions.shape[2] != X.shape[1]:
+        raise ValueError("directions должен согласовываться с weights и X")
+
+    n_J, n_directions, d = directions.shape
+    effective_counts = weights.sum(axis=1)
+    safe_counts = np.maximum(effective_counts, np.finfo(float).eps)
+    S = np.empty((n_J, n_directions))
+    Ima = np.empty((n_J, n_directions))
+    U = np.empty((n_J, n_directions, d))
+
+    for j in range(n_J):
+        w = weights[j]
+        xbar = (w @ X) / safe_counts[j]
+        centered = X - xbar
+        projected = centered @ directions[j].T
+        weighted_projected = projected * w[:, None]
+        S[j] = weighted_projected.sum(axis=0)
+        Ima[j] = (w * Y) @ projected
+        U[j] = weighted_projected.T @ centered
+
+    TraceStep(
+        trace,
+        "projection_statistics",
+        effective_counts=effective_counts,
+        S=S,
+        Ima=Ima,
+        U=U,
+    )
+
+    return {
+        "N": effective_counts,
+        "S": S,
+        "Ima": Ima,
+        "U": U,
+    }
+
+
+def UpdateFcl(Ima, U, beta):
+    """
+    Закрытая форма fcl_j = <Ima_j, U_j beta> / ||U_j beta||^2.
+    """
+    Ima = np.asarray(Ima, dtype=float)
+    U = np.asarray(U, dtype=float)
+    beta = NormVector(beta)
+
+    projected_beta = np.einsum("jsd,d->js", U, beta)
+    numerator = np.einsum("js,js->j", Ima, projected_beta)
+    denominator = np.einsum("js,js->j", projected_beta, projected_beta)
+    denominator = np.maximum(denominator, np.finfo(float).tiny)
+
+    return numerator / denominator
+
+
+def UpdateBetaCG(
+    Ima,
+    U,
+    fcl,
+    beta_prev,
+    lambda_penalty=1.0,
+    ridge=1e-10,
+    tol=1e-8,
+    maxiter=250,
+):
+    """
+    Решает beta-обновление matrix-free через CG без формирования d x d матрицы.
+    """
+    Ima = np.asarray(Ima, dtype=float)
+    U = np.asarray(U, dtype=float)
+    fcl = np.asarray(fcl, dtype=float)
+    beta_prev = NormVector(beta_prev)
+
+    if lambda_penalty < 0:
+        raise ValueError("lambda_penalty должен быть неотрицательным")
+
+    d = U.shape[2]
+    regularization = float(lambda_penalty) + float(ridge)
+
+    def matvec(vector):
+        projected = np.einsum("jsd,d->js", U, vector)
+        result = np.einsum("j,js,jsd->d", fcl**2, projected, U)
+        result += regularization * vector
+        return result
+
+    rhs = np.einsum("j,js,jsd->d", fcl, Ima, U)
+    rhs += float(lambda_penalty) * beta_prev
+
+    operator = LinearOperator((d, d), matvec=matvec, dtype=float)
+    beta, info = cg(operator, rhs, x0=beta_prev, rtol=tol, atol=0.0, maxiter=maxiter)
+
+    if info < 0 or not np.all(np.isfinite(beta)) or np.linalg.norm(beta) == 0:
+        return beta_prev.copy()
+
+    return beta
+
+
+def AlternatingProjectionMinimization(
+    Ima,
+    U,
+    beta0,
+    lambda_penalty=1.0,
+    ridge=1e-10,
+    n_inner=5,
+    cg_tol=1e-8,
+    cg_maxiter=250,
+):
+    """
+    Чередует закрытое обновление fcl_j и matrix-free CG-обновление beta.
+    """
+    beta = NormVector(beta0)
+    fcl = np.ones(U.shape[0])
+    history = []
+
+    for _ in range(max(1, int(n_inner))):
+        old_beta = beta.copy()
+        fcl = UpdateFcl(Ima, U, beta)
+        beta = UpdateBetaCG(
+            Ima,
+            U,
+            fcl,
+            old_beta,
+            lambda_penalty=lambda_penalty,
+            ridge=ridge,
+            tol=cg_tol,
+            maxiter=cg_maxiter,
+        )
+        beta = NormVector(beta)
+        history.append(beta.copy())
+
+    return beta, fcl, history
 
 
 def CosineSimilarity(first_vector, second_vector, absolute=True):

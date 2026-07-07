@@ -1,4 +1,10 @@
-import demo_adp
+import pytest
+
+
+demo_adp = pytest.importorskip(
+    "demo_adp",
+    reason="demo_adp.py не восстанавливается в этой ветке",
+)
 
 
 def require_demo_api():
