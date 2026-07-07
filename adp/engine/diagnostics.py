@@ -5,7 +5,15 @@ from typing import Any
 
 import numpy as np
 
-from ..common.plotting import ensure_matplotlib_config_dir, save_figure
+from ..common.plotting import (
+    apply_adp_axis_style,
+    configure_adp_matplotlib,
+    format_adp_legend,
+    prepare_adp_axis,
+    save_figure,
+    set_adp_figure_size,
+    set_integer_x_ticks,
+)
 from ..common.types import ADPResult
 from ..common.utils import unit_vector
 
@@ -83,15 +91,20 @@ class DiagnosticsMixin:
         """
 
         result = self._require_result()
-        ensure_matplotlib_config_dir()
+        configure_adp_matplotlib()
         import matplotlib.pyplot as plt
 
         if ax is None:
-            _, ax = plt.subplots()
-        ax.plot([step.objective for step in result.history], marker="o")
-        ax.set_xlabel("iteration")
-        ax.set_ylabel("objective")
-        ax.set_title(f"ADP {self.variant}")
+            fig, ax = plt.subplots()
+            set_adp_figure_size(fig)
+        prepare_adp_axis(ax)
+        ax.plot([step.objective for step in result.history], marker="o", linewidth=2.1, markersize=5)
+        apply_adp_axis_style(
+            ax,
+            xlabel="итерация",
+            ylabel="целевая функция",
+            title="История сходимости ADP",
+        )
         if save_path is not None:
             saved_path = save_figure(ax.figure, save_path, dpi=dpi, close=close)
             self._remember_diagnostic_plot("history", saved_path)
@@ -122,7 +135,7 @@ class DiagnosticsMixin:
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
 
-        ensure_matplotlib_config_dir()
+        configure_adp_matplotlib()
         import matplotlib.pyplot as plt
 
         saved: dict[str, Path] = {}
@@ -131,19 +144,29 @@ class DiagnosticsMixin:
         # График цели показывает, как попеременный решатель уменьшал целевую
         # функцию после исключения наблюдаемых величин в manifold_old.tex/manifold_new.tex.
         fig, ax = plt.subplots()
-        ax.plot(iterations, [step.objective for step in result.history], marker="o")
-        ax.set_xlabel("iteration")
-        ax.set_ylabel("objective")
-        ax.set_title("ADP objective")
+        set_adp_figure_size(fig)
+        prepare_adp_axis(ax)
+        ax.plot(iterations, [step.objective for step in result.history], marker="o", linewidth=2.1, markersize=5)
+        apply_adp_axis_style(
+            ax,
+            xlabel="итерация",
+            ylabel="целевая функция",
+            title="Целевая функция ADP",
+        )
         saved["objective"] = save_figure(fig, output_path / f"{prefix}_objective.png", dpi=dpi, close=close)
 
         # Изменение показывает стабилизацию направления beta между внутренними шагами.
         fig, ax = plt.subplots()
-        ax.plot(iterations, [step.beta_delta for step in result.history], marker="o")
-        ax.set_xlabel("iteration")
-        ax.set_ylabel("||beta_k - beta_{k-1}||")
-        ax.set_title("ADP beta update")
+        set_adp_figure_size(fig)
+        prepare_adp_axis(ax)
+        ax.plot(iterations, [step.beta_delta for step in result.history], marker="o", linewidth=2.1, markersize=5)
         ax.set_yscale("log")
+        apply_adp_axis_style(
+            ax,
+            xlabel="итерация",
+            ylabel="||beta_k - beta_{k-1}||",
+            title="Стабилизация направления beta",
+        )
         saved["delta"] = save_figure(fig, output_path / f"{prefix}_delta.png", dpi=dpi, close=close)
 
         # График масштабов полезен для проверки адаптивной локализации:
@@ -152,24 +175,50 @@ class DiagnosticsMixin:
         # Средняя масса весов должна оставаться около min_neighbors, иначе
         # локальные задачи наименьших квадратов становятся плохо обусловленными.
         fig, ax = plt.subplots()
-        ax.plot(outer, [record["h"] for record in result.progress], marker="o", label="h")
+        set_adp_figure_size(fig)
+        prepare_adp_axis(ax)
+        ax.plot(outer, [record["h"] for record in result.progress], marker="o", linewidth=2.1, markersize=5, label="h")
         if any("rho" in record for record in result.progress):
-            ax.plot(outer, [record.get("rho", np.nan) for record in result.progress], marker="s", label="rho")
+            ax.plot(
+                outer,
+                [record.get("rho", np.nan) for record in result.progress],
+                marker="s",
+                linewidth=2.1,
+                markersize=5,
+                label="rho",
+            )
         if any("b" in record for record in result.progress):
-            ax.plot(outer, [record.get("b", np.nan) for record in result.progress], marker="s", label="b")
-        ax.set_xlabel("outer step")
-        ax.set_ylabel("scale")
-        ax.set_title("ADP localization scales")
+            ax.plot(
+                outer,
+                [record.get("b", np.nan) for record in result.progress],
+                marker="D",
+                linewidth=2.1,
+                markersize=5,
+                label="b",
+            )
         ax.legend()
+        apply_adp_axis_style(
+            ax,
+            xlabel="внешний шаг",
+            ylabel="масштаб",
+            title="Масштабы локализации ADP",
+            legend_title="параметр",
+        )
         saved["bandwidth"] = save_figure(fig, output_path / f"{prefix}_bandwidth.png", dpi=dpi, close=close)
 
         fig, ax = plt.subplots()
-        ax.plot(outer, [record["weights"] for record in result.progress], marker="o")
-        ax.axhline(self.config.min_neighbors, color="tab:red", linestyle="--", linewidth=1, label="min_neighbors")
-        ax.set_xlabel("outer step")
-        ax.set_ylabel("average local weight")
-        ax.set_title("ADP local mass")
+        set_adp_figure_size(fig)
+        prepare_adp_axis(ax)
+        ax.plot(outer, [record["weights"] for record in result.progress], marker="o", linewidth=2.1, markersize=5)
+        ax.axhline(self.config.min_neighbors, color="#dc2626", linestyle="--", linewidth=1.4, label="min_neighbors")
         ax.legend()
+        apply_adp_axis_style(
+            ax,
+            xlabel="внешний шаг",
+            ylabel="средняя локальная масса",
+            title="Локальная масса весов ADP",
+            legend_title="ориентир",
+        )
         saved["weights"] = save_figure(fig, output_path / f"{prefix}_weights.png", dpi=dpi, close=close)
 
         if beta_true is not None:
@@ -181,13 +230,21 @@ class DiagnosticsMixin:
                 estimated = -estimated
             x = np.arange(estimated.size)
             fig, ax = plt.subplots()
+            set_adp_figure_size(fig, width=max(8.0, 0.35 * estimated.size), height=4.8)
+            prepare_adp_axis(ax)
             width = 0.4
-            ax.bar(x - width / 2, expected, width=width, label="true")
-            ax.bar(x + width / 2, estimated, width=width, label="estimated")
-            ax.set_xlabel("component")
-            ax.set_ylabel("value")
-            ax.set_title("ADP beta comparison")
+            ax.bar(x - width / 2, expected, width=width, label="истинное", edgecolor="#ffffff", linewidth=0.8)
+            ax.bar(x + width / 2, estimated, width=width, label="оценка", edgecolor="#ffffff", linewidth=0.8)
+            set_integer_x_ticks(ax, count=estimated.size)
             ax.legend()
+            apply_adp_axis_style(
+                ax,
+                xlabel="компонента",
+                ylabel="значение",
+                title="Сравнение направления beta",
+                legend_title="направление",
+            )
+            format_adp_legend(ax, title="направление")
             saved["beta_compare"] = save_figure(fig, output_path / f"{prefix}_beta_compare.png", dpi=dpi, close=close)
 
         for name, path in saved.items():

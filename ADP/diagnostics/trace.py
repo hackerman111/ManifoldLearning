@@ -1,8 +1,16 @@
 import csv
-import os
 from pathlib import Path
 
 import numpy as np
+
+from adp.common.plotting import (
+    apply_adp_axis_style,
+    configure_adp_matplotlib,
+    prepare_adp_axis,
+    save_figure,
+    set_adp_figure_size,
+    set_integer_x_ticks,
+)
 
 
 def CreateTrace(enabled=True, store_arrays=False):
@@ -149,39 +157,29 @@ def SaveTraceSummary(trace, path):
 
 
 def _plot_bar(values, title, ylabel, path):
-    os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
-    import matplotlib
-
-    matplotlib.use("Agg")
+    configure_adp_matplotlib()
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.bar(np.arange(len(values)), values)
-    ax.set_title(title)
-    ax.set_xlabel("index")
-    ax.set_ylabel(ylabel)
-    ax.grid(alpha=0.25)
-    fig.tight_layout()
-    fig.savefig(path, dpi=140)
-    plt.close(fig)
+    values = np.asarray(values)
+    fig, ax = plt.subplots()
+    set_adp_figure_size(fig, width=max(8.0, 0.35 * values.size), height=4.8)
+    prepare_adp_axis(ax)
+    ax.bar(np.arange(len(values)), values, edgecolor="#ffffff", linewidth=0.8)
+    set_integer_x_ticks(ax, count=values.size)
+    apply_adp_axis_style(ax, xlabel="компонента", ylabel=ylabel, title=title)
+    save_figure(fig, path, dpi=170, close=True)
 
 
 def _plot_line(values, title, ylabel, path):
-    os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
-    import matplotlib
-
-    matplotlib.use("Agg")
+    configure_adp_matplotlib()
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(np.asarray(values), marker="o", linewidth=1.5)
-    ax.set_title(title)
-    ax.set_xlabel("index")
-    ax.set_ylabel(ylabel)
-    ax.grid(alpha=0.25)
-    fig.tight_layout()
-    fig.savefig(path, dpi=140)
-    plt.close(fig)
+    fig, ax = plt.subplots()
+    set_adp_figure_size(fig)
+    prepare_adp_axis(ax)
+    ax.plot(np.asarray(values), marker="o", linewidth=2.1, markersize=5)
+    apply_adp_axis_style(ax, xlabel="индекс", ylabel=ylabel, title=title)
+    save_figure(fig, path, dpi=170, close=True)
 
 
 def PlotADPDiagnostics(result, output_dir="adp_trace_plots"):
@@ -195,13 +193,13 @@ def PlotADPDiagnostics(result, output_dir="adp_trace_plots"):
     beta = result.get("beta")
     if beta is not None:
         path = output_dir / "beta_components.png"
-        _plot_bar(beta, "Оценка beta", "value", path)
+        _plot_bar(beta, "Оценка направления beta", "значение", path)
         paths["beta_components"] = str(path)
 
     average_gradient = result.get("average_gradient")
     if average_gradient is not None:
         path = output_dir / "average_gradient_components.png"
-        _plot_bar(average_gradient, "Средний градиент", "value", path)
+        _plot_bar(average_gradient, "Средний градиент", "значение", path)
         paths["average_gradient_components"] = str(path)
 
     local_gradients = result.get("local_gradients")
@@ -210,7 +208,7 @@ def PlotADPDiagnostics(result, output_dir="adp_trace_plots"):
         _plot_line(
             np.linalg.norm(local_gradients, axis=1),
             "Нормы локальных градиентов",
-            "norm",
+            "норма",
             path,
         )
         paths["local_gradient_norms"] = str(path)
@@ -218,7 +216,7 @@ def PlotADPDiagnostics(result, output_dir="adp_trace_plots"):
     weights = result.get("weights")
     if weights is not None:
         path = output_dir / "weight_sums.png"
-        _plot_line(weights.sum(axis=1), "Суммы весов по центрам", "sum weights", path)
+        _plot_line(weights.sum(axis=1), "Суммы весов по центрам", "сумма весов", path)
         paths["weight_sums"] = str(path)
 
     return paths

@@ -6,6 +6,15 @@ from typing import Any
 
 import pandas as pd
 
+from ..common.plotting import (
+    ADP_COLORS,
+    apply_adp_axis_style,
+    configure_adp_matplotlib,
+    prepare_adp_axis,
+    save_figure as save_common_figure,
+    set_adp_figure_size,
+)
+
 
 def save_benchmark_report(
     frame: pd.DataFrame,  # Таблица результатов замеров.
@@ -35,25 +44,28 @@ def save_benchmark_report(
     frame.to_csv(csv_path, index=False)
     saved["csv"] = csv_path
 
-    ensure_matplotlib_config_dir()
+    configure_adp_matplotlib()
     import matplotlib.pyplot as plt
 
     # Графики строятся по средним значениям: детальная статистика с
     # доверительными интервалами живет отдельно в benchmark_summary(...).
     quality = frame.groupby(["scenario", "method"], as_index=False)["cosine_abs"].mean()
-    fig, ax = plt.subplots(figsize=(max(7, 1.2 * quality["scenario"].nunique()), 4.5))
+    fig, ax = plt.subplots()
+    set_adp_figure_size(fig, width=max(7.5, 1.35 * quality["scenario"].nunique()), height=4.8)
     plot_grouped_bars(ax, quality, value="cosine_abs", ylabel="среднее |cos(beta, beta_hat)|", title="Качество восстановления EDR")
     saved["quality_plot"] = save_figure(fig, output_path / f"{prefix}_quality.png", dpi=dpi)
 
     timings = frame.groupby(["scenario", "method"], as_index=False)["fit_time_sec"].mean()
-    fig, ax = plt.subplots(figsize=(max(7, 1.2 * timings["scenario"].nunique()), 4.5))
+    fig, ax = plt.subplots()
+    set_adp_figure_size(fig, width=max(7.5, 1.35 * timings["scenario"].nunique()), height=4.8)
     plot_grouped_bars(ax, timings, value="fit_time_sec", ylabel="среднее время обучения, сек", title="Время обучения EDR")
     saved["time_plot"] = save_figure(fig, output_path / f"{prefix}_time.png", dpi=dpi)
 
     if "peak_memory_kib" in frame.columns:
         # Память есть не у старых таблиц, поэтому график строится условно.
         memory = frame.groupby(["scenario", "method"], as_index=False)["peak_memory_kib"].mean()
-        fig, ax = plt.subplots(figsize=(max(7, 1.2 * memory["scenario"].nunique()), 4.5))
+        fig, ax = plt.subplots()
+        set_adp_figure_size(fig, width=max(7.5, 1.35 * memory["scenario"].nunique()), height=4.8)
         plot_grouped_bars(ax, memory, value="peak_memory_kib", ylabel="пиковая память, КиБ", title="Пиковая память EDR")
         saved["memory_plot"] = save_figure(fig, output_path / f"{prefix}_memory.png", dpi=dpi)
 
@@ -139,12 +151,30 @@ def plot_grouped_bars(
     """
 
     pivot = frame.pivot(index="scenario", columns="method", values=value)
-    pivot.plot(kind="bar", ax=ax)
-    ax.set_xlabel("сценарий")
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
-    ax.tick_params(axis="x", rotation=30)
-    ax.legend(title="method", fontsize="small")
+    if ax.figure.get_size_inches()[0] < 7.0:
+        set_adp_figure_size(ax.figure)
+    prepare_adp_axis(ax)
+    pivot.plot(
+        kind="bar",
+        ax=ax,
+        width=0.78,
+        color=list(ADP_COLORS[: len(pivot.columns)]),
+        edgecolor="#ffffff",
+        linewidth=0.8,
+    )
+    ax.margins(y=0.12)
+    if value == "cosine_abs":
+        ax.set_ylim(0.0, max(1.0, min(1.05, float(pivot.max().max()) * 1.12)))
+    apply_adp_axis_style(
+        ax,
+        xlabel="сценарий",
+        ylabel=ylabel,
+        title=title,
+        legend_title="метод",
+        x_rotation=30,
+    )
+    for label in ax.get_xticklabels():
+        label.set_horizontalalignment("right")
 
 
 def save_figure(
@@ -163,13 +193,7 @@ def save_figure(
         Path сохраненного файла.
     """
 
-    fig.tight_layout()
-    fig.savefig(path, dpi=dpi)
-    ensure_matplotlib_config_dir()
-    import matplotlib.pyplot as plt
-
-    plt.close(fig)
-    return path
+    return save_common_figure(fig, path, dpi=dpi, close=True)
 
 
 def ensure_matplotlib_config_dir() -> None:
@@ -181,8 +205,7 @@ def ensure_matplotlib_config_dir() -> None:
         None; при необходимости обновляет os.environ.
     """
 
-    if "MPLCONFIGDIR" in os.environ:
-        return
-    config_dir = Path("/tmp") / "adp_matplotlib"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    os.environ["MPLCONFIGDIR"] = str(config_dir)
+    if "MPLCONFIGDIR" not in os.environ:
+        config_dir = Path("/tmp") / "adp_matplotlib"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        os.environ["MPLCONFIGDIR"] = str(config_dir)
