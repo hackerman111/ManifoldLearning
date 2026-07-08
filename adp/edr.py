@@ -67,7 +67,14 @@ class EDR:
         self.eps = np.finfo(self.dtype).eps * 100
         self.rng = np.random.default_rng(random_state)
 
-        self.Data = Data()
+        self.Data = Data(
+            n_samples=self.n_samples,
+            n_features=self.n_features,
+            n_centers=self.n_centers,
+            noise_scale=self.noise_scale,
+            dtype=self.dtype,
+            random_state=self.rng,
+        )
         self.Characteristics = ADP_Characteristics()
 
         self.X = None
