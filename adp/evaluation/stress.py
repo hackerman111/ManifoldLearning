@@ -14,16 +14,11 @@ from typing import Any, Iterable, Iterator
 import numpy as np
 import pandas as pd
 
-from adp.common.plotting import (
-    ADP_COLORS,
-    apply_adp_axis_style,
-    configure_adp_matplotlib,
-    save_figure,
-    set_adp_figure_size,
-)
+from adp.common.plotting import (ADP_COLORS, apply_adp_axis_style,
+                                 configure_adp_matplotlib, save_figure,
+                                 set_adp_figure_size)
 from adp.core import ADP, ADPConfig, ADPResult
 from adp.evaluation.metrics import direction_metrics
-
 
 Q_DEFINITION = (
     "fraction of active coordinates in beta* used by this stress runner; "
@@ -69,7 +64,7 @@ class StressProfile:
     bandwidth_decay: float = math.sqrt(2.0)
     anisotropy_min: float | None = None
     kernel: str = "epanechnikov"
-    center_noise_scale: float = 1.0
+    center_noise_scale: float = 0.1
     renew_directions: bool = True
     chunk_size: int = 32
     tol: float = 1e-6

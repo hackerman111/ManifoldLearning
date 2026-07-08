@@ -137,7 +137,7 @@ def kernel_np(
     if name == "gaussian":
         return np.exp(-0.5 * q)
     if name == "quartic":
-        return np.maximum(1.0 - q * q, 0.0)
+        return np.maximum(1.0 - q, 0.0) ** 2
     return np.maximum(1.0 - q, 0.0)
 
 
@@ -178,7 +178,9 @@ def link_function(
         return quadratic_link, "quadratic"
     if link == "tanh":
         return np.tanh, "tanh"
-    raise ValueError("link должен быть callable или одним из: linear, sin, quadratic, tanh")
+    raise ValueError(
+        "link должен быть callable или одним из: linear, sin, quadratic, tanh"
+    )
 
 
 def linear_link(

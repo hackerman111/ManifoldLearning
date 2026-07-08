@@ -91,7 +91,9 @@ class SolverMixin:
 
             # Второй полу-шаг: при фиксированных (c_j, l_j) решается одна
             # квадратичная задача по beta с регуляризацией к prior.
-            beta = self._solve_beta(stats, intercepts, slopes, prior, lambda_penalty, x0=beta)
+            beta = self._solve_beta(
+                stats, intercepts, slopes, prior, lambda_penalty, x0=beta
+            )
 
             norm = np.linalg.norm(beta)
             if norm > 0:
@@ -103,12 +105,19 @@ class SolverMixin:
             should_check_objective = inner == 0 or inner % objective_interval == 0
             objective_delta = math.inf
             if should_check_objective:
-                objective = self._objective(stats, beta, intercepts, slopes, prior, lambda_penalty)
+                objective = self._objective(
+                    stats, beta, intercepts, slopes, prior, lambda_penalty
+                )
                 objective_delta = abs(last_objective - objective)
                 last_objective = objective
             else:
                 objective = last_objective
-            beta_delta = float(np.linalg.norm(beta - old_beta))
+            beta_delta = float(
+                min(
+                    np.linalg.norm(beta - old_beta),
+                    np.linalg.norm(beta + old_beta),
+                )
+            )
             history.append(
                 TrainingStep(
                     outer=outer,
@@ -124,5 +133,7 @@ class SolverMixin:
                 break
 
         if history and history[-1].inner % objective_interval != 0:
-            history[-1].objective = float(self._objective(stats, beta, intercepts, slopes, prior, lambda_penalty))
+            history[-1].objective = float(
+                self._objective(stats, beta, intercepts, slopes, prior, lambda_penalty)
+            )
         return unit_vector(beta), intercepts, slopes, history

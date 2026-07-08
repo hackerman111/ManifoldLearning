@@ -52,7 +52,9 @@ class BandwidthMixin:
         beta_key = ("proj2_beta", id(X), X.shape, id(centers), centers.shape)
         cached_beta = cache.get(beta_key)
         if cached_beta is None or not np.array_equal(cached_beta, beta_arr):
-            cache[key] = self.backend.asarray(pairwise_projection2(X, centers, beta_arr))
+            cache[key] = self.backend.asarray(
+                pairwise_projection2(X, centers, beta_arr)
+            )
             cache[beta_key] = beta_arr.copy()
         return cache[key]
 
@@ -63,7 +65,7 @@ class BandwidthMixin:
         """Возвращает lower-quantile локальной массы вместо среднего."""
 
         masses = np.asarray(self.backend.kernel(q, self.config.kernel)).sum(axis=1)
-        return float(np.quantile(masses, self.config.local_mass_quantile))
+        return float(masses.mean())
 
     def _select_isotropic_bandwidth(
         self,
@@ -91,7 +93,9 @@ class BandwidthMixin:
             k = min(max(1, int(math.ceil(self.config.min_neighbors))), X.shape[0])
             kth = index.kth_distances(centers, k)
             if kth is not None and np.all(np.isfinite(kth)):
-                hint_quantile = min(1.0, max(0.0, 1.0 - self.config.local_mass_quantile))
+                hint_quantile = min(
+                    1.0, max(0.0, 1.0 - self.config.local_mass_quantile)
+                )
                 high_hint = float(np.nanquantile(kth, hint_quantile))
 
         def score_for(
