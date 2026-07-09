@@ -52,6 +52,13 @@ class SolverMixin:
             record["rho"] = float(stats.anisotropy)
         if stats.directions is not None:
             record["directions"] = int(stats.directions.shape[1])
+        if stats.N is not None:
+            local_mass = np.asarray(stats.N, dtype=float)
+            finite_mass = local_mass[np.isfinite(local_mass)]
+            if finite_mass.size:
+                record["local_mass_mean"] = float(np.mean(finite_mass))
+                record["local_mass_q05"] = float(np.quantile(finite_mass, 0.05))
+                record["local_mass_min"] = float(np.min(finite_mass))
         return record
 
     def _alternating_solve(

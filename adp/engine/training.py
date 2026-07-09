@@ -66,10 +66,12 @@ class TrainingMixin:
         # Первый шаг всегда изотропный: T = h^{-2} I. Для new заранее готовим
         # случайные направления phi.
         h = self._select_isotropic_bandwidth(X_arr, centers_arr, neighbor_index)
+        h *= float(self.config.initial_bandwidth_inflation)
         directions_arr = self._prepare_directions(centers_arr, d, directions)
 
         history = []
         progress = []
+        beta_path = []
         timings: dict[str, float] = {}
         intercepts = np.zeros(centers_arr.shape[0])
         slopes = np.ones(centers_arr.shape[0])
@@ -123,6 +125,7 @@ class TrainingMixin:
                 timings["solve"] = timings.get("solve", 0.0) + time.perf_counter() - solve_started
                 history.extend(inner_history)
                 beta_prev = beta_new
+                beta_path.append(beta_prev.copy())
 
                 if inner_history:
                     # Запись остается машинно-читаемой, а индикатор получает только
@@ -174,6 +177,7 @@ class TrainingMixin:
             centers_arr,
             directions_arr,
             float(objective),
+            beta_path,
         )
 
     def _make_progress_bar(

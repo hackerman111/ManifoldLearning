@@ -37,6 +37,7 @@ class ADPConfig:
     inner_steps: int = 20
     tol: float = 1e-6
     bandwidth_decay: float = math.sqrt(2.0)
+    initial_bandwidth_inflation: float = 1.0
     anisotropy_min: float | None = None
     local_mass_quantile: float = 0.05
     scale_expand_steps: int = 12
@@ -80,6 +81,8 @@ class ADPConfig:
             raise ValueError("objective_check_every должен быть положительным")
         if self.dtype not in {"float64", "float32"}:
             raise ValueError("dtype должен быть 'float64' или 'float32'")
+        if self.initial_bandwidth_inflation <= 0.0:
+            raise ValueError("initial_bandwidth_inflation должен быть положительным")
 
     def resolved_lambda(
         self,  # Текущая конфигурация ADP.
@@ -177,6 +180,7 @@ class ADPResult:
     backend: str
     timings: dict[str, float] = field(default_factory=dict)
     diagnostic_plots: dict[str, Path] = field(default_factory=dict)
+    beta_path: list[np.ndarray] = field(default_factory=list)
 
     @property
     def projector(

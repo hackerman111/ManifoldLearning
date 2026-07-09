@@ -23,6 +23,7 @@ def store_fit_result(
     centers: np.ndarray,  # Использованные центры.
     directions: np.ndarray | None,  # Использованные направления или None.
     objective: float,  # Финальное значение целевой функции.
+    beta_path: list[np.ndarray] | None = None,  # beta после каждого outer-шага.
 ) -> ADPResult:
     """Сохраняет итог fit в модель и возвращает ADPResult.
 
@@ -43,6 +44,7 @@ def store_fit_result(
         objective=float(objective),
         backend=model.backend.name,
         timings=timings,
+        beta_path=list(beta_path or []),
     )
     model.result_ = result
     model.data_ = (X, y)
