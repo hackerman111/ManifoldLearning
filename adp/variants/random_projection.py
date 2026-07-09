@@ -40,17 +40,19 @@ class RandomProjectionADP(ADPBase):
             raise ValueError("new-вариант требует directions")
         directions = self.backend.asarray(directions)
         J, P, d = directions.shape
-        imav = np.zeros((J, P), dtype=self.backend.dtype)
-        s_all = np.zeros((J, P), dtype=self.backend.dtype)
-        u_all = np.zeros((J, P, d), dtype=self.backend.dtype)
-        n_all = np.zeros(J, dtype=self.backend.dtype)
-        weight_means: list[float] = []
+        X_backend, y_backend, centers_backend, directions_backend = self.backend.prepare_statistics_inputs(
+            X,
+            y,
+            centers,
+            directions,
+        )
+        accumulator = self.backend.create_statistics_accumulator(J, P, d)
         norm2_all = self._cached_pairwise_norm2(X, centers)
         proj2_all = self._cached_pairwise_projection2(X, centers, beta) if anisotropy is not None else None
 
         for start in range(0, J, self.config.chunk_size):
             stop = min(start + self.config.chunk_size, J)
-            center_chunk = centers[start:stop]
+            center_chunk = centers_backend[start:stop]
             norm2 = norm2_all[start:stop]
             if anisotropy is None:
                 # Первый внешний шаг из manifold_new.tex: изотропные веса.
@@ -63,25 +65,28 @@ class RandomProjectionADP(ADPBase):
                 q = (float(anisotropy) * float(anisotropy) * norm2 + proj2) / (h * h)
 
             imav_chunk, s_chunk, u_chunk, n_chunk, weights_mean = self.backend.random_projection_sums(
-                X=X,
-                y=y,
+                X=X_backend,
+                y=y_backend,
                 centers=center_chunk,
-                directions=directions[start:stop],
+                directions=directions_backend[start:stop],
                 q=q,
                 kernel=self.config.kernel,
             )
-            n_all[start:stop] = n_chunk
-            weight_means.append(weights_mean)
-            imav[start:stop] = imav_chunk
-            s_all[start:stop] = s_chunk
-            u_all[start:stop] = u_chunk
+            self.backend.accumulate_statistics(
+                accumulator,
+                start,
+                stop,
+                (imav_chunk, s_chunk, u_chunk, n_chunk, weights_mean),
+            )
+
+        imav, s_all, u_all, n_all, weights_mean = self.backend.finalize_statistics(accumulator)
 
         return LocalStatistics(
             variant="new",
             imav=imav,
             centers=centers,
             h=h,
-            weights_mean=float(np.mean(weight_means)),
+            weights_mean=float(weights_mean),
             # Направления нужны только внутри _compute_statistics; сохранение
             # полного J x P x d массива дублировало бы рабочую память fit.
             directions=directions if self.config.save_directions else None,

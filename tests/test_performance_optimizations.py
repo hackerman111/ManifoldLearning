@@ -31,6 +31,7 @@ def install_fake_cupy(monkeypatch):
         einsum=record("einsum", np.einsum),
         matmul=record("matmul", np.matmul),
         swapaxes=record("swapaxes", np.swapaxes),
+        zeros=record("zeros", np.zeros),
         quantile=record("quantile", np.quantile),
         finfo=np.finfo,
     )
@@ -202,6 +203,128 @@ def test_cupy_backend_statistics_match_numpy_with_fake_cupy(monkeypatch):
     np.testing.assert_allclose(cupy_stats.U, numpy_stats.U, rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(cupy_stats.N, numpy_stats.N, rtol=1e-12, atol=1e-12)
     assert cupy_model.backend.name == "cupy"
+
+
+def test_cupy_backend_reuses_prepared_statistics_inputs(monkeypatch):
+    from adp.backends.cupy_backend import CupyBackend
+
+    calls = install_fake_cupy(monkeypatch)
+    backend = CupyBackend()
+    X = np.arange(12.0).reshape(4, 3)
+    y = np.arange(4.0)
+    centers = X[:2].copy()
+    directions = np.ones((2, 3, 3))
+
+    first = backend.prepare_statistics_inputs(X, y, centers, directions)
+    second = backend.prepare_statistics_inputs(X, y, centers, directions)
+
+    assert all(left is right for left, right in zip(first, second))
+    assert calls.count("asarray") == 4
+
+    backend.clear_device_cache()
+    backend.prepare_statistics_inputs(X, y, centers, directions)
+    assert calls.count("asarray") == 8
+
+
+def test_cupy_statistics_transfers_chunk_results_only_at_finalize(monkeypatch):
+    from adp.backends.cupy_backend import CupyBackend
+
+    calls = install_fake_cupy(monkeypatch)
+    rng = np.random.default_rng(23)
+    X = rng.normal(size=(12, 4))
+    y = rng.normal(size=12)
+    centers = rng.normal(size=(5, 4))
+    beta = np.array([1.0, 0.2, -0.1, 0.3])
+    beta /= np.linalg.norm(beta)
+    directions = rng.normal(size=(5, 3, 4))
+    directions /= np.linalg.norm(directions, axis=-1, keepdims=True)
+    model = ADP.create(
+        "new",
+        ADPConfig(
+            n_centers=5,
+            n_directions=3,
+            chunk_size=2,
+            kernel="gaussian",
+            backend="cupy",
+            show_progress=False,
+        ),
+    )
+
+    stats = model._compute_statistics(X, y, centers, 1.7, beta, directions, None)
+
+    assert stats.imav.shape == (5, 3)
+    assert calls.count("asnumpy") == 4
+
+
+def test_cupy_backend_fails_fast_without_cuda_device(monkeypatch):
+    from adp.backends.cupy_backend import CupyBackend
+
+    fake = SimpleNamespace(
+        cuda=SimpleNamespace(
+            runtime=SimpleNamespace(getDeviceCount=lambda: 0),
+        )
+    )
+    monkeypatch.setitem(sys.modules, "cupy", fake)
+
+    with pytest.raises(RuntimeError, match="CUDA"):
+        CupyBackend()
+
+
+def test_cupy_backend_releases_cached_arrays_and_memory_pools(monkeypatch):
+    from adp.backends.cupy_backend import CupyBackend
+
+    class Pool:
+        def __init__(self):
+            self.free_calls = 0
+
+        def free_all_blocks(self):
+            self.free_calls += 1
+
+    device_pool = Pool()
+    pinned_pool = Pool()
+    fake = SimpleNamespace(
+        asarray=np.asarray,
+        get_default_memory_pool=lambda: device_pool,
+        get_default_pinned_memory_pool=lambda: pinned_pool,
+    )
+    monkeypatch.setitem(sys.modules, "cupy", fake)
+    backend = CupyBackend()
+    backend.prepare_statistics_inputs(
+        np.zeros((2, 3)),
+        np.zeros(2),
+        np.zeros((1, 3)),
+        np.zeros((1, 2, 3)),
+    )
+
+    backend.release_device_memory()
+
+    assert backend._device_cache == {}
+    assert device_pool.free_calls == 1
+    assert pinned_pool.free_calls == 1
+
+
+def test_cupy_fit_releases_device_memory_after_training(monkeypatch):
+    install_fake_cupy(monkeypatch)
+    model = ADP.create(
+        "new",
+        ADPConfig(
+            backend="cupy",
+            n_centers=4,
+            n_directions=2,
+            min_neighbors=3,
+            outer_steps=1,
+            inner_steps=1,
+            show_progress=False,
+            random_state=29,
+        ),
+    )
+    data = model.generate_data(n=16, d=3, noise=0.01, link="linear")
+    release_calls = []
+    monkeypatch.setattr(model.backend, "release_device_memory", lambda: release_calls.append(True))
+
+    model.fit(data.X, data.y, centers=data.centers, directions=data.directions, beta0=data.beta)
+
+    assert release_calls == [True]
 
 
 def test_isotropic_bandwidth_uses_lower_quantile_local_mass():

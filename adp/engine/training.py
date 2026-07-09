@@ -43,6 +43,7 @@ class TrainingMixin:
         y_arr = self.backend.asarray(as_1d_float(y, "y"))
         if X_arr.shape[0] != y_arr.shape[0]:
             raise ValueError("X и y имеют разные размеры по n")
+        self.backend.clear_device_cache()
         self._clear_pairwise_cache()
 
         started = time.perf_counter()
@@ -58,16 +59,21 @@ class TrainingMixin:
         beta_prev = self.backend.asarray(unit_vector(beta0 if beta0 is not None else self._initial_beta(X_arr, y_arr)))
         lambda_penalty = self.config.resolved_lambda()
 
-        # Индекс соседей нужен только для быстрой верхней оценки h; сами веса
-        # потом считаются векторизованными формулами ядра, как в TeX.
-        neighbor_index = NeighborIndex(self.config.use_neighbor_index).fit(X_arr)
-        self.neighbor_index_ = neighbor_index
+        try:
+            # Индекс соседей нужен только для быстрой верхней оценки h; сами веса
+            # потом считаются векторизованными формулами ядра, как в TeX.
+            neighbor_index = NeighborIndex(self.config.use_neighbor_index).fit(X_arr)
+            self.neighbor_index_ = neighbor_index
 
-        # Первый шаг всегда изотропный: T = h^{-2} I. Для new заранее готовим
-        # случайные направления phi.
-        h = self._select_isotropic_bandwidth(X_arr, centers_arr, neighbor_index)
-        h *= float(self.config.initial_bandwidth_inflation)
-        directions_arr = self._prepare_directions(centers_arr, d, directions)
+            # Первый шаг всегда изотропный: T = h^{-2} I. Для new заранее готовим
+            # случайные направления phi.
+            h = self._select_isotropic_bandwidth(X_arr, centers_arr, neighbor_index)
+            h *= float(self.config.initial_bandwidth_inflation)
+            directions_arr = self._prepare_directions(centers_arr, d, directions)
+        except Exception:
+            self._clear_pairwise_cache()
+            self.backend.release_device_memory()
+            raise
 
         history = []
         progress = []
@@ -151,6 +157,7 @@ class TrainingMixin:
             if progress_bar is not None and hasattr(progress_bar, "close"):
                 progress_bar.close()
             self._clear_pairwise_cache()
+            self.backend.release_device_memory()
 
         if statistics is None:
             raise RuntimeError("fit не смог вычислить локальные статистики")

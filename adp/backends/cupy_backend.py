@@ -26,6 +26,25 @@ class CupyBackend:
         except Exception as exc:
             raise ImportError("CuPy backend requires installed cupy") from exc
         self.dtype = np.float64 if dtype == "float64" else np.float32
+        self._device_cache: dict[str, tuple[int, Any]] = {}
+        self._device_ids: set[int] = set()
+        self._validate_cuda_device()
+
+    def _validate_cuda_device(self) -> None:
+        """Проверяет наличие CUDA, если runtime предоставляет такую проверку."""
+
+        runtime = getattr(getattr(self.xp, "cuda", None), "runtime", None)
+        get_device_count = getattr(runtime, "getDeviceCount", None)
+        if get_device_count is None:
+            return
+        try:
+            device_count = int(get_device_count())
+        except Exception as exc:
+            raise RuntimeError(
+                "CuPy установлен, но CUDA-устройство недоступно"
+            ) from exc
+        if device_count < 1:
+            raise RuntimeError("CuPy установлен, но CUDA-устройство недоступно")
 
     def asarray(
         self,
@@ -41,7 +60,106 @@ class CupyBackend:
     ) -> Any:
         """Переносит значение на GPU в dtype backend."""
 
+        ndarray_type = getattr(self.xp, "ndarray", None)
+        if (ndarray_type is not None and isinstance(value, ndarray_type)) or id(value) in self._device_ids:
+            return value
         return self.xp.asarray(value, dtype=self.dtype)
+
+    def _cached_gpu_array(
+        self,
+        key: str,
+        value: Any,
+    ) -> Any:
+        """Возвращает один device-copy для стабильного fit-входа."""
+
+        token = id(value)
+        cached = self._device_cache.get(key)
+        if cached is None or cached[0] != token:
+            device_value = self._gpu_array(value)
+            self._device_cache[key] = (token, device_value)
+            self._device_ids.add(id(device_value))
+        return self._device_cache[key][1]
+
+    def prepare_statistics_inputs(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        centers: np.ndarray,
+        directions: np.ndarray,
+    ) -> tuple[Any, Any, Any, Any]:
+        """Кеширует стабильные входы локальных статистик на GPU."""
+
+        return (
+            self._cached_gpu_array("X", X),
+            self._cached_gpu_array("y", y),
+            self._cached_gpu_array("centers", centers),
+            self._cached_gpu_array("directions", directions),
+        )
+
+    def clear_device_cache(self) -> None:
+        """Удаляет ссылки на временные device-входы, не трогая memory pool."""
+
+        self._device_cache.clear()
+        self._device_ids.clear()
+
+    def release_device_memory(self) -> None:
+        """Очищает кеш и свободные блоки CuPy после завершения fit."""
+
+        self.clear_device_cache()
+        get_pool = getattr(self.xp, "get_default_memory_pool", None)
+        if get_pool is not None:
+            get_pool().free_all_blocks()
+        get_pinned_pool = getattr(self.xp, "get_default_pinned_memory_pool", None)
+        if get_pinned_pool is not None:
+            get_pinned_pool().free_all_blocks()
+
+    def create_statistics_accumulator(
+        self,
+        n_centers: int,
+        n_directions: int,
+        dimension: int,
+    ) -> dict[str, Any]:
+        """Создает GPU-аккумуляторы для всех center-блоков."""
+
+        return {
+            "imav": self.xp.zeros((n_centers, n_directions), dtype=self.dtype),
+            "S": self.xp.zeros((n_centers, n_directions), dtype=self.dtype),
+            "U": self.xp.zeros((n_centers, n_directions, dimension), dtype=self.dtype),
+            "N": self.xp.zeros(n_centers, dtype=self.dtype),
+        }
+
+    def accumulate_statistics(
+        self,
+        accumulator: dict[str, Any],
+        start: int,
+        stop: int,
+        chunk: tuple[Any, Any, Any, Any, Any],
+    ) -> None:
+        """Записывает GPU-блок без промежуточного D2H-копирования."""
+
+        imav, s_vec, u_mat, counts, _ = chunk
+        accumulator["imav"][start:stop] = imav
+        accumulator["S"][start:stop] = s_vec
+        accumulator["U"][start:stop] = u_mat
+        accumulator["N"][start:stop] = counts
+
+    def finalize_statistics(
+        self,
+        accumulator: dict[str, Any],
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
+        """Однократно переносит итоговые локальные статистики на CPU."""
+
+        imav = self.to_numpy(accumulator["imav"])
+        s_vec = self.to_numpy(accumulator["S"])
+        u_mat = self.to_numpy(accumulator["U"])
+        counts = self.to_numpy(accumulator["N"])
+        return (
+            imav,
+            s_vec,
+            u_mat,
+            counts,
+            float(counts.mean()) if counts.size else 0.0,
+        )
 
     def to_numpy(
         self,
@@ -75,8 +193,8 @@ class CupyBackend:
     ) -> Any:
         """Считает ||X_i - c_j||^2 на GPU."""
 
-        x = self._gpu_array(X)
-        xcenters = self._gpu_array(centers)
+        x = self._cached_gpu_array("X", X)
+        xcenters = self._cached_gpu_array("centers", centers)
         x_sq = self.xp.einsum("ij,ij->i", x, x)
         center_sq = self.xp.einsum("ij,ij->i", xcenters, xcenters)
         norm2 = center_sq[:, None] + x_sq[None, :] - 2.0 * (xcenters @ x.T)
@@ -90,8 +208,8 @@ class CupyBackend:
     ) -> Any:
         """Считает <X_i - c_j, beta>^2 на GPU."""
 
-        x = self._gpu_array(X)
-        xcenters = self._gpu_array(centers)
+        x = self._cached_gpu_array("X", X)
+        xcenters = self._cached_gpu_array("centers", centers)
         xbeta = self._gpu_array(beta).reshape(-1)
         x_proj = x @ xbeta
         center_proj = xcenters @ xbeta
@@ -122,8 +240,8 @@ class CupyBackend:
         directions: np.ndarray,  # Направления блока C x P x d.
         q: np.ndarray,  # Значения квадратичной формы C x n.
         kernel: KernelName,  # Имя ядра.
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
-        """Считает блочные суммы Ima, S, U на GPU и возвращает NumPy-результаты."""
+    ) -> tuple[Any, Any, Any, Any, Any]:
+        """Считает блочные суммы Ima, S, U на GPU без D2H до finalize."""
 
         x = self._gpu_array(X)
         xy = self._gpu_array(y)
@@ -137,8 +255,7 @@ class CupyBackend:
 
         weights = self.kernel(xq, kernel)
         counts_gpu = weights.sum(axis=1)
-        counts = self.to_numpy(counts_gpu)
-        safe_counts = self.xp.maximum(counts_gpu, np.finfo(float).eps)
+        safe_counts = self.xp.maximum(counts_gpu, np.finfo(self.dtype).eps)
 
         xbar = (weights @ x) / safe_counts[:, None]
         projected = self.xp.matmul(x[None, :, :], self.xp.swapaxes(xdirs, 1, 2))
@@ -150,9 +267,9 @@ class CupyBackend:
         u_raw = self.xp.matmul(self.xp.swapaxes(weighted_projected, 1, 2), x)
         u_mat = u_raw - s_vec[:, :, None] * xbar[:, None, :]
         return (
-            self.to_numpy(imav),
-            self.to_numpy(s_vec),
-            self.to_numpy(u_mat),
-            counts,
-            float(counts.mean()),
+            imav,
+            s_vec,
+            u_mat,
+            counts_gpu,
+            counts_gpu.mean(),
         )

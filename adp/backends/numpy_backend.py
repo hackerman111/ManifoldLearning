@@ -56,6 +56,73 @@ class NumpyBackend:
 
         return np.asarray(value)
 
+    def prepare_statistics_inputs(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        centers: np.ndarray,
+        directions: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Готовит входы блочных статистик без изменения CPU-пути."""
+
+        return (
+            self.asarray(X),
+            self.asarray(y),
+            self.asarray(centers),
+            self.asarray(directions),
+        )
+
+    def create_statistics_accumulator(
+        self,
+        n_centers: int,
+        n_directions: int,
+        dimension: int,
+    ) -> dict[str, np.ndarray]:
+        """Создает host-аккумуляторы для блочных локальных сумм."""
+
+        return {
+            "imav": np.zeros((n_centers, n_directions), dtype=self.dtype),
+            "S": np.zeros((n_centers, n_directions), dtype=self.dtype),
+            "U": np.zeros((n_centers, n_directions, dimension), dtype=self.dtype),
+            "N": np.zeros(n_centers, dtype=self.dtype),
+        }
+
+    def accumulate_statistics(
+        self,
+        accumulator: dict[str, np.ndarray],
+        start: int,
+        stop: int,
+        chunk: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float],
+    ) -> None:
+        """Записывает один host-блок в аккумуляторы."""
+
+        imav, s_vec, u_mat, counts, _ = chunk
+        accumulator["imav"][start:stop] = imav
+        accumulator["S"][start:stop] = s_vec
+        accumulator["U"][start:stop] = u_mat
+        accumulator["N"][start:stop] = counts
+
+    def finalize_statistics(
+        self,
+        accumulator: dict[str, np.ndarray],
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
+        """Возвращает host-статистики после обработки всех блоков."""
+
+        counts = self.to_numpy(accumulator["N"])
+        return (
+            self.to_numpy(accumulator["imav"]),
+            self.to_numpy(accumulator["S"]),
+            self.to_numpy(accumulator["U"]),
+            counts,
+            float(counts.mean()) if counts.size else 0.0,
+        )
+
+    def clear_device_cache(self) -> None:
+        """Совместимый no-op для общего training lifecycle."""
+
+    def release_device_memory(self) -> None:
+        """Совместимый no-op для общего training lifecycle."""
+
     def kernel(
         self,
         q: Any,  # Значения квадратичной формы.

@@ -436,6 +436,93 @@ def test_confirmatory_runner_writes_line_progress_for_redirected_logs(monkeypatc
     assert "method=full_adp" in captured.err
 
 
+def test_confirmatory_runner_writes_initial_parameters_before_jobs(monkeypatch, tmp_path):
+    scenario = ScenarioSpec(
+        experiment="5",
+        scenario_id="scenario_initial_parameters",
+        scenario_index=3,
+        d=5,
+        n=40,
+        n_over_d=8,
+        corr=0.3,
+        snr=10.0,
+        link="tanh",
+        q=0.3,
+    )
+    jobs = [
+        RunJob(experiment="5", scenario=scenario, seed_id=2, method="full_adp"),
+        RunJob(experiment="5", scenario=scenario, seed_id=2, method="step0_only"),
+        RunJob(experiment="5", scenario=scenario, seed_id=2, method="no_regularization"),
+        RunJob(experiment="5", scenario=scenario, seed_id=2, method="fixed_h"),
+        RunJob(experiment="5", scenario=scenario, seed_id=2, method="random_beta_init"),
+    ]
+    initial_parameters_path = tmp_path / "initial_parameters_test_initial_parameters.json"
+
+    def fake_run_job(job, config):
+        assert initial_parameters_path.exists()
+        return [
+            {
+                "experiment": job.experiment,
+                "scenario_id": job.scenario.scenario_id,
+                "method": job.method,
+                "seed": job.seed_id,
+                "outer_k": 0,
+            }
+        ]
+
+    def fake_save_plots(records, summary, final_success, output_dir, *, output_prefix):
+        path = output_dir / f"{output_prefix}_plot.png"
+        path.write_text("plot")
+        return {"plot": path}
+
+    monkeypatch.setattr(confirmatory_common, "build_jobs", lambda config: jobs)
+    monkeypatch.setattr(confirmatory_common, "run_job", fake_run_job)
+    monkeypatch.setattr(confirmatory_common, "summarize_records", lambda records, config: pd.DataFrame())
+    monkeypatch.setattr(confirmatory_common, "final_success_summary", lambda records: pd.DataFrame())
+    monkeypatch.setattr(confirmatory_common, "save_plots", fake_save_plots)
+
+    config = ConfirmatoryConfig(
+        experiments=("5",),
+        base_seed=101,
+        n_directions=7,
+        min_neighbors=5.0,
+        center_fraction=0.25,
+        lambda_rel=0.02,
+        outer_steps=6,
+        inner_steps=9,
+        gamma_h=0.8,
+    )
+    saved = run_confirmatory_experiments(
+        config,
+        tmp_path,
+        n_jobs=1,
+        output_prefix="initial_parameters_test",
+    )
+
+    assert saved["initial_parameters"] == initial_parameters_path
+    payload = json.loads(initial_parameters_path.read_text())
+    assert payload["schema_version"] == 1
+    assert payload["config"]["outer_steps"] == 6
+    assert len(payload["tests"]) == len(jobs)
+
+    tests_by_method = {test["method"]: test for test in payload["tests"]}
+    full_adp = tests_by_method["full_adp"]
+    assert full_adp["data_seed"] == 50_302_223
+    assert full_adp["fit_seed"] == 50_302_324
+    assert full_adp["scenario"]["scenario_id"] == "scenario_initial_parameters"
+    assert full_adp["adp_config"]["n_centers"] == 10
+    assert full_adp["adp_config"]["lambda_penalty"] == 0.1
+    assert tests_by_method["step0_only"]["adp_config"]["outer_steps"] == 1
+    assert tests_by_method["no_regularization"]["adp_config"]["lambda_penalty"] == 0.0
+    assert tests_by_method["fixed_h"]["adp_config"]["bandwidth_decay"] == 1.0
+    assert tests_by_method["random_beta_init"]["initial_beta_seed"] == 50_302_421
+    assert tests_by_method["random_beta_init"]["beta0"] == {
+        "kind": "random_sparse",
+        "q": 1.0,
+        "seed": 50_302_421,
+    }
+
+
 def test_experiments_4_5_6_have_separate_cli_files(tmp_path):
     scripts = [
         (

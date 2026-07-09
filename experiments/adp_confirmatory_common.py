@@ -15,7 +15,7 @@ import math
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable, Literal
 
@@ -290,13 +290,7 @@ def build_jobs(config: ConfirmatoryConfig) -> list[RunJob]:
 
 def run_job(job: RunJob, config: ConfirmatoryConfig) -> list[dict[str, object]]:
     scenario = job.scenario
-    data_seed = (
-        config.base_seed
-        + 10_000_019 * int(job.experiment)
-        + 100_003 * scenario.scenario_index
-        + 1_009 * job.seed_id
-    )
-    fit_seed = data_seed + 101
+    data_seed, fit_seed = seeds_for_job(job, config)
     data = generate_case_data(config, scenario, data_seed=data_seed)
     adp_config = make_adp_config(config, scenario, random_state=fit_seed, method=job.method)
     model = ADP.create("new", adp_config)
@@ -330,6 +324,60 @@ def run_job(job: RunJob, config: ConfirmatoryConfig) -> list[dict[str, object]]:
                 error=f"{type(exc).__name__}: {exc}",
             )
         ]
+
+
+def seeds_for_job(job: RunJob, config: ConfirmatoryConfig) -> tuple[int, int]:
+    data_seed = (
+        config.base_seed
+        + 10_000_019 * int(job.experiment)
+        + 100_003 * job.scenario.scenario_index
+        + 1_009 * job.seed_id
+    )
+    return data_seed, data_seed + 101
+
+
+def initial_parameters_for_job(job: RunJob, config: ConfirmatoryConfig) -> dict[str, object]:
+    data_seed, fit_seed = seeds_for_job(job, config)
+    initial_beta_seed = fit_seed + 97 if job.method == "random_beta_init" else None
+    beta0 = (
+        {
+            "kind": "random_sparse",
+            "q": 1.0,
+            "seed": initial_beta_seed,
+        }
+        if initial_beta_seed is not None
+        else None
+    )
+    adp_config = make_adp_config(
+        config,
+        job.scenario,
+        random_state=fit_seed,
+        method=job.method,
+    )
+    return {
+        "experiment": job.experiment,
+        "scenario": asdict(job.scenario),
+        "seed": job.seed_id,
+        "method": job.method,
+        "data_seed": data_seed,
+        "fit_seed": fit_seed,
+        "initial_beta_seed": initial_beta_seed,
+        "beta0": beta0,
+        "adp_config": asdict(adp_config),
+    }
+
+
+def save_initial_parameters(
+    config: ConfirmatoryConfig,
+    jobs: list[RunJob],
+    path: Path,
+) -> None:
+    payload = {
+        "schema_version": 1,
+        "config": config_to_json(config),
+        "tests": [initial_parameters_for_job(job, config) for job in jobs],
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 def rows_from_result(
@@ -688,6 +736,8 @@ def run_confirmatory_experiments(
         raise ValueError("--jobs must be >= 1")
 
     jobs = build_jobs(config)
+    initial_parameters_path = output_dir / f"{output_prefix}_initial_parameters.json"
+    save_initial_parameters(config, jobs, initial_parameters_path)
     started = time.perf_counter()
     records: list[dict[str, object]] = []
     requested_n_jobs = n_jobs
@@ -802,6 +852,7 @@ def run_confirmatory_experiments(
             "records": str(records_path),
             "summary": str(summary_path),
             "final_success": str(final_path),
+            "initial_parameters": str(initial_parameters_path),
             "plots": {name: str(path) for name, path in plot_paths.items()},
         },
     }
@@ -812,6 +863,7 @@ def run_confirmatory_experiments(
         "summary": summary_path,
         "final_success": final_path,
         "manifest": manifest_path,
+        "initial_parameters": initial_parameters_path,
     }
     saved.update(plot_paths)
     return saved
