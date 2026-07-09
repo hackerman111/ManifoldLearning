@@ -3,12 +3,13 @@ import sys
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from adp import ADP, ADPConfig
 from adp.backends import numpy_backend
 from adp.backends.numpy_backend import NumpyBackend
 from adp.common.types import LocalStatistics
-from adp.common.utils import pairwise_norm2
+from adp.common.utils import kernel_np, pairwise_norm2
 
 
 def install_fake_cupy(monkeypatch):
@@ -26,9 +27,11 @@ def install_fake_cupy(monkeypatch):
         asnumpy=record("asnumpy", np.asarray),
         exp=record("exp", np.exp),
         maximum=record("maximum", np.maximum),
+        square=record("square", np.square),
         einsum=record("einsum", np.einsum),
         matmul=record("matmul", np.matmul),
         swapaxes=record("swapaxes", np.swapaxes),
+        quantile=record("quantile", np.quantile),
         finfo=np.finfo,
     )
     monkeypatch.setitem(sys.modules, "cupy", fake)
@@ -52,6 +55,62 @@ def reference_random_projection_sums(X, y, centers, directions, q, kernel):
         imav[j] = (weights[j] * y) @ projected
         u_all[j] = weighted_projected.T @ centered
     return imav, s_all, u_all, counts, float(counts.mean())
+
+
+@pytest.mark.parametrize("kernel", ("epanechnikov", "quartic", "gaussian"))
+def test_numpy_and_cupy_kernels_match_squared_distance_convention(monkeypatch, kernel):
+    from adp.backends.cupy_backend import CupyBackend
+
+    install_fake_cupy(monkeypatch)
+    q = np.array([0.25, 0.5, 1.5])
+    expected = kernel_np(q, kernel)
+
+    np.testing.assert_allclose(NumpyBackend().kernel(q, kernel), expected)
+    cupy_backend = CupyBackend()
+    np.testing.assert_allclose(cupy_backend.to_numpy(cupy_backend.kernel(q, kernel)), expected)
+
+
+def test_local_mass_mode_selects_mean_or_configured_quantile():
+    q = np.array([[0.0, 0.0], [0.0, 100.0]])
+
+    mean_model = ADP.create(
+        "new",
+        ADPConfig(local_mass_mode="mean", kernel="gaussian", show_progress=False),
+    )
+    quantile_model = ADP.create(
+        "new",
+        ADPConfig(
+            local_mass_mode="quantile",
+            local_mass_quantile=0.25,
+            kernel="gaussian",
+            show_progress=False,
+        ),
+    )
+
+    assert mean_model._local_mass_score(q) == pytest.approx(1.5)
+    assert quantile_model._local_mass_score(q) == pytest.approx(1.25)
+
+
+def test_random_initial_beta_mode_is_reproducible_and_data_independent():
+    config = ADPConfig(initial_beta_mode="random", random_state=17, show_progress=False)
+    first = ADP.create("new", config)
+    second = ADP.create("new", config)
+
+    beta_first = first._initial_beta(np.arange(12.0).reshape(4, 3), np.arange(4.0))
+    beta_second = second._initial_beta(
+        np.array([[100.0, -2.0, 1.0], [0.0, 3.0, 8.0], [4.0, 5.0, -9.0], [2.0, 7.0, 6.0]]),
+        np.array([9.0, -1.0, 2.0, 4.0]),
+    )
+
+    np.testing.assert_allclose(beta_first, beta_second)
+    assert np.linalg.norm(beta_first) == pytest.approx(1.0)
+
+
+def test_config_rejects_unknown_initial_beta_and_local_mass_modes():
+    with pytest.raises(ValueError, match="initial_beta_mode"):
+        ADPConfig(initial_beta_mode="bad")
+    with pytest.raises(ValueError, match="local_mass_mode"):
+        ADPConfig(local_mass_mode="bad")
 
 
 def test_backend_random_projection_sums_match_weighted_xbar_reference():
@@ -153,6 +212,7 @@ def test_isotropic_bandwidth_uses_lower_quantile_local_mass():
         ADPConfig(
             min_neighbors=5.0,
             kernel="gaussian",
+            local_mass_mode="quantile",
             local_mass_quantile=0.25,
             scale_search_steps=28,
             scale_expand_steps=20,
@@ -243,6 +303,50 @@ def test_solve_beta_accepts_warm_start_for_cg(monkeypatch):
     )
 
     np.testing.assert_allclose(captured["x0"], warm_start)
+
+
+def test_solve_beta_uses_flattened_gemv_system_without_einsum(monkeypatch):
+    import adp.variants.random_projection as random_projection
+
+    model = ADP.create("new", ADPConfig(tol=1e-11, show_progress=False))
+    stats = LocalStatistics(
+        variant="new",
+        imav=np.array([[1.0, 0.5], [0.4, -0.3]]),
+        centers=np.zeros((2, 3)),
+        h=1.0,
+        weights_mean=4.0,
+        S=np.zeros((2, 2)),
+        U=np.array(
+            [
+                [[1.0, 0.2, 0.0], [0.1, 0.8, 0.3]],
+                [[0.4, 0.0, 0.7], [0.3, 0.5, 0.2]],
+            ]
+        ),
+    )
+    slopes = np.array([1.0, 0.7])
+    prior = np.array([1.0, 0.0, 0.0])
+    lambda_penalty = 0.2
+
+    def fail_einsum(*args, **kwargs):
+        raise AssertionError("_solve_beta should use flattened BLAS products")
+
+    monkeypatch.setattr(random_projection.np, "einsum", fail_einsum)
+    beta = model._solve_beta(
+        stats=stats,
+        intercepts=np.zeros(2),
+        slopes=slopes,
+        prior=prior,
+        lambda_penalty=lambda_penalty,
+    )
+
+    u_flat = stats.U.reshape(-1, stats.U.shape[-1])
+    slope_flat = np.repeat(slopes, stats.U.shape[1])
+    regularization = lambda_penalty + model.config.ridge
+    lhs = u_flat.T @ (slope_flat[:, None] ** 2 * u_flat)
+    lhs += regularization * np.eye(u_flat.shape[1])
+    rhs = u_flat.T @ (slope_flat * stats.imav.reshape(-1)) + lambda_penalty * prior
+    expected = np.linalg.solve(lhs, rhs)
+    np.testing.assert_allclose(beta, expected, rtol=1e-8, atol=1e-8)
 
 
 def test_compact_kernel_projection_sums_avoid_dense_3d_matmul(monkeypatch):
@@ -376,4 +480,5 @@ def test_float32_config_preserves_statistics_dtype():
     assert result.statistics.imav.dtype == np.float32
     assert result.statistics.S.dtype == np.float32
     assert result.statistics.U.dtype == np.float32
-    assert result.statistics.directions.dtype == np.float32
+    assert result.statistics.directions is None
+    assert result.statistics.n_directions == 3

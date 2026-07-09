@@ -1,0 +1,89 @@
+{
+  "experiment": "ADP experiment 4: rho_k anisotropy diagnostics",
+  "experiments": [
+    "4"
+  ],
+  "synthetic_experiment_6_from_final_success_protocol": true,
+  "n_jobs": 11,
+  "requested_n_jobs": 11,
+  "parallel_fallback_error": "",
+  "jobs": 2700,
+  "records": 3162,
+  "elapsed_sec": 255.51277941900025,
+  "config": {
+    "d_values": [
+      100
+    ],
+    "n_over_d_values": [
+      20
+    ],
+    "corr_values": [
+      0.0,
+      0.3,
+      0.7
+    ],
+    "snr_values": [
+      20.0,
+      10.0,
+      5.0
+    ],
+    "link_values": [
+      "linear",
+      "tanh",
+      "sin"
+    ],
+    "q_values": [
+      0.3
+    ],
+    "seeds": 100,
+    "base_seed": 20260709,
+    "n_directions": 64,
+    "min_neighbors": 256.0,
+    "center_fraction": 0.5,
+    "h0_inflation": 1.1,
+    "lambda_rel": 0.01,
+    "outer_steps": 8,
+    "inner_steps": 20,
+    "gamma_h": 0.8,
+    "local_mass_quantile": 0.05,
+    "scale_search_steps": 12,
+    "anisotropy_search_steps": 12,
+    "objective_check_every": 2,
+    "kernel": "epanechnikov",
+    "dtype": "float64",
+    "center_noise_scale": 1.0,
+    "renew_directions": true,
+    "backend": "cupy",
+    "methods": [
+      "full_adp",
+      "step0_only",
+      "no_anisotropy",
+      "fixed_h",
+      "no_regularization",
+      "random_beta_init"
+    ],
+    "experiments": [
+      "4"
+    ],
+    "max_scenarios": null,
+    "bootstrap_reps": 1000,
+    "show_progress": false,
+    "progress_log_every": 1
+  },
+  "outputs": {
+    "records": "outputs/adp_experiment_4_rho_serious/experiment_4_rho_records.csv",
+    "summary": "outputs/adp_experiment_4_rho_serious/experiment_4_rho_summary.csv",
+    "final_success": "outputs/adp_experiment_4_rho_serious/experiment_4_rho_final_success.csv",
+    "plots": {
+      "rho_plot": "outputs/adp_experiment_4_rho_serious/plots/experiment_4_rho_rho_by_outer.png",
+      "h_plot": "outputs/adp_experiment_4_rho_serious/plots/experiment_4_rho_h_by_outer.png",
+      "mass_plot": "outputs/adp_experiment_4_rho_serious/plots/experiment_4_rho_local_mass_by_outer.png",
+      "rho_cos_scatter_plot": "outputs/adp_experiment_4_rho_serious/plots/experiment_4_rho_rho_vs_cos.png",
+      "cos_plot": "outputs/adp_experiment_4_rho_serious/plots/experiment_4_rho_cos_by_outer.png",
+      "success_plot": "outputs/adp_experiment_4_rho_serious/plots/experiment_4_rho_success08_by_outer.png",
+      "failure_plot": "outputs/adp_experiment_4_rho_serious/plots/experiment_4_rho_failure_by_d.png",
+      "ablation_plot": "outputs/adp_experiment_4_rho_serious/plots/experiment_4_rho_ablation_final_cos.png",
+      "final_success_plot": "outputs/adp_experiment_4_rho_serious/plots/experiment_4_rho_final_success.png"
+    }
+  }
+}

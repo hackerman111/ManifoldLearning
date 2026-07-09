@@ -82,7 +82,10 @@ class RandomProjectionADP(ADPBase):
             centers=centers,
             h=h,
             weights_mean=float(np.mean(weight_means)),
-            directions=directions,
+            # Направления нужны только внутри _compute_statistics; сохранение
+            # полного J x P x d массива дублировало бы рабочую память fit.
+            directions=directions if self.config.save_directions else None,
+            n_directions=P,
             S=s_all,
             U=u_all,
             N=n_all,
@@ -106,9 +109,9 @@ class RandomProjectionADP(ADPBase):
         if stats.U is None:
             raise ValueError("Некорректные статистики new-варианта")
         intercepts = np.zeros(stats.U.shape[0])
-        ubeta = np.einsum("jpd,d->jp", stats.U, beta, optimize=True)
-        numerator = np.einsum("jp,jp->j", stats.imav, ubeta, optimize=True)
-        denominator = np.einsum("jp,jp->j", ubeta, ubeta, optimize=True)
+        ubeta = stats.U @ beta
+        numerator = np.sum(stats.imav * ubeta, axis=1)
+        denominator = np.sum(ubeta * ubeta, axis=1)
         denominator = np.maximum(denominator, np.finfo(float).tiny)
         slopes = numerator / denominator
         return intercepts, slopes
@@ -140,20 +143,23 @@ class RandomProjectionADP(ADPBase):
         d = stats.U.shape[2]
         residual = stats.imav - intercepts[:, None] * stats.S
         regularization = float(lambda_penalty) + float(self.config.ridge)
-        slope_sq = slopes**2
+        u_flat = stats.U.reshape(-1, d)
+        slope_flat = np.repeat(np.asarray(slopes, dtype=float), stats.U.shape[1])
+        slope_sq_flat = slope_flat**2
+        residual_flat = residual.reshape(-1)
 
         def matvec(vector: np.ndarray) -> np.ndarray:
-            projected = np.einsum("jpd,d->jp", stats.U, vector, optimize=True)
-            result = np.einsum("j,jp,jpd->d", slope_sq, projected, stats.U, optimize=True)
+            projected = u_flat @ vector
+            result = u_flat.T @ (slope_sq_flat * projected)
             result += regularization * vector
             return result
 
-        rhs = np.einsum("j,jp,jpd->d", slopes, residual, stats.U, optimize=True)
-        rhs += float(lambda_penalty) * prior
+        rhs = u_flat.T @ (slope_flat * residual_flat)
+        rhs = rhs + float(lambda_penalty) * prior
         operator = LinearOperator((d, d), matvec=matvec, dtype=float)
         preconditioner = None
         if self.config.use_cg_preconditioner:
-            diagonal = np.einsum("j,jpd,jpd->d", slope_sq, stats.U, stats.U, optimize=True)
+            diagonal = np.sum((u_flat * u_flat) * slope_sq_flat[:, None], axis=0)
             diagonal += regularization
             inverse_diagonal = 1.0 / np.maximum(diagonal, np.finfo(float).tiny)
             preconditioner = LinearOperator(
@@ -198,7 +204,7 @@ class RandomProjectionADP(ADPBase):
 
         if stats.S is None or stats.U is None:
             raise ValueError("Некорректные статистики new-варианта")
-        ubeta = np.einsum("jpd,d->jp", stats.U, beta, optimize=True)
+        ubeta = stats.U @ beta
         pred = intercepts[:, None] * stats.S + slopes[:, None] * ubeta
         total = float(np.sum((stats.imav - pred) ** 2))
         total += lambda_penalty * float(np.sum((beta - prior) ** 2))

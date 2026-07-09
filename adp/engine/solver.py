@@ -50,7 +50,9 @@ class SolverMixin:
         }
         if stats.anisotropy is not None:
             record["rho"] = float(stats.anisotropy)
-        if stats.directions is not None:
+        if stats.n_directions is not None:
+            record["directions"] = int(stats.n_directions)
+        elif stats.directions is not None:
             record["directions"] = int(stats.directions.shape[1])
         if stats.N is not None:
             local_mass = np.asarray(stats.N, dtype=float)

@@ -52,7 +52,33 @@ def test_new_variant_fits_beta_with_random_projection_statistics():
     assert result.beta.shape == (6,)
     assert result.history[-1].objective <= result.history[0].objective
     assert metrics["cosine_abs"] > 0.85
+    assert result.statistics.directions is None
+    assert result.statistics.n_directions == 8
+    assert model.directions_ is None
+
+
+def test_save_directions_flag_keeps_directions_in_result_and_model():
+    model = ADP.create(
+        "new",
+        ADPConfig(
+            n_centers=10,
+            n_directions=3,
+            min_neighbors=4,
+            outer_steps=1,
+            inner_steps=2,
+            save_directions=True,
+            show_progress=False,
+            random_state=13,
+        ),
+    )
+    data = model.generate_data(n=50, d=4, noise=0.01, link="linear")
+
+    result = model.fit(data.X, data.y, centers=data.centers, directions=data.directions)
+
     assert result.statistics.directions is not None
+    assert result.statistics.directions.shape == (10, 3, 4)
+    assert model.directions_ is not None
+    assert model.directions_.shape == (10, 3, 4)
 
 
 def test_factory_rejects_removed_old_variant():

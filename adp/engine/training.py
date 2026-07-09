@@ -162,6 +162,11 @@ class TrainingMixin:
         if progress:
             progress[-1]["objective"] = float(objective)
 
+        # По умолчанию направления нужны только для построения статистик и не
+        # должны удерживать J x P x d память. Флаг позволяет явно сохранить их.
+        if not self.config.save_directions:
+            directions_arr = None
+
         return store_fit_result(
             self,
             beta_prev,

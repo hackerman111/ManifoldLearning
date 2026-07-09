@@ -10,6 +10,8 @@ from scipy import linalg
 
 
 KernelName = Literal["epanechnikov", "quartic", "gaussian"]
+InitialBetaMode = Literal["ols", "random"]
+LocalMassMode = Literal["mean", "quantile"]
 VariantName = Literal["new"]
 BackendName = Literal["numpy", "cupy"]
 
@@ -39,6 +41,10 @@ class ADPConfig:
     bandwidth_decay: float = math.sqrt(2.0)
     initial_bandwidth_inflation: float = 1.0
     anisotropy_min: float | None = None
+    initial_beta_mode: InitialBetaMode = "ols"
+    # Сохраняет прежний замысел конфига: local_mass_quantile участвует в
+    # bandwidth search. Для буквального условия из TeX можно выбрать "mean".
+    local_mass_mode: LocalMassMode = "quantile"
     local_mass_quantile: float = 0.05
     scale_expand_steps: int = 12
     scale_search_steps: int = 12
@@ -50,6 +56,7 @@ class ADPConfig:
     dtype: str = "float64"
     center_noise_scale: float = 1.0
     renew_directions: bool = True
+    save_directions: bool = False
     chunk_size: int = 64
     ridge: float = 1e-10
     show_progress: bool = True
@@ -69,6 +76,10 @@ class ADPConfig:
 
         if self.backend not in {"numpy", "cupy"}:
             raise ValueError("backend должен быть 'numpy' или 'cupy'")
+        if self.initial_beta_mode not in {"ols", "random"}:
+            raise ValueError("initial_beta_mode должен быть 'ols' или 'random'")
+        if self.local_mass_mode not in {"mean", "quantile"}:
+            raise ValueError("local_mass_mode должен быть 'mean' или 'quantile'")
         if not 0.0 <= self.local_mass_quantile <= 1.0:
             raise ValueError("local_mass_quantile должен быть в диапазоне [0, 1]")
         if self.scale_expand_steps < 1:
@@ -139,6 +150,7 @@ class LocalStatistics:
     U: np.ndarray | None = None
     N: np.ndarray | None = None
     anisotropy: float | None = None
+    n_directions: int | None = None
 
 
 @dataclass(slots=True)

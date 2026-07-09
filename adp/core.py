@@ -3,7 +3,18 @@ from __future__ import annotations
 from .backends.neighbors import NeighborIndex
 from .backends.numpy_backend import NumpyBackend
 from .common.progress import format_progress_postfix
-from .common.types import ADPConfig, ADPData, ADPResult, BackendName, KernelName, LocalStatistics, TrainingStep, VariantName
+from .common.types import (
+    ADPConfig,
+    ADPData,
+    ADPResult,
+    BackendName,
+    InitialBetaMode,
+    KernelName,
+    LocalMassMode,
+    LocalStatistics,
+    TrainingStep,
+    VariantName,
+)
 from .common.utils import (
     as_1d_float,
     as_2d_float,
@@ -38,7 +49,9 @@ __all__ = [
     "ADPData",
     "ADPResult",
     "BackendName",
+    "InitialBetaMode",
     "KernelName",
+    "LocalMassMode",
     "LocalStatistics",
     "NeighborIndex",
     "NumpyBackend",

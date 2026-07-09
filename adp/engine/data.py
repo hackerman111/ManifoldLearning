@@ -162,6 +162,9 @@ class DataPreparationMixin:
             Единичный начальный вектор beta.
         """
 
+        if self.config.initial_beta_mode == "random":
+            return unit_vector(self.rng.normal(size=X.shape[1]))
+
         # Стартовый beta нужен только как prior. Метод наименьших квадратов
         # хорошо работает для линейной связи, а для сложной связи дает
         # устойчивое ненулевое зерно.

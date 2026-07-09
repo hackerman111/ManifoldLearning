@@ -65,7 +65,7 @@ class CupyBackend:
         if name == "gaussian":
             return self.xp.exp(-0.5 * xq)
         if name == "quartic":
-            return self.xp.maximum(1.0 - xq * xq, 0.0)
+            return self.xp.square(self.xp.maximum(1.0 - xq, 0.0))
         return self.xp.maximum(1.0 - xq, 0.0)
 
     def pairwise_norm2(
@@ -101,11 +101,17 @@ class CupyBackend:
         self,
         q: Any,  # Матрица квадратичной формы C x n.
         kernel: KernelName,  # Имя ядра.
+        *,
+        quantile: float | None = None,  # Квантиль масс или None для среднего.
     ) -> float:
-        """Считает среднюю локальную массу на GPU и возвращает scalar."""
+        """Считает среднюю или квантильную локальную массу на GPU."""
 
         masses = self.kernel(q, kernel).sum(axis=1)
-        return float(self.to_numpy(masses.mean()))
+        if quantile is None:
+            return float(self.to_numpy(masses.mean()))
+        if not 0.0 <= quantile <= 1.0:
+            raise ValueError("quantile должен быть в диапазоне [0, 1]")
+        return float(self.to_numpy(self.xp.quantile(masses, quantile)))
 
     def random_projection_sums(
         self,

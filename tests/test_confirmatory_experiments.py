@@ -4,8 +4,11 @@ import sys
 
 import pandas as pd
 
-from experiments.adp_confirmatory_456 import (
+import experiments.adp_confirmatory_common as confirmatory_common
+from experiments.adp_confirmatory_common import (
     ConfirmatoryConfig,
+    RunJob,
+    ScenarioSpec,
     build_scenarios,
     final_success_summary,
     make_adp_config,
@@ -233,15 +236,13 @@ def test_summary_records_exposes_tests_md_checks_for_rho_and_cos_growth():
     assert exp5["growth_pass"] is True
 
 
-def test_confirmatory_cli_runs_parallel_smoke(tmp_path):
+def test_experiment_5_cli_runs_parallel_smoke(tmp_path):
     result = subprocess.run(
         [
             sys.executable,
-            "experiments/adp_confirmatory_456.py",
+            "experiments/adp_experiment_5_cos_growth.py",
             "--out",
             str(tmp_path),
-            "--experiments",
-            "4,5,6",
             "--d",
             "5",
             "--n-over-d",
@@ -278,10 +279,161 @@ def test_confirmatory_cli_runs_parallel_smoke(tmp_path):
         text=True,
     )
 
-    assert "confirmatory_456_records.csv" in result.stdout
-    assert (tmp_path / "confirmatory_456_records.csv").exists()
-    assert (tmp_path / "confirmatory_456_summary.csv").exists()
-    assert (tmp_path / "confirmatory_456_manifest.json").exists()
+    assert "experiment_5_cos_growth_records.csv" in result.stdout
+    assert (tmp_path / "experiment_5_cos_growth_records.csv").exists()
+    assert (tmp_path / "experiment_5_cos_growth_summary.csv").exists()
+    assert (tmp_path / "experiment_5_cos_growth_manifest.json").exists()
+
+
+def test_confirmatory_runner_reports_tqdm_job_totals_and_postfix(monkeypatch, tmp_path):
+    scenario = ScenarioSpec(
+        experiment="5",
+        scenario_id="scenario_a",
+        scenario_index=0,
+        d=5,
+        n=40,
+        n_over_d=8,
+        corr=0.0,
+        snr=20.0,
+        link="linear",
+        q=0.3,
+    )
+    jobs = [
+        RunJob(experiment="5", scenario=scenario, seed_id=0, method="full_adp"),
+        RunJob(experiment="5", scenario=scenario, seed_id=1, method="step0_only"),
+    ]
+
+    tqdm_calls = []
+    postfixes = []
+
+    class FakeTqdm:
+        def __init__(self, iterable, **kwargs):
+            self.iterable = iterable
+            self.kwargs = kwargs
+            tqdm_calls.append(kwargs)
+
+        def __iter__(self):
+            return iter(self.iterable)
+
+        def set_postfix(self, **kwargs):
+            postfixes.append(kwargs)
+
+    def fake_run_job(job, config):
+        return [
+            {
+                "experiment": job.experiment,
+                "scenario_id": job.scenario.scenario_id,
+                "method": job.method,
+                "seed": job.seed_id,
+                "outer_k": 0,
+            }
+        ]
+
+    def fake_save_plots(records, summary, final_success, output_dir, *, output_prefix):
+        path = output_dir / f"{output_prefix}_plot.png"
+        path.write_text("plot")
+        return {"plot": path}
+
+    monkeypatch.setattr(confirmatory_common, "tqdm", FakeTqdm)
+    monkeypatch.setattr(confirmatory_common, "build_jobs", lambda config: jobs)
+    monkeypatch.setattr(confirmatory_common, "run_job", fake_run_job)
+    monkeypatch.setattr(confirmatory_common, "summarize_records", lambda records, config: pd.DataFrame())
+    monkeypatch.setattr(confirmatory_common, "final_success_summary", lambda records: pd.DataFrame())
+    monkeypatch.setattr(confirmatory_common, "save_plots", fake_save_plots)
+
+    run_confirmatory_experiments(
+        ConfirmatoryConfig(experiments=("5",)),
+        tmp_path,
+        n_jobs=1,
+        output_prefix="progress_test",
+    )
+
+    assert tqdm_calls[0]["total"] == len(jobs)
+    assert tqdm_calls[0]["unit"] == "job"
+    assert tqdm_calls[0]["desc"] == "progress_test sequential"
+    assert postfixes == [
+        {
+            "experiment": "5",
+            "scenario": "scenario_a",
+            "seed": 0,
+            "method": "full_adp",
+            "refresh": True,
+        },
+        {
+            "experiment": "5",
+            "scenario": "scenario_a",
+            "seed": 1,
+            "method": "step0_only",
+            "refresh": True,
+        },
+    ]
+
+
+def test_confirmatory_runner_writes_line_progress_for_redirected_logs(monkeypatch, tmp_path, capsys):
+    scenario = ScenarioSpec(
+        experiment="4",
+        scenario_id="scenario_log",
+        scenario_index=0,
+        d=5,
+        n=40,
+        n_over_d=8,
+        corr=0.0,
+        snr=20.0,
+        link="linear",
+        q=0.3,
+    )
+    jobs = [
+        RunJob(experiment="4", scenario=scenario, seed_id=0, method="full_adp"),
+        RunJob(experiment="4", scenario=scenario, seed_id=1, method="full_adp"),
+    ]
+
+    class QuietTqdm:
+        def __init__(self, iterable, **kwargs):
+            self.iterable = iterable
+
+        def __iter__(self):
+            return iter(self.iterable)
+
+        def set_postfix(self, **kwargs):
+            pass
+
+    def fake_run_job(job, config):
+        return [
+            {
+                "experiment": job.experiment,
+                "scenario_id": job.scenario.scenario_id,
+                "method": job.method,
+                "seed": job.seed_id,
+                "outer_k": 0,
+            }
+        ]
+
+    def fake_save_plots(records, summary, final_success, output_dir, *, output_prefix):
+        path = output_dir / f"{output_prefix}_plot.png"
+        path.write_text("plot")
+        return {"plot": path}
+
+    monkeypatch.setattr(confirmatory_common, "tqdm", QuietTqdm)
+    monkeypatch.setattr(confirmatory_common, "build_jobs", lambda config: jobs)
+    monkeypatch.setattr(confirmatory_common, "run_job", fake_run_job)
+    monkeypatch.setattr(confirmatory_common, "summarize_records", lambda records, config: pd.DataFrame())
+    monkeypatch.setattr(confirmatory_common, "final_success_summary", lambda records: pd.DataFrame())
+    monkeypatch.setattr(confirmatory_common, "save_plots", fake_save_plots)
+
+    run_confirmatory_experiments(
+        ConfirmatoryConfig(experiments=("4",), progress_log_every=1),
+        tmp_path,
+        n_jobs=1,
+        output_prefix="progress_log_test",
+    )
+
+    captured = capsys.readouterr()
+
+    assert "progress_log_test sequential: 1/2 jobs" in captured.err
+    assert "progress_log_test sequential: 2/2 jobs" in captured.err
+    assert "experiment=4" in captured.err
+    assert "scenario=scenario_log" in captured.err
+    assert "method=full_adp" in captured.err
 
 
 def test_experiments_4_5_6_have_separate_cli_files(tmp_path):

@@ -556,7 +556,19 @@ def result_diagnostics(case: StressCase, result: ADPResult, cg_calls: list[dict[
             }
         )
 
-    if stats.directions is not None:
+    if stats.n_directions is not None:
+        direction_shape = [stats.centers.shape[0], stats.n_directions]
+        if stats.U is not None:
+            direction_shape.append(int(stats.U.shape[-1]))
+        record.update(
+            {
+                "directions_shape": json.dumps(direction_shape),
+                "directions_norm_min": 1.0,
+                "directions_norm_mean": 1.0,
+                "directions_norm_max": 1.0,
+            }
+        )
+    elif stats.directions is not None:
         directions = np.asarray(stats.directions, dtype=float)
         norms = np.linalg.norm(directions, axis=-1)
         record.update(

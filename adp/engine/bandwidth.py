@@ -59,9 +59,14 @@ class BandwidthMixin:
         self,
         q: np.ndarray,  # Матрица квадратичной формы J x n.
     ) -> float:
-        """Возвращает lower-quantile локальной массы вместо среднего."""
+        """Возвращает выбранную статистику локальной массы."""
 
-        return self.backend.local_mass_score(q, self.config.kernel)
+        quantile = (
+            self.config.local_mass_quantile
+            if self.config.local_mass_mode == "quantile"
+            else None
+        )
+        return self.backend.local_mass_score(q, self.config.kernel, quantile=quantile)
 
     def _select_isotropic_bandwidth(
         self,
@@ -89,15 +94,18 @@ class BandwidthMixin:
             k = min(max(1, int(math.ceil(self.config.min_neighbors))), X.shape[0])
             kth = index.kth_distances(centers, k)
             if kth is not None and np.all(np.isfinite(kth)):
-                hint_quantile = min(
-                    1.0, max(0.0, 1.0 - self.config.local_mass_quantile)
+                hint_quantile = (
+                    1.0 - self.config.local_mass_quantile
+                    if self.config.local_mass_mode == "quantile"
+                    else 0.5
                 )
+                hint_quantile = min(1.0, max(0.0, hint_quantile))
                 high_hint = float(np.nanquantile(kth, hint_quantile))
 
         def score_for(
             h: float,  # Кандидат масштаба h.
         ) -> float:
-            """Считает lower-quantile локальной массы для isotropic h."""
+            """Считает выбранную статистику локальной массы для isotropic h."""
 
             return self._local_mass_score(diff_norm2 / (h * h))
 
@@ -129,7 +137,7 @@ class BandwidthMixin:
         def score_for(
             rho: float,  # Кандидат rho.
         ) -> float:
-            """Считает lower-quantile массу при фиксированном rho."""
+            """Считает выбранную статистику массы при фиксированном rho."""
 
             q = (rho * rho * norm2 + proj2) / (h * h)
             return self._local_mass_score(q)

@@ -58,11 +58,14 @@ class DiagnosticsMixin:
         """
 
         result = self._require_result()
+        n_directions = result.statistics.n_directions
+        if n_directions is None and result.statistics.directions is not None:
+            n_directions = int(result.statistics.directions.shape[1])
         return {
             "variant": self.variant,
             "backend": result.backend,
             "n_centers": int(result.statistics.centers.shape[0]),
-            "n_directions": None if result.statistics.directions is None else int(result.statistics.directions.shape[1]),
+            "n_directions": n_directions,
             "h": float(result.statistics.h),
             "weights_mean": float(result.statistics.weights_mean),
             "objective": float(result.objective),

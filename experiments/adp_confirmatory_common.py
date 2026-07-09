@@ -83,6 +83,7 @@ class ConfirmatoryConfig:
     max_scenarios: int | None = None
     bootstrap_reps: int = 1000
     show_progress: bool = False
+    progress_log_every: int = 1
 
 
 @dataclass(frozen=True)
@@ -674,6 +675,8 @@ def run_confirmatory_experiments(
     output_dir: Path,
     *,
     n_jobs: int | None = None,
+    output_prefix: str = "confirmatory_456",
+    experiment_label: str = "ADP confirmatory experiments 4, 5, 6 from Tests.md",
 ) -> dict[str, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     plots_dir = output_dir / "plots"
@@ -690,30 +693,81 @@ def run_confirmatory_experiments(
     requested_n_jobs = n_jobs
     actual_n_jobs = n_jobs
     parallel_fallback_error = ""
+    total_jobs = len(jobs)
+    completed_jobs = 0
+
+    def update_progress_postfix(progress: object, job: RunJob) -> None:
+        progress.set_postfix(
+            experiment=job.experiment,
+            scenario=job.scenario.scenario_id,
+            seed=job.seed_id,
+            method=job.method,
+            refresh=True,
+        )
+
+    def emit_progress_line(desc: str, completed: int, job: RunJob) -> None:
+        every = config.progress_log_every
+        if every <= 0:
+            return
+        if completed != total_jobs and completed % every != 0:
+            return
+
+        print(
+            (
+                f"{desc}: {completed}/{total_jobs} jobs "
+                f"experiment={job.experiment} "
+                f"scenario={job.scenario.scenario_id} "
+                f"seed={job.seed_id} "
+                f"method={job.method}"
+            ),
+            file=sys.stderr,
+            flush=True,
+        )
+
+    def mark_job_done(desc: str, progress: object, job: RunJob) -> None:
+        nonlocal completed_jobs
+        completed_jobs += 1
+        update_progress_postfix(progress, job)
+        emit_progress_line(desc, completed_jobs, job)
 
     def run_jobs_sequential(desc: str) -> None:
-        iterator: Iterable[RunJob] = tqdm(jobs, desc=desc, dynamic_ncols=True)
+        iterator: Iterable[RunJob] = tqdm(
+            jobs,
+            total=total_jobs,
+            desc=desc,
+            unit="job",
+            dynamic_ncols=True,
+        )
         for job in iterator:
             records.extend(run_job(job, config))
+            mark_job_done(desc, iterator, job)
 
     if n_jobs == 1:
-        run_jobs_sequential("confirmatory 4/5/6 sequential")
+        run_jobs_sequential(f"{output_prefix} sequential")
     else:
         try:
             with ProcessPoolExecutor(max_workers=n_jobs) as executor:
-                futures = [executor.submit(run_job, job, config) for job in jobs]
-                for future in tqdm(
+                futures = {
+                    executor.submit(run_job, job, config): job
+                    for job in jobs
+                }
+                iterator = tqdm(
                     as_completed(futures),
-                    total=len(futures),
-                    desc="confirmatory 4/5/6 parallel",
+                    total=total_jobs,
+                    desc=f"{output_prefix} parallel",
+                    unit="job",
                     dynamic_ncols=True,
-                ):
+                )
+                for future in iterator:
+                    job = futures[future]
                     records.extend(future.result())
+                    mark_job_done(f"{output_prefix} parallel", iterator, job)
         except OSError as exc:
             records.clear()
+            completed_jobs = 0
             actual_n_jobs = 1
             parallel_fallback_error = f"{type(exc).__name__}: {exc}"
-            run_jobs_sequential("confirmatory 4/5/6 sequential fallback")
+            run_jobs_sequential(f"{output_prefix} sequential fallback")
 
     records_df = pd.DataFrame(records)
     sort_cols = ["experiment", "scenario_id", "method", "seed", "outer_k"]
@@ -723,18 +777,18 @@ def run_confirmatory_experiments(
     summary_df = summarize_records(records_df, config)
     final_df = final_success_summary(records_df[records_df["experiment"].astype(str) == "6"]) if not records_df.empty else pd.DataFrame()
 
-    records_path = output_dir / "confirmatory_456_records.csv"
-    summary_path = output_dir / "confirmatory_456_summary.csv"
-    final_path = output_dir / "confirmatory_456_final_success.csv"
-    manifest_path = output_dir / "confirmatory_456_manifest.json"
+    records_path = output_dir / f"{output_prefix}_records.csv"
+    summary_path = output_dir / f"{output_prefix}_summary.csv"
+    final_path = output_dir / f"{output_prefix}_final_success.csv"
+    manifest_path = output_dir / f"{output_prefix}_manifest.json"
     records_df.to_csv(records_path, index=False)
     summary_df.to_csv(summary_path, index=False)
     final_df.to_csv(final_path, index=False)
 
-    plot_paths = save_plots(records_df, summary_df, final_df, plots_dir)
+    plot_paths = save_plots(records_df, summary_df, final_df, plots_dir, output_prefix=output_prefix)
     elapsed = time.perf_counter() - started
     manifest = {
-        "experiment": "ADP confirmatory experiments 4, 5, 6 from Tests.md",
+        "experiment": experiment_label,
         "experiments": list(config.experiments),
         "synthetic_experiment_6_from_final_success_protocol": True,
         "n_jobs": actual_n_jobs,
@@ -775,17 +829,19 @@ def save_plots(
     summary: pd.DataFrame,
     final_success: pd.DataFrame,
     output_dir: Path,
+    *,
+    output_prefix: str = "confirmatory_456",
 ) -> dict[str, Path]:
     saved: dict[str, Path] = {}
-    saved["rho_plot"] = save_rho_plot(records, output_dir / "confirmatory_456_rho_by_outer.png")
-    saved["h_plot"] = save_h_plot(records, output_dir / "confirmatory_456_h_by_outer.png")
-    saved["mass_plot"] = save_mass_plot(records, output_dir / "confirmatory_456_local_mass_by_outer.png")
-    saved["rho_cos_scatter_plot"] = save_rho_cos_scatter_plot(records, output_dir / "confirmatory_456_rho_vs_cos.png")
-    saved["cos_plot"] = save_cos_plot(records, output_dir / "confirmatory_456_cos_by_outer.png")
-    saved["success_plot"] = save_success_plot(records, output_dir / "confirmatory_456_success08_by_outer.png")
-    saved["failure_plot"] = save_failure_plot(records, output_dir / "confirmatory_456_failure_by_d.png")
-    saved["ablation_plot"] = save_ablation_plot(summary, output_dir / "confirmatory_456_ablation_final_cos.png")
-    saved["final_success_plot"] = save_final_success_plot(final_success, output_dir / "confirmatory_456_final_success.png")
+    saved["rho_plot"] = save_rho_plot(records, output_dir / f"{output_prefix}_rho_by_outer.png")
+    saved["h_plot"] = save_h_plot(records, output_dir / f"{output_prefix}_h_by_outer.png")
+    saved["mass_plot"] = save_mass_plot(records, output_dir / f"{output_prefix}_local_mass_by_outer.png")
+    saved["rho_cos_scatter_plot"] = save_rho_cos_scatter_plot(records, output_dir / f"{output_prefix}_rho_vs_cos.png")
+    saved["cos_plot"] = save_cos_plot(records, output_dir / f"{output_prefix}_cos_by_outer.png")
+    saved["success_plot"] = save_success_plot(records, output_dir / f"{output_prefix}_success08_by_outer.png")
+    saved["failure_plot"] = save_failure_plot(records, output_dir / f"{output_prefix}_failure_by_d.png")
+    saved["ablation_plot"] = save_ablation_plot(summary, output_dir / f"{output_prefix}_ablation_final_cos.png")
+    saved["final_success_plot"] = save_final_success_plot(final_success, output_dir / f"{output_prefix}_final_success.png")
     return saved
 
 
@@ -985,12 +1041,13 @@ def save_final_success_plot(final_success: pd.DataFrame, path: Path) -> Path:
     return path
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Confirmatory ADP experiments 4, 5 and final-success protocol from Tests.md."
-    )
-    parser.add_argument("--out", type=Path, default=Path("outputs/adp_confirmatory_456"))
-    parser.add_argument("--experiments", type=str, default="4,5,6")
+def build_common_parser(
+    *,
+    description: str,
+    default_out: Path,
+) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("--out", type=Path, default=default_out)
     parser.add_argument("--d", type=str, default="50,100,200")
     parser.add_argument("--n-over-d", type=str, default="10,20")
     parser.add_argument("--corr", type=str, default="0.0,0.3,0.7")
@@ -1012,12 +1069,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bootstrap-reps", type=int, default=1000)
     parser.add_argument("--backend", choices=("numpy", "cupy"), default="numpy")
     parser.add_argument("--show-progress", action="store_true")
-    return parser.parse_args()
+    parser.add_argument(
+        "--progress-log-every",
+        type=int,
+        default=1,
+        help="Write one newline progress record to stderr every N completed jobs; use 0 to disable.",
+    )
+    return parser
 
 
-def main() -> int:
-    args = parse_args()
-    config = ConfirmatoryConfig(
+def config_from_args(
+    args: argparse.Namespace,
+    *,
+    experiments: tuple[ExperimentName, ...],
+) -> ConfirmatoryConfig:
+    return ConfirmatoryConfig(
         d_values=parse_int_tuple(args.d),
         n_over_d_values=parse_int_tuple(args.n_over_d),
         corr_values=parse_float_tuple(args.corr),
@@ -1034,28 +1100,53 @@ def main() -> int:
         inner_steps=args.inner_steps,
         gamma_h=args.gamma_h,
         methods=parse_str_tuple(args.methods),  # type: ignore[arg-type]
-        experiments=parse_str_tuple(args.experiments),  # type: ignore[arg-type]
+        experiments=experiments,
         max_scenarios=args.max_scenarios,
         bootstrap_reps=args.bootstrap_reps,
         backend=args.backend,
         show_progress=args.show_progress,
+        progress_log_every=args.progress_log_every,
     )
 
-    print("ADP confirmatory experiments 4/5/6")
-    print(f"experiments = {config.experiments}")
-    print(f"d = {config.d_values}")
-    print(f"n/d = {config.n_over_d_values}")
-    print(f"seeds = {config.seeds}")
-    print(f"methods = {config.methods}")
-    print(f"jobs = {args.jobs if args.jobs is not None else 'cpu_count - 1'}")
-    print(f"output = {args.out}")
 
-    saved = run_confirmatory_experiments(config, args.out, n_jobs=args.jobs)
-    print("\nSaved files:")
+def configure_live_output() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(line_buffering=True, write_through=True)
+
+
+def run_experiment_cli(
+    *,
+    description: str,
+    default_out: Path,
+    experiments: tuple[ExperimentName, ...],
+    output_prefix: str,
+    experiment_label: str,
+) -> int:
+    configure_live_output()
+    parser = build_common_parser(description=description, default_out=default_out)
+    args = parser.parse_args()
+    config = config_from_args(args, experiments=experiments)
+
+    print(experiment_label, flush=True)
+    print(f"experiments = {config.experiments}", flush=True)
+    print(f"d = {config.d_values}", flush=True)
+    print(f"n/d = {config.n_over_d_values}", flush=True)
+    print(f"seeds = {config.seeds}", flush=True)
+    print(f"methods = {config.methods}", flush=True)
+    print(f"jobs = {args.jobs if args.jobs is not None else 'cpu_count - 1'}", flush=True)
+    print(f"output = {args.out}", flush=True)
+    print(f"progress_log_every = {config.progress_log_every}", flush=True)
+
+    saved = run_confirmatory_experiments(
+        config,
+        args.out,
+        n_jobs=args.jobs,
+        output_prefix=output_prefix,
+        experiment_label=experiment_label,
+    )
+    print("\nSaved files:", flush=True)
     for name, path in saved.items():
-        print(f"{name:24s} {path}")
+        print(f"{name:24s} {path}", flush=True)
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

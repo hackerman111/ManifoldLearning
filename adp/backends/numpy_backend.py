@@ -73,7 +73,7 @@ class NumpyBackend:
         if name == "gaussian":
             return np.exp(-0.5 * q)
         if name == "quartic":
-            return np.maximum(1.0 - q * q, 0.0)
+            return np.square(np.maximum(1.0 - q, 0.0))
         return np.maximum(1.0 - q, 0.0)
 
     def pairwise_norm2(
@@ -110,11 +110,18 @@ class NumpyBackend:
         self,
         q: Any,  # Матрица квадратичной формы C x n.
         kernel: KernelName,  # Имя ядра.
+        *,
+        quantile: float | None = None,  # Квантиль масс или None для среднего.
     ) -> float:
-        """Считает среднюю локальную массу на backend."""
+        """Считает среднюю или квантильную локальную массу на backend."""
 
         weights = self.kernel(q, kernel)
-        return float(weights.sum(axis=1).mean())
+        masses = weights.sum(axis=1)
+        if quantile is None:
+            return float(masses.mean())
+        if not 0.0 <= quantile <= 1.0:
+            raise ValueError("quantile должен быть в диапазоне [0, 1]")
+        return float(np.quantile(masses, quantile))
 
     def random_projection_sums(
         self,
