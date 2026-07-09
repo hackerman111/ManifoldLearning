@@ -1,4 +1,6 @@
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -58,13 +60,38 @@ def test_factory_rejects_removed_old_variant():
         ADP.create("old", ADPConfig(show_progress=False))
 
 
-def test_backend_is_numpy_only():
-    with pytest.raises(ValueError, match="Only numpy"):
-        ADP.create("new", ADPConfig(backend="gpu"))
+def test_cupy_backend_requires_optional_dependency(monkeypatch):
+    monkeypatch.setitem(sys.modules, "cupy", None)
+
+    with pytest.raises(ImportError, match="CuPy backend"):
+        ADP.create("new", ADPConfig(backend="cupy"))
 
     package_text = "\n".join(path.read_text() for path in Path("adp").rglob("*.py"))
     assert "torch" not in package_text.lower()
-    assert "cupy" not in package_text.lower()
+
+
+def install_fake_cupy(monkeypatch):
+    calls = []
+
+    def record(name, fn):
+        def wrapped(*args, **kwargs):
+            calls.append(name)
+            return fn(*args, **kwargs)
+
+        return wrapped
+
+    fake = SimpleNamespace(
+        asarray=record("asarray", np.asarray),
+        asnumpy=record("asnumpy", np.asarray),
+        exp=record("exp", np.exp),
+        maximum=record("maximum", np.maximum),
+        einsum=record("einsum", np.einsum),
+        matmul=record("matmul", np.matmul),
+        swapaxes=record("swapaxes", np.swapaxes),
+        finfo=np.finfo,
+    )
+    monkeypatch.setitem(sys.modules, "cupy", fake)
+    return calls
 
 
 def test_numpy_backend_smoke_uses_public_api():

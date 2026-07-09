@@ -6,7 +6,6 @@ from typing import Callable
 import numpy as np
 
 from ..backends.neighbors import NeighborIndex
-from ..common.utils import pairwise_norm2, pairwise_projection2
 
 
 class BandwidthMixin:
@@ -32,7 +31,7 @@ class BandwidthMixin:
             self._pairwise_cache = cache
         key = ("norm2", id(X), X.shape, id(centers), centers.shape)
         if key not in cache:
-            cache[key] = self.backend.asarray(pairwise_norm2(X, centers))
+            cache[key] = self.backend.pairwise_norm2(X, centers)
         return cache[key]
 
     def _cached_pairwise_projection2(
@@ -52,9 +51,7 @@ class BandwidthMixin:
         beta_key = ("proj2_beta", id(X), X.shape, id(centers), centers.shape)
         cached_beta = cache.get(beta_key)
         if cached_beta is None or not np.array_equal(cached_beta, beta_arr):
-            cache[key] = self.backend.asarray(
-                pairwise_projection2(X, centers, beta_arr)
-            )
+            cache[key] = self.backend.pairwise_projection2(X, centers, beta_arr)
             cache[beta_key] = beta_arr.copy()
         return cache[key]
 
@@ -64,8 +61,7 @@ class BandwidthMixin:
     ) -> float:
         """Возвращает lower-quantile локальной массы вместо среднего."""
 
-        masses = np.asarray(self.backend.kernel(q, self.config.kernel)).sum(axis=1)
-        return float(masses.mean())
+        return self.backend.local_mass_score(q, self.config.kernel)
 
     def _select_isotropic_bandwidth(
         self,

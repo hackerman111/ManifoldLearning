@@ -11,7 +11,7 @@ from scipy import linalg
 
 KernelName = Literal["epanechnikov", "quartic", "gaussian"]
 VariantName = Literal["new"]
-BackendName = Literal["numpy"]
+BackendName = Literal["numpy", "cupy"]
 
 
 @dataclass(slots=True)
@@ -66,8 +66,8 @@ class ADPConfig:
             None; при неподдержанном backend выбрасывает ValueError.
         """
 
-        if self.backend != "numpy":
-            raise ValueError("Only numpy backend is supported")
+        if self.backend not in {"numpy", "cupy"}:
+            raise ValueError("backend должен быть 'numpy' или 'cupy'")
         if not 0.0 <= self.local_mass_quantile <= 1.0:
             raise ValueError("local_mass_quantile должен быть в диапазоне [0, 1]")
         if self.scale_expand_steps < 1:

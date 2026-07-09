@@ -7,7 +7,6 @@ from typing import Any
 import numpy as np
 
 from ..backends.neighbors import NeighborIndex
-from ..backends.numpy_backend import NumpyBackend
 from ..common.types import ADPConfig, ADPResult, LocalStatistics, VariantName
 from .bandwidth import BandwidthMixin
 from .data import DataPreparationMixin
@@ -83,7 +82,7 @@ class ADPBase(
         if self.config.target_dim != 1:
             raise NotImplementedError("Сейчас реализован target_dim=1; multi-index оставлен следующим слоем.")
         self.rng = np.random.default_rng(self.config.random_state)
-        self.backend = NumpyBackend(self.config.dtype)
+        self.backend = self._make_backend()
         self.result_: ADPResult | None = None
         self.data_: tuple[np.ndarray, np.ndarray] | None = None
         self.centers_: np.ndarray | None = None
@@ -91,6 +90,21 @@ class ADPBase(
         self.neighbor_index_: NeighborIndex | None = None
         self.diagnostic_plots_: dict[str, Path] = {}
         self._pairwise_cache: dict[tuple[Any, ...], np.ndarray] = {}
+
+    def _make_backend(
+        self,
+    ) -> Any:
+        """Создает численный backend по config.backend."""
+
+        if self.config.backend == "numpy":
+            from ..backends.numpy_backend import NumpyBackend
+
+            return NumpyBackend(self.config.dtype)
+        if self.config.backend == "cupy":
+            from ..backends.cupy_backend import CupyBackend
+
+            return CupyBackend(self.config.dtype)
+        raise ValueError("backend должен быть 'numpy' или 'cupy'")
 
     def _compute_statistics(
         self,

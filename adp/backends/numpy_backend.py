@@ -76,6 +76,46 @@ class NumpyBackend:
             return np.maximum(1.0 - q * q, 0.0)
         return np.maximum(1.0 - q, 0.0)
 
+    def pairwise_norm2(
+        self,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+        centers: np.ndarray,  # Матрица центров C x d.
+    ) -> Any:
+        """Считает ||X_i - c_j||^2 на backend."""
+
+        x = self.asarray(X)
+        xcenters = self.asarray(centers)
+        x_sq = np.einsum("ij,ij->i", x, x)
+        center_sq = np.einsum("ij,ij->i", xcenters, xcenters)
+        norm2 = center_sq[:, None] + x_sq[None, :] - 2.0 * (xcenters @ x.T)
+        np.maximum(norm2, 0.0, out=norm2)
+        return norm2
+
+    def pairwise_projection2(
+        self,
+        X: np.ndarray,  # Матрица наблюдений n x d.
+        centers: np.ndarray,  # Матрица центров C x d.
+        beta: np.ndarray,  # Направление beta.
+    ) -> Any:
+        """Считает <X_i - c_j, beta>^2 на backend."""
+
+        x = self.asarray(X)
+        xcenters = self.asarray(centers)
+        xbeta = self.asarray(beta).reshape(-1)
+        x_proj = x @ xbeta
+        center_proj = xcenters @ xbeta
+        return np.square(x_proj[None, :] - center_proj[:, None])
+
+    def local_mass_score(
+        self,
+        q: Any,  # Матрица квадратичной формы C x n.
+        kernel: KernelName,  # Имя ядра.
+    ) -> float:
+        """Считает среднюю локальную массу на backend."""
+
+        weights = self.kernel(q, kernel)
+        return float(weights.sum(axis=1).mean())
+
     def random_projection_sums(
         self,
         *,

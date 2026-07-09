@@ -1,3 +1,7 @@
+from dataclasses import replace
+import sys
+from types import SimpleNamespace
+
 import numpy as np
 
 from adp import ADP, ADPConfig
@@ -5,6 +9,30 @@ from adp.backends import numpy_backend
 from adp.backends.numpy_backend import NumpyBackend
 from adp.common.types import LocalStatistics
 from adp.common.utils import pairwise_norm2
+
+
+def install_fake_cupy(monkeypatch):
+    calls = []
+
+    def record(name, fn):
+        def wrapped(*args, **kwargs):
+            calls.append(name)
+            return fn(*args, **kwargs)
+
+        return wrapped
+
+    fake = SimpleNamespace(
+        asarray=record("asarray", np.asarray),
+        asnumpy=record("asnumpy", np.asarray),
+        exp=record("exp", np.exp),
+        maximum=record("maximum", np.maximum),
+        einsum=record("einsum", np.einsum),
+        matmul=record("matmul", np.matmul),
+        swapaxes=record("swapaxes", np.swapaxes),
+        finfo=np.finfo,
+    )
+    monkeypatch.setitem(sys.modules, "cupy", fake)
+    return calls
 
 
 def reference_random_projection_sums(X, y, centers, directions, q, kernel):
@@ -59,6 +87,62 @@ def test_backend_random_projection_sums_match_weighted_xbar_reference():
 
     for actual_part, expected_part in zip(actual, expected):
         np.testing.assert_allclose(actual_part, expected_part, rtol=1e-12, atol=1e-12)
+
+
+def test_cupy_backend_covers_gpu_md_pairwise_kernel_and_local_mass(monkeypatch):
+    from adp.backends.cupy_backend import CupyBackend
+
+    calls = install_fake_cupy(monkeypatch)
+    X = np.array(
+        [
+            [-1.0, 0.5, 0.1],
+            [0.2, -0.3, 0.4],
+            [0.8, 1.1, -0.7],
+            [1.5, -1.2, 0.9],
+            [-0.6, 0.7, -1.0],
+        ]
+    )
+    centers = np.array([[0.1, 0.2, -0.1], [1.0, -0.8, 0.7]])
+    backend = CupyBackend()
+
+    norm2 = backend.pairwise_norm2(X, centers)
+    mass = backend.local_mass_score(norm2 / 4.0, "gaussian")
+
+    np.testing.assert_allclose(backend.to_numpy(norm2), pairwise_norm2(X, centers))
+    assert np.isclose(mass, reference_random_projection_sums(X, np.ones(X.shape[0]), centers, np.ones((2, 1, 3)), norm2 / 4.0, "gaussian")[3].mean())
+    assert "einsum" in calls
+    assert "exp" in calls
+    assert "asnumpy" in calls
+
+
+def test_cupy_backend_statistics_match_numpy_with_fake_cupy(monkeypatch):
+    install_fake_cupy(monkeypatch)
+    rng = np.random.default_rng(17)
+    X = rng.normal(size=(18, 4))
+    y = rng.normal(size=18)
+    centers = rng.normal(size=(5, 4))
+    beta = np.array([1.0, 0.2, -0.1, 0.3])
+    beta = beta / np.linalg.norm(beta)
+    directions = rng.normal(size=(5, 3, 4))
+    directions /= np.linalg.norm(directions, axis=-1, keepdims=True)
+    config = ADPConfig(
+        n_centers=5,
+        n_directions=3,
+        chunk_size=3,
+        kernel="gaussian",
+        show_progress=False,
+    )
+    numpy_model = ADP.create("new", config)
+    cupy_model = ADP.create("new", replace(config, backend="cupy"))
+
+    numpy_stats = numpy_model._compute_statistics(X, y, centers, 1.7, beta, directions, None)
+    cupy_stats = cupy_model._compute_statistics(X, y, centers, 1.7, beta, directions, None)
+
+    np.testing.assert_allclose(cupy_stats.imav, numpy_stats.imav, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(cupy_stats.S, numpy_stats.S, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(cupy_stats.U, numpy_stats.U, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(cupy_stats.N, numpy_stats.N, rtol=1e-12, atol=1e-12)
+    assert cupy_model.backend.name == "cupy"
 
 
 def test_isotropic_bandwidth_uses_lower_quantile_local_mass():
