@@ -16,6 +16,7 @@ from ...common.resource_monitor import ResourceMonitor
 from .baselines import BaselineUnavailable
 from .datasets import DatasetUnavailable
 from .executors import execute_job
+from .reports import write_single_index_reports
 from .scenarios import scenarios_for_profile
 from .storage import SingleIndexSeriesStore
 from .types import RunOutcome, SeedBundle, SingleIndexJob, SingleIndexSeriesConfig
@@ -115,7 +116,12 @@ def run_single_index_benchmark(
         if jobs and all(statuses.get(job.run_id) == "success" for job in jobs)
         else "partial"
     )
-    return store.finalize(status=final_status)
+    saved = dict(store.finalize(status=final_status))
+    reports = write_single_index_reports(
+        store.series_dir,
+        random_state=config.base_seed,
+    )
+    return {**saved, **reports}
 
 
 def _run_serial(

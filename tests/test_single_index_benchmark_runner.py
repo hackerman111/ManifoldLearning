@@ -54,6 +54,18 @@ def test_runner_writes_resource_rows_payload_and_resume_without_duplicates(tmp_p
     ).all()
     assert (runs["result_persist_time_sec"] > 0.0).all()
     assert set(iterations["run_id"]) == set(runs["run_id"])
+    assert saved["summary"].exists()
+    assert saved["scaling"].exists()
+    assert saved["paired"].exists()
+    assert saved["worst_five"].exists()
+    artifacts = pd.read_csv(saved["artifacts"])
+    assert {"summary", "scaling", "paired", "worst_five"}.issubset(
+        set(artifacts["name"])
+    )
+    assert {f"G{index:02d}" for index in range(1, 22)}.issubset(
+        set(artifacts["name"])
+    )
+    assert set(artifacts["status"]) <= {"created", "error"}
 
     resumed = run_single_index_benchmark(config, tmp_path, resume=saved["series"].parent)
     resumed_runs = pd.read_csv(resumed["runs"])
