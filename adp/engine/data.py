@@ -22,7 +22,7 @@ class DataPreparationMixin:
         beta: np.ndarray | None = None,  # Истинное направление или None.
         noise: float = 0.1,  # Стандартное отклонение шума.
         sigma_x: float = 1.0,  # Масштаб признаков.
-        corr: float = 0.5,  # Сила общей компоненты признаков.
+        corr: float = 0.5,  # Попарная корреляция координат признаков.
         link: str | Callable[[np.ndarray], np.ndarray] = "quadratic",  # Связь f.
     ) -> ADPData:
         """Генерирует single-index данные из manifold_new.tex.
@@ -50,11 +50,18 @@ class DataPreparationMixin:
         # модели Y = f(beta^T X) + eps в обоих TeX-файлах.
         beta_vec = unit_vector(beta if beta is not None else self.rng.normal(size=d))
 
-        # Простая коррелированная схема X: общая компонента + индивидуальный
-        # шум. Она нужна для воспроизводимых сценариев замеров, не для теории.
-        shared = self.rng.normal(size=d)
+        # Общая для координат компонента меняется между наблюдениями. Поэтому
+        # после центрирования Cov(X_j, X_k) = sigma_x**2 * corr при j != k,
+        # а маргинальная дисперсия каждой координаты равна sigma_x**2.
+        shared = self.rng.normal(size=(n, 1))
         individual = self.rng.normal(size=(n, d))
-        X = self.backend.asarray(sigma_x * (corr * shared[None, :] + (1.0 - corr) * individual))
+        X = self.backend.asarray(
+            sigma_x
+            * (
+                np.sqrt(corr) * shared
+                + np.sqrt(1.0 - corr) * individual
+            )
+        )
 
         eps = self.backend.asarray(self.rng.normal(scale=noise, size=n))
         link_fn, link_name = link_function(link)

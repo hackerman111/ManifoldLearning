@@ -9,6 +9,16 @@ model = ADP.create("new", ADPConfig(show_progress=False))
 result = model.fit(X, y)
 ```
 
+## Параллельное вычисление статистик NumPy
+
+2 workers включаются явно через `statistics_workers=2`; по умолчанию
+остаётся безопасный serial-режим с одним worker:
+
+```python
+config = ADPConfig(statistics_workers=2, show_progress=False)
+model = ADP.create("new", config)
+```
+
 ## Замена этапов алгоритма
 
 Основные этапы ADP создаются через изолированный `StageRegistry`. Встроенные

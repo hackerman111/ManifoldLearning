@@ -30,6 +30,30 @@ def test_factory_generates_single_index_data():
     assert np.isclose(np.linalg.norm(data.beta), 1.0)
 
 
+def test_data_generator_corr_controls_pairwise_feature_correlation():
+    corr = 0.65
+    sigma_x = 1.7
+    model = ADP.create(
+        "new",
+        ADPConfig(
+            n_centers=1,
+            n_directions=1,
+            show_progress=False,
+            random_state=101,
+        ),
+    )
+
+    X = np.asarray(
+        model.generate_data(n=20_000, d=6, corr=corr, sigma_x=sigma_x).X
+    )
+    correlation = np.corrcoef(X, rowvar=False)
+    off_diagonal = correlation[~np.eye(correlation.shape[0], dtype=bool)]
+
+    assert np.allclose(off_diagonal, corr, atol=0.03)
+    assert np.allclose(X.var(axis=0), sigma_x**2, rtol=0.05)
+    assert np.all(np.abs(X.mean(axis=0)) < 0.05 * sigma_x)
+
+
 def test_new_variant_fits_beta_with_random_projection_statistics():
     model = ADP.create(
         "new",
