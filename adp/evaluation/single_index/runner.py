@@ -206,6 +206,12 @@ def _execute_and_persist(
         "angle_deg": metrics.get("angle_deg", math.nan),
         "signed_l2": metrics.get("signed_l2", math.nan),
         "objective": metrics.get("objective", math.nan),
+        "dataset_source": metrics.get("dataset_source", ""),
+        "dataset_path": metrics.get("dataset_path", ""),
+        "dataset_size_bytes": metrics.get("dataset_size_bytes", math.nan),
+        "dataset_sha256": metrics.get("dataset_sha256", ""),
+        "dataset_rows": metrics.get("dataset_rows", math.nan),
+        "dataset_features": metrics.get("dataset_features", math.nan),
         **algorithm_usage,
         **full_usage,
     }

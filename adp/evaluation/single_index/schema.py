@@ -64,6 +64,12 @@ RUN_COLUMNS = IDENTITY_COLUMNS + (
     "angle_deg",
     "signed_l2",
     "objective",
+    "dataset_source",
+    "dataset_path",
+    "dataset_size_bytes",
+    "dataset_sha256",
+    "dataset_rows",
+    "dataset_features",
 ) + _resource_columns("algorithm") + _resource_columns("full_run")
 
 ITERATION_COLUMNS = IDENTITY_COLUMNS + (
@@ -110,6 +116,7 @@ INITIAL_PARAMETER_COLUMNS = IDENTITY_COLUMNS + (
     "directions_seed",
     "init_seed",
     "hypothesis",
+    "data_dataset",
     "data_n",
     "data_d",
     "data_link",
@@ -145,4 +152,3 @@ ARTIFACT_COLUMNS = IDENTITY_COLUMNS + (
     "status",
     "error",
 )
-

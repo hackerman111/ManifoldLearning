@@ -1,9 +1,11 @@
+import hashlib
 from dataclasses import replace
 
 import numpy as np
 import pandas as pd
 import pytest
 
+import adp.evaluation.single_index.datasets as dataset_module
 from adp.common.experiment_log import stable_run_id
 from adp.evaluation.metrics import direction_metrics
 from adp.evaluation.single_index.baselines import (
@@ -108,24 +110,104 @@ def test_linear_and_random_baselines_follow_adapter_contract():
         fit_baseline("mave", data.X, data.y, seed=7)
 
 
-def test_cached_real_dataset_requires_explicit_local_file(tmp_path):
-    with pytest.raises(DatasetUnavailable, match="D01"):
-        load_cached_real_dataset("D01", tmp_path, allow_download=False)
-
+def write_d1_package(tmp_path, *, manifest_updates=None, duplicate=False):
+    prepared = tmp_path / "prepared"
+    prepared.mkdir()
+    path = prepared / "D01_airfoil_self_noise.csv"
     pd.DataFrame(
         {
             "x1": [0.0, 1.0, 2.0],
             "x2": [2.0, 1.0, 0.0],
-            "target": [0.5, 1.0, 1.5],
+            "sound": [0.5, 1.0, 1.5],
         }
-    ).to_csv(tmp_path / "D01.csv", index=False)
+    ).to_csv(path, index=False)
+    row = {
+        "id": "D01",
+        "file": path.name,
+        "rows": 3,
+        "features": 2,
+        "target": "sound",
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "official_page": "https://example.test/airfoil",
+    }
+    row.update(manifest_updates or {})
+    rows = [row, dict(row)] if duplicate else [row]
+    pd.DataFrame(rows).to_csv(tmp_path / "dataset_manifest.csv", index=False)
+    return path
+
+
+def test_cached_real_dataset_uses_d1_manifest_and_prepared_file(tmp_path):
+    with pytest.raises(DatasetUnavailable, match="D01"):
+        load_cached_real_dataset("D01", tmp_path, allow_download=False)
+
+    path = write_d1_package(tmp_path)
 
     dataset = load_cached_real_dataset("D01", tmp_path, allow_download=False)
 
     assert dataset.X.shape == (3, 2)
     assert dataset.y.shape == (3,)
-    assert dataset.sha256
-    assert dataset.path.name == "D01.csv"
+    np.testing.assert_array_equal(dataset.y, [0.5, 1.0, 1.5])
+    assert dataset.sha256 == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert dataset.path == path
+    assert dataset.source == "https://example.test/airfoil"
+
+
+@pytest.mark.parametrize(
+    ("updates", "message"),
+    [
+        ({"sha256": "0" * 64}, "checksum"),
+        ({"rows": 4}, "rows"),
+        ({"features": 3}, "features"),
+    ],
+)
+def test_d1_manifest_rejects_integrity_mismatch(tmp_path, updates, message):
+    write_d1_package(tmp_path, manifest_updates=updates)
+
+    with pytest.raises(ValueError, match=message):
+        load_cached_real_dataset("D01", tmp_path, allow_download=False)
+
+
+def test_d1_manifest_rejects_duplicate_id_and_path_traversal(tmp_path):
+    write_d1_package(tmp_path, duplicate=True)
+    with pytest.raises(ValueError, match="duplicate"):
+        load_cached_real_dataset("D01", tmp_path, allow_download=False)
+
+    pd.read_csv(tmp_path / "dataset_manifest.csv").iloc[:1].assign(
+        file="../outside.csv"
+    ).to_csv(tmp_path / "dataset_manifest.csv", index=False)
+    with pytest.raises(ValueError, match="prepared"):
+        load_cached_real_dataset("D01", tmp_path, allow_download=False)
+
+
+def test_d1_loader_never_uses_network_fallback(tmp_path, monkeypatch):
+    def fail_download(*args, **kwargs):
+        raise AssertionError("network fallback called")
+
+    monkeypatch.setattr(dataset_module, "_download_openml", fail_download, raising=False)
+
+    with pytest.raises(DatasetUnavailable, match="manifest"):
+        load_cached_real_dataset("D01", tmp_path, allow_download=True)
+
+
+def test_real_data_outcome_preserves_dataset_provenance(tmp_path):
+    path = write_d1_package(tmp_path)
+    scenario = next(item for item in scenario_registry() if item.scenario_id == "D01")
+    config = SingleIndexSeriesConfig(
+        profile="full",
+        base_seed=1,
+        jobs=1,
+        statistics_workers=1,
+        data_dir=str(tmp_path),
+    )
+
+    outcome = execute_job(make_job(scenario, method="ols"), config)
+
+    assert outcome.metrics["dataset_source"] == "https://example.test/airfoil"
+    assert outcome.metrics["dataset_path"] == str(path.relative_to(tmp_path))
+    assert outcome.metrics["dataset_size_bytes"] == path.stat().st_size
+    assert outcome.metrics["dataset_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert outcome.metrics["dataset_rows"] == 3
+    assert outcome.metrics["dataset_features"] == 2
 
 
 def test_every_correctness_scenario_has_a_finite_executor_result():

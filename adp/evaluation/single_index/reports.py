@@ -45,6 +45,12 @@ RUN_REPORT_COLUMNS = (
     "data_seed",
     "status",
     "failed",
+    "dataset_source",
+    "dataset_path",
+    "dataset_size_bytes",
+    "dataset_sha256",
+    "dataset_rows",
+    "dataset_features",
     *SUMMARY_METRICS,
 )
 
@@ -113,6 +119,9 @@ _TEXT_COLUMNS = {
     "category",
     "exception_type",
     "stage",
+    "dataset_source",
+    "dataset_path",
+    "dataset_sha256",
 }
 
 SCALING_COLUMNS = (

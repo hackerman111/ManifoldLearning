@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import numpy as np
 
@@ -124,7 +125,14 @@ def _execute_real_data(
             "d": int(dataset.X.shape[1]),
             "beta_norm": float(np.linalg.norm(beta)),
             "objective": objective,
+            "dataset_source": dataset.source,
+            "dataset_path": str(
+                dataset.path.relative_to(Path(config.data_dir).resolve())
+            ),
+            "dataset_size_bytes": dataset.path.stat().st_size,
             "dataset_sha256": dataset.sha256,
+            "dataset_rows": int(dataset.X.shape[0]),
+            "dataset_features": int(dataset.X.shape[1]),
         },
         iterations=(),
         solver_iterations=(),

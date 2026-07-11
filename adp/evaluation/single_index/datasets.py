@@ -25,11 +25,15 @@ class RealDataset:
     source: str
 
 
-_OPENML_NAMES = {
-    "D01": "airfoil_self_noise",
-    "D02": "concrete_compressive_strength",
-    "D03": "wine-quality-white",
-    "D04": "superconduct",
+_REAL_DATASET_IDS = {"D01", "D02", "D03", "D04"}
+_MANIFEST_COLUMNS = {
+    "id",
+    "file",
+    "rows",
+    "features",
+    "target",
+    "sha256",
+    "official_page",
 }
 
 
@@ -98,47 +102,84 @@ def load_cached_real_dataset(
     *,
     allow_download: bool,
 ) -> RealDataset:
-    if dataset_id not in _OPENML_NAMES:
+    if dataset_id not in _REAL_DATASET_IDS:
         raise ValueError(f"unknown real dataset: {dataset_id}")
     root = Path(data_dir)
-    path = root / f"{dataset_id}.csv"
-    if not path.exists():
-        if not allow_download:
-            raise DatasetUnavailable(
-                f"dataset {dataset_id} is missing at {path}; enable --allow-download"
-            )
-        _download_openml(dataset_id, path, root)
+    manifest_path = root / "dataset_manifest.csv"
+    if not manifest_path.is_file():
+        raise DatasetUnavailable(
+            f"dataset {dataset_id} manifest is missing at {manifest_path}"
+        )
+    manifest = pd.read_csv(manifest_path, dtype=str)
+    missing_columns = sorted(_MANIFEST_COLUMNS - set(manifest.columns))
+    if missing_columns:
+        raise ValueError(
+            "dataset manifest is missing columns: " + ", ".join(missing_columns)
+        )
+    duplicated_ids = manifest.loc[manifest["id"].duplicated(keep=False), "id"]
+    if not duplicated_ids.empty:
+        duplicates = ", ".join(sorted(set(duplicated_ids.astype(str))))
+        raise ValueError(f"dataset manifest contains duplicate ids: {duplicates}")
+    selected = manifest.loc[manifest["id"] == dataset_id]
+    if selected.empty:
+        raise DatasetUnavailable(
+            f"dataset {dataset_id} is absent from manifest {manifest_path}"
+        )
+    row = selected.iloc[0]
+    prepared = (root / "prepared").resolve()
+    relative = Path(str(row["file"]))
+    if relative.is_absolute():
+        raise ValueError("dataset manifest file must be relative to prepared")
+    path = (prepared / relative).resolve()
+    try:
+        path.relative_to(prepared)
+    except ValueError as exc:
+        raise ValueError("dataset manifest file must stay inside prepared") from exc
+    if not path.is_file():
+        raise DatasetUnavailable(f"dataset {dataset_id} is missing at {path}")
+    actual_sha256 = _sha256(path)
+    expected_sha256 = str(row["sha256"]).lower()
+    if actual_sha256.lower() != expected_sha256:
+        raise ValueError(
+            f"dataset {dataset_id} checksum mismatch: "
+            f"expected {expected_sha256}, got {actual_sha256}"
+        )
     frame = pd.read_csv(path)
-    if frame.shape[1] < 2:
-        raise ValueError(f"dataset {dataset_id} must contain features and target")
-    target_column = "target" if "target" in frame else frame.columns[-1]
-    y = frame.pop(target_column).to_numpy(dtype=float)
-    X = frame.to_numpy(dtype=float)
+    target_column = str(row["target"])
+    if target_column not in frame:
+        raise ValueError(
+            f"dataset {dataset_id} target column is missing: {target_column}"
+        )
+    try:
+        expected_rows = int(str(row["rows"]))
+        expected_features = int(str(row["features"]))
+    except ValueError as exc:
+        raise ValueError("dataset manifest rows and features must be integers") from exc
+    if len(frame) != expected_rows:
+        raise ValueError(
+            f"dataset {dataset_id} rows mismatch: "
+            f"expected {expected_rows}, got {len(frame)}"
+        )
+    if frame.shape[1] - 1 != expected_features:
+        raise ValueError(
+            f"dataset {dataset_id} features mismatch: "
+            f"expected {expected_features}, got {frame.shape[1] - 1}"
+        )
+    try:
+        numeric = frame.apply(pd.to_numeric, errors="raise")
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"dataset {dataset_id} contains nonnumeric values") from exc
+    y = numeric.pop(target_column).to_numpy(dtype=float)
+    X = numeric.to_numpy(dtype=float)
     if not np.all(np.isfinite(X)) or not np.all(np.isfinite(y)):
         raise ValueError(f"dataset {dataset_id} contains non-finite values")
     return RealDataset(
         X=X,
         y=y,
         path=path,
-        sha256=_sha256(path),
-        source=f"openml:{_OPENML_NAMES[dataset_id]}",
+        sha256=actual_sha256,
+        source=str(row["official_page"]),
     )
-
-
-def _download_openml(dataset_id: str, path: Path, data_dir: Path) -> None:
-    try:
-        from sklearn.datasets import fetch_openml
-    except Exception as exc:
-        raise DatasetUnavailable("scikit-learn is required for OpenML download") from exc
-    data_dir.mkdir(parents=True, exist_ok=True)
-    bunch = fetch_openml(
-        name=_OPENML_NAMES[dataset_id],
-        as_frame=True,
-        data_home=str(data_dir / "openml"),
-    )
-    frame = bunch.data.copy()
-    frame["target"] = pd.to_numeric(bunch.target)
-    frame.to_csv(path, index=False)
 
 
 def _sha256(path: Path) -> str:

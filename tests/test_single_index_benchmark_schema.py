@@ -50,9 +50,16 @@ def test_run_schema_contains_quality_status_and_resource_contract():
         "full_run_rss_mean_mib",
         "full_run_rss_max_mib",
         "full_run_rss_peak_delta_mib",
+        "dataset_source",
+        "dataset_path",
+        "dataset_size_bytes",
+        "dataset_sha256",
+        "dataset_rows",
+        "dataset_features",
     }
 
     assert expected.issubset(RUN_COLUMNS)
+    assert "data_dataset" in INITIAL_PARAMETER_COLUMNS
 
 
 def test_run_dependent_schemas_include_run_id():
@@ -64,4 +71,3 @@ def test_run_dependent_schemas_include_run_id():
         FAILURE_COLUMNS,
     ):
         assert "run_id" in columns
-
