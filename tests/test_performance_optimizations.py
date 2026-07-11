@@ -651,3 +651,66 @@ def test_float32_config_preserves_statistics_dtype():
     assert result.statistics.U.dtype == np.float32
     assert result.statistics.directions is None
     assert result.statistics.n_directions == 3
+
+
+@pytest.mark.parametrize("kernel", ("epanechnikov", "quartic"))
+@pytest.mark.parametrize(
+    ("dtype", "rtol", "atol"),
+    (("float64", 1e-11, 1e-12), ("float32", 2e-5, 2e-6)),
+)
+def test_fused_compact_statistics_match_reference_and_make_s_exact_zero(
+    kernel,
+    dtype,
+    rtol,
+    atol,
+):
+    rng = np.random.default_rng(43)
+    X = rng.normal(size=(30, 5)).astype(dtype)
+    y = rng.normal(size=30).astype(dtype)
+    centers = rng.normal(size=(4, 5)).astype(dtype)
+    directions = rng.normal(size=(4, 3, 5)).astype(dtype)
+    directions /= np.linalg.norm(directions, axis=-1, keepdims=True)
+    q = (pairwise_norm2(X, centers) / 8.0).astype(dtype)
+    backend = NumpyBackend(dtype)
+
+    actual = backend.random_projection_sums(
+        X=X,
+        y=y,
+        centers=centers,
+        directions=directions,
+        q=q,
+        kernel=kernel,
+    )
+    expected = reference_random_projection_sums(X, y, centers, directions, q, kernel)
+
+    np.testing.assert_allclose(actual[0], expected[0], rtol=rtol, atol=atol)
+    np.testing.assert_array_equal(actual[1], np.zeros_like(actual[1]))
+    np.testing.assert_allclose(actual[2], expected[2], rtol=rtol, atol=atol)
+    np.testing.assert_allclose(actual[3], expected[3], rtol=rtol, atol=atol)
+    assert actual[0].dtype == np.dtype(dtype)
+    assert actual[1].dtype == np.dtype(dtype)
+    assert actual[2].dtype == np.dtype(dtype)
+    assert actual[3].dtype == np.dtype(dtype)
+
+
+def test_fused_compact_statistics_keep_empty_center_zero():
+    X = np.array([[0.0, 0.0], [0.2, 0.1], [1.0, -0.5]])
+    y = np.array([1.0, -0.5, 0.25])
+    centers = np.array([[10.0, 10.0], [0.0, 0.0]])
+    directions = np.array([[[1.0, 0.0]], [[0.0, 1.0]]])
+    q = np.array([[4.0, 5.0, 6.0], [0.0, 0.25, 2.0]])
+
+    imav, s_vec, u_mat, counts, _ = NumpyBackend().random_projection_sums(
+        X=X,
+        y=y,
+        centers=centers,
+        directions=directions,
+        q=q,
+        kernel="epanechnikov",
+    )
+
+    np.testing.assert_array_equal(imav[0], np.zeros_like(imav[0]))
+    np.testing.assert_array_equal(s_vec[0], np.zeros_like(s_vec[0]))
+    np.testing.assert_array_equal(u_mat[0], np.zeros_like(u_mat[0]))
+    assert counts[0] == 0.0
+    assert counts[1] > 0.0

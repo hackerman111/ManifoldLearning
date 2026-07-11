@@ -284,38 +284,41 @@ class NumpyBackend:
 
     def _compact_random_projection_sums(
         self,
-        x: np.ndarray,  # Матрица наблюдений n x d.
-        xy: np.ndarray,  # Вектор ответов длины n.
-        xdirs: np.ndarray,  # Направления блока C x P x d.
-        xq: np.ndarray,  # Значения квадратичной формы C x n.
-        kernel: KernelName,  # Имя compact-ядра.
+        x: np.ndarray,
+        xy: np.ndarray,
+        xdirs: np.ndarray,
+        xq: np.ndarray,
+        kernel: KernelName,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
-        """Считает суммы compact kernels только по точкам с ненулевым весом."""
+        """Computes compact-kernel sums with in-place projected weights."""
 
         c_count, p_count, d = xdirs.shape
         imav = np.zeros((c_count, p_count), dtype=self.dtype)
         s_vec = np.zeros((c_count, p_count), dtype=self.dtype)
         u_mat = np.zeros((c_count, p_count, d), dtype=self.dtype)
         counts = np.zeros(c_count, dtype=self.dtype)
-        tiny = np.finfo(float).eps
+        tiny = np.finfo(self.dtype).eps
+
         for center_index in range(c_count):
             active = xq[center_index] < 1.0
             if not np.any(active):
                 continue
-            q_active = xq[center_index, active]
-            weights = self.kernel(q_active, kernel).astype(self.dtype, copy=False)
+            weights = self.kernel(xq[center_index, active], kernel).astype(
+                self.dtype,
+                copy=False,
+            )
             count = weights.sum(dtype=self.dtype)
             counts[center_index] = count
-            safe_count = max(float(count), tiny)
+            safe_count = max(float(count), float(tiny))
             x_active = x[active]
             y_active = xy[active]
             xbar = (weights @ x_active) / safe_count
             centered = x_active - xbar[None, :]
             projected = centered @ xdirs[center_index].T
-            weighted_projected = projected * weights[:, None]
-            s_vec[center_index] = weighted_projected.sum(axis=0)
-            imav[center_index] = (weights * y_active) @ projected
-            u_mat[center_index] = weighted_projected.T @ centered
+            projected *= weights[:, None]
+            imav[center_index] = y_active @ projected
+            u_mat[center_index] = projected.T @ centered
+
         return (
             self.to_numpy(imav),
             self.to_numpy(s_vec),
