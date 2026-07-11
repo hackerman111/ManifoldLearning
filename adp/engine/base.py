@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,8 @@ from .data import DataPreparationMixin
 from .diagnostics import DiagnosticsMixin
 from .solver import SolverMixin
 from .training import TrainingMixin
+from .algorithm import ADPAlgorithm
+from ..stages import StageContext, StageFactory, StageRegistry
 
 try:
     from tqdm.auto import tqdm
@@ -30,6 +33,10 @@ class ADP:
         cls,
         variant: VariantName = "new",  # Единственный рабочий вариант.
         config: ADPConfig | None = None,  # Готовая конфигурация или None.
+        *,
+        stages: Mapping[str, str] | None = None,
+        stage_factories: Mapping[str, StageFactory] | None = None,
+        registry: StageRegistry | None = None,
         **config_kwargs: Any,  # Точечные переопределения ADPConfig.
     ) -> "ADPBase":
         """Создает ADP-модель нужного варианта.
@@ -50,7 +57,12 @@ class ADP:
             config = replace(config, **config_kwargs)
 
         if variant == "new":
-            return RandomProjectionADP(config)
+            return RandomProjectionADP(
+                config,
+                stages=stages,
+                stage_factories=stage_factories,
+                registry=registry,
+            )
         raise ValueError("variant должен быть только 'new'")
 
 
@@ -69,6 +81,10 @@ class ADPBase(
     def __init__(
         self,
         config: ADPConfig | None = None,  # Конфигурация модели или None.
+        *,
+        stages: Mapping[str, str] | None = None,
+        stage_factories: Mapping[str, StageFactory] | None = None,
+        registry: StageRegistry | None = None,
     ) -> None:
         """Инициализирует модель ADP.
 
@@ -90,6 +106,18 @@ class ADPBase(
         self.neighbor_index_: NeighborIndex | None = None
         self.diagnostic_plots_: dict[str, Path] = {}
         self._pairwise_cache: dict[tuple[Any, ...], np.ndarray] = {}
+        context = StageContext(
+            config=self.config,
+            backend=self.backend,
+            rng=self.rng,
+            model=self,
+        )
+        self.algorithm = ADPAlgorithm(
+            context,
+            stages=stages,
+            stage_factories=stage_factories,
+            registry=registry,
+        )
 
     def _make_backend(
         self,

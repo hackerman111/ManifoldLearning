@@ -72,6 +72,9 @@ class DiagnosticsMixin:
             "progress_last": dict(result.progress[-1]) if result.progress else None,
             "diagnostic_plots": {name: str(path) for name, path in self.diagnostic_plots_.items()},
             "timings": dict(result.timings),
+            "stage_names": dict(result.stage_names),
+            "stage_timings": dict(result.stage_timings),
+            "stage_calls": dict(result.stage_calls),
         }
 
     def plot_history(

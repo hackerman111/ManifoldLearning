@@ -74,7 +74,7 @@ class DataPreparationMixin:
             directions = self._sample_directions(j_count, p_count, d)
         return ADPData(X=X, y=y, beta=self.backend.asarray(beta_vec), centers=centers, directions=directions, noise=eps, link_name=link_name)
 
-    def _choose_centers(
+    def _choose_centers_default(
         self,
         X: np.ndarray,  # Матрица наблюдений n x d.
     ) -> np.ndarray:
@@ -94,7 +94,15 @@ class DataPreparationMixin:
         centers = X[selected] + self.config.center_noise_scale * scale * self.rng.normal(size=(j_count, d))
         return self.backend.asarray(centers)
 
-    def _prepare_directions(
+    def _choose_centers(self, X: np.ndarray) -> np.ndarray:
+        """Совместимый адаптер к выбранному center selector."""
+
+        algorithm = getattr(self, "algorithm", None)
+        if algorithm is None:
+            return self._choose_centers_default(X)
+        return algorithm.components["center_selector"].select(X)
+
+    def _prepare_directions_default(
         self,
         centers: np.ndarray,  # Матрица центров J x d.
         d: int,  # Размерность признаков.
@@ -117,6 +125,21 @@ class DataPreparationMixin:
         if directions_arr.shape != expected:
             raise ValueError(f"directions должны иметь форму {expected}, получено {directions_arr.shape}")
         return self.backend.asarray(normalize_rows(directions_arr))
+
+    def _prepare_directions(
+        self,
+        centers: np.ndarray,
+        d: int,
+        directions: np.ndarray | None,
+    ) -> np.ndarray | None:
+        """Совместимый адаптер к выбранному direction sampler."""
+
+        algorithm = getattr(self, "algorithm", None)
+        if algorithm is None:
+            return self._prepare_directions_default(centers, d, directions)
+        return algorithm.components["direction_sampler"].prepare(
+            centers, d, directions
+        )
 
     def _sample_directions(
         self,
@@ -148,7 +171,7 @@ class DataPreparationMixin:
             z = float(anisotropy) * z + along_beta * beta_unit
         return self.backend.asarray(normalize_rows(z))
 
-    def _initial_beta(
+    def _initial_beta_default(
         self,
         X: np.ndarray,  # Матрица наблюдений n x d.
         y: np.ndarray,  # Вектор ответов длины n.
@@ -178,3 +201,11 @@ class DataPreparationMixin:
             beta = np.zeros(X.shape[1])
             beta[0] = 1.0
         return unit_vector(beta)
+
+    def _initial_beta(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
+        """Совместимый адаптер к выбранному beta initializer."""
+
+        algorithm = getattr(self, "algorithm", None)
+        if algorithm is None:
+            return self._initial_beta_default(X, y)
+        return algorithm.components["beta_initializer"].initialize(X, y)

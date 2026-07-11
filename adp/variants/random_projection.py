@@ -12,7 +12,7 @@ class RandomProjectionADP(ADPBase):
 
     variant: VariantName = "new"
 
-    def _compute_statistics(
+    def _compute_statistics_default(
         self,
         X: np.ndarray,  # Матрица наблюдений n x d.
         y: np.ndarray,  # Вектор ответов длины n.
@@ -97,7 +97,28 @@ class RandomProjectionADP(ADPBase):
             anisotropy=anisotropy,
         )
 
-    def _solve_local_coefficients(
+    def _compute_statistics(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        centers: np.ndarray,
+        h: float,
+        beta: np.ndarray,
+        directions: np.ndarray | None,
+        anisotropy: float | None,
+    ) -> LocalStatistics:
+        """Совместимый адаптер к выбранному statistics builder."""
+
+        algorithm = getattr(self, "algorithm", None)
+        if algorithm is None:
+            return self._compute_statistics_default(
+                X, y, centers, h, beta, directions, anisotropy
+            )
+        return algorithm.components["statistics_builder"].compute(
+            X, y, centers, h, beta, directions, anisotropy
+        )
+
+    def _solve_local_coefficients_default(
         self,
         stats: LocalStatistics,  # Статистики с S и U.
         beta: np.ndarray,  # Текущее beta.
@@ -121,7 +142,19 @@ class RandomProjectionADP(ADPBase):
         slopes = numerator / denominator
         return intercepts, slopes
 
-    def _solve_beta(
+    def _solve_local_coefficients(
+        self,
+        stats: LocalStatistics,
+        beta: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Совместимый адаптер к выбранному local solver."""
+
+        algorithm = getattr(self, "algorithm", None)
+        if algorithm is None:
+            return self._solve_local_coefficients_default(stats, beta)
+        return algorithm.components["local_solver"].solve(stats, beta)
+
+    def _solve_beta_default(
         self,
         stats: LocalStatistics,  # Статистики с S и U.
         intercepts: np.ndarray,  # Локальные свободные члены.
@@ -184,6 +217,36 @@ class RandomProjectionADP(ADPBase):
         if info < 0 or not np.all(np.isfinite(beta)) or np.linalg.norm(beta) == 0:
             return prior
         return beta
+
+    def _solve_beta(
+        self,
+        stats: LocalStatistics,
+        intercepts: np.ndarray,
+        slopes: np.ndarray,
+        prior: np.ndarray,
+        lambda_penalty: float,
+        x0: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Совместимый адаптер к выбранному beta solver."""
+
+        algorithm = getattr(self, "algorithm", None)
+        if algorithm is None:
+            return self._solve_beta_default(
+                stats,
+                intercepts,
+                slopes,
+                prior,
+                lambda_penalty,
+                x0=x0,
+            )
+        return algorithm.components["beta_solver"].solve(
+            stats,
+            intercepts,
+            slopes,
+            prior,
+            lambda_penalty,
+            x0=x0,
+        )
 
     def _objective(
         self,

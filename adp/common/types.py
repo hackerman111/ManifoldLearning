@@ -193,6 +193,9 @@ class ADPResult:
     timings: dict[str, float] = field(default_factory=dict)
     diagnostic_plots: dict[str, Path] = field(default_factory=dict)
     beta_path: list[np.ndarray] = field(default_factory=list)
+    stage_names: dict[str, str] = field(default_factory=dict)
+    stage_timings: dict[str, float] = field(default_factory=dict)
+    stage_calls: dict[str, int] = field(default_factory=dict)
 
     @property
     def projector(

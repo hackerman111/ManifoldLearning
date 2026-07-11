@@ -68,7 +68,7 @@ class BandwidthMixin:
         )
         return self.backend.local_mass_score(q, self.config.kernel, quantile=quantile)
 
-    def _select_isotropic_bandwidth(
+    def _select_isotropic_bandwidth_default(
         self,
         X: np.ndarray,  # Матрица наблюдений n x d.
         centers: np.ndarray,  # Матрица центров J x d.
@@ -111,7 +111,22 @@ class BandwidthMixin:
 
         return self._binary_search_scale(score_for, high_hint)
 
-    def _select_new_anisotropy(
+    def _select_isotropic_bandwidth(
+        self,
+        X: np.ndarray,
+        centers: np.ndarray,
+        index: NeighborIndex | None = None,
+    ) -> float:
+        """Совместимый адаптер к выбранному bandwidth selector."""
+
+        algorithm = getattr(self, "algorithm", None)
+        if algorithm is None:
+            return self._select_isotropic_bandwidth_default(X, centers, index)
+        return algorithm.components["bandwidth_selector"].select_initial(
+            X, centers, index
+        )
+
+    def _select_new_anisotropy_default(
         self,
         X: np.ndarray,  # Матрица наблюдений n x d.
         centers: np.ndarray,  # Матрица центров J x d.
@@ -157,6 +172,22 @@ class BandwidthMixin:
             if high - low <= 1e-3:
                 break
         return float(low)
+
+    def _select_new_anisotropy(
+        self,
+        X: np.ndarray,
+        centers: np.ndarray,
+        h: float,
+        beta: np.ndarray,
+    ) -> float:
+        """Совместимый адаптер к выбранному bandwidth selector."""
+
+        algorithm = getattr(self, "algorithm", None)
+        if algorithm is None:
+            return self._select_new_anisotropy_default(X, centers, h, beta)
+        return algorithm.components["bandwidth_selector"].select_anisotropy(
+            X, centers, h, beta
+        )
 
     def _binary_search_scale(
         self,

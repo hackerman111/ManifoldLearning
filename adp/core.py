@@ -27,6 +27,8 @@ from .common.utils import (
     unit_vector,
 )
 from .engine.base import ADP, ADPBase, tqdm
+from .engine.algorithm import ADPAlgorithm
+from .stages import ADPState, StageContext, StageExecutionError, StageFactory, StageRegistry
 from .variants import RandomProjectionADP
 
 _NumpyBackend = NumpyBackend
@@ -44,10 +46,12 @@ _unit_vector = unit_vector
 
 __all__ = [
     "ADP",
+    "ADPAlgorithm",
     "ADPBase",
     "ADPConfig",
     "ADPData",
     "ADPResult",
+    "ADPState",
     "BackendName",
     "InitialBetaMode",
     "KernelName",
@@ -56,6 +60,10 @@ __all__ = [
     "NeighborIndex",
     "NumpyBackend",
     "RandomProjectionADP",
+    "StageContext",
+    "StageExecutionError",
+    "StageFactory",
+    "StageRegistry",
     "TrainingStep",
     "VariantName",
     "as_1d_float",
