@@ -1,6 +1,7 @@
-import json
 import subprocess
 import sys
+
+import pandas as pd
 
 
 def test_cli_help_exposes_benchmark_and_stress_commands():
@@ -35,8 +36,9 @@ def test_cli_runs_stress_dry_run_from_main_entrypoint(tmp_path):
         text=True,
     )
 
-    manifest = json.loads((tmp_path / "adp_single_index_stress_manifest.json").read_text())
-    assert manifest["records"] == 1
+    series = pd.read_csv(tmp_path / "adp_single_index_stress_series.csv").iloc[0]
+    assert series["records"] == 1
     assert "records:" in result.stdout
     assert (tmp_path / "adp_single_index_stress_records.csv").exists()
     assert (tmp_path / "adp_single_index_stress_summary.csv").exists()
+    assert (tmp_path / "adp_single_index_stress_artifacts.csv").exists()

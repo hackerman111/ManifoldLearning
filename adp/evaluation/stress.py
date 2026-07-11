@@ -6,7 +6,6 @@ import csv
 import json
 import math
 import time
-import tracemalloc
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Iterable, Iterator
@@ -14,9 +13,11 @@ from typing import Any, Iterable, Iterator
 import numpy as np
 import pandas as pd
 
+from adp.common.experiment_log import write_artifacts_csv, write_single_row_csv
 from adp.common.plotting import (ADP_COLORS, apply_adp_axis_style,
                                  configure_adp_matplotlib, save_figure,
                                  set_adp_figure_size)
+from adp.common.resource_monitor import ResourceMonitor
 from adp.core import ADP, ADPConfig, ADPResult
 from adp.evaluation.metrics import direction_metrics
 
@@ -609,59 +610,59 @@ def _history_counts_by_outer(history: Iterable[Any]) -> dict[int, int]:
 def run_case(case: StressCase, *, show_progress: bool = False) -> dict[str, Any]:
     record = case.to_manifest_record()
     record.update({"failed": False, "error": ""})
-    started_total = time.perf_counter()
-
-    try:
-        beta_true = make_sparse_beta(case.d, case.q, case.beta_seed)
-        data_model = ADP.create("new", case.adp_config(case.data_seed, show_progress=False))
-        data_started = time.perf_counter()
-        data = data_model.generate_data(
-            n=case.n,
-            d=case.d,
-            n_centers=case.n_centers,
-            n_directions=case.n_directions,
-            beta=beta_true,
-            noise=case.sigma_eps,
-            sigma_x=case.sigma_x,
-            corr=case.corr,
-            link=resolve_link(case.link),
-        )
-        record["data_generation_time_sec"] = time.perf_counter() - data_started
-        record.update(y_diagnostics(data.y))
-
-        model = ADP.create("new", case.adp_config(case.fit_seed, show_progress=show_progress))
-        started_tracing = not tracemalloc.is_tracing()
-        if started_tracing:
-            tracemalloc.start()
-        tracemalloc.reset_peak()
-        fit_started = time.perf_counter()
+    model = None
+    full_monitor = ResourceMonitor()
+    with full_monitor:
         try:
+            beta_true = make_sparse_beta(case.d, case.q, case.beta_seed)
+            data_model = ADP.create("new", case.adp_config(case.data_seed, show_progress=False))
+            data_started = time.perf_counter()
+            data = data_model.generate_data(
+                n=case.n,
+                d=case.d,
+                n_centers=case.n_centers,
+                n_directions=case.n_directions,
+                beta=beta_true,
+                noise=case.sigma_eps,
+                sigma_x=case.sigma_x,
+                corr=case.corr,
+                link=resolve_link(case.link),
+            )
+            record["data_generation_time_sec"] = time.perf_counter() - data_started
+            record.update(y_diagnostics(data.y))
+
+            model = ADP.create("new", case.adp_config(case.fit_seed, show_progress=show_progress))
             with capture_cg_iterations() as cg_calls:
                 result = model.fit(data.X, data.y, centers=data.centers, directions=data.directions)
-            _, peak_memory = tracemalloc.get_traced_memory()
-        finally:
-            if started_tracing:
-                tracemalloc.stop()
-
-        metrics = direction_metrics(result.beta, data.beta)
-        record.update(
-            {
-                "fit_wall_time_sec": time.perf_counter() - fit_started,
-                "total_case_time_sec": time.perf_counter() - started_total,
-                "peak_memory_kib": peak_memory / 1024.0,
-                "cosine": metrics["cosine"],
-                "cosine_abs": metrics["cosine_abs"],
-                "angle_deg": metrics["angle_deg"],
-                "signed_l2": metrics["signed_l2"],
-                "case_passed_quality_gate": bool(metrics["cosine_abs"] >= case.min_cosine_abs),
-            }
-        )
-        record.update(result_diagnostics(case, result, cg_calls))
-    except Exception as exc:
-        record.update(_failure_defaults())
-        record["failed"] = True
-        record["error"] = f"{type(exc).__name__}: {exc}"
-        record["total_case_time_sec"] = time.perf_counter() - started_total
+            metrics = direction_metrics(result.beta, data.beta)
+            record.update(
+                {
+                    "fit_wall_time_sec": float(
+                        result.resource_usage["algorithm_time_sec"]
+                    ),
+                    "cosine": metrics["cosine"],
+                    "cosine_abs": metrics["cosine_abs"],
+                    "angle_deg": metrics["angle_deg"],
+                    "signed_l2": metrics["signed_l2"],
+                    "case_passed_quality_gate": bool(
+                        metrics["cosine_abs"] >= case.min_cosine_abs
+                    ),
+                    **result.resource_usage,
+                }
+            )
+            record.update(result_diagnostics(case, result, cg_calls))
+        except Exception as exc:
+            record.update(_failure_defaults())
+            if model is not None:
+                record.update(model.last_resource_usage_)
+            record["failed"] = True
+            record["error"] = f"{type(exc).__name__}: {exc}"
+    full_usage = full_monitor.usage.to_dict("full_run")
+    record.update(full_usage)
+    record["total_case_time_sec"] = full_usage["full_run_time_sec"]
+    record["peak_memory_kib"] = (
+        float(full_usage["full_run_rss_peak_delta_mib"]) * 1024.0
+    )
     return record
 
 
@@ -700,6 +701,12 @@ def _failure_defaults() -> dict[str, Any]:
         "fit_wall_time_sec",
         "estimated_U_storage_kib",
         "estimated_weights_matrix_kib",
+        "algorithm_time_sec",
+        "algorithm_rss_start_mib",
+        "algorithm_rss_min_mib",
+        "algorithm_rss_mean_mib",
+        "algorithm_rss_max_mib",
+        "algorithm_rss_peak_delta_mib",
     }
     defaults = {key: math.nan for key in numeric_nan}
     defaults.update(
@@ -714,6 +721,8 @@ def _failure_defaults() -> dict[str, Any]:
             "has_local_d_plus_1_regression": False,
             "uses_matrix_free_beta_update": True,
             "case_passed_quality_gate": False,
+            "algorithm_memory_samples": 0,
+            "algorithm_memory_source": "unavailable",
         }
     )
     return defaults
@@ -738,6 +747,14 @@ def summarize_records(records: list[dict[str, Any]], *, breakdown_threshold: flo
         "statistics_time_sec": math.nan,
         "solve_time_sec": math.nan,
         "peak_memory_kib": math.nan,
+        "algorithm_time_sec": math.nan,
+        "algorithm_rss_min_mib": math.nan,
+        "algorithm_rss_mean_mib": math.nan,
+        "algorithm_rss_max_mib": math.nan,
+        "full_run_time_sec": math.nan,
+        "full_run_rss_min_mib": math.nan,
+        "full_run_rss_mean_mib": math.nan,
+        "full_run_rss_max_mib": math.nan,
         "complexity_proxy_nJ_n_d_P": math.nan,
     }
     for column, default in metric_defaults.items():
@@ -761,6 +778,14 @@ def summarize_records(records: list[dict[str, Any]], *, breakdown_threshold: flo
             statistics_time_sec_mean=("statistics_time_sec", "mean"),
             solve_time_sec_mean=("solve_time_sec", "mean"),
             peak_memory_kib_mean=("peak_memory_kib", "mean"),
+            algorithm_time_sec_mean=("algorithm_time_sec", "mean"),
+            algorithm_rss_min_mib_mean=("algorithm_rss_min_mib", "mean"),
+            algorithm_rss_mean_mib_mean=("algorithm_rss_mean_mib", "mean"),
+            algorithm_rss_max_mib_mean=("algorithm_rss_max_mib", "mean"),
+            full_run_time_sec_mean=("full_run_time_sec", "mean"),
+            full_run_rss_min_mib_mean=("full_run_rss_min_mib", "mean"),
+            full_run_rss_mean_mib_mean=("full_run_rss_mean_mib", "mean"),
+            full_run_rss_max_mib_mean=("full_run_rss_max_mib", "mean"),
             complexity_proxy_mean=("complexity_proxy_nJ_n_d_P", "mean"),
         )
         .reset_index()
@@ -794,7 +819,8 @@ def write_outputs(
     output_dir.mkdir(parents=True, exist_ok=True)
     records_path = output_dir / "adp_single_index_stress_records.csv"
     summary_path = output_dir / "adp_single_index_stress_summary.csv"
-    manifest_path = output_dir / "adp_single_index_stress_manifest.json"
+    series_path = output_dir / "adp_single_index_stress_series.csv"
+    artifacts_path = output_dir / "adp_single_index_stress_artifacts.csv"
 
     if records:
         all_keys = sorted({key for record in records for key in record})
@@ -811,27 +837,30 @@ def write_outputs(
     plot_paths = save_stress_plots(frame, summary, output_dir / "plots", breakdown_threshold=breakdown_threshold, use_latex=use_latex)
     saved: dict[str, Path] = {"records_csv": records_path, "summary_csv": summary_path}
     saved.update(plot_paths)
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "records": len(records),
-                "profiles": list(stress_profiles()),
-                "q_definition": Q_DEFINITION,
-                "localizing_tensor_form": LOCALIZING_TENSOR_FORM,
-                "breakdown_threshold": breakdown_threshold,
-                "outputs": {
-                    "records_csv": str(records_path),
-                    "summary_csv": str(summary_path),
-                },
-                "plots": {key: str(path) for key, path in plot_paths.items()},
-                "latex_plots": bool(use_latex),
-                "latex_preamble": LATEX_PREAMBLE if use_latex else "",
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
+    write_single_row_csv(
+        series_path,
+        {
+            "schema_version": 1,
+            "records": len(records),
+            "profiles": tuple(stress_profiles()),
+            "q_definition": Q_DEFINITION,
+            "localizing_tensor_form": LOCALIZING_TENSOR_FORM,
+            "breakdown_threshold": breakdown_threshold,
+            "latex_plots": bool(use_latex),
+            "latex_preamble": LATEX_PREAMBLE if use_latex else "",
+        },
     )
-    saved["manifest_json"] = manifest_path
+    write_artifacts_csv(
+        artifacts_path,
+        {
+            "records_csv": records_path,
+            "summary_csv": summary_path,
+            "series_csv": series_path,
+            **plot_paths,
+        },
+    )
+    saved["series_csv"] = series_path
+    saved["artifacts_csv"] = artifacts_path
     return saved
 
 
@@ -1068,7 +1097,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Scale profile to run. Can be repeated. Default: smoke.",
     )
     parser.add_argument("--list-profiles", action="store_true", help="Print profile sizes and exit.")
-    parser.add_argument("--dry-run", action="store_true", help="Write/print manifest without fitting ADP.")
+    parser.add_argument("--dry-run", action="store_true", help="Write CSV tables without fitting ADP.")
     parser.add_argument("--max-cases", type=int, default=None, help="Limit number of generated cases.")
     parser.add_argument("--seed", type=int, default=0, help="Base seed used to derive data/fit/beta seeds.")
     parser.add_argument("--output", type=Path, default=Path("stress_outputs"), help="Output directory.")
@@ -1126,7 +1155,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"cases: {len(records)}")
     print(f"records: {paths['records_csv']}")
     print(f"summary: {paths['summary_csv']}")
-    print(f"manifest: {paths['manifest_json']}")
+    print(f"series: {paths['series_csv']}")
+    print(f"artifacts: {paths['artifacts_csv']}")
 
     if not args.dry_run and any(record.get("failed") for record in records):
         return 1

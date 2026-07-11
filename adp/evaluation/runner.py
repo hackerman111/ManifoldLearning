@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import time
-import tracemalloc
 from typing import Any, Iterable
 
 import numpy as np
 import pandas as pd
 
 from ..core import ADP, ADPConfig, ADPData
+from ..common.resource_monitor import ResourceMonitor
 from .baselines import fit_sklearn_pls, fit_statsmodels_dimred
 from .metrics import direction_metrics
 from .scenarios import BenchmarkMethod, BenchmarkScenario, default_scenarios
@@ -45,10 +44,18 @@ def run_benchmark_suite(
         for trial in range(scenario.trials):
             trial_seed = int(scenario_seeds[seed_index].generate_state(1)[0])
             seed_index += 1
-            data = make_data(scenario, trial_seed)
             for method_index, method in enumerate(method_list):
                 method_seed = trial_seed + 10_000 + method_index
-                rows.append(run_method(method, scenario, data, trial, method_seed, show_progress))
+                rows.append(
+                    run_method(
+                        method,
+                        scenario,
+                        trial_seed,
+                        trial,
+                        method_seed,
+                        show_progress,
+                    )
+                )
 
     return pd.DataFrame(rows)
 
@@ -92,7 +99,7 @@ def make_data(
 def run_method(
     method: BenchmarkMethod,  # Имя метода для замера.
     scenario: BenchmarkScenario,  # Сценарий.
-    data: ADPData,  # Данные сценария.
+    data_seed: int,  # Начальное число генерации данных.
     trial: int,  # Номер повтора.
     seed: int,  # Начальное число метода.
     show_progress: bool,  # Показывать прогресс.
@@ -102,7 +109,7 @@ def run_method(
     Вход:
         method: имя метода.
         scenario: параметры сценария.
-        data: сгенерированные данные.
+        data_seed: seed воспроизводимой генерации данных.
         trial: номер повтора.
         seed: seed метода.
         show_progress: флаг tqdm.
@@ -110,46 +117,57 @@ def run_method(
         Словарь метрик, времени и памяти.
     """
 
-    started = time.perf_counter()
     failed = False
     error = ""
     objective = np.nan
-    beta_hat: np.ndarray
+    beta_hat = np.full(scenario.d, np.nan)
+    beta_true = np.full(scenario.d, np.nan)
+    algorithm_usage = _empty_resource_usage("algorithm")
+    model = None
+    algorithm_monitor = None
+    full_monitor = ResourceMonitor()
+    with full_monitor:
+        try:
+            data = make_data(scenario, data_seed)
+            beta_true = data.beta
+            if method == "adp_new":
+                # new соответствует manifold_new.tex: случайные проекции phi.
+                model = ADP.create(
+                    "new",
+                    scenario.adp_config(
+                        random_state=seed,
+                        show_progress=show_progress,
+                    ),
+                )
+                result = model.fit(data.X, data.y, centers=data.centers)
+                beta_hat = result.beta
+                objective = result.objective
+                algorithm_usage = dict(result.resource_usage)
+            else:
+                algorithm_monitor = ResourceMonitor()
+                with algorithm_monitor:
+                    if method == "statsmodels_sir":
+                        beta_hat = fit_statsmodels_dimred(data.X, data.y, "sir")
+                    elif method == "statsmodels_save":
+                        beta_hat = fit_statsmodels_dimred(data.X, data.y, "save")
+                    elif method == "statsmodels_phd":
+                        beta_hat = fit_statsmodels_dimred(data.X, data.y, "phd")
+                    elif method == "sklearn_pls":
+                        beta_hat = fit_sklearn_pls(data.X, data.y)
+                    else:
+                        raise ValueError(f"Неизвестный метод benchmark: {method}")
+                algorithm_usage = algorithm_monitor.usage.to_dict("algorithm")
+        except Exception as exc:
+            failed = True
+            error = f"{type(exc).__name__}: {exc}"
+            if model is not None and model.last_resource_usage_:
+                algorithm_usage = dict(model.last_resource_usage_)
+            elif algorithm_monitor is not None:
+                algorithm_usage = algorithm_monitor.usage.to_dict("algorithm")
+        metrics = direction_metrics(beta_hat, beta_true)
 
-    # Окно измерения памяти намеренно охватывает только один вызов метода; так
-    # peak_memory_kib сопоставим между ADP и базовыми методами.
-    started_tracing = not tracemalloc.is_tracing()
-    if started_tracing:
-        tracemalloc.start()
-    tracemalloc.reset_peak()
-    try:
-        if method == "adp_new":
-            # new соответствует manifold_new.tex: случайные проекции phi.
-            model = ADP.create("new", scenario.adp_config(random_state=seed, show_progress=show_progress))
-            result = model.fit(data.X, data.y, centers=data.centers)
-            beta_hat = result.beta
-            objective = result.objective
-        elif method == "statsmodels_sir":
-            beta_hat = fit_statsmodels_dimred(data.X, data.y, "sir")
-        elif method == "statsmodels_save":
-            beta_hat = fit_statsmodels_dimred(data.X, data.y, "save")
-        elif method == "statsmodels_phd":
-            beta_hat = fit_statsmodels_dimred(data.X, data.y, "phd")
-        elif method == "sklearn_pls":
-            beta_hat = fit_sklearn_pls(data.X, data.y)
-        else:
-            raise ValueError(f"Неизвестный метод benchmark: {method}")
-    except Exception as exc:
-        failed = True
-        error = f"{type(exc).__name__}: {exc}"
-        beta_hat = np.full_like(data.beta, np.nan)
-    finally:
-        _, peak_memory = tracemalloc.get_traced_memory()
-        if started_tracing:
-            tracemalloc.stop()
-
-    fit_time = time.perf_counter() - started
-    metrics = direction_metrics(beta_hat, data.beta)
+    full_usage = full_monitor.usage.to_dict("full_run")
+    fit_time = float(algorithm_usage["algorithm_time_sec"])
     return {
         "scenario": scenario.name,
         "trial": trial,
@@ -168,8 +186,23 @@ def run_method(
         "angle_deg": metrics["angle_deg"],
         "signed_l2": metrics["signed_l2"],
         "fit_time_sec": fit_time,
-        "peak_memory_kib": peak_memory / 1024.0,
+        "peak_memory_kib": float(full_usage["full_run_rss_peak_delta_mib"]) * 1024.0,
+        **algorithm_usage,
+        **full_usage,
         "objective": objective,
         "failed": failed,
         "error": error,
+    }
+
+
+def _empty_resource_usage(prefix: str) -> dict[str, float | int | str]:
+    return {
+        f"{prefix}_time_sec": np.nan,
+        f"{prefix}_rss_start_mib": np.nan,
+        f"{prefix}_rss_min_mib": np.nan,
+        f"{prefix}_rss_mean_mib": np.nan,
+        f"{prefix}_rss_max_mib": np.nan,
+        f"{prefix}_rss_peak_delta_mib": np.nan,
+        f"{prefix}_memory_samples": 0,
+        f"{prefix}_memory_source": "unavailable",
     }

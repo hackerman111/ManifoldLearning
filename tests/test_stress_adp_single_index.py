@@ -2,6 +2,7 @@ import json
 
 import matplotlib
 import numpy as np
+import pandas as pd
 import pytest
 
 from adp.evaluation import stress
@@ -101,6 +102,14 @@ def test_run_case_smoke_records_internal_statistics_and_performance(tmp_path):
         "solve_time_sec",
         "fit_time_sec",
         "peak_memory_kib",
+        "algorithm_time_sec",
+        "algorithm_rss_min_mib",
+        "algorithm_rss_mean_mib",
+        "algorithm_rss_max_mib",
+        "full_run_time_sec",
+        "full_run_rss_min_mib",
+        "full_run_rss_mean_mib",
+        "full_run_rss_max_mib",
         "estimated_U_storage_kib",
         "estimated_weights_matrix_kib",
         "has_dxd_normal_matrix",
@@ -118,7 +127,7 @@ def test_run_case_smoke_records_internal_statistics_and_performance(tmp_path):
     assert np.isfinite(record["peak_memory_kib"])
 
 
-def test_dry_run_writes_manifest_without_runtime_metrics(tmp_path):
+def test_dry_run_writes_csv_series_without_runtime_metrics(tmp_path):
     exit_code = stress.main(
         [
             "--profile",
@@ -132,8 +141,10 @@ def test_dry_run_writes_manifest_without_runtime_metrics(tmp_path):
     assert exit_code == 0
     assert (tmp_path / "adp_single_index_stress_records.csv").exists()
     assert (tmp_path / "adp_single_index_stress_summary.csv").exists()
-    manifest = json.loads((tmp_path / "adp_single_index_stress_manifest.json").read_text())
-    assert manifest["records"] == 1
+    series = pd.read_csv(tmp_path / "adp_single_index_stress_series.csv").iloc[0]
+    assert series["records"] == 1
+    assert (tmp_path / "adp_single_index_stress_artifacts.csv").exists()
+    assert not list(tmp_path.glob("*.json"))
 
 
 def test_write_outputs_saves_required_stress_plots(tmp_path):
@@ -174,8 +185,8 @@ def test_write_outputs_saves_required_stress_plots(tmp_path):
         assert paths[key].exists()
         assert paths[key].suffix == ".png"
 
-    manifest = json.loads((tmp_path / "adp_single_index_stress_manifest.json").read_text())
-    assert expected_plot_keys.issubset(manifest["plots"])
+    artifacts = pd.read_csv(tmp_path / "adp_single_index_stress_artifacts.csv")
+    assert expected_plot_keys.issubset(set(artifacts["name"]))
 
 
 def test_localization_plot_places_legend_outside_axes(tmp_path, monkeypatch):
@@ -284,9 +295,9 @@ def test_latex_mode_enables_usetex_and_latex_labels(tmp_path, monkeypatch):
 
     stress.write_outputs([record], tmp_path, breakdown_threshold=0.7, use_latex=True)
 
-    manifest = json.loads((tmp_path / "adp_single_index_stress_manifest.json").read_text())
-    assert manifest["latex_plots"] is True
-    assert "russian" in manifest["latex_preamble"]
+    series = pd.read_csv(tmp_path / "adp_single_index_stress_series.csv").iloc[0]
+    assert bool(series["latex_plots"])
+    assert "russian" in series["latex_preamble"]
     assert matplotlib.rcParams["text.usetex"] is True
     assert r"\hat{\beta}" in captured["quality_ylabel"]
     stress.configure_stress_matplotlib(use_latex=False)

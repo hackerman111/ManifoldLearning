@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from ..common.plotting import (
@@ -85,8 +86,22 @@ def benchmark_summary(
 
     # Группировка по scenario/method сохраняет возможность сравнивать рабочий
     # ADP new с готовыми EDR-методами на одной сетке параметров.
+    source = frame.copy()
+    resource_metrics = (
+        "algorithm_time_sec",
+        "algorithm_rss_min_mib",
+        "algorithm_rss_mean_mib",
+        "algorithm_rss_max_mib",
+        "full_run_time_sec",
+        "full_run_rss_min_mib",
+        "full_run_rss_mean_mib",
+        "full_run_rss_max_mib",
+    )
+    for metric in resource_metrics:
+        if metric not in source:
+            source[metric] = np.nan
     summary = (
-        frame.groupby(["scenario", "method"])
+        source.groupby(["scenario", "method"])
         .agg(
             count=("cosine_abs", "count"),
             cosine_abs_mean=("cosine_abs", "mean"),
@@ -97,6 +112,14 @@ def benchmark_summary(
             fit_time_sec_std=("fit_time_sec", "std"),
             peak_memory_kib_mean=("peak_memory_kib", "mean"),
             peak_memory_kib_std=("peak_memory_kib", "std"),
+            algorithm_time_sec_mean=("algorithm_time_sec", "mean"),
+            algorithm_rss_min_mib_mean=("algorithm_rss_min_mib", "mean"),
+            algorithm_rss_mean_mib_mean=("algorithm_rss_mean_mib", "mean"),
+            algorithm_rss_max_mib_mean=("algorithm_rss_max_mib", "mean"),
+            full_run_time_sec_mean=("full_run_time_sec", "mean"),
+            full_run_rss_min_mib_mean=("full_run_rss_min_mib", "mean"),
+            full_run_rss_mean_mib_mean=("full_run_rss_mean_mib", "mean"),
+            full_run_rss_max_mib_mean=("full_run_rss_max_mib", "mean"),
             failures=("failed", "sum"),
         )
         .reset_index()

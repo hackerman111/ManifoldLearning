@@ -70,10 +70,19 @@ def test_benchmark_suite_compares_adp_with_ready_edr_baselines(tmp_path):
         "angle_deg",
         "fit_time_sec",
         "peak_memory_kib",
+        "algorithm_time_sec",
+        "algorithm_rss_min_mib",
+        "algorithm_rss_mean_mib",
+        "algorithm_rss_max_mib",
+        "full_run_time_sec",
+        "full_run_rss_min_mib",
+        "full_run_rss_mean_mib",
+        "full_run_rss_max_mib",
     }.issubset(frame.columns)
     assert np.all(np.isfinite(frame["fit_time_sec"]))
     assert np.all(np.isfinite(frame["peak_memory_kib"]))
     assert np.all(frame["peak_memory_kib"] >= 0.0)
+    assert np.all(frame["full_run_time_sec"] >= frame["algorithm_time_sec"])
     assert np.all((0.0 <= frame["cosine_abs"]) & (frame["cosine_abs"] <= 1.0))
     ready_baselines = frame[frame["method"].isin(["statsmodels_sir", "sklearn_pls"])]
     assert np.all(ready_baselines["cosine_abs"] > 0.7)
