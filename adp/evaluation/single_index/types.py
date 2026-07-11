@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from ...common.experiment_log import Scalar
@@ -123,3 +123,11 @@ class SingleIndexSeriesConfig:
         if self.max_scenarios is not None and self.max_scenarios < 1:
             raise ValueError("max_scenarios must be positive")
 
+
+@dataclass(frozen=True, slots=True)
+class RunOutcome:
+    metrics: dict[str, Scalar]
+    iterations: tuple[dict[str, Scalar], ...]
+    solver_iterations: tuple[dict[str, Scalar], ...]
+    stop_reason: str
+    algorithm_usage: dict[str, Scalar] = field(default_factory=dict)

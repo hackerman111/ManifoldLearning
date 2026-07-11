@@ -3,6 +3,7 @@
 from .scenarios import PROFILE_IDS, scenario_registry, scenarios_for_profile
 from .storage import SingleIndexSeriesStore
 from .types import (
+    RunOutcome,
     SeedBundle,
     SingleIndexJob,
     SingleIndexScenario,
@@ -11,6 +12,7 @@ from .types import (
 
 __all__ = [
     "PROFILE_IDS",
+    "RunOutcome",
     "SeedBundle",
     "SingleIndexJob",
     "SingleIndexScenario",
