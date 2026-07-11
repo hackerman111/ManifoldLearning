@@ -162,6 +162,7 @@ def write_single_row_csv(
     flattened = flatten_mapping(row)
     fieldnames = tuple(flattened)
     table = CSVTable(path, fieldnames)
+    table.path.unlink(missing_ok=True)
     table.append(flattened)
     return table.path
 
@@ -174,6 +175,7 @@ def write_artifacts_csv(
         path,
         ("schema_version", "artifact_type", "name", "path"),
     )
+    table.path.unlink(missing_ok=True)
     rows = [
         {
             "artifact_type": Path(value).suffix.lstrip(".") or "directory",

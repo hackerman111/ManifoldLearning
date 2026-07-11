@@ -10,7 +10,6 @@ os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
 import argparse
-import json
 import math
 import sys
 import time
@@ -29,6 +28,15 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from adp import ADP, ADPConfig, ADPData
+from adp.common.experiment_log import (
+    CSVTable,
+    flatten_mapping,
+    merge_csv_shards,
+    stable_run_id,
+    write_artifacts_csv,
+    write_single_row_csv,
+)
+from adp.common.resource_monitor import ResourceMonitor
 from adp.evaluation.metrics import direction_metrics
 
 
@@ -106,6 +114,96 @@ class RunJob:
     scenario: ScenarioSpec
     seed_id: int
     method: MethodName
+
+
+@dataclass(frozen=True)
+class JobOutcome:
+    run: dict[str, object]
+    iterations: list[dict[str, object]]
+
+
+ITERATION_COLUMNS = (
+    "schema_version",
+    "series_id",
+    "run_id",
+    "experiment",
+    "seed",
+    "scenario_id",
+    "method",
+    "d",
+    "n",
+    "n_over_d",
+    "corr",
+    "snr",
+    "q",
+    "link",
+    "n_directions",
+    "n_min",
+    "center_fraction",
+    "h0_inflation",
+    "lambda_rel",
+    "outer_steps",
+    "inner_steps",
+    "gamma_h",
+    "backend",
+    "data_seed",
+    "fit_seed",
+    "outer_k",
+    "h_k",
+    "rho_k",
+    "local_mass_mean",
+    "local_mass_q05",
+    "local_mass_min",
+    "cos_beta_k",
+    "cos_delta_from_k0",
+    "success_08",
+    "success_09",
+    "beta_delta_outer",
+    "objective_final_inner",
+    "runtime_sec",
+    "failed",
+    "error",
+    "local_mass_gate",
+)
+
+RUN_COLUMNS = (
+    "schema_version",
+    "series_id",
+    "run_id",
+    "experiment",
+    "scenario_id",
+    "method",
+    "seed",
+    "d",
+    "n",
+    "n_over_d",
+    "corr",
+    "snr",
+    "q",
+    "link",
+    "data_seed",
+    "fit_seed",
+    "failed",
+    "error",
+    "iteration_rows",
+    "result_persist_time_sec",
+    "algorithm_time_sec",
+    "algorithm_rss_start_mib",
+    "algorithm_rss_min_mib",
+    "algorithm_rss_mean_mib",
+    "algorithm_rss_max_mib",
+    "algorithm_rss_peak_delta_mib",
+    "algorithm_memory_samples",
+    "algorithm_memory_source",
+    "full_run_time_sec",
+    "full_run_rss_start_mib",
+    "full_run_rss_min_mib",
+    "full_run_rss_mean_mib",
+    "full_run_rss_max_mib",
+    "full_run_rss_peak_delta_mib",
+    "full_run_memory_samples",
+    "full_run_memory_source",
+)
 
 
 def parse_int_tuple(text: str) -> tuple[int, ...]:
@@ -291,19 +389,25 @@ def build_jobs(config: ConfirmatoryConfig) -> list[RunJob]:
 def run_job(job: RunJob, config: ConfirmatoryConfig) -> list[dict[str, object]]:
     scenario = job.scenario
     data_seed, fit_seed = seeds_for_job(job, config)
-    data = generate_case_data(config, scenario, data_seed=data_seed)
-    adp_config = make_adp_config(config, scenario, random_state=fit_seed, method=job.method)
-    model = ADP.create("new", adp_config)
-
-    if job.method == "no_anisotropy":
-        model._select_new_anisotropy = lambda X, centers, h, beta: 1.0  # type: ignore[method-assign]
-
-    beta0 = None
-    if job.method == "random_beta_init":
-        beta0 = make_sparse_beta(scenario.d, 1.0, fit_seed + 97)
-
+    model = None
     started = time.perf_counter()
     try:
+        data = generate_case_data(config, scenario, data_seed=data_seed)
+        adp_config = make_adp_config(
+            config,
+            scenario,
+            random_state=fit_seed,
+            method=job.method,
+        )
+        model = ADP.create("new", adp_config)
+
+        if job.method == "no_anisotropy":
+            model._select_new_anisotropy = lambda X, centers, h, beta: 1.0  # type: ignore[method-assign]
+
+        beta0 = None
+        if job.method == "random_beta_init":
+            beta0 = make_sparse_beta(scenario.d, 1.0, fit_seed + 97)
+
         result = model.fit(
             data.X,
             data.y,
@@ -322,8 +426,107 @@ def run_job(job: RunJob, config: ConfirmatoryConfig) -> list[dict[str, object]]:
                 fit_seed=fit_seed,
                 runtime_sec=time.perf_counter() - started,
                 error=f"{type(exc).__name__}: {exc}",
+                resource_usage=(
+                    dict(model.last_resource_usage_)
+                    if model is not None
+                    else {}
+                ),
             )
         ]
+
+
+def run_job_logged(
+    job: RunJob,
+    config: ConfirmatoryConfig,
+    *,
+    series_id: str,
+    shard_dir: Path | None = None,
+) -> JobOutcome:
+    """Run one job and measure the full path through result persistence."""
+
+    run_id = stable_run_id(
+        job.experiment,
+        job.scenario.scenario_id,
+        job.method,
+        job.seed_id,
+    )
+    persist_time = 0.0
+    rows: list[dict[str, object]] = []
+    algorithm_usage: dict[str, object] = {}
+    monitor = ResourceMonitor()
+    with monitor:
+        rows = run_job(job, config)
+        if rows:
+            algorithm_usage = {
+                key: rows[0].pop(key)
+                for key in tuple(rows[0])
+                if key.startswith("algorithm_")
+            }
+        data_seed, fit_seed = seeds_for_job(job, config)
+        for row in rows:
+            for key in tuple(row):
+                if key.startswith("algorithm_"):
+                    row.pop(key)
+            row.update(
+                {
+                    "series_id": series_id,
+                    "run_id": run_id,
+                    "data_seed": data_seed,
+                    "fit_seed": fit_seed,
+                }
+            )
+        if shard_dir is not None:
+            persist_started = time.perf_counter()
+            shard = shard_dir / f"iterations-{os.getpid()}.csv"
+            table = CSVTable(shard, ITERATION_COLUMNS)
+            if rows:
+                table.append_many(rows)
+            else:
+                table.write_header()
+            persist_time = time.perf_counter() - persist_started
+
+    scenario = job.scenario
+    data_seed, fit_seed = seeds_for_job(job, config)
+    failed = bool(rows[0].get("failed", False)) if rows else True
+    error = str(rows[0].get("error", "missing iteration rows")) if rows else "missing iteration rows"
+    run = {
+        "series_id": series_id,
+        "run_id": run_id,
+        "experiment": job.experiment,
+        "scenario_id": scenario.scenario_id,
+        "method": job.method,
+        "seed": job.seed_id,
+        "d": scenario.d,
+        "n": scenario.n,
+        "n_over_d": scenario.n_over_d,
+        "corr": scenario.corr,
+        "snr": scenario.snr,
+        "q": scenario.q,
+        "link": scenario.link,
+        "data_seed": data_seed,
+        "fit_seed": fit_seed,
+        "failed": failed,
+        "error": error,
+        "iteration_rows": len(rows),
+        "result_persist_time_sec": persist_time,
+        **_resource_defaults("algorithm"),
+        **algorithm_usage,
+        **monitor.usage.to_dict("full_run"),
+    }
+    return JobOutcome(run=run, iterations=[] if shard_dir is not None else rows)
+
+
+def _resource_defaults(prefix: str) -> dict[str, object]:
+    return {
+        f"{prefix}_time_sec": math.nan,
+        f"{prefix}_rss_start_mib": math.nan,
+        f"{prefix}_rss_min_mib": math.nan,
+        f"{prefix}_rss_mean_mib": math.nan,
+        f"{prefix}_rss_max_mib": math.nan,
+        f"{prefix}_rss_peak_delta_mib": math.nan,
+        f"{prefix}_memory_samples": 0,
+        f"{prefix}_memory_source": "unavailable",
+    }
 
 
 def seeds_for_job(job: RunJob, config: ConfirmatoryConfig) -> tuple[int, int]:
@@ -363,7 +566,7 @@ def initial_parameters_for_job(job: RunJob, config: ConfirmatoryConfig) -> dict[
         "fit_seed": fit_seed,
         "initial_beta_seed": initial_beta_seed,
         "beta0": beta0,
-        "adp_config": asdict(adp_config),
+        "config": asdict(adp_config),
     }
 
 
@@ -371,13 +574,30 @@ def save_initial_parameters(
     config: ConfirmatoryConfig,
     jobs: list[RunJob],
     path: Path,
+    *,
+    series_id: str,
 ) -> None:
-    payload = {
-        "schema_version": 1,
-        "config": config_to_json(config),
-        "tests": [initial_parameters_for_job(job, config) for job in jobs],
-    }
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+    path.unlink(missing_ok=True)
+    rows = []
+    for job in jobs:
+        values = initial_parameters_for_job(job, config)
+        values["series_id"] = series_id
+        values["run_id"] = stable_run_id(
+            job.experiment,
+            job.scenario.scenario_id,
+            job.method,
+            job.seed_id,
+        )
+        values["series_config"] = config_to_json(config)
+        rows.append(flatten_mapping(values))
+    fieldnames = ("schema_version",) + tuple(
+        sorted({key for row in rows for key in row})
+    )
+    table = CSVTable(path, fieldnames)
+    if rows:
+        table.append_many(rows)
+    else:
+        table.write_header()
 
 
 def rows_from_result(
@@ -427,6 +647,7 @@ def rows_from_result(
                 "local_mass_gate": bool(local_mass_q05 >= config.n_directions + 4)
                 if np.isfinite(local_mass_q05)
                 else False,
+                **dict(getattr(result, "resource_usage", {})),
             }
         )
         rows.append(row)
@@ -467,6 +688,7 @@ def failed_row(
     fit_seed: int,
     runtime_sec: float,
     error: str,
+    resource_usage: dict[str, object] | None = None,
 ) -> dict[str, object]:
     row = base_row(job, config)
     row.update(
@@ -489,6 +711,7 @@ def failed_row(
             "failed": True,
             "error": error,
             "local_mass_gate": False,
+            **dict(resource_usage or {}),
         }
     )
     return row
@@ -520,6 +743,21 @@ def summarize_records(records: pd.DataFrame, config: ConfirmatoryConfig) -> pd.D
             "local_mass_q05_median": float(np.nanmedian(final["local_mass_q05"])) if len(final) else math.nan,
             "runtime_sec_median": float(np.nanmedian(final["runtime_sec"])) if len(final) else math.nan,
         }
+        for metric in (
+            "algorithm_time_sec",
+            "algorithm_rss_min_mib",
+            "algorithm_rss_mean_mib",
+            "algorithm_rss_max_mib",
+            "full_run_time_sec",
+            "full_run_rss_min_mib",
+            "full_run_rss_mean_mib",
+            "full_run_rss_max_mib",
+        ):
+            if metric in final:
+                values = final[metric].to_numpy(dtype=float)
+                row[f"{metric}_median"] = (
+                    float(np.nanmedian(values)) if values.size else math.nan
+                )
         low, high = bootstrap_ci_median(delta, reps=config.bootstrap_reps, seed=config.base_seed + 701)
         row["delta_cos_median_ci95_low"] = low
         row["delta_cos_median_ci95_high"] = high
@@ -736,10 +974,18 @@ def run_confirmatory_experiments(
         raise ValueError("--jobs must be >= 1")
 
     jobs = build_jobs(config)
-    initial_parameters_path = output_dir / f"{output_prefix}_initial_parameters.json"
-    save_initial_parameters(config, jobs, initial_parameters_path)
+    series_id = f"{output_prefix}-{time.time_ns()}"
+    initial_parameters_path = output_dir / f"{output_prefix}_initial_parameters.csv"
+    save_initial_parameters(
+        config,
+        jobs,
+        initial_parameters_path,
+        series_id=series_id,
+    )
+    shard_dir = output_dir / f".{series_id}_shards"
+    shard_dir.mkdir(exist_ok=True)
     started = time.perf_counter()
-    records: list[dict[str, object]] = []
+    run_rows: list[dict[str, object]] = []
     requested_n_jobs = n_jobs
     actual_n_jobs = n_jobs
     parallel_fallback_error = ""
@@ -789,7 +1035,13 @@ def run_confirmatory_experiments(
             dynamic_ncols=True,
         )
         for job in iterator:
-            records.extend(run_job(job, config))
+            outcome = run_job_logged(
+                job,
+                config,
+                series_id=series_id,
+                shard_dir=shard_dir,
+            )
+            run_rows.append(outcome.run)
             mark_job_done(desc, iterator, job)
 
     if n_jobs == 1:
@@ -798,7 +1050,13 @@ def run_confirmatory_experiments(
         try:
             with ProcessPoolExecutor(max_workers=n_jobs) as executor:
                 futures = {
-                    executor.submit(run_job, job, config): job
+                    executor.submit(
+                        run_job_logged,
+                        job,
+                        config,
+                        series_id=series_id,
+                        shard_dir=shard_dir,
+                    ): job
                     for job in jobs
                 }
                 iterator = tqdm(
@@ -810,59 +1068,101 @@ def run_confirmatory_experiments(
                 )
                 for future in iterator:
                     job = futures[future]
-                    records.extend(future.result())
+                    run_rows.append(future.result().run)
                     mark_job_done(f"{output_prefix} parallel", iterator, job)
         except OSError as exc:
-            records.clear()
+            run_rows.clear()
+            for shard in shard_dir.glob("*.csv"):
+                shard.unlink()
             completed_jobs = 0
             actual_n_jobs = 1
             parallel_fallback_error = f"{type(exc).__name__}: {exc}"
             run_jobs_sequential(f"{output_prefix} sequential fallback")
 
-    records_df = pd.DataFrame(records)
+    iterations_path = output_dir / f"{output_prefix}_iterations.csv"
+    merge_csv_shards(
+        sorted(shard_dir.glob("iterations-*.csv")),
+        iterations_path,
+        ITERATION_COLUMNS,
+    )
+    shard_dir.rmdir()
+    runs_path = output_dir / f"{output_prefix}_runs.csv"
+    runs_path.unlink(missing_ok=True)
+    runs_table = CSVTable(runs_path, RUN_COLUMNS)
+    if run_rows:
+        runs_table.append_many(
+            sorted(run_rows, key=lambda row: str(row["run_id"]))
+        )
+    else:
+        runs_table.write_header()
+
+    records_df = pd.read_csv(iterations_path)
     sort_cols = ["experiment", "scenario_id", "method", "seed", "outer_k"]
     if not records_df.empty:
         records_df = records_df.sort_values(sort_cols).reset_index(drop=True)
+        records_df.to_csv(iterations_path, index=False)
 
-    summary_df = summarize_records(records_df, config)
+    runs_df = pd.read_csv(runs_path)
+    summary_records = records_df
+    if not records_df.empty and not runs_df.empty:
+        resource_columns = [
+            column
+            for column in RUN_COLUMNS
+            if column.startswith("algorithm_") or column.startswith("full_run_")
+        ]
+        summary_records = records_df.merge(
+            runs_df[["run_id", *resource_columns]],
+            on="run_id",
+            how="left",
+        )
+
+    summary_df = summarize_records(summary_records, config)
     final_df = final_success_summary(records_df[records_df["experiment"].astype(str) == "6"]) if not records_df.empty else pd.DataFrame()
 
-    records_path = output_dir / f"{output_prefix}_records.csv"
     summary_path = output_dir / f"{output_prefix}_summary.csv"
     final_path = output_dir / f"{output_prefix}_final_success.csv"
-    manifest_path = output_dir / f"{output_prefix}_manifest.json"
-    records_df.to_csv(records_path, index=False)
     summary_df.to_csv(summary_path, index=False)
     final_df.to_csv(final_path, index=False)
 
     plot_paths = save_plots(records_df, summary_df, final_df, plots_dir, output_prefix=output_prefix)
     elapsed = time.perf_counter() - started
-    manifest = {
+    series_path = output_dir / f"{output_prefix}_series.csv"
+    series_row = {
+        "schema_version": 1,
+        "series_id": series_id,
         "experiment": experiment_label,
-        "experiments": list(config.experiments),
         "synthetic_experiment_6_from_final_success_protocol": True,
-        "n_jobs": actual_n_jobs,
+        "actual_n_jobs": actual_n_jobs,
         "requested_n_jobs": requested_n_jobs,
         "parallel_fallback_error": parallel_fallback_error,
-        "jobs": len(jobs),
-        "records": int(len(records_df)),
-        "elapsed_sec": elapsed,
+        "requested_jobs": len(jobs),
+        "completed_jobs": len(run_rows),
+        "failed_jobs": sum(bool(row["failed"]) for row in run_rows),
+        "iteration_rows": int(len(records_df)),
+        "series_time_sec": elapsed,
         "config": config_to_json(config),
-        "outputs": {
-            "records": str(records_path),
-            "summary": str(summary_path),
-            "final_success": str(final_path),
-            "initial_parameters": str(initial_parameters_path),
-            "plots": {name: str(path) for name, path in plot_paths.items()},
-        },
     }
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+    write_single_row_csv(series_path, series_row)
 
-    saved = {
-        "records": records_path,
+    artifacts_path = output_dir / f"{output_prefix}_artifacts.csv"
+    artifacts = {
+        "runs": runs_path,
+        "iterations": iterations_path,
         "summary": summary_path,
         "final_success": final_path,
-        "manifest": manifest_path,
+        "initial_parameters": initial_parameters_path,
+        "series": series_path,
+        **plot_paths,
+    }
+    write_artifacts_csv(artifacts_path, artifacts)
+
+    saved = {
+        "runs": runs_path,
+        "iterations": iterations_path,
+        "summary": summary_path,
+        "final_success": final_path,
+        "series": series_path,
+        "artifacts": artifacts_path,
         "initial_parameters": initial_parameters_path,
     }
     saved.update(plot_paths)

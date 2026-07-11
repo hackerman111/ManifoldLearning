@@ -1,4 +1,3 @@
-import json
 import subprocess
 import sys
 
@@ -57,7 +56,7 @@ def test_h0_inflation_is_passed_to_adp_config():
     assert adp_config.initial_bandwidth_inflation == 1.25
 
 
-def test_confirmatory_runner_writes_required_records_summary_manifest_and_plots(tmp_path):
+def test_confirmatory_runner_writes_normalized_csv_logs_and_plots(tmp_path):
     config = ConfirmatoryConfig(
         d_values=(5,),
         n_over_d_values=(8,),
@@ -78,10 +77,13 @@ def test_confirmatory_runner_writes_required_records_summary_manifest_and_plots(
 
     saved = run_confirmatory_experiments(config, tmp_path, n_jobs=1)
 
-    assert saved["records"].exists()
+    assert saved["runs"].exists()
+    assert saved["iterations"].exists()
     assert saved["summary"].exists()
     assert saved["final_success"].exists()
-    assert saved["manifest"].exists()
+    assert saved["series"].exists()
+    assert saved["artifacts"].exists()
+    assert saved["initial_parameters"].exists()
     assert saved["rho_plot"].exists()
     assert saved["h_plot"].exists()
     assert saved["mass_plot"].exists()
@@ -92,7 +94,7 @@ def test_confirmatory_runner_writes_required_records_summary_manifest_and_plots(
     assert saved["ablation_plot"].exists()
     assert saved["final_success_plot"].exists()
 
-    records = pd.read_csv(saved["records"])
+    records = pd.read_csv(saved["iterations"])
     expected = {
         "experiment",
         "seed",
@@ -109,15 +111,34 @@ def test_confirmatory_runner_writes_required_records_summary_manifest_and_plots(
         "success_08",
         "success_09",
         "failed",
+        "run_id",
     }
     assert expected.issubset(records.columns)
     assert {"4", "5", "6"}.issubset(set(records["experiment"].astype(str)))
     assert records["cos_beta_k"].between(0.0, 1.0).all()
 
-    manifest = json.loads(saved["manifest"].read_text())
-    assert manifest["experiments"] == ["4", "5", "6"]
-    assert manifest["n_jobs"] == 1
-    assert manifest["synthetic_experiment_6_from_final_success_protocol"] is True
+    runs = pd.read_csv(saved["runs"])
+    resource_columns = {
+        "algorithm_time_sec",
+        "algorithm_rss_min_mib",
+        "algorithm_rss_mean_mib",
+        "algorithm_rss_max_mib",
+        "full_run_time_sec",
+        "full_run_rss_min_mib",
+        "full_run_rss_mean_mib",
+        "full_run_rss_max_mib",
+        "result_persist_time_sec",
+    }
+    assert resource_columns.issubset(runs.columns)
+    assert (runs["algorithm_time_sec"] > 0.0).all()
+    assert (runs["full_run_time_sec"] >= runs["algorithm_time_sec"]).all()
+    assert set(runs["run_id"]) == set(records["run_id"])
+
+    series = pd.read_csv(saved["series"]).iloc[0]
+    assert series["config_experiments"] == "4|5|6"
+    assert series["actual_n_jobs"] == 1
+    assert bool(series["synthetic_experiment_6_from_final_success_protocol"])
+    assert not list(tmp_path.glob("*.json"))
 
 
 def test_summary_records_exposes_tests_md_checks_for_rho_and_cos_growth():
@@ -279,10 +300,12 @@ def test_experiment_5_cli_runs_parallel_smoke(tmp_path):
         text=True,
     )
 
-    assert "experiment_5_cos_growth_records.csv" in result.stdout
-    assert (tmp_path / "experiment_5_cos_growth_records.csv").exists()
+    assert "experiment_5_cos_growth_iterations.csv" in result.stdout
+    assert (tmp_path / "experiment_5_cos_growth_runs.csv").exists()
+    assert (tmp_path / "experiment_5_cos_growth_iterations.csv").exists()
     assert (tmp_path / "experiment_5_cos_growth_summary.csv").exists()
-    assert (tmp_path / "experiment_5_cos_growth_manifest.json").exists()
+    assert (tmp_path / "experiment_5_cos_growth_series.csv").exists()
+    assert (tmp_path / "experiment_5_cos_growth_artifacts.csv").exists()
 
 
 def test_confirmatory_runner_reports_tqdm_job_totals_and_postfix(monkeypatch, tmp_path):
@@ -456,7 +479,7 @@ def test_confirmatory_runner_writes_initial_parameters_before_jobs(monkeypatch, 
         RunJob(experiment="5", scenario=scenario, seed_id=2, method="fixed_h"),
         RunJob(experiment="5", scenario=scenario, seed_id=2, method="random_beta_init"),
     ]
-    initial_parameters_path = tmp_path / "initial_parameters_test_initial_parameters.json"
+    initial_parameters_path = tmp_path / "initial_parameters_test_initial_parameters.csv"
 
     def fake_run_job(job, config):
         assert initial_parameters_path.exists()
@@ -500,27 +523,27 @@ def test_confirmatory_runner_writes_initial_parameters_before_jobs(monkeypatch, 
     )
 
     assert saved["initial_parameters"] == initial_parameters_path
-    payload = json.loads(initial_parameters_path.read_text())
-    assert payload["schema_version"] == 1
-    assert payload["config"]["outer_steps"] == 6
-    assert len(payload["tests"]) == len(jobs)
+    parameters = pd.read_csv(initial_parameters_path)
+    assert set(parameters["schema_version"]) == {1}
+    assert set(parameters["series_config_outer_steps"]) == {6}
+    assert len(parameters) == len(jobs)
 
-    tests_by_method = {test["method"]: test for test in payload["tests"]}
+    tests_by_method = {
+        row["method"]: row for _, row in parameters.iterrows()
+    }
     full_adp = tests_by_method["full_adp"]
     assert full_adp["data_seed"] == 50_302_223
     assert full_adp["fit_seed"] == 50_302_324
-    assert full_adp["scenario"]["scenario_id"] == "scenario_initial_parameters"
-    assert full_adp["adp_config"]["n_centers"] == 10
-    assert full_adp["adp_config"]["lambda_penalty"] == 0.1
-    assert tests_by_method["step0_only"]["adp_config"]["outer_steps"] == 1
-    assert tests_by_method["no_regularization"]["adp_config"]["lambda_penalty"] == 0.0
-    assert tests_by_method["fixed_h"]["adp_config"]["bandwidth_decay"] == 1.0
+    assert full_adp["scenario_scenario_id"] == "scenario_initial_parameters"
+    assert full_adp["config_n_centers"] == 10
+    assert full_adp["config_lambda_penalty"] == 0.1
+    assert tests_by_method["step0_only"]["config_outer_steps"] == 1
+    assert tests_by_method["no_regularization"]["config_lambda_penalty"] == 0.0
+    assert tests_by_method["fixed_h"]["config_bandwidth_decay"] == 1.0
     assert tests_by_method["random_beta_init"]["initial_beta_seed"] == 50_302_421
-    assert tests_by_method["random_beta_init"]["beta0"] == {
-        "kind": "random_sparse",
-        "q": 1.0,
-        "seed": 50_302_421,
-    }
+    assert tests_by_method["random_beta_init"]["beta0_kind"] == "random_sparse"
+    assert tests_by_method["random_beta_init"]["beta0_q"] == 1.0
+    assert tests_by_method["random_beta_init"]["beta0_seed"] == 50_302_421
 
 
 def test_experiments_4_5_6_have_separate_cli_files(tmp_path):
@@ -586,12 +609,13 @@ def test_experiments_4_5_6_have_separate_cli_files(tmp_path):
             text=True,
         )
 
-        assert f"{prefix}_records.csv" in result.stdout
-        assert (out_dir / f"{prefix}_records.csv").exists()
+        assert f"{prefix}_iterations.csv" in result.stdout
+        assert (out_dir / f"{prefix}_runs.csv").exists()
+        assert (out_dir / f"{prefix}_iterations.csv").exists()
         assert (out_dir / f"{prefix}_summary.csv").exists()
-        assert (out_dir / f"{prefix}_manifest.json").exists()
-        manifest = json.loads((out_dir / f"{prefix}_manifest.json").read_text())
-        assert manifest["experiments"] == [experiment]
+        assert (out_dir / f"{prefix}_series.csv").exists()
+        series = pd.read_csv(out_dir / f"{prefix}_series.csv").iloc[0]
+        assert str(series["config_experiments"]) == experiment
 
 
 def test_final_success_summary_uses_tests_md_thresholds():
