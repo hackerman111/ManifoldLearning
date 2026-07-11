@@ -215,6 +215,27 @@ class CupyBackend:
         center_proj = xcenters @ xbeta
         return (x_proj[None, :] - center_proj[:, None]) ** 2
 
+    def kernel_argument(
+        self,
+        norm2: Any,
+        *,
+        h: float,
+        projection2: Any | None = None,
+        anisotropy: float | None = None,
+    ) -> Any:
+        """Builds the kernel quadratic-form argument on the GPU."""
+
+        xnorm2 = self._gpu_array(norm2)
+        inverse_h2 = self.dtype(1.0 / (float(h) * float(h)))
+        if anisotropy is None:
+            return xnorm2 * inverse_h2
+        if projection2 is None:
+            raise ValueError("projection2 is required when anisotropy is set")
+        return (
+            self.dtype(float(anisotropy) ** 2) * xnorm2
+            + self._gpu_array(projection2)
+        ) * inverse_h2
+
     def local_mass_score(
         self,
         q: Any,  # Матрица квадратичной формы C x n.

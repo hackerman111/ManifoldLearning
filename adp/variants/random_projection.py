@@ -54,15 +54,15 @@ class RandomProjectionADP(ADPBase):
             stop = min(start + self.config.chunk_size, J)
             center_chunk = centers_backend[start:stop]
             norm2 = norm2_all[start:stop]
-            if anisotropy is None:
-                # Первый внешний шаг из manifold_new.tex: изотропные веса.
-                q = norm2 / (h * h)
-            else:
-                # Адаптивные веса new: q = (rho^2 ||dx||^2 + <dx,beta>^2) / h^2.
-                if proj2_all is None:
-                    raise RuntimeError("projection cache не подготовлен")
-                proj2 = proj2_all[start:stop]
-                q = (float(anisotropy) * float(anisotropy) * norm2 + proj2) / (h * h)
+            if anisotropy is not None and proj2_all is None:
+                raise RuntimeError("projection cache не подготовлен")
+            proj2 = None if proj2_all is None else proj2_all[start:stop]
+            q = self.backend.kernel_argument(
+                norm2,
+                h=h,
+                projection2=proj2,
+                anisotropy=anisotropy,
+            )
 
             imav_chunk, s_chunk, u_chunk, n_chunk, weights_mean = self.backend.random_projection_sums(
                 X=X_backend,

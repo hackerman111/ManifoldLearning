@@ -270,6 +270,52 @@ def test_cupy_backend_fails_fast_without_cuda_device(monkeypatch):
         CupyBackend()
 
 
+@pytest.mark.parametrize("dtype", ("float64", "float32"))
+def test_numpy_kernel_argument_matches_isotropic_and_anisotropic_formulas(dtype):
+    backend = NumpyBackend(dtype)
+    norm2 = np.array([[1.0, 4.0], [9.0, 16.0]], dtype=dtype)
+    projection2 = np.array([[0.25, 1.0], [2.25, 4.0]], dtype=dtype)
+
+    isotropic = backend.kernel_argument(norm2, h=2.0)
+    anisotropic = backend.kernel_argument(
+        norm2,
+        h=2.0,
+        projection2=projection2,
+        anisotropy=0.5,
+    )
+
+    np.testing.assert_allclose(isotropic, norm2 / 4.0)
+    np.testing.assert_allclose(anisotropic, (0.25 * norm2 + projection2) / 4.0)
+    assert isotropic.dtype == np.dtype(dtype)
+    assert anisotropic.dtype == np.dtype(dtype)
+
+
+def test_kernel_argument_requires_projection_for_anisotropy():
+    with pytest.raises(ValueError, match="projection2"):
+        NumpyBackend().kernel_argument(np.ones((2, 3)), h=1.0, anisotropy=0.5)
+
+
+def test_cupy_kernel_argument_matches_numpy_with_fake_cupy(monkeypatch):
+    from adp.backends.cupy_backend import CupyBackend
+
+    install_fake_cupy(monkeypatch)
+    norm2 = np.array([[1.0, 4.0], [9.0, 16.0]])
+    projection2 = np.array([[0.25, 1.0], [2.25, 4.0]])
+    backend = CupyBackend()
+
+    actual = backend.kernel_argument(
+        norm2,
+        h=2.0,
+        projection2=projection2,
+        anisotropy=0.5,
+    )
+
+    np.testing.assert_allclose(
+        backend.to_numpy(actual),
+        (0.25 * norm2 + projection2) / 4.0,
+    )
+
+
 def test_cupy_backend_releases_cached_arrays_and_memory_pools(monkeypatch):
     from adp.backends.cupy_backend import CupyBackend
 

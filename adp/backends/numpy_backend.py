@@ -173,6 +173,29 @@ class NumpyBackend:
         center_proj = xcenters @ xbeta
         return np.square(x_proj[None, :] - center_proj[:, None])
 
+    def kernel_argument(
+        self,
+        norm2: np.ndarray,
+        *,
+        h: float,
+        projection2: np.ndarray | None = None,
+        anisotropy: float | None = None,
+    ) -> np.ndarray:
+        """Builds the kernel quadratic-form argument in one output buffer."""
+
+        xnorm2 = self.asarray(norm2)
+        inverse_h2 = self.dtype(1.0 / (float(h) * float(h)))
+        q = np.empty_like(xnorm2)
+        if anisotropy is None:
+            np.multiply(xnorm2, inverse_h2, out=q)
+            return q
+        if projection2 is None:
+            raise ValueError("projection2 is required when anisotropy is set")
+        np.multiply(xnorm2, self.dtype(float(anisotropy) ** 2), out=q)
+        np.add(q, self.asarray(projection2), out=q)
+        np.multiply(q, inverse_h2, out=q)
+        return q
+
     def local_mass_score(
         self,
         q: Any,  # Матрица квадратичной формы C x n.
