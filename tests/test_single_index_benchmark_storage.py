@@ -168,6 +168,44 @@ def test_resume_retries_failed_only_when_requested(tmp_path):
     ]
 
 
+def test_retry_failed_replaces_old_commit_marker_and_payload(tmp_path):
+    job = make_jobs(1)[0]
+    config = make_config()
+    store = SingleIndexSeriesStore.create(tmp_path, config, (job,))
+    store.append_worker_rows("iterations", [iteration_row(job)])
+    store.append_worker_rows(
+        "failures",
+        [
+            {
+                "run_id": job.run_id,
+                "scenario_id": job.scenario.scenario_id,
+                "method": job.method,
+                "status": "failed",
+                "error": "boom",
+            }
+        ],
+    )
+    store.append_worker_rows("runs", [run_row(job, "failed")])
+    store.finalize(status="partial")
+
+    resumed = SingleIndexSeriesStore.resume(
+        store.series_dir,
+        replace(config, retry_failed=True),
+    )
+    assert list(resumed.pending_jobs((job,))) == [job]
+    resumed.append_worker_rows("iterations", [iteration_row(job, outer_k=1)])
+    resumed.append_worker_rows("runs", [run_row(job, "success")])
+
+    saved = resumed.finalize(status="complete")
+
+    runs = pd.read_csv(saved["runs"])
+    iterations = pd.read_csv(saved["iterations"])
+    failures = pd.read_csv(saved["failures"])
+    assert list(runs["status"]) == ["success"]
+    assert list(iterations["outer_k"]) == [1]
+    assert failures.empty
+
+
 def test_resume_rejects_schema_or_configuration_mismatch(tmp_path):
     jobs = make_jobs(1)
     config = make_config()

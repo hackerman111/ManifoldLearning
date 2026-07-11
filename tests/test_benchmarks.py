@@ -5,6 +5,7 @@ from typing import get_args
 from adp.benchmarks import BenchmarkScenario, benchmark_summary, grid_scenarios, run_benchmark_suite, save_benchmark_report
 from adp.evaluation.scenarios import BenchmarkMethod
 from adp.evaluation import reports
+from adp.evaluation.runner import execute_benchmark_method
 
 
 def test_grid_scenarios_builds_dimension_direction_grid_with_shared_budget():
@@ -93,6 +94,37 @@ def test_benchmark_suite_compares_adp_with_ready_edr_baselines(tmp_path):
     assert saved["quality_plot"].exists()
     assert saved["time_plot"].exists()
     assert saved["csv"].read_text().startswith("scenario,trial,method")
+
+
+def test_execute_benchmark_method_preserves_legacy_run_row_contract():
+    scenario = BenchmarkScenario(
+        name="helper_linear",
+        n=60,
+        d=3,
+        n_centers=10,
+        n_directions=3,
+        min_neighbors=4,
+        outer_steps=1,
+        inner_steps=2,
+        noise=0.0,
+        corr=0.1,
+        link="linear",
+        trials=1,
+    )
+
+    row = execute_benchmark_method(
+        "adp_new",
+        scenario,
+        data_seed=7,
+        trial=0,
+        seed=8,
+        show_progress=False,
+    )
+
+    assert row["scenario"] == "helper_linear"
+    assert row["method"] == "adp_new"
+    assert row["failed"] is False
+    assert row["full_run_time_sec"] >= row["algorithm_time_sec"]
 
 
 def test_benchmark_methods_keep_only_new_adp_variant():

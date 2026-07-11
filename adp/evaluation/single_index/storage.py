@@ -124,11 +124,18 @@ class SingleIndexSeriesStore:
         jobs: Sequence[SingleIndexJob],
     ) -> Iterator[SingleIndexJob]:
         statuses = self._committed_statuses()
+        retry_ids = {
+            job.run_id
+            for job in jobs
+            if statuses.get(job.run_id) == "failed" and self.config.retry_failed
+        }
+        if retry_ids:
+            self._purge_run_ids(retry_ids)
         for job in jobs:
             status = statuses.get(job.run_id)
             if status is None:
                 yield job
-            elif status == "failed" and self.config.retry_failed:
+            elif job.run_id in retry_ids:
                 yield job
 
     def append_worker_rows(
@@ -293,6 +300,35 @@ class SingleIndexSeriesStore:
                                 if str(row.get("run_id", "")) in committed_ids:
                                     writer.writerow(row)
                     os.replace(temporary, shard)
+                except Exception:
+                    temporary.unlink(missing_ok=True)
+                    raise
+
+    def _purge_run_ids(self, run_ids: set[str]) -> None:
+        """Remove a failed attempt before its deterministic run_id is retried."""
+
+        for table, columns in _TABLE_COLUMNS.items():
+            paths = [self.series_dir / f"single_index_{table}.csv"]
+            paths.extend(sorted(self.shard_dir.glob(f"{table}-*.csv")))
+            for path in paths:
+                if not path.exists():
+                    continue
+                temporary = path.with_name(path.name + ".tmp")
+                try:
+                    with path.open(newline="", encoding="utf-8") as source:
+                        reader = csv.DictReader(source)
+                        if tuple(reader.fieldnames or ()) != columns:
+                            raise ValueError(
+                                f"CSV header mismatch for {path}: "
+                                f"expected {columns}, got {tuple(reader.fieldnames or ())}"
+                            )
+                        with temporary.open("w", newline="", encoding="utf-8") as output:
+                            writer = csv.DictWriter(output, fieldnames=columns)
+                            writer.writeheader()
+                            for row in reader:
+                                if str(row.get("run_id", "")) not in run_ids:
+                                    writer.writerow(row)
+                    os.replace(temporary, path)
                 except Exception:
                     temporary.unlink(missing_ok=True)
                     raise

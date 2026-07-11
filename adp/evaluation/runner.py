@@ -47,7 +47,7 @@ def run_benchmark_suite(
             for method_index, method in enumerate(method_list):
                 method_seed = trial_seed + 10_000 + method_index
                 rows.append(
-                    run_method(
+                    execute_benchmark_method(
                         method,
                         scenario,
                         trial_seed,
@@ -96,7 +96,7 @@ def make_data(
     )
 
 
-def run_method(
+def execute_benchmark_method(
     method: BenchmarkMethod,  # Имя метода для замера.
     scenario: BenchmarkScenario,  # Сценарий.
     data_seed: int,  # Начальное число генерации данных.
@@ -193,6 +193,26 @@ def run_method(
         "failed": failed,
         "error": error,
     }
+
+
+def run_method(
+    method: BenchmarkMethod,
+    scenario: BenchmarkScenario,
+    data_seed: int,
+    trial: int,
+    seed: int,
+    show_progress: bool,
+) -> dict[str, Any]:
+    """Backward-compatible alias for the legacy benchmark helper."""
+
+    return execute_benchmark_method(
+        method,
+        scenario,
+        data_seed,
+        trial,
+        seed,
+        show_progress,
+    )
 
 
 def _empty_resource_usage(prefix: str) -> dict[str, float | int | str]:
