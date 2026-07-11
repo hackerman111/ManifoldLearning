@@ -58,6 +58,7 @@ class ADPConfig:
     renew_directions: bool = True
     save_directions: bool = False
     chunk_size: int = 64
+    statistics_workers: int = 1
     ridge: float = 1e-10
     show_progress: bool = True
     random_state: int | None = None
@@ -90,6 +91,12 @@ class ADPConfig:
             raise ValueError("anisotropy_search_steps должен быть положительным")
         if self.objective_check_every < 1:
             raise ValueError("objective_check_every должен быть положительным")
+        if (
+            isinstance(self.statistics_workers, bool)
+            or not isinstance(self.statistics_workers, int)
+            or self.statistics_workers < 1
+        ):
+            raise ValueError("statistics_workers должен быть положительным")
         if self.dtype not in {"float64", "float32"}:
             raise ValueError("dtype должен быть 'float64' или 'float32'")
         if self.initial_bandwidth_inflation <= 0.0:

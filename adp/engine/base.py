@@ -127,7 +127,10 @@ class ADPBase(
         if self.config.backend == "numpy":
             from ..backends.numpy_backend import NumpyBackend
 
-            return NumpyBackend(self.config.dtype)
+            return NumpyBackend(
+                self.config.dtype,
+                statistics_workers=self.config.statistics_workers,
+            )
         if self.config.backend == "cupy":
             from ..backends.cupy_backend import CupyBackend
 

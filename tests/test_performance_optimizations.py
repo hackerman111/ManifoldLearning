@@ -714,3 +714,93 @@ def test_fused_compact_statistics_keep_empty_center_zero():
     np.testing.assert_array_equal(u_mat[0], np.zeros_like(u_mat[0]))
     assert counts[0] == 0.0
     assert counts[1] > 0.0
+
+
+def test_statistics_workers_must_be_positive():
+    with pytest.raises(ValueError, match="statistics_workers"):
+        ADPConfig(statistics_workers=0)
+
+    with pytest.raises(ValueError, match="statistics_workers"):
+        ADPConfig(statistics_workers=1.5)
+
+
+def test_numpy_backend_receives_statistics_workers():
+    model = ADP.create(
+        "new",
+        ADPConfig(statistics_workers=3, show_progress=False),
+    )
+
+    assert model.backend.statistics_workers == 3
+
+
+def test_parallel_compact_statistics_match_serial(monkeypatch):
+    monkeypatch.setattr(numpy_backend, "PARALLEL_STATISTICS_MIN_WORK", 0)
+    rng = np.random.default_rng(59)
+    X = rng.normal(size=(40, 6))
+    y = rng.normal(size=40)
+    centers = rng.normal(size=(6, 6))
+    directions = rng.normal(size=(6, 4, 6))
+    directions /= np.linalg.norm(directions, axis=-1, keepdims=True)
+    q = pairwise_norm2(X, centers) / 10.0
+
+    serial = NumpyBackend(statistics_workers=1).random_projection_sums(
+        X=X,
+        y=y,
+        centers=centers,
+        directions=directions,
+        q=q,
+        kernel="epanechnikov",
+    )
+    parallel = NumpyBackend(statistics_workers=2).random_projection_sums(
+        X=X,
+        y=y,
+        centers=centers,
+        directions=directions,
+        q=q,
+        kernel="epanechnikov",
+    )
+
+    for serial_part, parallel_part in zip(serial, parallel):
+        np.testing.assert_allclose(
+            parallel_part,
+            serial_part,
+            rtol=1e-12,
+            atol=1e-12,
+        )
+
+
+def test_parallel_compact_statistics_bounds_submitted_centers(monkeypatch):
+    observed = {}
+
+    class RecordingExecutor:
+        def __init__(self, *, max_workers):
+            observed["max_workers"] = max_workers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def map(self, function, iterable, *, buffersize=None):
+            observed["buffersize"] = buffersize
+            return map(function, iterable)
+
+    monkeypatch.setattr(numpy_backend, "PARALLEL_STATISTICS_MIN_WORK", 0)
+    monkeypatch.setattr(numpy_backend, "ThreadPoolExecutor", RecordingExecutor)
+    X = np.arange(24.0).reshape(8, 3)
+    y = np.arange(8.0)
+    centers = X[:4]
+    directions = np.ones((4, 2, 3))
+    q = np.zeros((4, 8))
+
+    NumpyBackend(statistics_workers=2).random_projection_sums(
+        X=X,
+        y=y,
+        centers=centers,
+        directions=directions,
+        q=q,
+        kernel="epanechnikov",
+    )
+
+    assert observed == {"max_workers": 2, "buffersize": 2}

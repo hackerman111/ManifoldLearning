@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import numpy as np
 
 from ..common.types import KernelName
+
+PARALLEL_STATISTICS_MIN_WORK = 1_000_000
 
 
 class NumpyBackend:
@@ -13,6 +16,8 @@ class NumpyBackend:
     def __init__(
         self,
         dtype: str = "float64",  # Числовая точность вычислителя.
+        *,
+        statistics_workers: int = 1,
     ) -> None:
         """Создает backend с нужной точностью.
 
@@ -26,7 +31,14 @@ class NumpyBackend:
         self.dtype_name = dtype
         if dtype not in {"float64", "float32"}:
             raise ValueError("dtype должен быть 'float64' или 'float32'")
+        if (
+            isinstance(statistics_workers, bool)
+            or not isinstance(statistics_workers, int)
+            or statistics_workers < 1
+        ):
+            raise ValueError("statistics_workers должен быть положительным")
         self.dtype = np.float64 if dtype == "float64" else np.float32
+        self.statistics_workers = int(statistics_workers)
 
     def asarray(
         self,
@@ -299,10 +311,10 @@ class NumpyBackend:
         counts = np.zeros(c_count, dtype=self.dtype)
         tiny = np.finfo(self.dtype).eps
 
-        for center_index in range(c_count):
+        def compute_center(center_index: int) -> None:
             active = xq[center_index] < 1.0
             if not np.any(active):
-                continue
+                return
             weights = self.kernel(xq[center_index, active], kernel).astype(
                 self.dtype,
                 copy=False,
@@ -318,6 +330,26 @@ class NumpyBackend:
             projected *= weights[:, None]
             imav[center_index] = y_active @ projected
             u_mat[center_index] = projected.T @ centered
+
+        work_proxy = c_count * x.shape[0] * p_count * d
+        use_parallel = (
+            self.statistics_workers > 1
+            and c_count > 1
+            and work_proxy >= PARALLEL_STATISTICS_MIN_WORK
+        )
+        if use_parallel:
+            worker_count = min(self.statistics_workers, c_count)
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                list(
+                    executor.map(
+                        compute_center,
+                        range(c_count),
+                        buffersize=worker_count,
+                    )
+                )
+        else:
+            for center_index in range(c_count):
+                compute_center(center_index)
 
         return (
             self.to_numpy(imav),

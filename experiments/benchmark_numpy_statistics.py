@@ -40,6 +40,7 @@ def run_case(
     *,
     repetitions: int,
     seed: int,
+    statistics_workers: int = 1,
 ) -> dict[str, object]:
     if repetitions < 1:
         raise ValueError("repetitions must be positive")
@@ -48,6 +49,7 @@ def run_case(
         n_directions=case.n_directions,
         min_neighbors=16.0,
         chunk_size=32,
+        statistics_workers=statistics_workers,
         kernel="epanechnikov",
         backend="numpy",
         dtype="float64",
@@ -121,6 +123,7 @@ def run_case(
         "h": h,
         "active_fraction": active_fraction,
         "repetitions": repetitions,
+        "statistics_workers": statistics_workers,
         "times_sec": times,
         "median_sec": float(statistics.median(times)),
         "min_sec": float(min(times)),
@@ -143,6 +146,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--repetitions", type=int, default=7)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--statistics-workers", type=int, default=1)
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args(argv)
 
@@ -155,7 +159,12 @@ def main(argv: list[str] | None = None) -> int:
         else tuple(case for case in DEFAULT_CASES if case.name == args.case)
     )
     records = [
-        run_case(case, repetitions=args.repetitions, seed=args.seed)
+        run_case(
+            case,
+            repetitions=args.repetitions,
+            seed=args.seed,
+            statistics_workers=args.statistics_workers,
+        )
         for case in cases
     ]
     payload = {"records": records}

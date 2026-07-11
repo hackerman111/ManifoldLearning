@@ -14,12 +14,13 @@ def test_statistics_benchmark_returns_repeatable_record():
         h_multiplier=1.0,
     )
 
-    record = run_case(case, repetitions=2, seed=7)
+    record = run_case(case, repetitions=2, seed=7, statistics_workers=1)
 
     assert record["name"] == "tiny"
     assert record["shape"] == {"n": 24, "d": 3, "J": 5, "P": 2}
     assert 0.0 <= record["active_fraction"] <= 1.0
     assert record["repetitions"] == 2
+    assert record["statistics_workers"] == 1
     assert len(record["times_sec"]) == 2
     assert record["median_sec"] >= 0.0
     assert record["peak_memory_kib"] > 0.0
