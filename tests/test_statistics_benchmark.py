@@ -1,7 +1,15 @@
 import subprocess
 import sys
 
-from experiments.benchmark_numpy_statistics import StatisticsBenchmarkCase, run_case
+import pandas as pd
+import pytest
+
+from experiments.benchmark_numpy_statistics import (
+    StatisticsBenchmarkCase,
+    parse_args,
+    run_case,
+    write_records_csv,
+)
 
 
 def test_statistics_benchmark_returns_repeatable_record():
@@ -14,22 +22,54 @@ def test_statistics_benchmark_returns_repeatable_record():
         h_multiplier=1.0,
     )
 
-    record = run_case(case, repetitions=2, seed=7, statistics_workers=1)
+    records = run_case(case, repetitions=2, seed=7, statistics_workers=1)
 
-    assert record["name"] == "tiny"
-    assert record["shape"] == {"n": 24, "d": 3, "J": 5, "P": 2}
-    assert 0.0 <= record["active_fraction"] <= 1.0
-    assert record["repetitions"] == 2
-    assert record["statistics_workers"] == 1
-    assert len(record["times_sec"]) == 2
-    assert record["median_sec"] >= 0.0
-    assert record["peak_memory_kib"] > 0.0
-    assert record["statistics_shapes"] == {
-        "imav": [5, 2],
-        "S": [5, 2],
-        "U": [5, 2, 3],
-        "N": [5],
-    }
+    assert len(records) == 2
+    assert {record["repetition"] for record in records} == {0, 1}
+    for record in records:
+        assert record["name"] == "tiny"
+        assert record["n"] == 24
+        assert record["d"] == 3
+        assert record["n_centers"] == 5
+        assert record["n_directions"] == 2
+        assert 0.0 <= record["active_fraction"] <= 1.0
+        assert record["statistics_workers"] == 1
+        assert record["elapsed_sec"] >= 0.0
+        assert 0.0 < record["rss_min_mib"] <= record["rss_mean_mib"]
+        assert record["rss_mean_mib"] <= record["rss_max_mib"]
+        assert record["imav_rows"] == 5
+        assert record["imav_cols"] == 2
+        assert record["u_depth"] == 3
+
+
+def test_statistics_benchmark_writes_flat_csv(tmp_path):
+    path = tmp_path / "statistics.csv"
+    write_records_csv(
+        [
+            {
+                "name": "tiny",
+                "repetition": 0,
+                "elapsed_sec": 0.1,
+                "rss_min_mib": 10.0,
+            }
+        ],
+        path,
+    )
+
+    frame = pd.read_csv(path)
+    assert list(frame.columns) == [
+        "schema_version",
+        "name",
+        "repetition",
+        "elapsed_sec",
+        "rss_min_mib",
+    ]
+    assert frame.loc[0, "name"] == "tiny"
+
+
+def test_statistics_benchmark_rejects_json_output():
+    with pytest.raises(SystemExit):
+        parse_args(["--output", "result.json"])
 
 
 def test_statistics_benchmark_script_can_run_directly():

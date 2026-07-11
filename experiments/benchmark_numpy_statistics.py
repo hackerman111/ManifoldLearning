@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import json
 import statistics
 import sys
-import time
-import tracemalloc
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -16,6 +13,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from adp import ADP, ADPConfig
+from adp.common.experiment_log import CSVTable
+from adp.common.resource_monitor import ResourceMonitor, ResourceUsage
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,7 +40,7 @@ def run_case(
     repetitions: int,
     seed: int,
     statistics_workers: int = 1,
-) -> dict[str, object]:
+) -> list[dict[str, object]]:
     if repetitions < 1:
         raise ValueError("repetitions must be positive")
     config = ADPConfig(
@@ -84,57 +83,83 @@ def run_case(
         data.directions,
         None,
     )
-    times: list[float] = []
-    for _ in range(repetitions):
-        started = time.perf_counter()
-        statistics_result = model._compute_statistics(
-            data.X,
-            data.y,
-            data.centers,
-            h,
-            data.beta,
-            data.directions,
-            None,
+    records: list[dict[str, object]] = []
+    for repetition in range(repetitions):
+        monitor = ResourceMonitor()
+        with monitor:
+            statistics_result = model._compute_statistics(
+                data.X,
+                data.y,
+                data.centers,
+                h,
+                data.beta,
+                data.directions,
+                None,
+            )
+        records.append(
+            {
+                "name": case.name,
+                "n": case.n,
+                "d": case.d,
+                "n_centers": case.n_centers,
+                "n_directions": case.n_directions,
+                "h_multiplier": case.h_multiplier,
+                "h": h,
+                "active_fraction": active_fraction,
+                "repetition": repetition,
+                "repetitions": repetitions,
+                "statistics_workers": statistics_workers,
+                **_usage_record(monitor.usage),
+                "imav_rows": int(statistics_result.imav.shape[0]),
+                "imav_cols": int(statistics_result.imav.shape[1]),
+                "s_rows": int(statistics_result.S.shape[0]) if statistics_result.S is not None else 0,
+                "s_cols": int(statistics_result.S.shape[1]) if statistics_result.S is not None else 0,
+                "u_rows": int(statistics_result.U.shape[0]) if statistics_result.U is not None else 0,
+                "u_cols": int(statistics_result.U.shape[1]) if statistics_result.U is not None else 0,
+                "u_depth": int(statistics_result.U.shape[2]) if statistics_result.U is not None else 0,
+                "n_rows": int(statistics_result.N.shape[0]) if statistics_result.N is not None else 0,
+            }
         )
-        times.append(time.perf_counter() - started)
+    times = [float(record["elapsed_sec"]) for record in records]
+    for record in records:
+        record["median_sec"] = float(statistics.median(times))
+        record["min_sec"] = float(min(times))
+    return records
 
-    tracemalloc.start()
-    model._compute_statistics(
-        data.X,
-        data.y,
-        data.centers,
-        h,
-        data.beta,
-        data.directions,
-        None,
-    )
-    _, peak_memory_bytes = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
 
+def _usage_record(usage: ResourceUsage) -> dict[str, object]:
     return {
-        "name": case.name,
-        "case": asdict(case),
-        "shape": {
-            "n": case.n,
-            "d": case.d,
-            "J": case.n_centers,
-            "P": case.n_directions,
-        },
-        "h": h,
-        "active_fraction": active_fraction,
-        "repetitions": repetitions,
-        "statistics_workers": statistics_workers,
-        "times_sec": times,
-        "median_sec": float(statistics.median(times)),
-        "min_sec": float(min(times)),
-        "peak_memory_kib": float(peak_memory_bytes / 1024.0),
-        "statistics_shapes": {
-            "imav": list(statistics_result.imav.shape),
-            "S": list(statistics_result.S.shape) if statistics_result.S is not None else None,
-            "U": list(statistics_result.U.shape) if statistics_result.U is not None else None,
-            "N": list(statistics_result.N.shape) if statistics_result.N is not None else None,
-        },
+        "elapsed_sec": usage.elapsed_sec,
+        "rss_start_mib": usage.rss_start_mib,
+        "rss_min_mib": usage.rss_min_mib,
+        "rss_mean_mib": usage.rss_mean_mib,
+        "rss_max_mib": usage.rss_max_mib,
+        "rss_peak_delta_mib": usage.rss_peak_delta_mib,
+        "memory_samples": usage.samples,
+        "memory_source": usage.source,
     }
+
+
+def write_records_csv(records: list[dict[str, object]], path: Path) -> Path:
+    ordered_fields: list[str] = []
+    for record in records:
+        for key in record:
+            if key not in ordered_fields:
+                ordered_fields.append(key)
+    table = CSVTable(path, ("schema_version", *ordered_fields))
+    table.path.unlink(missing_ok=True)
+    if records:
+        table.append_many(records)
+    else:
+        table.write_header()
+    return table.path
+
+
+def csv_output_path(value: str) -> Path:
+    path = Path(value)
+    if path.suffix.lower() != ".csv":
+        raise argparse.ArgumentTypeError("--output must use a .csv suffix")
+    return path
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -147,7 +172,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--repetitions", type=int, default=7)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--statistics-workers", type=int, default=1)
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--output", type=csv_output_path, required=True)
     return parser.parse_args(argv)
 
 
@@ -159,18 +184,21 @@ def main(argv: list[str] | None = None) -> int:
         else tuple(case for case in DEFAULT_CASES if case.name == args.case)
     )
     records = [
-        run_case(
+        record
+        for case in cases
+        for record in run_case(
             case,
             repetitions=args.repetitions,
             seed=args.seed,
             statistics_workers=args.statistics_workers,
         )
-        for case in cases
     ]
-    payload = {"records": records}
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    print(json.dumps(payload, indent=2))
+    write_records_csv(records, args.output)
+    print(f"records: {len(records)}")
+    print(f"csv: {args.output}")
+    if records:
+        print(f"median_sec: {statistics.median(float(row['elapsed_sec']) for row in records):.6f}")
     return 0
 
 
