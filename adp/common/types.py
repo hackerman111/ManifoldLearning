@@ -81,6 +81,10 @@ class ADPConfig:
             raise ValueError("initial_beta_mode должен быть 'ols' или 'random'")
         if self.local_mass_mode not in {"mean", "quantile"}:
             raise ValueError("local_mass_mode должен быть 'mean' или 'quantile'")
+        if self.n_centers is not None and self.n_centers <= 0:
+            raise ValueError("n_centers должен быть положительным")
+        if self.n_directions <= 0:
+            raise ValueError("n_directions должен быть положительным")
         if not 0.0 <= self.local_mass_quantile <= 1.0:
             raise ValueError("local_mass_quantile должен быть в диапазоне [0, 1]")
         if self.scale_expand_steps < 1:

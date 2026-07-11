@@ -43,12 +43,30 @@ class DataPreparationMixin:
 
         if n <= 0 or d <= 0:
             raise ValueError("n и d должны быть положительными")
+        if n_centers is not None and n_centers <= 0:
+            raise ValueError("n_centers должен быть положительным")
+        if n_directions is not None and n_directions <= 0:
+            raise ValueError("n_directions должен быть положительным")
+        if not np.isfinite(noise) or noise < 0:
+            raise ValueError("noise должен быть конечным и неотрицательным")
+        if not np.isfinite(sigma_x) or sigma_x <= 0:
+            raise ValueError("sigma_x должен быть конечным и положительным")
         if not 0 <= corr < 1:
             raise ValueError("corr должен лежать в [0, 1)")
 
         # Истинный beta задает одномерный индекс beta^T X из одноиндексной
         # модели Y = f(beta^T X) + eps в обоих TeX-файлах.
-        beta_vec = unit_vector(beta if beta is not None else self.rng.normal(size=d))
+        if beta is None:
+            beta_source = self.rng.normal(size=d)
+        else:
+            beta_source = np.asarray(beta, dtype=float)
+            if beta_source.ndim != 1 or beta_source.shape[0] != d:
+                raise ValueError(
+                    f"beta должен быть одномерным вектором длины {d}"
+                )
+            if not np.all(np.isfinite(beta_source)):
+                raise ValueError("beta должен содержать только конечные значения")
+        beta_vec = unit_vector(beta_source)
 
         # Общая для координат компонента меняется между наблюдениями. Поэтому
         # после центрирования Cov(X_j, X_k) = sigma_x**2 * corr при j != k,
@@ -69,7 +87,10 @@ class DataPreparationMixin:
 
         # Центры x_j выбираются из облака X и слегка зашумляются, чтобы
         # локальные окрестности не сводились только к исходным наблюдениям.
-        j_count = int(n_centers or self.config.n_centers or n)
+        requested_centers = (
+            self.config.n_centers if n_centers is None else n_centers
+        )
+        j_count = n if requested_centers is None else int(requested_centers)
         j_count = min(max(j_count, 1), n)
         selected = self.rng.choice(n, size=j_count, replace=False)
         center_noise = self.backend.asarray(self.config.center_noise_scale * sigma_x * self.rng.normal(size=(j_count, d)))
@@ -77,7 +98,11 @@ class DataPreparationMixin:
 
         directions = None
         if self.variant == "new":
-            p_count = int(n_directions or self.config.n_directions)
+            p_count = int(
+                self.config.n_directions
+                if n_directions is None
+                else n_directions
+            )
             directions = self._sample_directions(j_count, p_count, d)
         return ADPData(X=X, y=y, beta=self.backend.asarray(beta_vec), centers=centers, directions=directions, noise=eps, link_name=link_name)
 

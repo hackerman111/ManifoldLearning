@@ -54,6 +54,81 @@ def test_data_generator_corr_controls_pairwise_feature_correlation():
     assert np.all(np.abs(X.mean(axis=0)) < 0.05 * sigma_x)
 
 
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("n_centers", 0),
+        ("n_centers", -1),
+        ("n_directions", 0),
+        ("n_directions", -1),
+    ],
+)
+def test_data_generator_rejects_nonpositive_count_overrides(name, value):
+    model = ADP.create(
+        "new",
+        ADPConfig(show_progress=False, random_state=102),
+    )
+
+    with pytest.raises(ValueError, match=rf"{name} должен быть положительным"):
+        model.generate_data(n=20, d=3, **{name: value})
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("n_centers", 0),
+        ("n_centers", -1),
+        ("n_directions", 0),
+        ("n_directions", -1),
+    ],
+)
+def test_config_rejects_nonpositive_data_generation_counts(name, value):
+    with pytest.raises(ValueError, match=rf"{name} должен быть положительным"):
+        ADPConfig(**{name: value})
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("noise", np.nan, "noise должен быть конечным и неотрицательным"),
+        ("noise", np.inf, "noise должен быть конечным и неотрицательным"),
+        ("noise", -0.1, "noise должен быть конечным и неотрицательным"),
+        ("sigma_x", np.nan, "sigma_x должен быть конечным и положительным"),
+        ("sigma_x", np.inf, "sigma_x должен быть конечным и положительным"),
+        ("sigma_x", 0.0, "sigma_x должен быть конечным и положительным"),
+        ("sigma_x", -1.0, "sigma_x должен быть конечным и положительным"),
+    ],
+)
+def test_data_generator_rejects_invalid_scales(name, value, message):
+    model = ADP.create(
+        "new",
+        ADPConfig(show_progress=False, random_state=103),
+    )
+
+    with pytest.raises(ValueError, match=message):
+        model.generate_data(n=20, d=3, **{name: value})
+
+
+def test_data_generator_rejects_beta_with_wrong_dimension():
+    model = ADP.create(
+        "new",
+        ADPConfig(show_progress=False, random_state=104),
+    )
+
+    with pytest.raises(ValueError, match="beta должен быть одномерным вектором длины 3"):
+        model.generate_data(n=20, d=3, beta=np.ones(4))
+
+
+def test_data_generator_rejects_nonfinite_beta():
+    model = ADP.create(
+        "new",
+        ADPConfig(show_progress=False, random_state=105),
+    )
+
+    with pytest.raises(ValueError, match="beta должен содержать только конечные значения"):
+        model.generate_data(n=20, d=3, beta=np.array([1.0, np.nan, 0.0]))
+
+
 def test_new_variant_fits_beta_with_random_projection_statistics():
     model = ADP.create(
         "new",
