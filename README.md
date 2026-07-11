@@ -73,6 +73,66 @@ result.stage_timings
 result.stage_calls
 ```
 
+## Время и потребление памяти
+
+Каждый вызов `fit()` автоматически измеряет wall-clock время алгоритма и RSS
+текущего процесса. RSS включает память массивов NumPy и записывается в MiB:
+
+```python
+result = model.fit(X, y)
+result.resource_usage
+```
+
+Словарь содержит:
+
+- `algorithm_time_sec`;
+- `algorithm_rss_start_mib`;
+- `algorithm_rss_min_mib`;
+- `algorithm_rss_mean_mib`;
+- `algorithm_rss_max_mib`;
+- `algorithm_rss_peak_delta_mib`;
+- число измерений и источник RSS.
+
+Минимум, среднее и максимум являются абсолютным RSS процесса внутри окна
+`fit()`. `algorithm_rss_peak_delta_mib` показывает прирост максимума относительно
+начала вызова. Те же значения доступны через `model.summary()["resource_usage"]`.
+Если `fit()` завершился ошибкой, последнее измерение остаётся в
+`model.last_resource_usage_`.
+
+Экспериментальные runners дополнительно записывают поля `full_run_*`. Это окно
+начинается перед генерацией данных и созданием модели, включает `fit()` и расчёт
+метрик. В confirmatory-сериях оно заканчивается после записи iteration rows в
+worker CSV, поэтому учитывает сохранение основного результата. Время самой
+записи отдельно находится в `result_persist_time_sec`.
+
+## CSV-логи серий экспериментов
+
+Confirmatory-эксперименты 4, 5 и 6 больше не создают JSON-манифесты. Для серии с
+префиксом `<prefix>` сохраняются:
+
+- `<prefix>_runs.csv` — один job на строку, статус, ошибки, время и память;
+- `<prefix>_iterations.csv` — показатели каждой outer-итерации;
+- `<prefix>_initial_parameters.csv` — seeds и развёрнутые настройки каждого job;
+- `<prefix>_summary.csv` и `<prefix>_final_success.csv` — агрегаты;
+- `<prefix>_series.csv` — параметры и итог всей серии;
+- `<prefix>_artifacts.csv` — пути к таблицам и графикам.
+
+Таблицы связываются по `run_id` и содержат `schema_version`. При параллельном
+запуске workers пишут отдельные временные CSV-шарды, которые объединяются без
+загрузки всех строк в память.
+
+Stress runner аналогично сохраняет
+`adp_single_index_stress_series.csv` и
+`adp_single_index_stress_artifacts.csv` вместо JSON manifest. Benchmark
+низкоуровневых NumPy-статистик принимает только CSV-путь:
+
+```bash
+python experiments/benchmark_numpy_statistics.py \
+  --case primary \
+  --repetitions 7 \
+  --output outputs/numpy_statistics.csv
+```
+
 Запускаемый пример честного сравнения matrix-free CG и плотного direct solver
 на одинаковых данных, начальном `beta`, центрах и направлениях:
 
