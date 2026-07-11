@@ -12,7 +12,12 @@ import numpy as np
 import pandas as pd
 
 from ...common.experiment_log import SCHEMA_VERSION
-from ...common.plotting import apply_adp_axis_style, save_figure, set_adp_figure_size
+from ...common.plotting import (
+    apply_adp_axis_style,
+    ensure_matplotlib_config_dir,
+    save_figure,
+    set_adp_figure_size,
+)
 from .schema import ARTIFACT_COLUMNS
 
 
@@ -401,6 +406,7 @@ def write_single_index_reports(
         artifact_rows.append(_artifact_row(series_id, root, name, path))
 
     frames = {**frames, "scaling": scaling}
+    ensure_matplotlib_config_dir()
     plots_dir = root / "plots"
     plots_dir.mkdir(exist_ok=True)
     for index in range(1, 22):

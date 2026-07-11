@@ -9,6 +9,11 @@ from . import stress
 from .reports import benchmark_summary, ensure_matplotlib_config_dir, save_benchmark_report
 from .runner import run_benchmark_suite
 from .scenarios import BenchmarkMethod, default_scenarios, grid_scenarios
+from .single_index import (
+    PROFILE_IDS,
+    SingleIndexSeriesConfig,
+    run_single_index_benchmark,
+)
 
 
 DEFAULT_METHODS: tuple[BenchmarkMethod, ...] = (
@@ -28,6 +33,8 @@ def main(argv: list[str] | None = None) -> int:
         return stress.main(args[1:])
     if args and args[0] == "benchmark":
         return run_benchmark_command(args[1:])
+    if args and args[0] == "single-index":
+        return run_single_index_command(args[1:])
     if args and args[0] in {"-h", "--help"}:
         build_top_parser().parse_args(args)
         return 0
@@ -40,6 +47,10 @@ def build_top_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("benchmark", help="Run benchmark scenarios and save CSV/PNG reports.")
+    subparsers.add_parser(
+        "single-index",
+        help="Run the reproducible single-index ADP experiment series.",
+    )
     subparsers.add_parser("stress", help="Run ADP single-index stress profiles.")
     return parser
 
@@ -69,6 +80,89 @@ def build_benchmark_parser() -> argparse.ArgumentParser:
     parser.add_argument("--grid-outer-steps", type=int, default=4, help="Outer ADP steps for --grid.")
     parser.add_argument("--grid-inner-steps", type=int, default=10, help="Inner ADP steps for --grid.")
     return parser
+
+
+def build_single_index_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Run or resume the normalized single-index ADP benchmark series.",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=tuple(PROFILE_IDS),
+        default="smoke",
+        help="Scenario profile (default: smoke).",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("benchmark_outputs/single_index"),
+        help="Root directory for a new series.",
+    )
+    parser.add_argument("--seed", type=int, default=0, help="Base random seed.")
+    parser.add_argument(
+        "--jobs",
+        type=positive_int,
+        default=1,
+        help="Process workers (default: 1).",
+    )
+    parser.add_argument(
+        "--statistics-workers",
+        type=positive_int,
+        default=1,
+        help="NumPy statistics workers inside one ADP fit (default: safe serial 1).",
+    )
+    parser.add_argument(
+        "--resume",
+        type=Path,
+        default=None,
+        help="Existing series directory to resume.",
+    )
+    parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="Replace and rerun failed commit markers.",
+    )
+    parser.add_argument(
+        "--max-scenarios",
+        type=positive_int,
+        default=None,
+        help="Limit the selected profile after registry expansion.",
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path("adp_D1_data"),
+        help="Manifest-driven D01-D04 package (default: adp_D1_data).",
+    )
+    parser.add_argument(
+        "--allow-download",
+        action="store_true",
+        help="Compatibility flag; D01-D04 still require the local manifest package.",
+    )
+    return parser
+
+
+def run_single_index_command(argv: list[str] | None = None) -> int:
+    args = build_single_index_parser().parse_args(argv)
+    config = SingleIndexSeriesConfig(
+        profile=args.profile,
+        base_seed=args.seed,
+        jobs=args.jobs,
+        statistics_workers=args.statistics_workers,
+        retry_failed=args.retry_failed,
+        max_scenarios=args.max_scenarios,
+        data_dir=str(args.data_dir),
+        allow_download=args.allow_download,
+    )
+    saved = run_single_index_benchmark(
+        config,
+        args.output,
+        resume=args.resume,
+    )
+    print(f"series: {saved['series'].parent}")
+    for name in ("runs", "iterations", "summary", "failures", "artifacts"):
+        print(f"{name}: {saved[name]}")
+    return 0
 
 
 def run_benchmark_command(argv: list[str] | None = None) -> int:
@@ -140,3 +234,13 @@ def parse_methods(value: str) -> tuple[BenchmarkMethod, ...]:
     if not methods:
         raise argparse.ArgumentTypeError("At least one benchmark method is required")
     return methods  # type: ignore[return-value]
+
+
+def positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected a positive integer") from exc
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("expected a positive integer")
+    return parsed

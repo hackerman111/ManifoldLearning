@@ -8,6 +8,13 @@ from .evaluation.benchmarks import (
     run_benchmark_suite,
     save_benchmark_report,
 )
+from .evaluation.single_index import (
+    SingleIndexSeriesConfig,
+    build_single_index_jobs,
+    build_single_index_summary,
+    run_single_index_benchmark,
+    write_single_index_reports,
+)
 
 __all__ = [
     "BenchmarkScenario",
@@ -16,4 +23,9 @@ __all__ = [
     "grid_scenarios",
     "run_benchmark_suite",
     "save_benchmark_report",
+    "SingleIndexSeriesConfig",
+    "build_single_index_jobs",
+    "build_single_index_summary",
+    "run_single_index_benchmark",
+    "write_single_index_reports",
 ]

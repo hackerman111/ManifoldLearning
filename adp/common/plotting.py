@@ -31,7 +31,7 @@ def configure_adp_matplotlib() -> None:
     mpl.rcParams.update(
         {
             "axes.titlesize": 13,
-            "axes.titleweight": "semibold",
+            "axes.titleweight": "bold",
             "axes.labelsize": 11,
             "axes.labelcolor": ADP_TEXT_COLOR,
             "xtick.color": ADP_TEXT_COLOR,

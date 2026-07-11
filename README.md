@@ -133,6 +133,51 @@ python experiments/benchmark_numpy_statistics.py \
   --output outputs/numpy_statistics.csv
 ```
 
+## Воспроизводимый single-index benchmark
+
+Новая серия запускается отдельной подкомандой. По умолчанию используются один
+процесс и один worker статистик, поэтому вложенный параллелизм не включается:
+
+```bash
+python run_benchmarks.py single-index \
+  --profile smoke \
+  --jobs 1 \
+  --statistics-workers 1 \
+  --data-dir adp_D1_data \
+  --output benchmark_outputs/single_index
+```
+
+Эксперименты D01–D04 читают `dataset_manifest.csv` и подготовленные файлы из
+`adp_D1_data/prepared`. Перед запуском проверяются target, размерность и SHA-256.
+Данные не копируются в каталог серии и не заменяются сетевой версией.
+
+Два process workers или два NumPy workers включаются только явно. Обычно
+следует увеличивать один уровень параллелизма за раз:
+
+```bash
+python run_benchmarks.py single-index --profile minimal --jobs 2
+python run_benchmarks.py single-index --profile minimal --statistics-workers 2
+```
+
+Прерванную серию можно продолжить. Успешные `run_id` пропускаются, а failed jobs
+повторяются только с явным `--retry-failed` и заменяют прежний commit-marker:
+
+```bash
+python run_benchmarks.py single-index \
+  --resume benchmark_outputs/single_index/<series_id>
+
+python run_benchmarks.py single-index \
+  --resume benchmark_outputs/single_index/<series_id> \
+  --retry-failed
+```
+
+Каталог серии содержит нормализованные
+`single_index_series.csv`, `single_index_runs.csv`,
+`single_index_iterations.csv`, `single_index_initial_parameters.csv`,
+`single_index_summary.csv`, `single_index_failures.csv` и
+`single_index_artifacts.csv`. Численные отчёты и графики G01–G21 заново строятся
+только из этих CSV; JSON для новой серии не создаётся.
+
 Запускаемый пример честного сравнения matrix-free CG и плотного direct solver
 на одинаковых данных, начальном `beta`, центрах и направлениях:
 
