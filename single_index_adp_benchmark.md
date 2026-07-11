@@ -3110,10 +3110,12 @@ def execute_job(job: SingleIndexJob, config: SingleIndexSeriesConfig) -> RunOutc
   без внешних зависимостей. OPG/ADE/MAVE/RMAVE подключать через явные adapters;
   отсутствие optional dependency записывать как `status="unavailable"`, а не
   молча исключать метод из сравнения.
-- [ ] Для D01–D04 хранить исходные файлы вне каталога результатов в заданном
-  `--data-dir`; в `series.csv` записывать источник, локальный путь, размер и
-  SHA-256. Сетевой fetch разрешать только явным `--allow-download`; повторный
-  запуск обязан использовать cache с совпадающим checksum.
+- [ ] Для D01–D04 использовать локальный пакет `adp_D1_data`: читать
+  `dataset_manifest.csv`, разрешать файлы только внутри `prepared/`, проверять
+  target, `rows`, `features` и SHA-256. Исходные CSV хранить вне каталога
+  результатов; в таблицах серии записывать источник, относительный локальный
+  путь, размер и checksum. Основной D-путь не выполняет сетевой fetch даже при
+  `allow_download=True`.
 - [ ] Для real data сохранять только индексы split/fold и seeds, но не копировать
   полные датасеты в CSV серии. Preprocessing fit выполняется только на train
   части соответствующего fold.
@@ -3183,6 +3185,31 @@ def run_single_index_benchmark(
   ожидается PASS.
 - [ ] Commit: `feat: report single-index benchmark series`.
 
+## 14.7.1. Task 6.5. Manifest-driven источник D01–D04
+
+**Файлы:** `adp/evaluation/single_index/datasets.py`,
+`tests/test_single_index_benchmark_executors.py`.
+
+- [ ] Добавить RED-тест с временным `dataset_manifest.csv` и
+  `prepared/D01_airfoil_self_noise.csv`. Желаемый вызов остаётся
+  `load_cached_real_dataset("D01", data_dir, allow_download=False)`, а результат
+  обязан вернуть target из manifest, `(n, d)`, checksum, официальный URL и путь
+  prepared-файла.
+- [ ] Добавить RED-тесты несовпадения checksum, размерности, повторяющегося ID,
+  отсутствующего файла и пути с `..`; ожидаются явные `ValueError` или
+  `DatasetUnavailable` до вызова executor.
+- [ ] Заменить `_OPENML_NAMES` на manifest parser. Parser требует столбцы
+  `id,file,rows,features,target,sha256,official_page`, проверяет единственность
+  ID и разрешает `file` относительно `<data_dir>/prepared` без выхода из этого
+  каталога.
+- [ ] Не вызывать `_download_openml`: параметр `allow_download` сохранить ради
+  совместимости сигнатуры, но отсутствие локального пакета всегда считать
+  `DatasetUnavailable`.
+- [ ] Выполнить
+  `python -m pytest tests/test_single_index_benchmark_executors.py -q`;
+  ожидается PASS.
+- [ ] Commit: `feat: load D benchmarks from adp D1 data package`.
+
 ## 14.8. Task 7. CLI, smoke-проверка и документация
 
 **Файлы:** `adp/evaluation/cli.py`, `adp/evaluation/__init__.py`,
@@ -3200,6 +3227,7 @@ python run_benchmarks.py single-index \
   --profile smoke \
   --jobs 1 \
   --statistics-workers 1 \
+  --data-dir adp_D1_data \
   --output benchmark_outputs/single_index
 
 python run_benchmarks.py single-index \
