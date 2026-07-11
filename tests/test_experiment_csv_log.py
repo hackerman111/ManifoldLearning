@@ -1,12 +1,17 @@
 import csv
+from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
+import adp.common.experiment_log as experiment_log
 from adp.common.experiment_log import (
     CSVTable,
+    configuration_fingerprint,
     flatten_mapping,
     merge_csv_shards,
+    replace_single_row_csv,
     stable_run_id,
 )
 
@@ -73,3 +78,67 @@ def test_stable_run_id_is_deterministic_and_sensitive_to_seed():
 
     assert first == second
     assert first != different
+
+
+def test_configuration_fingerprint_is_order_independent_and_value_sensitive():
+    first = {
+        "solver": {"steps": np.int64(8), "tolerance": 1e-6},
+        "methods": ("full_adp", "save"),
+        "output": Path("benchmark_outputs"),
+    }
+    reordered = {
+        "output": Path("benchmark_outputs"),
+        "methods": ("full_adp", "save"),
+        "solver": {"tolerance": 1e-6, "steps": 8},
+    }
+    changed = {
+        **reordered,
+        "solver": {"tolerance": 1e-5, "steps": 8},
+    }
+
+    assert configuration_fingerprint(first) == configuration_fingerprint(reordered)
+    assert configuration_fingerprint(first) != configuration_fingerprint(changed)
+
+
+def test_stable_run_id_remains_compatible_and_accepts_config_fingerprint():
+    legacy = stable_run_id("4", "scenario", "full_adp", 10)
+
+    assert legacy == "run-f2d684012acb080a"
+    assert stable_run_id(
+        "4",
+        "scenario",
+        "full_adp",
+        10,
+        config_fingerprint="config-a",
+    ) != legacy
+
+
+def test_replace_single_row_csv_preserves_old_file_when_publish_fails(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "series.csv"
+    path.write_text("schema_version,status\n1,complete\n", encoding="utf-8")
+    original = path.read_text(encoding="utf-8")
+
+    def fail_replace(source, destination):
+        raise OSError("publish failed")
+
+    monkeypatch.setattr(experiment_log.os, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="publish failed"):
+        replace_single_row_csv(path, {"schema_version": 1, "status": "running"})
+
+    assert path.read_text(encoding="utf-8") == original
+    assert not (tmp_path / "series.csv.tmp").exists()
+
+
+def test_replace_single_row_csv_atomically_writes_flat_row(tmp_path):
+    path = replace_single_row_csv(
+        tmp_path / "series.csv",
+        {"schema_version": 1, "config": {"profile": "smoke"}},
+    )
+
+    assert pd.read_csv(path).to_dict("records") == [
+        {"schema_version": 1, "config_profile": "smoke"}
+    ]

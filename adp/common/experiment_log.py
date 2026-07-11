@@ -12,6 +12,37 @@ SCHEMA_VERSION = 1
 Scalar = str | int | float | bool | None
 
 
+def configuration_fingerprint(values: Mapping[str, Any]) -> str:
+    """Build an order-independent fingerprint for experiment configuration."""
+
+    canonical = _canonical_value(values)
+    payload = repr(canonical).encode("utf-8")
+    digest = hashlib.blake2s(payload, digest_size=8).hexdigest()
+    return f"cfg-{digest}"
+
+
+def _canonical_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return tuple(
+            (str(key), _canonical_value(item))
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        )
+    if isinstance(value, Path):
+        return ("path", str(value))
+    if isinstance(value, Sequence) and not isinstance(
+        value,
+        (str, bytes, bytearray),
+    ):
+        return tuple(_canonical_value(item) for item in value)
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if hasattr(value, "item"):
+        return _canonical_value(value.item())
+    raise TypeError(
+        f"configuration value is not canonicalizable: {type(value).__name__}"
+    )
+
+
 def flatten_mapping(
     values: Mapping[str, Any],
     *,
@@ -44,10 +75,15 @@ def stable_run_id(
     scenario_id: str,
     method: str,
     seed: int,
+    *,
+    config_fingerprint: str = "",
 ) -> str:
     """Build a compact deterministic identifier for one experiment job."""
 
-    payload = "\x1f".join((str(experiment), scenario_id, method, str(seed)))
+    parts = [str(experiment), scenario_id, method, str(seed)]
+    if config_fingerprint:
+        parts.append(str(config_fingerprint))
+    payload = "\x1f".join(parts)
     digest = hashlib.blake2s(payload.encode("utf-8"), digest_size=8).hexdigest()
     return f"run-{digest}"
 
@@ -159,12 +195,28 @@ def write_single_row_csv(
     path: str | Path,
     row: Mapping[str, Any],
 ) -> Path:
+    return replace_single_row_csv(path, row)
+
+
+def replace_single_row_csv(
+    path: str | Path,
+    row: Mapping[str, Any],
+) -> Path:
+    """Atomically replace a CSV containing one flattened row."""
+
     flattened = flatten_mapping(row)
     fieldnames = tuple(flattened)
-    table = CSVTable(path, fieldnames)
-    table.path.unlink(missing_ok=True)
-    table.append(flattened)
-    return table.path
+    destination = Path(path)
+    temporary = destination.with_name(destination.name + ".tmp")
+    temporary.unlink(missing_ok=True)
+    table = CSVTable(temporary, fieldnames)
+    try:
+        table.append(flattened)
+        os.replace(temporary, destination)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+    return destination
 
 
 def write_artifacts_csv(
