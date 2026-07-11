@@ -9,6 +9,7 @@ import numpy as np
 
 from ..backends.neighbors import NeighborIndex
 from ..common.progress import format_progress_postfix
+from ..common.resource_monitor import ResourceMonitor
 from ..common.result_store import store_fit_result
 from ..common.types import ADPResult, LocalStatistics, TrainingStep
 from ..common.utils import as_1d_float, as_2d_float, unit_vector
@@ -72,6 +73,35 @@ class ADPAlgorithm:
         directions: np.ndarray | None = None,
     ) -> ADPResult:
         """Выполняет ADP как явную последовательность фабричных этапов."""
+
+        monitor = ResourceMonitor()
+        result: ADPResult | None = None
+        try:
+            with monitor:
+                result = self._fit_impl(
+                    X,
+                    y,
+                    centers=centers,
+                    beta0=beta0,
+                    directions=directions,
+                )
+        finally:
+            usage = monitor.usage.to_dict("algorithm")
+            self.context.model.last_resource_usage_ = usage
+            if result is not None:
+                result.resource_usage = dict(usage)
+        return result
+
+    def _fit_impl(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        *,
+        centers: np.ndarray | None = None,
+        beta0: np.ndarray | None = None,
+        directions: np.ndarray | None = None,
+    ) -> ADPResult:
+        """Выполняет численную часть fit внутри окна мониторинга ресурсов."""
 
         model = self.context.model
         config = self.context.config

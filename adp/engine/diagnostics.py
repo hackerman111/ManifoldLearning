@@ -75,6 +75,7 @@ class DiagnosticsMixin:
             "stage_names": dict(result.stage_names),
             "stage_timings": dict(result.stage_timings),
             "stage_calls": dict(result.stage_calls),
+            "resource_usage": dict(result.resource_usage),
         }
 
     def plot_history(

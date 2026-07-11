@@ -207,6 +207,7 @@ class ADPResult:
     stage_names: dict[str, str] = field(default_factory=dict)
     stage_timings: dict[str, float] = field(default_factory=dict)
     stage_calls: dict[str, int] = field(default_factory=dict)
+    resource_usage: dict[str, float | int | str] = field(default_factory=dict)
 
     @property
     def projector(

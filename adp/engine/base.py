@@ -105,6 +105,7 @@ class ADPBase(
         self.directions_: np.ndarray | None = None
         self.neighbor_index_: NeighborIndex | None = None
         self.diagnostic_plots_: dict[str, Path] = {}
+        self.last_resource_usage_: dict[str, float | int | str] = {}
         self._pairwise_cache: dict[tuple[Any, ...], np.ndarray] = {}
         context = StageContext(
             config=self.config,
