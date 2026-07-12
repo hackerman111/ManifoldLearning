@@ -143,13 +143,8 @@ python run_benchmarks.py single-index \
   --profile smoke \
   --jobs 1 \
   --statistics-workers 1 \
-  --data-dir adp_D1_data \
   --output benchmark_outputs/single_index
 ```
-
-Эксперименты D01–D04 читают `dataset_manifest.csv` и подготовленные файлы из
-`adp_D1_data/prepared`. Перед запуском проверяются target, размерность и SHA-256.
-Данные не копируются в каталог серии и не заменяются сетевой версией.
 
 Два process workers или два NumPy workers включаются только явно. Обычно
 следует увеличивать один уровень параллелизма за раз:

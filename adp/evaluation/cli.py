@@ -128,17 +128,6 @@ def build_single_index_parser() -> argparse.ArgumentParser:
         default=None,
         help="Limit the selected profile after registry expansion.",
     )
-    parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=Path("adp_D1_data"),
-        help="Manifest-driven D01-D04 package (default: adp_D1_data).",
-    )
-    parser.add_argument(
-        "--allow-download",
-        action="store_true",
-        help="Compatibility flag; D01-D04 still require the local manifest package.",
-    )
     return parser
 
 
@@ -151,8 +140,6 @@ def run_single_index_command(argv: list[str] | None = None) -> int:
         statistics_workers=args.statistics_workers,
         retry_failed=args.retry_failed,
         max_scenarios=args.max_scenarios,
-        data_dir=str(args.data_dir),
-        allow_download=args.allow_download,
     )
     saved = run_single_index_benchmark(
         config,

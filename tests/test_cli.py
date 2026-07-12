@@ -17,7 +17,7 @@ def test_cli_help_exposes_benchmark_and_stress_commands():
     assert "stress" in result.stdout
 
 
-def test_single_index_help_exposes_series_controls_and_d1_default():
+def test_single_index_help_exposes_series_controls_without_d_series():
     result = subprocess.run(
         [sys.executable, "run_benchmarks.py", "single-index", "--help"],
         check=True,
@@ -32,11 +32,12 @@ def test_single_index_help_exposes_series_controls_and_d1_default():
         "--resume",
         "--retry-failed",
         "--max-scenarios",
-        "--data-dir",
-        "--allow-download",
     ):
         assert option in result.stdout
-    assert "adp_D1_data" in result.stdout
+    assert "--data-dir" not in result.stdout
+    assert "--allow-download" not in result.stdout
+    assert "D01" not in result.stdout
+    assert "adp_D1_data" not in result.stdout
 
 
 def test_cli_runs_single_index_smoke_and_writes_only_csv_and_png(tmp_path):
