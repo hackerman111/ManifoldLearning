@@ -71,10 +71,6 @@ _TITLES = {
     "A07": "Mean mass против q05 mass",
     "A08": "Центры без perturbation",
     "A09": "Negative controls",
-    "D01": "Airfoil Self-Noise",
-    "D02": "Concrete Compressive Strength",
-    "D03": "Wine Quality white",
-    "D04": "Superconductivity",
 }
 
 _SMOKE_IDS = ("C01", "S01", "M01", "B01")
@@ -124,8 +120,6 @@ def _make_scenario(scenario_id: str) -> SingleIndexScenario:
     family = scenario_id[0]
     if family == "C":
         executor = "correctness"
-    elif family == "D":
-        executor = "real_data"
     elif family == "M":
         executor = "scaling"
     else:
@@ -160,10 +154,6 @@ def _make_scenario(scenario_id: str) -> SingleIndexScenario:
         repeats = 100
     elif family == "R":
         repeats = 100
-    elif family == "D":
-        data = {"dataset": scenario_id, "folds": 5}
-        repeats = 5
-        methods = ("full_adp", "ols", "statsmodels_save", "sklearn_pls")
 
     if scenario_id == "R06":
         data["corr"] = 0.7
@@ -225,4 +215,3 @@ def _smoke_variant(scenario: SingleIndexScenario) -> SingleIndexScenario:
         solver=solver,
         repeats=1,
     )
-

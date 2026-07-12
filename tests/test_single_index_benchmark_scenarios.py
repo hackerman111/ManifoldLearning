@@ -27,7 +27,6 @@ def test_registry_covers_every_protocol_scenario_once():
         *(f"I{index:02d}" for index in range(1, 5)),
         "B01",
         *(f"A{index:02d}" for index in range(1, 10)),
-        *(f"D{index:02d}" for index in range(1, 5)),
     }
 
     assert len(identifiers) == len(set(identifiers))
@@ -50,8 +49,6 @@ def test_registry_values_and_executor_routing_are_valid():
             assert scenario.data["d"] > 0
         if scenario.family == "C":
             assert scenario.executor == "correctness"
-        elif scenario.family == "D":
-            assert scenario.executor == "real_data"
         elif scenario.family == "M":
             assert scenario.executor == "scaling"
         else:
@@ -67,6 +64,17 @@ def test_profiles_are_nested_and_smoke_has_required_coverage():
     assert {"C01", "S01", "M01", "B01"}.issubset(smoke)
     assert {scenario.scenario_id for scenario in scenarios_for_profile("smoke")} == smoke
     assert scenarios_for_profile("publication")
+
+
+def test_registry_and_profiles_exclude_d_series():
+    assert all(
+        not scenario.scenario_id.startswith("D") for scenario in scenario_registry()
+    )
+    assert all(
+        not scenario_id.startswith("D")
+        for scenario_ids in PROFILE_IDS.values()
+        for scenario_id in scenario_ids
+    )
 
 
 def test_scenario_rejects_invalid_dimensions_and_nonfinite_values():

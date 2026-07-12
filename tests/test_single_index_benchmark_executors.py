@@ -23,6 +23,7 @@ from adp.evaluation.single_index.scenarios import scenario_registry, scenarios_f
 from adp.evaluation.single_index.types import (
     SeedBundle,
     SingleIndexJob,
+    SingleIndexScenario,
     SingleIndexSeriesConfig,
 )
 
@@ -191,7 +192,17 @@ def test_d1_loader_never_uses_network_fallback(tmp_path, monkeypatch):
 
 def test_real_data_outcome_preserves_dataset_provenance(tmp_path):
     path = write_d1_package(tmp_path)
-    scenario = next(item for item in scenario_registry() if item.scenario_id == "D01")
+    scenario = SingleIndexScenario(
+        scenario_id="D01",
+        family="D",
+        executor="real_data",
+        hypothesis="real-data infrastructure fixture",
+        data={"dataset": "D01", "folds": 5},
+        algorithm={"n_centers": 2, "n_directions": 2, "min_neighbors": 1.0},
+        solver={"outer_steps": 1, "inner_steps": 1},
+        repeats=1,
+        methods=("ols",),
+    )
     config = SingleIndexSeriesConfig(
         profile="full",
         base_seed=1,
