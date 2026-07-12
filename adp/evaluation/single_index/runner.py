@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import numpy as np
+from tqdm.auto import tqdm
 
 from ...common.experiment_log import configuration_fingerprint, stable_run_id
 from ...common.resource_monitor import ResourceMonitor
@@ -85,30 +86,56 @@ def run_single_index_benchmark(
     total = len(pending)
     completed = 0
 
-    if config.jobs == 1:
-        completed = _run_serial(store, pending, config, completed, total)
-    elif pending:
-        _limit_worker_threads()
-        try:
-            with ProcessPoolExecutor(max_workers=config.jobs) as pool:
-                futures = {
-                    pool.submit(_execute_and_persist, store, job, config): job
-                    for job in pending
-                }
-                for future in as_completed(futures):
-                    job = futures[future]
-                    future.result()
-                    completed += 1
-                    _log_progress(completed, total, job)
-        except OSError as exc:
-            print(
-                f"parallel fallback: {type(exc).__name__}: {exc}",
-                file=sys.stderr,
-                flush=True,
+    with tqdm(
+        total=total,
+        desc="single-index",
+        unit="job",
+        dynamic_ncols=True,
+    ) as progress:
+        if config.jobs == 1:
+            completed = _run_serial(
+                store,
+                pending,
+                config,
+                completed,
+                total,
+                progress,
             )
-            remaining = list(store.pending_jobs(jobs))
-            completed = total - len(remaining)
-            _run_serial(store, remaining, config, completed, total)
+        elif pending:
+            _limit_worker_threads()
+            try:
+                with ProcessPoolExecutor(max_workers=config.jobs) as pool:
+                    futures = {
+                        pool.submit(_execute_and_persist, store, job, config): job
+                        for job in pending
+                    }
+                    for future in as_completed(futures):
+                        job = futures[future]
+                        future.result()
+                        completed = _mark_job_done(
+                            progress,
+                            completed,
+                            total,
+                            job,
+                        )
+            except OSError as exc:
+                print(
+                    f"parallel fallback: {type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                remaining = list(store.pending_jobs(jobs))
+                completed = total - len(remaining)
+                if progress.n < completed:
+                    progress.update(completed - progress.n)
+                completed = _run_serial(
+                    store,
+                    remaining,
+                    config,
+                    completed,
+                    total,
+                    progress,
+                )
 
     statuses = store._committed_statuses()
     final_status = (
@@ -130,11 +157,27 @@ def _run_serial(
     config: SingleIndexSeriesConfig,
     completed: int,
     total: int,
+    progress: Any,
 ) -> int:
     for job in jobs:
         _execute_and_persist(store, job, config)
-        completed += 1
-        _log_progress(completed, total, job)
+        completed = _mark_job_done(progress, completed, total, job)
+    return completed
+
+
+def _mark_job_done(
+    progress: Any,
+    completed: int,
+    total: int,
+    job: SingleIndexJob,
+) -> int:
+    completed += 1
+    progress.set_postfix(
+        {"scenario": job.scenario.scenario_id, "method": job.method},
+        refresh=True,
+    )
+    progress.update(1)
+    _log_progress(completed, total, job)
     return completed
 
 

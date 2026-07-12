@@ -10,6 +10,37 @@ from adp.evaluation.single_index.runner import (
 from adp.evaluation.single_index.types import SingleIndexSeriesConfig
 
 
+class RecordingProgress:
+    def __init__(self, calls, **kwargs):
+        self.kwargs = kwargs
+        self.n = 0
+        self.postfixes = []
+        calls.append(self)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def update(self, amount=1):
+        self.n += amount
+
+    def set_postfix(self, values, refresh=True):
+        self.postfixes.append((values, refresh))
+
+
+def record_progress(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        single_runner,
+        "tqdm",
+        lambda **kwargs: RecordingProgress(calls, **kwargs),
+        raising=False,
+    )
+    return calls
+
+
 def make_config(**overrides):
     values = {
         "profile": "smoke",
@@ -90,11 +121,68 @@ def test_runner_records_failure_without_stopping_series(tmp_path, monkeypatch):
     assert runs.loc[0, "full_run_time_sec"] > 0.0
 
 
+def test_runner_reports_persisted_jobs_with_tqdm(tmp_path, monkeypatch):
+    calls = record_progress(monkeypatch)
+
+    run_single_index_benchmark(make_config(max_scenarios=1), tmp_path)
+
+    progress = calls[0]
+    assert progress.kwargs == {
+        "total": 1,
+        "desc": "single-index",
+        "unit": "job",
+        "dynamic_ncols": True,
+    }
+    assert progress.n == 1
+    assert progress.postfixes[-1][0] == {
+        "scenario": "C01",
+        "method": "full_adp",
+    }
+
+
+def test_process_pool_completion_updates_tqdm(tmp_path, monkeypatch):
+    calls = record_progress(monkeypatch)
+
+    class ImmediateFuture:
+        def result(self):
+            return None
+
+    class ImmediatePool:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def submit(self, function, *args):
+            function(*args)
+            return ImmediateFuture()
+
+    monkeypatch.setattr(single_runner, "ProcessPoolExecutor", ImmediatePool)
+    monkeypatch.setattr(single_runner, "as_completed", lambda futures: iter(futures))
+
+    run_single_index_benchmark(
+        make_config(jobs=2, max_scenarios=1),
+        tmp_path,
+    )
+
+    assert calls[0].n == 1
+    assert calls[0].postfixes[-1][0] == {
+        "scenario": "C01",
+        "method": "full_adp",
+    }
+
+
 def test_process_pool_oserror_falls_back_and_logs_progress(
     tmp_path,
     monkeypatch,
     capsys,
 ):
+    calls = record_progress(monkeypatch)
+
     class BrokenPool:
         def __init__(self, *args, **kwargs):
             raise OSError("pool unavailable")
@@ -113,5 +201,10 @@ def test_process_pool_oserror_falls_back_and_logs_progress(
     assert "parallel fallback" in captured.err
     assert "1/1" in captured.err
     assert "scenario=C01" in captured.err
+    assert calls[0].n == 1
+    assert calls[0].postfixes[-1][0] == {
+        "scenario": "C01",
+        "method": "full_adp",
+    }
     for variable in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
         assert single_runner.os.environ[variable] == "1"
