@@ -128,6 +128,7 @@ def generate_synthetic_data(job: SingleIndexJob) -> GeneratedSingleIndexData:
     metadata: dict[str, Scalar] = {
         "effective_p": d,
         "effective_n": n,
+        "n_over_d": parameters.n_over_d,
         "effective_J": n_centers,
         "effective_n_directions": n_directions,
         "snr": (

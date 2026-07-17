@@ -540,6 +540,7 @@ def test_metadata_is_scalar_only_complete_and_reports_effective_values():
     assert required <= metadata.keys()
     assert metadata["effective_p"] == job.parameters.d
     assert metadata["effective_n"] == job.parameters.n
+    assert metadata["n_over_d"] == job.parameters.n_over_d
     assert metadata["effective_J"] == job.parameters.n_centers
     assert metadata["effective_n_directions"] == 8
     assert metadata["snr"] == pytest.approx(1.0 / job.parameters.sigma_eps**2)
