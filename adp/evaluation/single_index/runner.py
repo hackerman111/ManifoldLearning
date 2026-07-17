@@ -5,7 +5,7 @@ import os
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -18,54 +18,86 @@ from .baselines import BaselineUnavailable
 from .datasets import DatasetUnavailable
 from .executors import execute_job
 from .reports import write_single_index_reports
-from .scenarios import scenarios_for_profile
+from .scenarios import full_parameter_grid, smoke_parameter_grid
 from .storage import SingleIndexSeriesStore
-from .types import RunOutcome, SeedBundle, SingleIndexJob, SingleIndexSeriesConfig
+from .types import (
+    EXPERIMENT_SELECTORS,
+    ExperimentParameters,
+    RunOutcome,
+    SeedBundle,
+    SingleIndexJob,
+    SingleIndexSeriesConfig,
+)
 
 
 def build_single_index_jobs(
     config: SingleIndexSeriesConfig,
 ) -> tuple[SingleIndexJob, ...]:
-    """Expand a profile into deterministic jobs with paired method seeds."""
+    """Expand canonical experiment grids into deterministic independent jobs."""
 
-    scenarios = scenarios_for_profile(config.profile)
-    if config.max_scenarios is not None:
-        scenarios = scenarios[: config.max_scenarios]
-    fingerprint_values = asdict(config)
-    fingerprint_values.pop("retry_failed", None)
-    fingerprint_values.pop("allow_download", None)
-    config_fingerprint = configuration_fingerprint(fingerprint_values)
+    selected = set(config.experiments)
+    seeds = config.seeds
+    if seeds is None:
+        seeds = tuple(range(100)) if config.profile == "full" else (0,)
+    diagnostic_seeds = set(config.diagnostic_seeds)
     jobs: list[SingleIndexJob] = []
-    for scenario_index, scenario in enumerate(scenarios):
-        for repeat in range(scenario.repeats):
-            state = np.random.SeedSequence(
-                [config.base_seed, scenario_index, repeat]
-            ).generate_state(5)
-            seeds = SeedBundle(*(int(value) for value in state))
-            for method in scenario.methods:
-                run_fingerprint = configuration_fingerprint(
-                    {
-                        "series": config_fingerprint,
-                        "repeat": repeat,
-                        "seeds": asdict(seeds),
-                    }
-                )
+    grid_builder = (
+        full_parameter_grid if config.profile == "full" else smoke_parameter_grid
+    )
+    for experiment in EXPERIMENT_SELECTORS:
+        if experiment not in selected:
+            continue
+        for base_parameters in grid_builder(experiment):
+            parameters = replace(
+                base_parameters,
+                center_fraction=config.center_fraction,
+            )
+            for seed in seeds:
                 jobs.append(
-                    SingleIndexJob(
-                        scenario=scenario,
-                        method=method,
-                        repeat=repeat,
-                        seeds=seeds,
-                        run_id=stable_run_id(
-                            "single_index",
-                            scenario.scenario_id,
-                            method,
-                            seeds.data,
-                            config_fingerprint=run_fingerprint,
-                        ),
+                    _build_single_index_job(
+                        experiment,
+                        parameters,
+                        seed,
+                        diagnostic=seed in diagnostic_seeds,
                     )
                 )
-    return tuple(jobs)
+    expanded = tuple(jobs)
+    if config.max_runs is not None:
+        return expanded[: config.max_runs]
+    return expanded
+
+
+def _build_single_index_job(
+    experiment: str,
+    parameters: ExperimentParameters,
+    seed: int,
+    *,
+    diagnostic: bool,
+) -> SingleIndexJob:
+    identity_fingerprint = configuration_fingerprint(
+        {
+            "experiment": experiment,
+            "parameters": asdict(parameters),
+            "seed": seed,
+        }
+    )
+    entropy = int(identity_fingerprint.removeprefix("cfg-"), 16)
+    state = np.random.SeedSequence(entropy).generate_state(10)
+    sub_seeds = SeedBundle(*(int(value) for value in state))
+    return SingleIndexJob(
+        experiment=experiment,
+        parameters=parameters,
+        seed=seed,
+        seeds=sub_seeds,
+        run_id=stable_run_id(
+            "single_index",
+            experiment,
+            "adp",
+            seed,
+            config_fingerprint=identity_fingerprint,
+        ),
+        diagnostic=diagnostic,
+    )
 
 
 def run_single_index_benchmark(

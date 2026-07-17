@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the legacy C/S/T/R/M single-index catalog with the deterministic 27,400-run benchmark from `new_benchmark.md`, exposed through a resumable process-parallel CLI whose individual ADP fits are pinned to one core.
+**Goal:** Replace the legacy C/S/T/R/M single-index catalog with the deterministic 24,000-run benchmark from `new_benchmark.md`, exposed through a resumable process-parallel CLI whose individual ADP fits are pinned to one core.
 
 **Architecture:** Keep the existing `adp.evaluation.single_index` package and rewrite its experiment catalog, data generator, executor, storage, runner, and reporting contracts in place. Add opt-in, benchmark-neutral telemetry to the ADP engine and random-projection implementation; persist normalized per-run shards atomically and derive all combined CSV files and plots exclusively from committed shards.
 
@@ -51,7 +51,7 @@ def test_full_profile_has_exact_independent_experiment_counts():
     jobs = build_single_index_jobs(SingleIndexSeriesConfig(profile="full"))
     counts = Counter(job.experiment for job in jobs)
     assert counts == EXPECTED_COUNTS
-    assert len(jobs) == 27_400
+    assert len(jobs) == 24_000
     assert all(job.parameters.n == math.ceil(job.parameters.d * job.parameters.n_over_d) for job in jobs)
     assert all(job.parameters.center_fraction == 1.0 for job in jobs)
 
@@ -66,7 +66,7 @@ def test_selector_parser_normalizes_and_rejects_unknown_values():
 
 Run: `python -m pytest tests/test_single_index_benchmark_scenarios.py tests/test_single_index_benchmark_runner.py -q`
 
-Expected: FAIL because `ExperimentParameters`, the new selectors, and the 27,400-run expansion do not exist.
+Expected: FAIL because `ExperimentParameters`, the new selectors, and the 24,000-run expansion do not exist.
 
 - [ ] **Step 3: Implement immutable experiment and series types**
 
@@ -126,13 +126,13 @@ Validate finite positive dimensions/scales, `0 <= rho_corr < 1`, nonnegative noi
 
 - [ ] **Step 4: Implement literal independent grids and stable job expansion**
 
-Use one `_full_parameter_grid(selector)` branch per selector, with values copied literally from the spec. Full defaults to seeds `range(100)`; smoke uses one small representative configuration per selected family and seed `0`. Split every user seed with `np.random.SeedSequence([seed, selector_index, parameter_index]).generate_state(10)`. Build `run_id` from selector, canonical parameter dict, user seed, and sub-seeds; exclude jobs/process count from run identity. Apply `max_runs` only after deterministic expansion.
+Use one `_full_parameter_grid(selector)` branch per selector, with values copied literally from the spec. Full defaults to seeds `range(100)`; smoke uses one small representative configuration per selected family and seed `0`. Derive ten sub-seeds from a stable fingerprint of the canonical selector, parameter dictionary, and user seed. Build `run_id` from the same identity inputs; exclude jobs/process count from run identity. Apply `max_runs` only after deterministic expansion.
 
 - [ ] **Step 5: Verify GREEN and deterministic invariants**
 
 Run: `python -m pytest tests/test_single_index_benchmark_scenarios.py tests/test_single_index_benchmark_runner.py -q`
 
-Expected: PASS, including identical IDs after changing job count and exact total 27,400.
+Expected: PASS, including identical IDs after changing job count and exact total 24,000.
 
 - [ ] **Step 6: Commit the catalog slice**
 
@@ -431,9 +431,9 @@ git commit -m "feat: persist normalized benchmark shards"
 - [ ] **Step 1: Write failing CLI and process-isolation tests**
 
 ```python
-def test_full_dry_run_reports_27400_without_fitting(tmp_path):
+def test_full_dry_run_reports_24000_without_fitting(tmp_path):
     result = subprocess.run([sys.executable, "run_benchmarks.py", "single-index", "--profile", "full", "--dry-run", "--output", str(tmp_path)], capture_output=True, text=True, check=True)
-    assert "total: 27400" in result.stdout
+    assert "total: 24000" in result.stdout
     assert not list(tmp_path.iterdir())
 
 def test_worker_initializer_caps_every_supported_runtime(monkeypatch):
@@ -581,7 +581,7 @@ python -m pytest -q
 git diff --check
 ```
 
-Expected: dry-run total `27400`; real smoke exits zero and writes normalized CSV/PNG artifacts; all tests pass; diff check emits no output.
+Expected: dry-run total `24000`; real smoke exits zero and writes normalized CSV/PNG artifacts; all tests pass; diff check emits no output.
 
 - [ ] **Step 5: Inspect repository scope and commit the final slice**
 

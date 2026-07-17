@@ -9,7 +9,7 @@ strictly single-core inside each ADP fit. It must emit the requested normalized
 CSV diagnostics and all requested PNG reports without retaining large working
 matrices.
 
-The standard full profile contains exactly 27,400 ADP runs. The top-level
+The standard full profile contains exactly 24,000 ADP runs. The top-level
 `J/n` range in `new_benchmark.md` is not multiplied into that profile: the
 standard matrix uses `J = n`. A center fraction remains available only as an
 explicit CLI override.
@@ -29,14 +29,14 @@ legacy `benchmark` and `stress` subcommands remain separate and unchanged.
 
 ## Non-goals
 
-- Do not multiply `J/n in {0.25, 0.5, 1}` into the standard 27,400-run matrix.
+- Do not multiply `J/n in {0.25, 0.5, 1}` into the standard 24,000-run matrix.
 - Do not preserve the old C/S/T/R/M scenario IDs as executable single-index
   profiles.
 - Do not change the numerical update rules of ADP merely to populate benchmark
   diagnostics.
 - Do not store full distance matrices, weight matrices, local `U` tensors,
   difference tensors, or every inner-iteration beta vector.
-- Do not run the complete 27,400-run profile as part of automated tests.
+- Do not run the complete 24,000-run profile as part of automated tests.
 - Do not alter the separate legacy `benchmark` or `stress` CLI contracts.
 
 ## CLI contract
@@ -109,7 +109,7 @@ Common defaults are `sigma_x = 1`, `rho_corr = 0`, `sigma_eps = 0.5`,
 | `8.1` | heteroskedasticity: 2 dimensions x 2 ratios x 2 modes x 100 seeds | 800 |
 | `8.2` | outliers: 2 dimensions x 2 ratios x 5 configurations x 100 seeds | 2,000 |
 | `8.3` | misspecification: 2 dimensions x 2 ratios x 4 deltas x 100 seeds | 1,600 |
-| | **Total** | **27,400** |
+| | **Total** | **24,000** |
 
 Experiment 1 overrides `sigma_eps` to zero. Every remaining fixed or varying
 value follows `new_benchmark.md` literally.
@@ -466,7 +466,7 @@ semantics. Old C/S/T/R/M IDs are not a compatibility promise.
 
 Implementation follows RED-GREEN-REFACTOR. Tests cover:
 
-1. Exact standard job counts for every selector and total 27,400, plus proof
+1. Exact standard job counts for every selector and total 24,000, plus proof
    that experiment parameters are not accidentally cross-multiplied.
 2. `ceil(d * n_over_d)`, dense unit beta, deterministic sub-seeds, order- and
    process-count-independent job IDs, and resume fingerprint validation.
@@ -497,7 +497,7 @@ python -m pytest -q
 git diff --check
 ```
 
-The dry run must report exactly 27,400 jobs. The smoke run must execute real ADP
+The dry run must report exactly 24,000 jobs. The smoke run must execute real ADP
 fits, use more than one worker when at least two CPUs are available, keep each
 fit single-core, and produce the required smoke-applicable tables and figures.
 

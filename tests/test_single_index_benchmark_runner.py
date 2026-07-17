@@ -1,210 +1,133 @@
+from collections import Counter
 from dataclasses import replace
 
-import pandas as pd
-
-import adp.evaluation.single_index.runner as single_runner
-from adp.evaluation.single_index.runner import (
-    build_single_index_jobs,
-    run_single_index_benchmark,
+import adp.evaluation.single_index.runner as single_index_runner
+from adp.evaluation.single_index.runner import build_single_index_jobs
+from adp.evaluation.single_index.scenarios import EXPERIMENT_COUNTS
+from adp.evaluation.single_index.types import (
+    ExperimentParameters,
+    SingleIndexSeriesConfig,
 )
-from adp.evaluation.single_index.types import SingleIndexSeriesConfig
 
 
-class RecordingProgress:
-    def __init__(self, calls, **kwargs):
-        self.kwargs = kwargs
-        self.n = 0
-        self.postfixes = []
-        calls.append(self)
+def test_full_profile_expands_to_exactly_24000_jobs():
+    jobs = build_single_index_jobs(SingleIndexSeriesConfig(profile="full"))
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        return False
-
-    def update(self, amount=1):
-        self.n += amount
-
-    def set_postfix(self, values, refresh=True):
-        self.postfixes.append((values, refresh))
+    assert len(jobs) == 24_000
+    assert Counter(job.experiment for job in jobs) == EXPERIMENT_COUNTS
+    assert {job.seed for job in jobs} == set(range(100))
+    assert all(job.parameters.n_centers == job.parameters.n for job in jobs)
 
 
-def record_progress(monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        single_runner,
-        "tqdm",
-        lambda **kwargs: RecordingProgress(calls, **kwargs),
-        raising=False,
+def test_parameter_families_are_not_cross_multiplied():
+    jobs = build_single_index_jobs(
+        SingleIndexSeriesConfig(profile="full", experiments=("3",), seeds=(7,))
     )
-    return calls
 
-
-def make_config(**overrides):
-    values = {
-        "profile": "smoke",
-        "base_seed": 123,
-        "jobs": 1,
-        "statistics_workers": 1,
-        "max_scenarios": 2,
-    }
-    values.update(overrides)
-    return SingleIndexSeriesConfig(**values)
-
-
-def test_build_jobs_is_deterministic_and_pairs_method_seeds():
-    config = make_config(max_scenarios=4)
-
-    first = build_single_index_jobs(config)
-    repeated = build_single_index_jobs(config)
-
-    assert first == repeated
-    grouped = {}
-    for job in first:
-        grouped.setdefault((job.scenario.scenario_id, job.repeat), []).append(job)
-    for jobs in grouped.values():
-        assert len({job.seeds for job in jobs}) == 1
-        assert len({job.run_id for job in jobs}) == len(jobs)
-
-
-def test_runner_writes_resource_rows_payload_and_resume_without_duplicates(tmp_path):
-    config = make_config()
-
-    saved = run_single_index_benchmark(config, tmp_path)
-    runs = pd.read_csv(saved["runs"])
-    iterations = pd.read_csv(saved["iterations"])
-
-    assert len(runs) == 2
-    assert set(runs["status"]) == {"success"}
-    assert (runs["full_run_time_sec"] > 0.0).all()
-    finite_algorithm = runs["algorithm_time_sec"].dropna()
-    assert (finite_algorithm > 0.0).all()
-    assert (
-        runs.loc[finite_algorithm.index, "full_run_time_sec"] >= finite_algorithm
-    ).all()
-    assert (runs["result_persist_time_sec"] > 0.0).all()
-    assert set(iterations["run_id"]) == set(runs["run_id"])
-    assert saved["summary"].exists()
-    assert saved["scaling"].exists()
-    assert saved["paired"].exists()
-    assert saved["worst_five"].exists()
-    artifacts = pd.read_csv(saved["artifacts"])
-    assert {"summary", "scaling", "paired", "worst_five"}.issubset(
-        set(artifacts["name"])
-    )
-    assert {f"G{index:02d}" for index in range(1, 22)}.issubset(
-        set(artifacts["name"])
-    )
-    assert set(artifacts["status"]) <= {"created", "error"}
-
-    resumed = run_single_index_benchmark(config, tmp_path, resume=saved["series"].parent)
-    resumed_runs = pd.read_csv(resumed["runs"])
-    assert len(resumed_runs) == len(runs)
-    assert resumed_runs["run_id"].is_unique
-
-
-def test_runner_records_failure_without_stopping_series(tmp_path, monkeypatch):
-    def fail_job(job, config):
-        raise RuntimeError("forced failure")
-
-    monkeypatch.setattr(single_runner, "execute_job", fail_job)
-
-    saved = run_single_index_benchmark(make_config(max_scenarios=1), tmp_path)
-    runs = pd.read_csv(saved["runs"])
-    failures = pd.read_csv(saved["failures"])
-
-    assert list(runs["status"]) == ["failed"]
-    assert bool(runs.loc[0, "failed"])
-    assert "forced failure" in runs.loc[0, "error"]
-    assert list(failures["run_id"]) == list(runs["run_id"])
-    assert runs.loc[0, "full_run_time_sec"] > 0.0
-
-
-def test_runner_reports_persisted_jobs_with_tqdm(tmp_path, monkeypatch):
-    calls = record_progress(monkeypatch)
-
-    run_single_index_benchmark(make_config(max_scenarios=1), tmp_path)
-
-    progress = calls[0]
-    assert progress.kwargs == {
-        "total": 1,
-        "desc": "single-index",
-        "unit": "job",
-        "dynamic_ncols": True,
-    }
-    assert progress.n == 1
-    assert progress.postfixes[-1][0] == {
-        "scenario": "C01",
-        "method": "full_adp",
+    assert len(jobs) == 42
+    assert {job.experiment for job in jobs} == {"3"}
+    assert {job.parameters.rho_corr for job in jobs} == {0.0}
+    assert {job.parameters.sigma_x for job in jobs} == {1.0}
+    assert {job.parameters.link for job in jobs} == {"quadratic"}
+    assert {job.parameters.sigma_eps for job in jobs} == {
+        0.0,
+        0.316,
+        0.5,
+        0.707,
+        1.0,
+        1.414,
+        2.0,
     }
 
 
-def test_process_pool_completion_updates_tqdm(tmp_path, monkeypatch):
-    calls = record_progress(monkeypatch)
-
-    class ImmediateFuture:
-        def result(self):
-            return None
-
-    class ImmediatePool:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def submit(self, function, *args):
-            function(*args)
-            return ImmediateFuture()
-
-    monkeypatch.setattr(single_runner, "ProcessPoolExecutor", ImmediatePool)
-    monkeypatch.setattr(single_runner, "as_completed", lambda futures: iter(futures))
-
-    run_single_index_benchmark(
-        make_config(jobs=2, max_scenarios=1),
-        tmp_path,
+def test_job_ids_and_subseeds_do_not_depend_on_process_count_or_order():
+    config = SingleIndexSeriesConfig(
+        profile="full",
+        experiments=("1", "8.3"),
+        seeds=(2, 9),
+        jobs=1,
+    )
+    serial = build_single_index_jobs(config)
+    parallel = build_single_index_jobs(replace(config, jobs=8))
+    reversed_selectors = build_single_index_jobs(
+        replace(config, experiments=("8.3", "1"))
     )
 
-    assert calls[0].n == 1
-    assert calls[0].postfixes[-1][0] == {
-        "scenario": "C01",
-        "method": "full_adp",
+    serial_identity = {
+        (job.experiment, job.parameters, job.seed): (job.run_id, job.seeds)
+        for job in serial
     }
+    parallel_identity = {
+        (job.experiment, job.parameters, job.seed): (job.run_id, job.seeds)
+        for job in parallel
+    }
+    reversed_identity = {
+        (job.experiment, job.parameters, job.seed): (job.run_id, job.seeds)
+        for job in reversed_selectors
+    }
+    assert serial_identity == parallel_identity == reversed_identity
 
 
-def test_process_pool_oserror_falls_back_and_logs_progress(
-    tmp_path,
-    monkeypatch,
-    capsys,
-):
-    calls = record_progress(monkeypatch)
-
-    class BrokenPool:
-        def __init__(self, *args, **kwargs):
-            raise OSError("pool unavailable")
-
-    monkeypatch.setattr(single_runner, "ProcessPoolExecutor", BrokenPool)
-    for variable in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
-        monkeypatch.setenv(variable, "8")
-
-    saved = run_single_index_benchmark(
-        make_config(jobs=2, max_scenarios=1),
-        tmp_path,
+def test_job_identity_canonicalizes_signed_zero_parameters():
+    positive_zero = ExperimentParameters(
+        d=25,
+        n_over_d=5,
+        rho_corr=0.0,
+        sigma_eps=0.0,
+        outlier_fraction=0.0,
+        delta=0.0,
     )
-    captured = capsys.readouterr()
+    negative_zero = ExperimentParameters(
+        d=25,
+        n_over_d=5,
+        rho_corr=-0.0,
+        sigma_eps=-0.0,
+        outlier_fraction=-0.0,
+        delta=-0.0,
+    )
 
-    assert len(pd.read_csv(saved["runs"])) == 1
-    assert "parallel fallback" in captured.err
-    assert "1/1" in captured.err
-    assert "scenario=C01" in captured.err
-    assert calls[0].n == 1
-    assert calls[0].postfixes[-1][0] == {
-        "scenario": "C01",
-        "method": "full_adp",
-    }
-    for variable in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
-        assert single_runner.os.environ[variable] == "1"
+    positive_job = single_index_runner._build_single_index_job(
+        "3",
+        positive_zero,
+        7,
+        diagnostic=False,
+    )
+    negative_job = single_index_runner._build_single_index_job(
+        "3",
+        negative_zero,
+        7,
+        diagnostic=True,
+    )
+
+    assert negative_zero == positive_zero
+    assert negative_job.run_id == positive_job.run_id
+    assert negative_job.seeds == positive_job.seeds
+
+
+def test_center_fraction_overrides_jobs_without_expanding_matrix():
+    base = build_single_index_jobs(
+        SingleIndexSeriesConfig(profile="full", experiments=("2",), seeds=(0,))
+    )
+    quarter = build_single_index_jobs(
+        SingleIndexSeriesConfig(
+            profile="full",
+            experiments=("2",),
+            seeds=(0,),
+            center_fraction=0.25,
+        )
+    )
+
+    assert len(base) == len(quarter) == 20
+    assert all(job.parameters.center_fraction == 0.25 for job in quarter)
+    assert all(job.parameters.n_centers <= job.parameters.n for job in quarter)
+
+
+def test_smoke_and_max_runs_are_deterministic_post_expansion_limits():
+    smoke = build_single_index_jobs(SingleIndexSeriesConfig(profile="smoke"))
+    limited = build_single_index_jobs(
+        SingleIndexSeriesConfig(profile="smoke", max_runs=3)
+    )
+
+    assert len(smoke) == 11
+    assert limited == smoke[:3]
+    assert {job.seed for job in smoke} == {0}
