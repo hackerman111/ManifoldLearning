@@ -4,6 +4,17 @@ import sys
 import pandas as pd
 
 
+PUBLIC_SINGLE_INDEX_CSVS = {
+    "run_summary.csv",
+    "outer_iterations.csv",
+    "inner_iterations.csv",
+    "local_diagnostics.csv",
+    "solver_iterations.csv",
+    "series.csv",
+    "artifacts.csv",
+}
+
+
 def test_cli_help_exposes_benchmark_and_stress_commands():
     result = subprocess.run(
         [sys.executable, "run_benchmarks.py", "--help"],
@@ -89,6 +100,70 @@ def test_single_index_cli_requires_resume_for_reports_only():
 
     assert result.returncode == 2
     assert "--reports-only requires --resume" in result.stderr
+
+
+def test_cli_runs_new_single_index_smoke_with_two_processes(tmp_path):
+    output_root = tmp_path / "single-index"
+    command = [
+        sys.executable,
+        "run_benchmarks.py",
+        "single-index",
+        "--profile",
+        "smoke",
+        "--jobs",
+        "2",
+        "--max-runs",
+        "2",
+        "--output",
+        str(output_root),
+    ]
+
+    subprocess.run(command, check=True, capture_output=True, text=True)
+
+    series_dirs = tuple(path for path in output_root.iterdir() if path.is_dir())
+    assert len(series_dirs) == 1
+    series_dir = series_dirs[0]
+    assert PUBLIC_SINGLE_INDEX_CSVS <= {
+        path.name for path in series_dir.iterdir() if path.is_file()
+    }
+    assert not tuple(series_dir.rglob("*.json"))
+    runs_path = series_dir / "run_summary.csv"
+    runs_before = runs_path.read_bytes()
+    runs = pd.read_csv(runs_path)
+    assert len(runs) == 2
+    assert set(runs["statistics_workers"]) == {1}
+
+    smoke_plots = {
+        series_dir / "plots/experiment_1/quality_vs_outer_iteration.png",
+        series_dir / "plots/summary/quality_heatmap_d_nd_ratio.png",
+        series_dir / "plots/summary/runtime_breakdown.png",
+    }
+    assert all(path.exists() for path in smoke_plots)
+
+    removed_plot = series_dir / "plots/experiment_1/quality_vs_outer_iteration.png"
+    removed_plot.unlink()
+    subprocess.run(
+        [
+            sys.executable,
+            "run_benchmarks.py",
+            "single-index",
+            "--profile",
+            "smoke",
+            "--jobs",
+            "2",
+            "--max-runs",
+            "2",
+            "--resume",
+            str(series_dir),
+            "--reports-only",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert removed_plot.exists()
+    assert runs_path.read_bytes() == runs_before
 
 
 def test_cli_runs_stress_dry_run_from_main_entrypoint(tmp_path):

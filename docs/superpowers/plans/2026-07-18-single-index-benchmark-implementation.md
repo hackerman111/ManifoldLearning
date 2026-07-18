@@ -38,7 +38,7 @@ The user explicitly requested implementation in the current checkout, so this pl
 - Test: `tests/test_single_index_benchmark_scenarios.py`
 - Test: `tests/test_single_index_benchmark_runner.py`
 
-- [ ] **Step 1: Replace legacy scenario tests with failing full-matrix tests**
+- [x] **Step 1: Replace legacy scenario tests with failing full-matrix tests**
 
 ```python
 EXPECTED_COUNTS = {
@@ -62,13 +62,13 @@ def test_selector_parser_normalizes_and_rejects_unknown_values():
         parse_experiment_selectors("9.1")
 ```
 
-- [ ] **Step 2: Run the catalog tests and verify the expected RED failure**
+- [x] **Step 2: Run the catalog tests and verify the expected RED failure**
 
 Run: `python -m pytest tests/test_single_index_benchmark_scenarios.py tests/test_single_index_benchmark_runner.py -q`
 
 Expected: FAIL because `ExperimentParameters`, the new selectors, and the 24,000-run expansion do not exist.
 
-- [ ] **Step 3: Implement immutable experiment and series types**
+- [x] **Step 3: Implement immutable experiment and series types**
 
 ```python
 EXPERIMENT_SELECTORS = ("1", "2", "3", "4", "5", "6", "7.1", "7.2", "8.1", "8.2", "8.3")
@@ -124,17 +124,17 @@ class SingleIndexSeriesConfig:
 
 Validate finite positive dimensions/scales, `0 <= rho_corr < 1`, nonnegative noise/contamination, `0 < center_fraction <= 1`, unique nonnegative seeds, and positive integer jobs.
 
-- [ ] **Step 4: Implement literal independent grids and stable job expansion**
+- [x] **Step 4: Implement literal independent grids and stable job expansion**
 
 Use one `_full_parameter_grid(selector)` branch per selector, with values copied literally from the spec. Full defaults to seeds `range(100)`; smoke uses one small representative configuration per selected family and seed `0`. Derive ten sub-seeds from a stable fingerprint of the canonical selector, parameter dictionary, and user seed. Build `run_id` from the same identity inputs; exclude jobs/process count from run identity. Apply `max_runs` only after deterministic expansion.
 
-- [ ] **Step 5: Verify GREEN and deterministic invariants**
+- [x] **Step 5: Verify GREEN and deterministic invariants**
 
 Run: `python -m pytest tests/test_single_index_benchmark_scenarios.py tests/test_single_index_benchmark_runner.py -q`
 
 Expected: PASS, including identical IDs after changing job count and exact total 24,000.
 
-- [ ] **Step 6: Commit the catalog slice**
+- [x] **Step 6: Commit the catalog slice**
 
 ```bash
 git add adp/evaluation/single_index/types.py adp/evaluation/single_index/scenarios.py adp/evaluation/single_index/runner.py tests/test_single_index_benchmark_scenarios.py tests/test_single_index_benchmark_runner.py
@@ -147,7 +147,7 @@ git commit -m "feat: define new single-index benchmark matrix"
 - Modify: `adp/evaluation/single_index/datasets.py`
 - Test: `tests/test_single_index_benchmark_executors.py`
 
-- [ ] **Step 1: Write failing generator tests**
+- [x] **Step 1: Write failing generator tests**
 
 ```python
 def test_gaussian_features_use_ar1_covariance():
@@ -171,13 +171,13 @@ def test_signal_noise_outliers_and_misspecification_are_reproducible():
 
 Also test standardized `t5`/`t3` noise, exact outlier replacement indices, all six links, `sigma_eps=0` infinite SNR, isolated sub-seed changes, dense unit beta, and degenerate link rejection.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `python -m pytest tests/test_single_index_benchmark_executors.py -q`
 
 Expected: FAIL because the old generator uses equicorrelation and one shared data RNG.
 
-- [ ] **Step 3: Implement generation metadata and deterministic transforms**
+- [x] **Step 3: Implement generation metadata and deterministic transforms**
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -202,13 +202,13 @@ def _standardize_sample(values: np.ndarray, name: str) -> tuple[np.ndarray, floa
 
 Draw Gaussian features as `rng.normal(size=(n, d)) @ factor.T`; uniform from `[-sqrt(3), sqrt(3)]`; `t5 * sqrt(3/5)`. Normalize every link sample to variance one. Standardize `t5` and `t3` noises by `sqrt(3/5)` and `sqrt(1/3)`. Implement heteroscedastic scale exactly. Replace ordinary errors at selected outlier indices. Orthogonalize and normalize `gamma`, then normalize `g(gamma.T @ X)` independently. Record normalization scalars, outlier count, SNR, and effective parameters.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run: `python -m pytest tests/test_single_index_benchmark_executors.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit deterministic generation**
+- [x] **Step 5: Commit deterministic generation**
 
 ```bash
 git add adp/evaluation/single_index/datasets.py tests/test_single_index_benchmark_executors.py
@@ -227,7 +227,7 @@ git commit -m "feat: generate benchmark data deterministically"
 - Test: `tests/test_performance_optimizations.py`
 - Test: `tests/test_single_index_benchmark_executors.py`
 
-- [ ] **Step 1: Add failing pure telemetry tests**
+- [x] **Step 1: Add failing pure telemetry tests**
 
 ```python
 def test_weight_and_local_diagnostics_match_fixed_arrays():
@@ -252,13 +252,13 @@ def test_weight_and_local_diagnostics_match_fixed_arrays():
 
 Add tests for zero matrices, the exact `2*eps*max(lambda_max, 1)` singular threshold, beta encoding precision, nonnegative service overhead, and real CG callback residuals.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `python -m pytest tests/test_performance_optimizations.py tests/test_single_index_benchmark_executors.py -q`
 
 Expected: FAIL because telemetry helpers and ADP trace fields are absent.
 
-- [ ] **Step 3: Implement pure telemetry helpers**
+- [x] **Step 3: Implement pure telemetry helpers**
 
 ```python
 @dataclass(slots=True)
@@ -287,19 +287,19 @@ class LocalSystemDiagnostic:
 
 Build `A_j` and `b_j` exactly from `S`, `U @ beta`, and `imav`; use `np.linalg.eigvalsh`, the specified threshold, and infinity for a zero/singular condition number. Never replace actual solver coefficients with the diagnostic solution.
 
-- [ ] **Step 4: Add opt-in result fields and real solver instrumentation**
+- [x] **Step 4: Add opt-in result fields and real solver instrumentation**
 
 Extend `ADPConfig` with `record_telemetry=False` and `record_solver_trace=False`. Extend `LocalStatistics` with optional weight vectors and per-stage durations. Extend `TrainingStep` with objective-before/after, pre-normalization norm, gradient norm, residuals, linear solver iterations/status, coefficient changes, runtime, transient beta, and residual trace. Extend `ADPResult` with `outer_telemetry` and `local_telemetry` lists.
 
 In the NumPy and CuPy statistics paths, accumulate `sum_w2`, support, and extrema from weights already computed; do not retain weights. In `_solve_beta_default`, attach a CG callback that counts iterations and, when requested, computes `||A x_k-b||/max(||b||, eps)`. Always compute final absolute/relative residual and status from SciPy `info`. In `ADPAlgorithm`, snapshot stage-call timing at each outer iteration, compute inner metrics, aggregate local diagnostics, and retain full center rows only when `record_telemetry` is enabled.
 
-- [ ] **Step 5: Verify GREEN and no numerical regression**
+- [x] **Step 5: Verify GREEN and no numerical regression**
 
 Run: `python -m pytest tests/test_performance_optimizations.py tests/test_adp.py tests/test_stage_factories.py tests/test_single_index_benchmark_executors.py -q`
 
 Expected: PASS; existing beta/objective tests remain unchanged within their original tolerances.
 
-- [ ] **Step 6: Commit telemetry**
+- [x] **Step 6: Commit telemetry**
 
 ```bash
 git add adp/common/types.py adp/engine/algorithm.py adp/variants/random_projection.py adp/backends/numpy_backend.py adp/backends/cupy_backend.py adp/evaluation/single_index/telemetry.py tests/test_performance_optimizations.py tests/test_single_index_benchmark_executors.py
@@ -313,7 +313,7 @@ git commit -m "feat: expose ADP benchmark telemetry"
 - Modify: `adp/evaluation/single_index/types.py`
 - Test: `tests/test_single_index_benchmark_executors.py`
 
-- [ ] **Step 1: Write failing executor contract tests**
+- [x] **Step 1: Write failing executor contract tests**
 
 ```python
 def test_execute_job_returns_all_normalized_row_groups():
@@ -333,23 +333,23 @@ def test_nonfinite_result_is_numerical_failure_and_keeps_partial_rows(monkeypatc
     assert outcome.outer_rows
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `python -m pytest tests/test_single_index_benchmark_executors.py -q`
 
 Expected: FAIL because `RunOutcome` still exposes legacy metrics/iterations.
 
-- [ ] **Step 3: Implement one-core ADP execution and row conversion**
+- [x] **Step 3: Implement one-core ADP execution and row conversion**
 
 Define `RunOutcome(run_row, outer_rows, inner_rows, local_rows, solver_rows)`. Build `ADPConfig(n_centers=J, n_directions=max(4, min(d, 32)), statistics_workers=1, show_progress=False, record_telemetry=True, record_solver_trace=diagnostic_seed, random_state=init_seed)`. Wrap only `model.fit(...)` in `threadpool_limits(limits=1)`. Derive truth metrics with absolute cosine and projector Frobenius error, encode outer betas, count invalid values and singular systems, and classify statuses exactly as specified. Catch numerical exceptions inside the executor so partial telemetry can be converted when available; store type/message/traceback fields without swallowing process failures unrelated to the fit contract.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run: `python -m pytest tests/test_single_index_benchmark_executors.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit executor rewrite**
+- [x] **Step 5: Commit executor rewrite**
 
 ```bash
 git add adp/evaluation/single_index/executors.py adp/evaluation/single_index/types.py tests/test_single_index_benchmark_executors.py
@@ -364,7 +364,7 @@ git commit -m "feat: normalize single-index run diagnostics"
 - Test: `tests/test_single_index_benchmark_schema.py`
 - Test: `tests/test_single_index_benchmark_storage.py`
 
-- [ ] **Step 1: Write failing schema and commit-last tests**
+- [x] **Step 1: Write failing schema and commit-last tests**
 
 ```python
 PUBLIC_TABLES = {
@@ -392,27 +392,27 @@ def test_run_summary_is_written_last_and_is_the_only_commit_marker(tmp_path, mon
 
 Also test retry replacement, failure skip by default, incompatible resume fingerprint, stable empty headers, and merge ordering by planned run order.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `python -m pytest tests/test_single_index_benchmark_schema.py tests/test_single_index_benchmark_storage.py -q`
 
 Expected: FAIL because filenames and shard contracts are legacy.
 
-- [ ] **Step 3: Define exact stable columns**
+- [x] **Step 3: Define exact stable columns**
 
 Declare complete tuples matching the four required tables and auxiliary tables. Include all effective generation parameters/sub-seeds in `run_summary.csv`; all requested aggregate, quality, and timing fields in `outer_iterations.csv`; all solver fields in `inner_iterations.csv`; all local spectral fields in `local_diagnostics.csv`; and artifact status/error fields in `artifacts.csv`.
 
-- [ ] **Step 4: Implement atomic per-run directories**
+- [x] **Step 4: Implement atomic per-run directories**
 
 Use `.shards/<run_id>/pending-*` temporary files and `os.replace`. Write outer, inner, local, and solver fragments first; write `run_summary.csv` last. Treat the final run row as the commit marker. On retry, write a sibling replacement directory and atomically replace individual fragments before the marker. Resume validates a canonical fingerprint that excludes `jobs` and `retry_failed` but includes profile, selectors, seeds, diagnostics, center fraction, and schema version. Merge by streaming shard CSV readers in planned job order so full-profile aggregation does not load all detailed rows at once.
 
-- [ ] **Step 5: Verify GREEN**
+- [x] **Step 5: Verify GREEN**
 
 Run: `python -m pytest tests/test_single_index_benchmark_schema.py tests/test_single_index_benchmark_storage.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit storage contract**
+- [x] **Step 6: Commit storage contract**
 
 ```bash
 git add adp/evaluation/single_index/schema.py adp/evaluation/single_index/storage.py tests/test_single_index_benchmark_schema.py tests/test_single_index_benchmark_storage.py
@@ -428,7 +428,7 @@ git commit -m "feat: persist normalized benchmark shards"
 - Test: `tests/test_single_index_benchmark_runner.py`
 - Test: `tests/test_cli.py`
 
-- [ ] **Step 1: Write failing CLI and process-isolation tests**
+- [x] **Step 1: Write failing CLI and process-isolation tests**
 
 ```python
 def test_full_dry_run_reports_24000_without_fitting(tmp_path):
@@ -448,31 +448,31 @@ def test_parallel_runner_uses_one_process_future_per_fit(tmp_path):
     assert set(runs["statistics_workers"]) == {1}
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `python -m pytest tests/test_single_index_benchmark_runner.py tests/test_cli.py -q`
 
 Expected: FAIL because the new options and filenames do not exist.
 
-- [ ] **Step 3: Implement the new CLI parser**
+- [x] **Step 3: Implement the new CLI parser**
 
 Expose `--profile smoke|full`, `--experiments`, `--jobs auto|N`, `--seeds`, `--diagnostic-seeds`, `--center-fraction`, `--output`, `--resume`, `--retry-failed`, `--dry-run`, `--reports-only`, and `--max-runs`. Remove `--statistics-workers`, `--base-seed`, and `--max-scenarios` from the single-index command. Require `--resume` with `--reports-only`; reject incompatible combinations through `parser.error`.
 
-- [ ] **Step 4: Implement process dispatch and one-core enforcement**
+- [x] **Step 4: Implement process dispatch and one-core enforcement**
 
 Resolve `auto` with `max(1, os.cpu_count() or 1)`. Before constructing the pool and inside `initializer=_initialize_worker`, set all four thread environment variables to `1`. Submit one `_execute_and_commit(series_dir, job, config)` future per pending job. Each worker reopens the store by path; do not pickle a mutable store. Advance tqdm and flush `completed/total experiment=<selector> seed=<seed> status=<status>` only after the run marker exists. Preserve safe serial operation for `jobs=1`; do not silently change requested multi-process semantics except for a documented process-creation `OSError` fallback.
 
-- [ ] **Step 5: Implement dry-run and reports-only paths**
+- [x] **Step 5: Implement dry-run and reports-only paths**
 
 Dry-run prints counts in selector order and returns before store creation. Reports-only opens a compatible completed/partial series and calls the CSV report builder without executing jobs. Resume skips every committed status except failed statuses when `--retry-failed` is set.
 
-- [ ] **Step 6: Verify GREEN**
+- [x] **Step 6: Verify GREEN**
 
 Run: `python -m pytest tests/test_single_index_benchmark_runner.py tests/test_cli.py -q`
 
 Expected: PASS, including a real two-process smoke fixture where the host exposes at least two CPUs.
 
-- [ ] **Step 7: Commit the CLI runner**
+- [x] **Step 7: Commit the CLI runner**
 
 ```bash
 git add adp/evaluation/cli.py adp/evaluation/single_index/runner.py adp/evaluation/single_index/__init__.py tests/test_single_index_benchmark_runner.py tests/test_cli.py
@@ -486,7 +486,7 @@ git commit -m "feat: run benchmark fits across single-core processes"
 - Modify: `adp/evaluation/single_index/reports.py`
 - Test: `tests/test_single_index_benchmark_reports.py`
 
-- [ ] **Step 1: Write failing plot-manifest tests**
+- [x] **Step 1: Write failing plot-manifest tests**
 
 ```python
 REQUIRED_PLOTS = {
@@ -524,27 +524,27 @@ def test_fixture_csvs_render_every_applicable_plot(tmp_path):
 
 Add tests that experiment families are never pooled, bands use 5/50/95 percentiles, numerical failures count against success rate, experiment 1 uses 0.99, rerendering never invokes the executor, and one failing renderer is recorded while later renderers still run.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `python -m pytest tests/test_single_index_benchmark_reports.py -q`
 
 Expected: FAIL because legacy reports read legacy filenames and omit required plots.
 
-- [ ] **Step 3: Implement focused plotting primitives**
+- [x] **Step 3: Implement focused plotting primitives**
 
 In `plots.py`, provide `line_with_quantile_band`, `grouped_line`, `boxplot`, `scatter`, `heatmap`, and `stacked_runtime` helpers. Each accepts prepared pandas frames, explicit x/y/group columns, output path, labels, and optional log axes. Close every figure in `finally`. Use finite values only and render a labeled “no finite data” panel when a selected experiment has committed rows but no plottable points.
 
-- [ ] **Step 4: Implement report orchestration from persisted CSV only**
+- [x] **Step 4: Implement report orchestration from persisted CSV only**
 
 Load `run_summary.csv`, `outer_iterations.csv`, `inner_iterations.csv`, `local_diagnostics.csv`, and `solver_iterations.csv`. Define a manifest mapping every required filename to selectors, input table, preparation function, and renderer. Put collision-prone diagnostic filenames below `plots/experiment_<selector>/`; summary filenames below `plots/summary/`. Attempt each applicable plot independently and rewrite `artifacts.csv` with every CSV/PNG path, size, status, and error. Never import or call `execute_job` from report code.
 
-- [ ] **Step 5: Verify GREEN**
+- [x] **Step 5: Verify GREEN**
 
 Run: `python -m pytest tests/test_single_index_benchmark_reports.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit reports**
+- [x] **Step 6: Commit reports**
 
 ```bash
 git add adp/evaluation/single_index/plots.py adp/evaluation/single_index/reports.py tests/test_single_index_benchmark_reports.py
@@ -558,21 +558,21 @@ git commit -m "feat: render benchmark reports from CSV artifacts"
 - Modify: `tests/test_cli.py`
 - Modify: `docs/superpowers/plans/2026-07-18-single-index-benchmark-implementation.md`
 
-- [ ] **Step 1: Add the final end-to-end smoke assertion**
+- [x] **Step 1: Add the final end-to-end smoke assertion**
 
 Run the CLI with `--profile smoke --jobs 2 --max-runs 2`; assert the seven public CSVs exist, no JSON files exist, required smoke-applicable PNGs exist, every run records `statistics_workers=1`, and `reports-only` regenerates a removed PNG without changing `run_summary.csv`.
 
-- [ ] **Step 2: Verify the smoke test fails for any remaining integration gap**
+- [x] **Step 2: Verify the smoke test fails for any remaining integration gap**
 
 Run: `python -m pytest tests/test_cli.py::test_cli_runs_new_single_index_smoke_with_two_processes -q`
 
 Expected: FAIL only if an integration contract remains incomplete; fix through a focused RED/GREEN cycle in the owning module.
 
-- [ ] **Step 3: Document exact commands and artifacts**
+- [x] **Step 3: Document exact commands and artifacts**
 
 Add README examples for full, selected experiments, custom seeds, resume/retry, reports-only, dry-run, and smoke. State clearly: `--jobs` controls independent worker processes; `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS`, and `NUMEXPR_NUM_THREADS` are capped at one; `threadpoolctl` wraps each fit; `ADPConfig.statistics_workers` is always one. List `run_summary.csv`, `outer_iterations.csv`, `inner_iterations.csv`, `local_diagnostics.csv`, `solver_iterations.csv`, `series.csv`, and `artifacts.csv`.
 
-- [ ] **Step 4: Run focused and full verification**
+- [x] **Step 4: Run focused and full verification**
 
 ```bash
 python run_benchmarks.py single-index --profile full --dry-run
@@ -583,7 +583,7 @@ git diff --check
 
 Expected: dry-run total `24000`; real smoke exits zero and writes normalized CSV/PNG artifacts; all tests pass; diff check emits no output.
 
-- [ ] **Step 5: Inspect repository scope and commit the final slice**
+- [x] **Step 5: Inspect repository scope and commit the final slice**
 
 Run `git status --short` and confirm the pre-existing deleted logs, deleted `single_index_adp_benchmark.md`, and untracked `new_benchmark.md` were not staged or modified by this implementation.
 

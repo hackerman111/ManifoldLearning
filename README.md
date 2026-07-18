@@ -135,43 +135,95 @@ python experiments/benchmark_numpy_statistics.py \
 
 ## Воспроизводимый single-index benchmark
 
-Новая серия запускается отдельной подкомандой. По умолчанию используются один
-процесс и один worker статистик, поэтому вложенный параллелизм не включается:
+Полный план из 24 000 независимых запусков стартует отдельной подкомандой:
+
+```bash
+python run_benchmarks.py single-index \
+  --profile full \
+  --jobs auto \
+  --output benchmark_outputs/single_index
+```
+
+Можно выбрать эксперименты, диапазон seed и диагностические seed:
+
+```bash
+python run_benchmarks.py single-index \
+  --profile full \
+  --experiments 2,3,4 \
+  --seeds 0:9 \
+  --diagnostic-seeds 0,1,2 \
+  --jobs 4 \
+  --output benchmark_outputs/single_index
+```
+
+Для быстрой проверки используется профиль `smoke`; `--max-runs` оставляет
+детерминированный префикс развернутого списка запусков:
 
 ```bash
 python run_benchmarks.py single-index \
   --profile smoke \
-  --jobs 1 \
-  --statistics-workers 1 \
-  --output benchmark_outputs/single_index
+  --jobs 2 \
+  --max-runs 2 \
+  --output /tmp/adp_new_benchmark_smoke
 ```
 
-Два process workers или два NumPy workers включаются только явно. Обычно
-следует увеличивать один уровень параллелизма за раз:
+Dry-run проверяет конфигурацию, печатает число запусков и ничего не записывает:
 
 ```bash
-python run_benchmarks.py single-index --profile minimal --jobs 2
-python run_benchmarks.py single-index --profile minimal --statistics-workers 2
+python run_benchmarks.py single-index --profile full --dry-run
 ```
 
-Прерванную серию можно продолжить. Успешные `run_id` пропускаются, а failed jobs
-повторяются только с явным `--retry-failed` и заменяют прежний commit-marker:
+Прерванную серию можно продолжить. При resume нужно повторить исходные
+`--profile`, `--experiments`, `--seeds`, `--diagnostic-seeds` и
+`--center-fraction`; число `--jobs` можно изменить. Уже зафиксированные
+`run_id` пропускаются:
 
 ```bash
 python run_benchmarks.py single-index \
+  --profile full \
+  --jobs 4 \
   --resume benchmark_outputs/single_index/<series_id>
+```
 
+Запуски со статусом `numerical_failure` повторяются только с явным флагом и
+атомарно заменяют прежний shard:
+
+```bash
 python run_benchmarks.py single-index \
+  --profile full \
   --resume benchmark_outputs/single_index/<series_id> \
   --retry-failed
 ```
 
-Каталог серии содержит нормализованные
-`single_index_series.csv`, `single_index_runs.csv`,
-`single_index_iterations.csv`, `single_index_initial_parameters.csv`,
-`single_index_summary.csv`, `single_index_failures.csv` и
-`single_index_artifacts.csv`. Численные отчёты и графики G01–G21 заново строятся
-только из этих CSV; JSON для новой серии не создаётся.
+Графики можно полностью перестроить из сохранённых CSV, не выполняя `fit()`:
+
+```bash
+python run_benchmarks.py single-index \
+  --profile smoke \
+  --resume benchmark_outputs/single_index/<series_id> \
+  --reports-only
+```
+
+`--jobs` задаёт число независимых worker-процессов. В каждом worker переменные
+`OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS` и
+`NUMEXPR_NUM_THREADS` ограничиваются единицей; сам `model.fit(...)` выполняется
+внутри `threadpoolctl` с лимитом `1`. Для benchmark-конфигурации
+`ADPConfig.statistics_workers` всегда равен `1`, поэтому вложенного
+параллелизма нет.
+
+Каждая серия находится в отдельном подкаталоге `<series_id>` и содержит семь
+публичных таблиц:
+
+- `run_summary.csv` — одна итоговая строка на запуск;
+- `outer_iterations.csv` — внешние итерации и разложение времени;
+- `inner_iterations.csv` — внутренние итерации и поля решателя;
+- `local_diagnostics.csv` — полные локальные диагностики выбранных seed и ошибок;
+- `solver_iterations.csv` — трассы невязки линейного решателя;
+- `series.csv` — конфигурация, окружение и состояние серии;
+- `artifacts.csv` — относительные пути, размеры, статусы и ошибки CSV/PNG.
+
+PNG строятся только из этих CSV и сохраняются в `plots/experiment_<selector>/`
+и `plots/summary/`. JSON-файлы новый benchmark не создаёт.
 
 Запускаемый пример честного сравнения matrix-free CG и плотного direct solver
 на одинаковых данных, начальном `beta`, центрах и направлениях:
