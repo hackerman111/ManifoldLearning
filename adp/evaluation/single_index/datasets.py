@@ -141,12 +141,22 @@ def generate_synthetic_data(job: SingleIndexJob) -> GeneratedSingleIndexData:
         "link_std": link_std,
         "x_distribution": parameters.x_distribution,
         "noise_distribution": parameters.noise_distribution,
+        "effective_noise_distribution": (
+            "gaussian"
+            if parameters.heteroscedastic
+            else parameters.noise_distribution
+        ),
         "heteroscedastic": parameters.heteroscedastic,
         "outliers_enabled": outlier_count > 0,
         "misspecified": parameters.delta > 0.0,
         "outlier_count": outlier_count,
         "sigma_x": parameters.sigma_x,
         "rho_corr": parameters.rho_corr,
+        "effective_rho_corr": (
+            parameters.rho_corr
+            if parameters.x_distribution == "gaussian"
+            else 0.0
+        ),
         "sigma_eps": parameters.sigma_eps,
         "outlier_fraction": parameters.outlier_fraction,
         "outlier_scale": parameters.outlier_scale,
