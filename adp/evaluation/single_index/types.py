@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, fields
 from typing import Literal
 
 from ...common.experiment_log import Scalar
@@ -209,11 +209,11 @@ class SingleIndexSeriesConfig:
 
 @dataclass(frozen=True, slots=True)
 class RunOutcome:
-    metrics: dict[str, Scalar]
-    iterations: tuple[dict[str, Scalar], ...]
-    solver_iterations: tuple[dict[str, Scalar], ...]
-    stop_reason: str
-    algorithm_usage: dict[str, Scalar] = field(default_factory=dict)
+    run_row: dict[str, Scalar]
+    outer_rows: tuple[dict[str, Scalar], ...]
+    inner_rows: tuple[dict[str, Scalar], ...]
+    local_rows: tuple[dict[str, Scalar], ...]
+    solver_rows: tuple[dict[str, Scalar], ...]
 
 
 def _require_positive_finite(name: str, value: object) -> None:

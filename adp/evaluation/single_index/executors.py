@@ -1,253 +1,550 @@
 from __future__ import annotations
 
 import math
-from pathlib import Path
+import time
+import traceback
+from dataclasses import asdict, fields
+from typing import Any, Mapping
 
 import numpy as np
+from threadpoolctl import threadpool_limits
 
-from ...common.resource_monitor import ResourceMonitor
-from ...common.types import ADPConfig
+from ...common.experiment_log import Scalar
+from ...common.types import ADPConfig, ADPResult, TrainingStep
 from ...engine.base import ADP
-from ..metrics import direction_metrics
-from .baselines import fit_baseline
-from .correctness import run_correctness
-from .datasets import DatasetUnavailable, generate_synthetic_data, load_cached_real_dataset
+from .datasets import GeneratedSingleIndexData, generate_synthetic_data
+from .telemetry import encode_beta
 from .types import RunOutcome, SingleIndexJob, SingleIndexSeriesConfig
+
+
+_NUMERICAL_EXCEPTIONS = (
+    ArithmeticError,
+    RuntimeError,
+    ValueError,
+    np.linalg.LinAlgError,
+)
 
 
 def execute_job(
     job: SingleIndexJob,
     config: SingleIndexSeriesConfig,
 ) -> RunOutcome:
-    if job.scenario.executor == "correctness":
-        return run_correctness(job)
-    if job.scenario.executor == "real_data":
-        return _execute_real_data(job, config)
-    return _execute_recovery(job, config)
+    """Execute one deterministic ADP fit and normalize its diagnostics."""
 
+    generated: GeneratedSingleIndexData | None = None
+    result: ADPResult | None = None
+    caught: Exception | None = None
+    caught_traceback = ""
+    started = time.perf_counter()
+    try:
+        generated = generate_synthetic_data(job)
+        result = _fit_adp(job, config, generated)
+    except Exception as exc:
+        if not isinstance(exc, _NUMERICAL_EXCEPTIONS):
+            raise
+        caught = exc
+        caught_traceback = traceback.format_exc()
+        partial = getattr(exc, "partial_result", None)
+        if isinstance(partial, ADPResult):
+            result = partial
 
-def _execute_recovery(
-    job: SingleIndexJob,
-    config: SingleIndexSeriesConfig,
-) -> RunOutcome:
-    data = generate_synthetic_data(job)
-    if job.method in {
-        "random_direction",
-        "ols",
-        "statsmodels_sir",
-        "statsmodels_save",
-        "statsmodels_phd",
-        "sklearn_pls",
-        "opg",
-        "ade",
-        "mave",
-        "rmave",
-    }:
-        monitor = ResourceMonitor()
-        with monitor:
-            beta = fit_baseline(job.method, data.X, data.y, seed=job.seeds.init)
-        return RunOutcome(
-            metrics=direction_metrics(beta, data.beta),
-            iterations=(),
-            solver_iterations=(),
-            stop_reason="complete",
-            algorithm_usage=monitor.usage.to_dict("algorithm"),
-        )
-    if job.method == "negative_control":
-        beta = fit_baseline("random_direction", data.X, data.y, seed=job.seeds.init)
-        return RunOutcome(
-            metrics=direction_metrics(beta, data.beta),
-            iterations=(),
-            solver_iterations=(),
-            stop_reason="negative_control",
-        )
-
-    adp_config, directions, stage_factories = _adp_configuration(job, config, data)
-    model = ADP.create("new", adp_config, stage_factories=stage_factories)
-    result = model.fit(
-        data.X,
-        data.y,
-        centers=data.centers,
-        directions=directions,
+    outer_rows = _outer_rows(job, result, generated)
+    inner_rows = _inner_rows(job, result, generated)
+    all_local_rows = _local_rows(job, result)
+    solver_rows = _solver_rows(job, result)
+    invalid_value_count = _invalid_value_count(result)
+    status, stop_reason = _classify_status(
+        result,
+        caught,
+        invalid_value_count=invalid_value_count,
     )
-    metrics = {
-        **direction_metrics(result.beta, data.beta),
-        "objective": float(result.objective),
-    }
-    iterations = _iteration_rows(result, data.beta)
-    solver_iterations = _solver_rows(result) if job.scenario.record_solver_trace else ()
+    local_rows = (
+        all_local_rows
+        if job.diagnostic or status != "success"
+        else ()
+    )
+    run_row = _run_row(
+        job,
+        generated,
+        result,
+        status=status,
+        stop_reason=stop_reason,
+        invalid_value_count=invalid_value_count,
+        error=caught,
+        error_traceback=caught_traceback,
+        wall_time_sec=time.perf_counter() - started,
+        outer_rows=outer_rows,
+        inner_rows=inner_rows,
+        local_rows=all_local_rows,
+        solver_rows=solver_rows,
+    )
     return RunOutcome(
-        metrics=metrics,
-        iterations=iterations,
-        solver_iterations=solver_iterations,
-        stop_reason="complete",
-        algorithm_usage=dict(result.resource_usage),
+        run_row=run_row,
+        outer_rows=outer_rows,
+        inner_rows=inner_rows,
+        local_rows=local_rows,
+        solver_rows=solver_rows,
     )
 
 
-def _execute_real_data(
+def _fit_adp(
     job: SingleIndexJob,
     config: SingleIndexSeriesConfig,
-) -> RunOutcome:
-    if config.data_dir is None:
-        raise DatasetUnavailable("real-data executor requires --data-dir")
-    dataset = load_cached_real_dataset(
-        job.scenario.scenario_id,
-        config.data_dir,
-        allow_download=config.allow_download,
-    )
-    monitor = ResourceMonitor()
-    with monitor:
-        if job.method == "full_adp":
-            n, d = dataset.X.shape
-            model = ADP.create(
-                "new",
-                ADPConfig(
-                    n_centers=min(n, max(10, n // 4)),
-                    n_directions=min(32, max(4, d)),
-                    min_neighbors=min(64.0, max(5.0, n / 10.0)),
-                    outer_steps=4,
-                    inner_steps=10,
-                    statistics_workers=config.statistics_workers,
-                    random_state=job.seeds.init,
-                    show_progress=False,
-                ),
+    generated: GeneratedSingleIndexData,
+) -> ADPResult:
+    del config
+    model = ADP.create("new", _benchmark_adp_config(job))
+    try:
+        with threadpool_limits(limits=1):
+            return model.fit(
+                generated.data.X,
+                generated.data.y,
+                centers=generated.data.centers,
+                directions=generated.data.directions,
             )
-            result = model.fit(dataset.X, dataset.y)
-            beta = result.beta
-            objective = float(result.objective)
-        else:
-            beta = fit_baseline(job.method, dataset.X, dataset.y, seed=job.seeds.init)
-            objective = math.nan
-    return RunOutcome(
-        metrics={
-            "n": int(dataset.X.shape[0]),
-            "d": int(dataset.X.shape[1]),
-            "beta_norm": float(np.linalg.norm(beta)),
-            "objective": objective,
-            "dataset_source": dataset.source,
-            "dataset_path": str(
-                dataset.path.relative_to(Path(config.data_dir).resolve())
-            ),
-            "dataset_size_bytes": dataset.path.stat().st_size,
-            "dataset_sha256": dataset.sha256,
-            "dataset_rows": int(dataset.X.shape[0]),
-            "dataset_features": int(dataset.X.shape[1]),
-        },
-        iterations=(),
-        solver_iterations=(),
-        stop_reason="complete",
-        algorithm_usage=monitor.usage.to_dict("algorithm"),
-    )
+    except _NUMERICAL_EXCEPTIONS as exc:
+        if model.result_ is not None:
+            setattr(exc, "partial_result", model.result_)
+        raise
 
 
-def _adp_configuration(job, config, data):
-    scenario = job.scenario
-    algorithm = scenario.algorithm
-    solver = scenario.solver
-    method = job.method
-    outer_steps = int(solver.get("outer_steps", 4))
-    inner_steps = int(solver.get("inner_steps", 20))
-    bandwidth_decay = float(algorithm.get("bandwidth_decay", math.sqrt(2.0)))
-    renew_directions = bool(algorithm.get("renew_directions", True))
-    local_mass_mode = str(algorithm.get("local_mass_mode", "quantile"))
-    lambda_penalty = algorithm.get("lambda_penalty")
-    directions = data.directions
-    stage_factories = None
-
-    if method == "step0_only":
-        outer_steps = 1
-    elif method == "fixed_h":
-        bandwidth_decay = 1.0
-    elif method == "fixed_directions":
-        renew_directions = False
-    elif method == "no_regularization":
-        lambda_penalty = 0.0
-    elif method == "mean_mass":
-        local_mass_mode = "mean"
-    elif method == "full_directional_basis":
-        dimension = data.X.shape[1]
-        directions = np.broadcast_to(
-            np.eye(dimension)[None, :, :],
-            (data.centers.shape[0], dimension, dimension),
-        ).copy()
-    elif method == "no_anisotropy":
-        stage_factories = {"bandwidth_selector": _isotropic_selector_factory}
-
-    n_directions = directions.shape[1] if directions is not None else int(
-        algorithm.get("n_directions", 8)
-    )
-    adp_config = ADPConfig(
-        n_centers=int(algorithm.get("n_centers", data.centers.shape[0])),
-        n_directions=n_directions,
-        min_neighbors=float(algorithm.get("min_neighbors", 10.0)),
-        lambda_penalty=None if lambda_penalty is None else float(lambda_penalty),
-        outer_steps=outer_steps,
-        inner_steps=inner_steps,
-        bandwidth_decay=bandwidth_decay,
-        local_mass_mode=local_mass_mode,
-        renew_directions=renew_directions,
-        center_noise_scale=0.0,
-        statistics_workers=config.statistics_workers,
-        random_state=job.seeds.init,
+def _benchmark_adp_config(job: SingleIndexJob) -> ADPConfig:
+    return ADPConfig(
+        n_centers=job.parameters.n_centers,
+        n_directions=max(4, min(job.parameters.d, 32)),
+        statistics_workers=1,
         show_progress=False,
+        record_telemetry=True,
+        record_solver_trace=job.diagnostic,
+        random_state=job.seeds.init,
     )
-    return adp_config, directions, stage_factories
 
 
-class _IsotropicBandwidthSelector:
-    def __init__(self, context) -> None:
-        self.model = context.model
+def _run_row(
+    job: SingleIndexJob,
+    generated: GeneratedSingleIndexData | None,
+    result: ADPResult | None,
+    *,
+    status: str,
+    stop_reason: str,
+    invalid_value_count: int,
+    error: Exception | None,
+    error_traceback: str,
+    wall_time_sec: float,
+    outer_rows: tuple[dict[str, Scalar], ...],
+    inner_rows: tuple[dict[str, Scalar], ...],
+    local_rows: tuple[dict[str, Scalar], ...],
+    solver_rows: tuple[dict[str, Scalar], ...],
+) -> dict[str, Scalar]:
+    parameters = job.parameters
+    values: dict[str, Scalar] = {
+        "run_id": job.run_id,
+        "experiment": job.experiment,
+        "seed": job.seed,
+        "diagnostic": job.diagnostic,
+        **asdict(parameters),
+        "n": parameters.n,
+        "n_centers": parameters.n_centers,
+        "n_directions": max(4, min(parameters.d, 32)),
+        "statistics_workers": 1,
+    }
+    for seed_field in fields(job.seeds):
+        values[f"seed_{seed_field.name}"] = int(
+            getattr(job.seeds, seed_field.name)
+        )
+    if generated is not None:
+        values.update(generated.metadata)
 
-    def select_initial(self, X, centers, index=None):
-        return self.model._select_isotropic_bandwidth_default(X, centers, index)
+    beta = None if result is None else np.asarray(result.beta)
+    truth = None if generated is None else generated.data.beta
+    cosine_abs, projector_error = _truth_metrics(beta, truth)
+    first_outer = outer_rows[0] if outer_rows else {}
+    last_outer = outer_rows[-1] if outer_rows else {}
+    usage = {} if result is None else result.resource_usage
+    runtime_sec = _result_runtime(result, wall_time_sec)
+    values.update(
+        {
+            "h_initial": first_outer.get("h_k", math.nan),
+            "h_final": last_outer.get("h_k", math.nan),
+            "rho_final": last_outer.get("rho_k", math.nan),
+            "outer_iterations": len(outer_rows),
+            "inner_iterations_total": len(inner_rows),
+            "cosine_abs": cosine_abs,
+            "projector_error": projector_error,
+            "objective": (
+                math.nan if result is None else _safe_float(result.objective)
+            ),
+            "runtime_sec": runtime_sec,
+            "fit_wall_time_sec": float(wall_time_sec),
+            "peak_memory_mb": _safe_float(
+                usage.get(
+                    "algorithm_rss_max_mib",
+                    usage.get("algorithm_rss_peak_delta_mib", math.nan),
+                )
+            ),
+            "singular_local_count": sum(
+                bool(row.get("is_singular", False)) for row in local_rows
+            ),
+            "invalid_value_count": int(invalid_value_count),
+            "stop_reason": stop_reason,
+            "status": status,
+            "error_type": "" if error is None else type(error).__name__,
+            "error_message": "" if error is None else str(error),
+            "error_traceback": error_traceback,
+            "outer_row_count": len(outer_rows),
+            "inner_row_count": len(inner_rows),
+            "local_row_count": len(local_rows),
+            "solver_row_count": len(solver_rows),
+        }
+    )
+    return values
 
-    def select_anisotropy(self, X, centers, h, beta):
-        return 1.0
+
+def _outer_rows(
+    job: SingleIndexJob,
+    result: ADPResult | None,
+    generated: GeneratedSingleIndexData | None,
+) -> tuple[dict[str, Scalar], ...]:
+    if result is None:
+        return ()
+    truth = None if generated is None else generated.data.beta
+    rows: list[dict[str, Scalar]] = []
+    for telemetry in result.outer_telemetry:
+        beta = np.asarray(telemetry.get("beta", np.array([])))
+        cosine_abs, projector_error = _truth_metrics(beta, truth)
+        row: dict[str, Scalar] = {
+            "run_id": job.run_id,
+            "experiment": job.experiment,
+            "seed": job.seed,
+            "outer_k": int(telemetry.get("outer", len(rows))),
+            "h_k": _safe_float(telemetry.get("h")),
+            "rho_k": _safe_float(telemetry.get("anisotropy")),
+            "beta_k": _encode_optional_beta(beta),
+            "beta_norm": _safe_float(telemetry.get("beta_norm")),
+            "cosine_abs": cosine_abs,
+            "projector_error": projector_error,
+            "beta_delta": _safe_float(telemetry.get("beta_delta")),
+            "adjacent_angle_rad": _safe_float(
+                telemetry.get("adjacent_angle_rad")
+            ),
+            "objective_before": _safe_float(
+                telemetry.get("objective_before")
+            ),
+            "objective_after": _safe_float(telemetry.get("objective_after")),
+            "relative_objective_decrease": _safe_float(
+                telemetry.get("relative_objective_decrease")
+            ),
+            "inner_iterations": int(telemetry.get("inner_iterations", 0)),
+            "local_mass_mean": _safe_float(telemetry.get("local_mass_mean")),
+            "local_mass_min": _safe_float(telemetry.get("local_mass_min")),
+            "local_mass_q05": _safe_float(telemetry.get("local_mass_q05")),
+            "local_mass_median": _safe_float(
+                telemetry.get("local_mass_median")
+            ),
+            "local_mass_q95": _safe_float(telemetry.get("local_mass_q95")),
+            "ess_mean": _safe_float(telemetry.get("ess_mean")),
+            "ess_min": _safe_float(telemetry.get("ess_min")),
+            "condition_median": _safe_float(
+                telemetry.get("condition_median")
+            ),
+            "condition_max": _safe_float(telemetry.get("condition_max")),
+            "singular_centers": int(telemetry.get("singular_centers", 0)),
+            "zero_weight_fraction": _safe_float(
+                telemetry.get("zero_weight_fraction")
+            ),
+            "bandwidth_update_time_sec": _safe_float(
+                telemetry.get("bandwidth_update_time_sec")
+            ),
+            "distance_time_sec": _safe_float(
+                telemetry.get("distance_time_sec")
+            ),
+            "weights_time_sec": _safe_float(telemetry.get("weights_time_sec")),
+            "statistics_time_sec": _safe_float(
+                telemetry.get("statistics_time_sec")
+            ),
+            "optimization_time_sec": _safe_float(
+                telemetry.get("optimization_time_sec")
+            ),
+            "iteration_time_sec": _safe_float(
+                telemetry.get("iteration_time_sec")
+            ),
+            "service_overhead_sec": _safe_float(
+                telemetry.get("service_overhead_sec")
+            ),
+        }
+        _append_stage_columns(row, telemetry)
+        rows.append(row)
+    return tuple(rows)
 
 
-def _isotropic_selector_factory(context):
-    return _IsotropicBandwidthSelector(context)
-
-
-def _iteration_rows(result, beta_true):
-    rows = []
-    for index, beta in enumerate(result.beta_path):
-        record = result.progress[index] if index < len(result.progress) else {}
+def _inner_rows(
+    job: SingleIndexJob,
+    result: ADPResult | None,
+    generated: GeneratedSingleIndexData | None,
+) -> tuple[dict[str, Scalar], ...]:
+    if result is None:
+        return ()
+    truth = None if generated is None else generated.data.beta
+    rows: list[dict[str, Scalar]] = []
+    for step in result.history:
+        beta = None if step.beta is None else np.asarray(step.beta)
+        cosine_abs, projector_error = _truth_metrics(beta, truth)
+        objective_before = _safe_float(step.objective_before)
+        objective_after = _safe_float(step.objective_after)
+        relative_change = math.nan
+        if math.isfinite(objective_before) and math.isfinite(objective_after):
+            relative_change = abs(objective_after - objective_before) / max(
+                abs(objective_before),
+                float(np.finfo(float).eps),
+            )
         rows.append(
             {
-                "outer_k": int(record.get("outer", index + 1)) - 1,
-                "h_k": float(record.get("h", math.nan)),
-                "rho_k": float(record.get("rho", math.nan)),
-                "local_mass_mean": float(record.get("local_mass_mean", math.nan)),
-                "local_mass_q05": float(record.get("local_mass_q05", math.nan)),
-                "local_mass_min": float(record.get("local_mass_min", math.nan)),
-                "objective": float(record.get("objective", math.nan)),
-                "cosine_abs": direction_metrics(beta, beta_true)["cosine_abs"],
-                "beta_delta": float(record.get("delta", math.nan)),
-                "statistics_time_sec": float(result.timings.get("statistics", math.nan)),
-                "solve_time_sec": float(result.timings.get("solve", math.nan)),
-                "runtime_sec": float(record.get("elapsed", math.nan)),
+                "run_id": job.run_id,
+                "experiment": job.experiment,
+                "seed": job.seed,
+                "outer_k": int(step.outer),
+                "inner_k": int(step.inner),
+                "objective": (
+                    objective_after
+                    if math.isfinite(objective_after)
+                    else _safe_float(step.objective)
+                ),
+                "objective_before": objective_before,
+                "objective_after": objective_after,
+                "relative_objective_change": relative_change,
+                "beta_delta": _safe_float(step.beta_delta),
+                "pre_normalization_beta_norm": _safe_float(
+                    step.pre_normalization_beta_norm
+                ),
+                "cosine_abs": cosine_abs,
+                "projector_error": projector_error,
+                "gradient_norm": _safe_float(step.gradient_norm),
+                "linear_residual_norm": _safe_float(
+                    step.linear_residual_norm
+                ),
+                "relative_linear_residual": _safe_float(
+                    step.relative_linear_residual
+                ),
+                "linear_solver_iterations": (
+                    None
+                    if step.linear_solver_iterations is None
+                    else int(step.linear_solver_iterations)
+                ),
+                "linear_solver_status": step.linear_solver_status,
+                "intercept_change_mean": _safe_float(
+                    step.intercept_change_mean
+                ),
+                "slope_change_mean": _safe_float(step.slope_change_mean),
+                "inner_iteration_time_sec": _safe_float(
+                    step.inner_iteration_time_sec
+                ),
             }
         )
     return tuple(rows)
 
 
-def _solver_rows(result):
-    initial = abs(float(result.history[0].objective)) if result.history else 1.0
-    scale = max(initial, np.finfo(float).eps)
-    return tuple(
-        {
-            "outer_k": int(step.outer),
-            "inner_k": int(step.inner),
-            "cg_k": -1,
-            "relative_objective": float(step.objective) / scale,
-            "relative_residual": math.nan,
-            "projective_delta": float(step.beta_delta),
-            "cg_info": 0,
-        }
+def _local_rows(
+    job: SingleIndexJob,
+    result: ADPResult | None,
+) -> tuple[dict[str, Scalar], ...]:
+    if result is None:
+        return ()
+    rows: list[dict[str, Scalar]] = []
+    for telemetry in result.local_telemetry:
+        rows.append(
+            {
+                "run_id": job.run_id,
+                "experiment": job.experiment,
+                "seed": job.seed,
+                "outer_k": int(telemetry.get("outer", 0)),
+                "center_j": int(telemetry.get("center", 0)),
+                "local_mass": _safe_float(telemetry.get("local_mass")),
+                "ess": _safe_float(telemetry.get("ess")),
+                "nonzero_weights": int(telemetry.get("nonzero_weights", 0)),
+                "support_fraction": _safe_float(
+                    telemetry.get("support_fraction")
+                ),
+                "min_weight": _safe_float(telemetry.get("min_weight")),
+                "max_weight": _safe_float(telemetry.get("max_weight")),
+                "intercept": _safe_float(telemetry.get("intercept")),
+                "slope": _safe_float(telemetry.get("slope")),
+                "determinant": _safe_float(telemetry.get("determinant")),
+                "lambda_min": _safe_float(telemetry.get("lambda_min")),
+                "lambda_max": _safe_float(telemetry.get("lambda_max")),
+                "condition": _safe_float(telemetry.get("condition")),
+                "rank": int(telemetry.get("rank", 0)),
+                "residual": _safe_float(telemetry.get("residual")),
+                "regularization": _safe_float(
+                    telemetry.get("regularization")
+                ),
+                "is_singular": bool(telemetry.get("singular", False)),
+            }
+        )
+    return tuple(rows)
+
+
+def _solver_rows(
+    job: SingleIndexJob,
+    result: ADPResult | None,
+) -> tuple[dict[str, Scalar], ...]:
+    if result is None:
+        return ()
+    rows: list[dict[str, Scalar]] = []
+    for step in result.history:
+        for solver_k, residual in enumerate(step.solver_residual_trace, start=1):
+            rows.append(
+                {
+                    "run_id": job.run_id,
+                    "experiment": job.experiment,
+                    "seed": job.seed,
+                    "outer_k": int(step.outer),
+                    "inner_k": int(step.inner),
+                    "solver_k": solver_k,
+                    "relative_residual": float(residual),
+                }
+            )
+    return tuple(rows)
+
+
+def _classify_status(
+    result: ADPResult | None,
+    error: Exception | None,
+    *,
+    invalid_value_count: int,
+) -> tuple[str, str]:
+    if error is not None:
+        return "numerical_failure", "numerical_exception"
+    if result is None or not _valid_direction(result.beta) or invalid_value_count:
+        return "numerical_failure", "invalid_numerical_result"
+
+    solver_statuses = {
+        step.linear_solver_status
         for step in result.history
+        if step.linear_solver_status is not None
+    }
+    if solver_statuses & {"breakdown", "invalid_solution"}:
+        return "numerical_failure", "linear_solver_failure"
+    if "max_iterations" in solver_statuses:
+        return "nonconverged", "linear_iteration_limit"
+
+    inner_limit = ADPConfig().inner_steps
+    counts: dict[int, int] = {}
+    for step in result.history:
+        counts[int(step.outer)] = counts.get(int(step.outer), 0) + 1
+    if counts and any(count >= inner_limit for count in counts.values()):
+        return "nonconverged", "alternating_iteration_limit"
+    return "success", "tolerance"
+
+
+def _invalid_value_count(result: ADPResult | None) -> int:
+    if result is None:
+        return 0
+    values: list[Any] = [result.beta, result.objective]
+    for telemetry in result.outer_telemetry:
+        values.extend(
+            telemetry.get(name)
+            for name in (
+                "beta",
+                "h",
+                "beta_norm",
+                "beta_delta",
+                "objective_before",
+                "objective_after",
+                "local_mass_mean",
+                "ess_mean",
+                "iteration_time_sec",
+            )
+        )
+    for step in result.history:
+        values.extend(
+            (
+                step.objective,
+                step.objective_before,
+                step.objective_after,
+                step.beta,
+                step.pre_normalization_beta_norm,
+                step.linear_residual_norm,
+                step.relative_linear_residual,
+            )
+        )
+    return sum(_count_nonfinite(value) for value in values if value is not None)
+
+
+def _truth_metrics(
+    beta: np.ndarray | None,
+    beta_true: np.ndarray | None,
+) -> tuple[float, float]:
+    if beta is None or beta_true is None:
+        return math.nan, math.nan
+    estimate = np.asarray(beta, dtype=float).reshape(-1)
+    truth = np.asarray(beta_true, dtype=float).reshape(-1)
+    if estimate.shape != truth.shape or not _valid_direction(estimate):
+        return math.nan, math.nan
+    if not _valid_direction(truth):
+        return math.nan, math.nan
+    estimate = estimate / np.linalg.norm(estimate)
+    truth = truth / np.linalg.norm(truth)
+    cosine_abs = float(np.clip(abs(estimate @ truth), 0.0, 1.0))
+    projector_error = float(
+        np.linalg.norm(
+            np.outer(estimate, estimate) - np.outer(truth, truth),
+            ord="fro",
+        )
     )
+    return cosine_abs, projector_error
+
+
+def _append_stage_columns(
+    row: dict[str, Scalar],
+    telemetry: Mapping[str, Any],
+) -> None:
+    for stage, elapsed in dict(telemetry.get("stage_timings", {})).items():
+        row[f"stage_{stage}_time_sec"] = _safe_float(elapsed)
+    for stage, calls in dict(telemetry.get("stage_calls", {})).items():
+        row[f"stage_{stage}_calls"] = int(calls)
+
+
+def _result_runtime(result: ADPResult | None, fallback: float) -> float:
+    if result is None:
+        return float(fallback)
+    timing = _safe_float(result.timings.get("total"))
+    if math.isfinite(timing):
+        return timing
+    resource_timing = _safe_float(result.resource_usage.get("algorithm_time_sec"))
+    return resource_timing if math.isfinite(resource_timing) else float(fallback)
+
+
+def _encode_optional_beta(beta: np.ndarray) -> str:
+    values = np.asarray(beta)
+    if values.ndim != 1 or values.size == 0 or not np.all(np.isfinite(values)):
+        return ""
+    return encode_beta(values)
+
+
+def _valid_direction(beta: Any) -> bool:
+    values = np.asarray(beta, dtype=float).reshape(-1)
+    return bool(
+        values.size
+        and np.all(np.isfinite(values))
+        and np.linalg.norm(values) > np.finfo(float).eps
+    )
+
+
+def _safe_float(value: Any) -> float:
+    if value is None:
+        return math.nan
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return math.nan
+
+
+def _count_nonfinite(value: Any) -> int:
+    try:
+        array = np.asarray(value, dtype=float)
+    except (TypeError, ValueError):
+        return 1
+    return int(np.count_nonzero(~np.isfinite(array)))
 
 
 __all__ = ["RunOutcome", "execute_job"]

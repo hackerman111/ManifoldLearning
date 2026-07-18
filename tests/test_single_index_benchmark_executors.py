@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 import adp.evaluation.single_index.datasets as dataset_module
+import adp.evaluation.single_index.executors as executors
 from adp.evaluation.single_index.datasets import (
     DatasetUnavailable,
     generate_synthetic_data,
@@ -24,6 +25,7 @@ from adp.evaluation.single_index.types import (
     ExperimentParameters,
     SeedBundle,
     SingleIndexJob,
+    SingleIndexSeriesConfig,
 )
 
 
@@ -778,3 +780,65 @@ def test_d1_loader_never_uses_network_fallback(tmp_path, monkeypatch):
 
     with pytest.raises(DatasetUnavailable, match="manifest"):
         load_cached_real_dataset("D01", tmp_path, allow_download=True)
+
+
+def make_config(*, diagnostic_seeds: tuple[int, ...] = (0,)) -> SingleIndexSeriesConfig:
+    return SingleIndexSeriesConfig(
+        profile="smoke",
+        experiments=("1",),
+        jobs=1,
+        seeds=(0,),
+        diagnostic_seeds=diagnostic_seeds,
+        center_fraction=0.2,
+    )
+
+
+def test_execute_job_returns_all_normalized_row_groups():
+    job = replace(
+        make_job(d=4, n_over_d=20, center_fraction=0.2),
+        seed=0,
+        run_id="run-executor-contract",
+        diagnostic=True,
+    )
+
+    outcome = executors.execute_job(job, make_config())
+
+    assert outcome.run_row["status"] in {"success", "nonconverged"}
+    assert outcome.outer_rows
+    assert outcome.inner_rows
+    assert outcome.local_rows
+    assert outcome.solver_rows
+    for rows in (
+        outcome.outer_rows,
+        outcome.inner_rows,
+        outcome.local_rows,
+        outcome.solver_rows,
+    ):
+        assert all(row["run_id"] == job.run_id for row in rows)
+    assert outcome.run_row["run_id"] == job.run_id
+    assert outcome.run_row["statistics_workers"] == 1
+
+
+def test_nonfinite_result_is_numerical_failure_and_keeps_partial_rows(monkeypatch):
+    job = replace(
+        make_job(d=4, n_over_d=20, center_fraction=0.2),
+        seed=3,
+        run_id="run-nonfinite-contract",
+        diagnostic=False,
+    )
+    original_fit = executors._fit_adp
+
+    def fake_nonfinite_fit(*args, **kwargs):
+        result = original_fit(*args, **kwargs)
+        result.beta = np.full_like(result.beta, np.nan)
+        return result
+
+    monkeypatch.setattr(executors, "_fit_adp", fake_nonfinite_fit)
+
+    outcome = executors.execute_job(job, make_config(diagnostic_seeds=()))
+
+    assert outcome.run_row["status"] == "numerical_failure"
+    assert outcome.run_row["invalid_value_count"] > 0
+    assert outcome.outer_rows
+    assert outcome.inner_rows
+    assert outcome.local_rows
