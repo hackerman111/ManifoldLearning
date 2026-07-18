@@ -14,6 +14,12 @@ from adp.evaluation.single_index.datasets import (
     generate_synthetic_data,
     load_cached_real_dataset,
 )
+from adp.evaluation.single_index.telemetry import (
+    diagnose_local_systems,
+    encode_beta,
+    summarize_weights,
+    timing_remainder,
+)
 from adp.evaluation.single_index.types import (
     ExperimentParameters,
     SeedBundle,
@@ -81,6 +87,102 @@ def assert_same_arrays(first: object, second: object, *names: str) -> None:
     second_arrays = generated_arrays(second)
     for name in names:
         np.testing.assert_array_equal(first_arrays[name], second_arrays[name])
+
+
+def test_weight_and_local_diagnostics_match_fixed_arrays():
+    weights = np.array([[1.0, 0.5, 0.0], [0.0, 0.0, 0.0]])
+
+    summary = summarize_weights(weights)
+
+    np.testing.assert_allclose(summary.sum_w, [1.5, 0.0])
+    np.testing.assert_allclose(summary.sum_w2, [1.25, 0.0])
+    np.testing.assert_allclose(summary.ess, [1.8, 0.0])
+    np.testing.assert_array_equal(summary.nonzero, [2, 0])
+    np.testing.assert_allclose(summary.min_weight, [0.0, 0.0])
+    np.testing.assert_allclose(summary.max_weight, [1.0, 0.0])
+
+    diagnostics = diagnose_local_systems(
+        S=np.array([[1.0, 2.0]]),
+        U=np.array([[[2.0], [1.0]]]),
+        imav=np.array([[2.0, 3.0]]),
+        beta=np.array([1.0]),
+        intercepts=np.array([0.0]),
+        slopes=np.array([1.0]),
+        regularization=1e-10,
+    )
+
+    assert diagnostics[0].determinant == pytest.approx(9.0)
+    assert diagnostics[0].lambda_min == pytest.approx(1.0)
+    assert diagnostics[0].lambda_max == pytest.approx(9.0)
+    assert diagnostics[0].condition == pytest.approx(9.0)
+    assert diagnostics[0].rank == 2
+    assert diagnostics[0].residual == pytest.approx(2.0)
+    assert diagnostics[0].regularization == pytest.approx(1e-10)
+    assert diagnostics[0].singular is False
+
+
+def test_zero_local_system_and_exact_singular_threshold_are_classified():
+    zero = diagnose_local_systems(
+        S=np.zeros((1, 2)),
+        U=np.zeros((1, 2, 1)),
+        imav=np.zeros((1, 2)),
+        beta=np.ones(1),
+        intercepts=np.zeros(1),
+        slopes=np.zeros(1),
+        regularization=0.0,
+    )[0]
+
+    assert zero.determinant == 0.0
+    assert zero.rank == 0
+    assert math.isinf(zero.condition)
+    assert zero.singular is True
+
+    eps = np.finfo(np.float64).eps
+    at_threshold = diagnose_local_systems(
+        S=np.array([[math.sqrt(eps), math.sqrt(eps), 0.0]]),
+        U=np.array([[[0.0], [0.0], [1.0]]]),
+        imav=np.zeros((1, 3)),
+        beta=np.ones(1),
+        intercepts=np.zeros(1),
+        slopes=np.zeros(1),
+        regularization=0.0,
+    )[0]
+    above_threshold = diagnose_local_systems(
+        S=np.array([[2.0 * math.sqrt(eps), 0.0, 0.0]]),
+        U=np.array([[[0.0], [1.0], [0.0]]]),
+        imav=np.zeros((1, 3)),
+        beta=np.ones(1),
+        intercepts=np.zeros(1),
+        slopes=np.zeros(1),
+        regularization=0.0,
+    )[0]
+
+    assert at_threshold.lambda_min == pytest.approx(2.0 * eps)
+    assert at_threshold.singular is True
+    assert at_threshold.rank == 1
+    assert above_threshold.singular is False
+    assert above_threshold.rank == 2
+
+
+@pytest.mark.parametrize(
+    ("dtype", "precision"),
+    [(np.float64, 17), (np.float32, 9)],
+)
+def test_beta_encoding_uses_dtype_specific_roundtrip_precision(dtype, precision):
+    beta = np.array([np.nextafter(dtype(1.0), dtype(2.0)), dtype(1.0 / 3.0)], dtype=dtype)
+
+    encoded = encode_beta(beta)
+
+    assert encoded == "|".join(format(float(value), f".{precision}g") for value in beta)
+    np.testing.assert_array_equal(
+        np.array([float(value) for value in encoded.split("|")], dtype=dtype),
+        beta,
+    )
+
+
+def test_timing_remainder_is_exact_and_never_negative():
+    assert timing_remainder(1.0, 0.2, 0.3) == pytest.approx(0.5)
+    assert timing_remainder(1.0, 0.6, 0.5) == 0.0
 
 
 def test_generated_data_wrapper_is_repeatable_frozen_and_slotted():
@@ -492,6 +594,38 @@ def test_standardization_rejects_degenerate_and_nonfinite_samples():
         )
 
 
+def test_metadata_distinguishes_requested_and_effective_generator_settings():
+    overridden = generate_synthetic_data(
+        make_job(
+            x_distribution="uniform",
+            rho_corr=0.9,
+            noise_distribution="student_t3",
+            heteroscedastic=True,
+        )
+    ).metadata
+
+    assert overridden["rho_corr"] == 0.9
+    assert overridden["noise_distribution"] == "student_t3"
+    assert overridden["effective_rho_corr"] == 0.0
+    assert overridden["effective_noise_distribution"] == "gaussian"
+
+    ordinary = generate_synthetic_data(
+        make_job(
+            x_distribution="gaussian",
+            rho_corr=0.65,
+            noise_distribution="student_t5",
+            heteroscedastic=False,
+        )
+    ).metadata
+
+    assert ordinary["rho_corr"] == ordinary["effective_rho_corr"] == 0.65
+    assert (
+        ordinary["noise_distribution"]
+        == ordinary["effective_noise_distribution"]
+        == "student_t5"
+    )
+
+
 def test_metadata_is_scalar_only_complete_and_reports_effective_values():
     job = make_job(
         d=8,
@@ -521,12 +655,14 @@ def test_metadata_is_scalar_only_complete_and_reports_effective_values():
         "link_std",
         "x_distribution",
         "noise_distribution",
+        "effective_noise_distribution",
         "heteroscedastic",
         "outliers_enabled",
         "misspecified",
         "outlier_count",
         "sigma_x",
         "rho_corr",
+        "effective_rho_corr",
         "sigma_eps",
         "outlier_fraction",
         "outlier_scale",

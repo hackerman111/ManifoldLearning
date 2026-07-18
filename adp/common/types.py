@@ -63,6 +63,8 @@ class ADPConfig:
     show_progress: bool = True
     random_state: int | None = None
     use_neighbor_index: bool = True
+    record_telemetry: bool = False
+    record_solver_trace: bool = False
 
     def __post_init__(
         self,  # Текущая конфигурация ADP.
@@ -105,6 +107,10 @@ class ADPConfig:
             raise ValueError("dtype должен быть 'float64' или 'float32'")
         if self.initial_bandwidth_inflation <= 0.0:
             raise ValueError("initial_bandwidth_inflation должен быть положительным")
+        if not isinstance(self.record_telemetry, bool):
+            raise ValueError("record_telemetry должен быть boolean")
+        if not isinstance(self.record_solver_trace, bool):
+            raise ValueError("record_solver_trace должен быть boolean")
 
     def resolved_lambda(
         self,  # Текущая конфигурация ADP.
@@ -162,6 +168,13 @@ class LocalStatistics:
     N: np.ndarray | None = None
     anisotropy: float | None = None
     n_directions: int | None = None
+    weight_sum2: np.ndarray | None = None
+    weight_nonzero: np.ndarray | None = None
+    min_weight: np.ndarray | None = None
+    max_weight: np.ndarray | None = None
+    distance_time_sec: float = 0.0
+    weights_time_sec: float = 0.0
+    statistics_time_sec: float = 0.0
 
 
 @dataclass(slots=True)
@@ -181,6 +194,19 @@ class TrainingStep:
     h: float
     anisotropy: float | None
     elapsed: float
+    objective_before: float | None = None
+    objective_after: float | None = None
+    pre_normalization_beta_norm: float | None = None
+    gradient_norm: float | None = None
+    linear_residual_norm: float | None = None
+    relative_linear_residual: float | None = None
+    linear_solver_iterations: int | None = None
+    linear_solver_status: str | None = None
+    intercept_change_mean: float | None = None
+    slope_change_mean: float | None = None
+    inner_iteration_time_sec: float = 0.0
+    beta: np.ndarray | None = None
+    solver_residual_trace: tuple[float, ...] = ()
 
 
 @dataclass(slots=True)
@@ -208,6 +234,8 @@ class ADPResult:
     stage_timings: dict[str, float] = field(default_factory=dict)
     stage_calls: dict[str, int] = field(default_factory=dict)
     resource_usage: dict[str, float | int | str] = field(default_factory=dict)
+    outer_telemetry: list[dict[str, Any]] = field(default_factory=list)
+    local_telemetry: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def projector(

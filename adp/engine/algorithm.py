@@ -169,6 +169,8 @@ class ADPAlgorithm:
         progress = state.progress
         beta_path: list[np.ndarray] = []
         timings: dict[str, float] = {}
+        outer_telemetry: list[dict[str, Any]] = []
+        local_telemetry: list[dict[str, Any]] = []
         intercepts = np.zeros(centers_arr.shape[0])
         slopes = np.ones(centers_arr.shape[0])
         statistics: LocalStatistics | None = None
@@ -181,6 +183,9 @@ class ADPAlgorithm:
         try:
             for outer in outer_iter:
                 step_started = time.perf_counter()
+                beta_before_outer = np.asarray(beta_prev).copy()
+                stage_timings_before = dict(self.stage_timings)
+                stage_calls_before = dict(self.stage_calls)
                 anisotropy: float | None = None
                 if outer > 0:
                     h = max(h / config.bandwidth_decay, np.finfo(float).eps)
@@ -213,6 +218,7 @@ class ADPAlgorithm:
                     state.anisotropy = None
 
                 stats_started = time.perf_counter()
+                bandwidth_update_time = stats_started - step_started
                 statistics = self._invoke(
                     "statistics_builder",
                     "compute",
@@ -241,10 +247,10 @@ class ADPAlgorithm:
                     step_started,
                     state=state,
                 )
+                solve_time = time.perf_counter() - solve_started
                 timings["solve"] = (
                     timings.get("solve", 0.0)
-                    + time.perf_counter()
-                    - solve_started
+                    + solve_time
                 )
                 beta_prev = beta_new
                 state.beta = beta_prev
@@ -267,7 +273,7 @@ class ADPAlgorithm:
                             format_progress_postfix(record), refresh=True
                         )
 
-                if self._invoke(
+                should_stop = self._invoke(
                     "stop_rule",
                     "should_stop",
                     "outer",
@@ -277,7 +283,26 @@ class ADPAlgorithm:
                     beta=beta_prev,
                     outer=outer,
                     _outer=outer,
-                ):
+                )
+                if config.record_telemetry:
+                    outer_row, local_rows = self._build_outer_telemetry(
+                        statistics,
+                        beta_before_outer,
+                        beta_prev,
+                        intercepts,
+                        slopes,
+                        inner_history,
+                        outer=outer,
+                        n_observations=int(X_arr.shape[0]),
+                        iteration_started=step_started,
+                        bandwidth_update_time=bandwidth_update_time,
+                        optimization_time=solve_time,
+                        stage_timings_before=stage_timings_before,
+                        stage_calls_before=stage_calls_before,
+                    )
+                    outer_telemetry.append(outer_row)
+                    local_telemetry.extend(local_rows)
+                if should_stop:
                     break
         finally:
             if progress_bar is not None and hasattr(progress_bar, "close"):
@@ -325,6 +350,8 @@ class ADPAlgorithm:
         result.stage_names = dict(self.stage_names)
         result.stage_timings = dict(self.stage_timings)
         result.stage_calls = dict(self.stage_calls)
+        result.outer_telemetry = outer_telemetry
+        result.local_telemetry = local_telemetry
         return result
 
     def _alternating_solve(
@@ -360,7 +387,23 @@ class ADPAlgorithm:
         objective_interval = max(1, int(config.objective_check_every))
 
         for inner in range(max(1, config.inner_steps)):
+            inner_started = time.perf_counter()
             old_beta = beta.copy()
+            old_intercepts = intercepts.copy()
+            old_slopes = slopes.copy()
+            objective_before = None
+            if config.record_telemetry:
+                objective_before = float(
+                    model._objective(
+                        stats,
+                        old_beta,
+                        old_intercepts,
+                        old_slopes,
+                        prior,
+                        lambda_penalty,
+                    )
+                )
+            model._last_solver_telemetry = None
             if use_protected_adapters:
                 intercepts, slopes = model._solve_local_coefficients(stats, beta)
                 intercepts, slopes = self._validate_local_solution(
@@ -407,12 +450,28 @@ class ADPAlgorithm:
             norm = np.linalg.norm(beta)
             beta = beta / norm
             slopes = slopes * norm
+            objective_after = None
+            if config.record_telemetry:
+                objective_after = float(
+                    model._objective(
+                        stats,
+                        beta,
+                        intercepts,
+                        slopes,
+                        prior,
+                        lambda_penalty,
+                    )
+                )
 
             should_check_objective = inner == 0 or inner % objective_interval == 0
             objective_delta = math.inf
             if should_check_objective:
-                objective = model._objective(
-                    stats, beta, intercepts, slopes, prior, lambda_penalty
+                objective = (
+                    objective_after
+                    if objective_after is not None
+                    else model._objective(
+                        stats, beta, intercepts, slopes, prior, lambda_penalty
+                    )
                 )
                 objective_delta = abs(last_objective - objective)
                 last_objective = objective
@@ -424,6 +483,7 @@ class ADPAlgorithm:
                     np.linalg.norm(beta + old_beta),
                 )
             )
+            solver_telemetry = model._last_solver_telemetry or {}
             history.append(
                 TrainingStep(
                     outer=outer,
@@ -433,6 +493,39 @@ class ADPAlgorithm:
                     h=float(stats.h),
                     anisotropy=stats.anisotropy,
                     elapsed=time.perf_counter() - outer_started,
+                    objective_before=objective_before,
+                    objective_after=objective_after,
+                    pre_normalization_beta_norm=float(norm),
+                    gradient_norm=_optional_float(
+                        solver_telemetry.get("gradient_norm")
+                    ),
+                    linear_residual_norm=_optional_float(
+                        solver_telemetry.get("linear_residual_norm")
+                    ),
+                    relative_linear_residual=_optional_float(
+                        solver_telemetry.get("relative_linear_residual")
+                    ),
+                    linear_solver_iterations=_optional_int(
+                        solver_telemetry.get("linear_solver_iterations")
+                    ),
+                    linear_solver_status=_optional_str(
+                        solver_telemetry.get("linear_solver_status")
+                    ),
+                    intercept_change_mean=float(
+                        np.mean(np.abs(intercepts - old_intercepts))
+                    ),
+                    slope_change_mean=float(
+                        np.mean(np.abs(slopes - old_slopes))
+                    ),
+                    inner_iteration_time_sec=time.perf_counter() - inner_started,
+                    beta=beta.copy() if config.record_telemetry else None,
+                    solver_residual_trace=tuple(
+                        float(value)
+                        for value in solver_telemetry.get(
+                            "solver_residual_trace",
+                            (),
+                        )
+                    ),
                 )
             )
             state.beta = beta
@@ -463,6 +556,240 @@ class ADPAlgorithm:
                 )
             )
         return unit_vector(beta), intercepts, slopes, history
+
+    def _build_outer_telemetry(
+        self,
+        statistics: LocalStatistics,
+        beta_before: np.ndarray,
+        beta_after: np.ndarray,
+        intercepts: np.ndarray,
+        slopes: np.ndarray,
+        inner_history: list[TrainingStep],
+        *,
+        outer: int,
+        n_observations: int,
+        iteration_started: float,
+        bandwidth_update_time: float,
+        optimization_time: float,
+        stage_timings_before: dict[str, float],
+        stage_calls_before: dict[str, int],
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        iteration_time = time.perf_counter() - iteration_started
+        local_rows = self._build_local_telemetry(
+            statistics,
+            beta_after,
+            intercepts,
+            slopes,
+            outer=outer,
+            n_observations=n_observations,
+        )
+        masses = (
+            np.asarray(statistics.N, dtype=float)
+            if statistics.N is not None
+            else np.zeros(0, dtype=float)
+        )
+        sum_w2 = (
+            np.asarray(statistics.weight_sum2, dtype=float)
+            if statistics.weight_sum2 is not None
+            else np.zeros_like(masses)
+        )
+        ess = np.divide(
+            masses**2,
+            sum_w2,
+            out=np.zeros_like(masses),
+            where=sum_w2 > 0.0,
+        )
+        conditions = np.asarray(
+            [float(row["condition"]) for row in local_rows],
+            dtype=float,
+        )
+        singular_count = sum(bool(row["singular"]) for row in local_rows)
+        nonzero = (
+            np.asarray(statistics.weight_nonzero, dtype=int)
+            if statistics.weight_nonzero is not None
+            else np.zeros_like(masses, dtype=int)
+        )
+        objective_before = (
+            inner_history[0].objective_before if inner_history else None
+        )
+        objective_after = (
+            inner_history[-1].objective_after if inner_history else None
+        )
+        relative_objective_decrease = math.nan
+        if objective_before is not None and objective_after is not None:
+            relative_objective_decrease = (
+                float(objective_before) - float(objective_after)
+            ) / max(abs(float(objective_before)), float(np.finfo(float).eps))
+        beta_before_values = np.asarray(beta_before, dtype=float).reshape(-1)
+        beta_after_values = np.asarray(beta_after, dtype=float).reshape(-1)
+        beta_before_unit = beta_before_values / max(
+            float(np.linalg.norm(beta_before_values)),
+            float(np.finfo(float).eps),
+        )
+        beta_after_unit = beta_after_values / max(
+            float(np.linalg.norm(beta_after_values)),
+            float(np.finfo(float).eps),
+        )
+        adjacent_cosine = float(
+            np.clip(abs(beta_before_unit @ beta_after_unit), 0.0, 1.0)
+        )
+        distance_time = float(statistics.distance_time_sec)
+        weights_time = float(statistics.weights_time_sec)
+        statistics_time = float(statistics.statistics_time_sec)
+        service_overhead = max(
+            0.0,
+            iteration_time
+            - bandwidth_update_time
+            - distance_time
+            - weights_time
+            - statistics_time
+            - optimization_time,
+        )
+        return (
+            {
+                "outer": int(outer),
+                "h": float(statistics.h),
+                "anisotropy": statistics.anisotropy,
+                "beta": beta_after_values.copy(),
+                "beta_norm": float(np.linalg.norm(beta_after_values)),
+                "beta_delta": float(
+                    min(
+                        np.linalg.norm(beta_after_unit - beta_before_unit),
+                        np.linalg.norm(beta_after_unit + beta_before_unit),
+                    )
+                ),
+                "adjacent_angle_rad": float(math.acos(adjacent_cosine)),
+                "objective_before": objective_before,
+                "objective_after": objective_after,
+                "relative_objective_decrease": relative_objective_decrease,
+                "inner_iterations": len(inner_history),
+                "local_mass_mean": _array_stat(masses, np.mean),
+                "local_mass_min": _array_stat(masses, np.min),
+                "local_mass_q05": _array_quantile(masses, 0.05),
+                "local_mass_median": _array_quantile(masses, 0.5),
+                "local_mass_q95": _array_quantile(masses, 0.95),
+                "ess_mean": _array_stat(ess, np.mean),
+                "ess_min": _array_stat(ess, np.min),
+                "condition_median": _array_quantile(conditions, 0.5),
+                "condition_max": _array_stat(conditions, np.max),
+                "singular_centers": int(singular_count),
+                "zero_weight_fraction": (
+                    float(np.mean(nonzero == 0)) if nonzero.size else math.nan
+                ),
+                "bandwidth_update_time_sec": float(bandwidth_update_time),
+                "distance_time_sec": distance_time,
+                "weights_time_sec": weights_time,
+                "statistics_time_sec": statistics_time,
+                "optimization_time_sec": float(optimization_time),
+                "iteration_time_sec": float(iteration_time),
+                "service_overhead_sec": service_overhead,
+                "stage_timings": {
+                    category: float(
+                        elapsed - stage_timings_before.get(category, 0.0)
+                    )
+                    for category, elapsed in self.stage_timings.items()
+                },
+                "stage_calls": {
+                    category: int(calls - stage_calls_before.get(category, 0))
+                    for category, calls in self.stage_calls.items()
+                },
+            },
+            local_rows,
+        )
+
+    def _build_local_telemetry(
+        self,
+        statistics: LocalStatistics,
+        beta: np.ndarray,
+        intercepts: np.ndarray,
+        slopes: np.ndarray,
+        *,
+        outer: int,
+        n_observations: int,
+    ) -> list[dict[str, Any]]:
+        if statistics.S is None or statistics.U is None:
+            return []
+        s_values = np.asarray(statistics.S)
+        u_values = np.asarray(statistics.U)
+        responses = np.asarray(statistics.imav)
+        beta_values = np.asarray(beta).reshape(-1)
+        projected = u_values @ beta_values
+        masses = (
+            np.asarray(statistics.N, dtype=float)
+            if statistics.N is not None
+            else np.zeros(s_values.shape[0], dtype=float)
+        )
+        sum_w2 = (
+            np.asarray(statistics.weight_sum2, dtype=float)
+            if statistics.weight_sum2 is not None
+            else np.zeros_like(masses)
+        )
+        ess = np.divide(
+            masses**2,
+            sum_w2,
+            out=np.zeros_like(masses),
+            where=sum_w2 > 0.0,
+        )
+        nonzero = (
+            np.asarray(statistics.weight_nonzero, dtype=int)
+            if statistics.weight_nonzero is not None
+            else np.zeros_like(masses, dtype=int)
+        )
+        min_weight = _optional_vector(statistics.min_weight, masses.size)
+        max_weight = _optional_vector(statistics.max_weight, masses.size)
+        dtype = np.result_type(s_values.dtype, u_values.dtype, responses.dtype)
+        eps = float(np.finfo(dtype).eps)
+        regularization = float(self.context.config.ridge)
+        rows: list[dict[str, Any]] = []
+        for center_index in range(s_values.shape[0]):
+            s_row = s_values[center_index]
+            u_row = projected[center_index]
+            response = responses[center_index]
+            cross = float(np.dot(s_row, u_row))
+            system = np.array(
+                [
+                    [np.dot(s_row, s_row), cross],
+                    [cross, np.dot(u_row, u_row)],
+                ],
+                dtype=dtype,
+            )
+            eigenvalues = np.linalg.eigvalsh(system)
+            lambda_min = float(eigenvalues[0])
+            lambda_max = float(eigenvalues[-1])
+            threshold = 2.0 * eps * max(lambda_max, 1.0)
+            rank = int(np.count_nonzero(eigenvalues > threshold))
+            singular = bool(rank < 2 or lambda_min <= threshold)
+            condition = (
+                math.inf if singular else float(lambda_max / lambda_min)
+            )
+            fitted = (
+                float(intercepts[center_index]) * s_row
+                + float(slopes[center_index]) * u_row
+            )
+            rows.append(
+                {
+                    "outer": int(outer),
+                    "center": int(center_index),
+                    "local_mass": float(masses[center_index]),
+                    "ess": float(ess[center_index]),
+                    "nonzero_weights": int(nonzero[center_index]),
+                    "support_fraction": float(nonzero[center_index])
+                    / max(1, n_observations),
+                    "min_weight": float(min_weight[center_index]),
+                    "max_weight": float(max_weight[center_index]),
+                    "intercept": float(intercepts[center_index]),
+                    "slope": float(slopes[center_index]),
+                    "determinant": float(np.linalg.det(system)),
+                    "lambda_min": lambda_min,
+                    "lambda_max": lambda_max,
+                    "condition": condition,
+                    "rank": rank,
+                    "residual": float(np.linalg.norm(response - fitted)),
+                    "regularization": regularization,
+                    "singular": singular,
+                }
+            )
+        return rows
 
     def _invoke(
         self,
@@ -728,3 +1055,44 @@ class ADPAlgorithm:
             raise TypeError(
                 f"Фабрика {category!r} ({name!r}) вернула объект без методов: {methods}"
             )
+
+
+def _optional_float(value: Any) -> float | None:
+    return None if value is None else float(value)
+
+
+def _optional_int(value: Any) -> int | None:
+    return None if value is None else int(value)
+
+
+def _optional_str(value: Any) -> str | None:
+    return None if value is None else str(value)
+
+
+def _array_stat(values: np.ndarray, function: Any) -> float:
+    return float(function(values)) if values.size else math.nan
+
+
+def _array_quantile(values: np.ndarray, quantile: float) -> float:
+    if not values.size:
+        return math.nan
+    ordered = np.sort(np.asarray(values, dtype=float))
+    position = (ordered.size - 1) * float(quantile)
+    lower_index = math.floor(position)
+    upper_index = math.ceil(position)
+    lower = float(ordered[lower_index])
+    upper = float(ordered[upper_index])
+    if lower_index == upper_index or lower == upper:
+        return lower
+    if math.isinf(lower):
+        return lower
+    if math.isinf(upper):
+        return upper
+    fraction = position - lower_index
+    return lower + fraction * (upper - lower)
+
+
+def _optional_vector(values: np.ndarray | None, size: int) -> np.ndarray:
+    if values is None:
+        return np.full(size, math.nan, dtype=float)
+    return np.asarray(values, dtype=float)

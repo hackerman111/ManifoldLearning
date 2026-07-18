@@ -1,4 +1,5 @@
 from dataclasses import replace
+import math
 import sys
 from types import SimpleNamespace
 
@@ -804,3 +805,76 @@ def test_parallel_compact_statistics_bounds_submitted_centers(monkeypatch):
     )
 
     assert observed == {"max_workers": 2, "buffersize": 2}
+
+
+def test_opt_in_fit_telemetry_records_real_cg_and_local_diagnostics():
+    model = ADP.create(
+        "new",
+        ADPConfig(
+            n_centers=8,
+            n_directions=4,
+            min_neighbors=4,
+            outer_steps=1,
+            inner_steps=2,
+            tol=1e-12,
+            record_telemetry=True,
+            record_solver_trace=True,
+            random_state=71,
+            show_progress=False,
+        ),
+    )
+    data = model.generate_data(n=48, d=4, noise=0.05, link="quadratic")
+
+    result = model.fit(
+        data.X,
+        data.y,
+        beta0=np.array([0.2, -0.4, 0.7, 0.1]),
+    )
+
+    assert len(result.outer_telemetry) == 1
+    assert len(result.local_telemetry) == result.statistics.centers.shape[0]
+    assert result.outer_telemetry[0]["service_overhead_sec"] >= 0.0
+    assert not math.isnan(result.outer_telemetry[0]["condition_median"])
+    assert result.statistics.weight_sum2 is not None
+    assert result.statistics.weight_nonzero is not None
+    assert result.statistics.min_weight is not None
+    assert result.statistics.max_weight is not None
+    assert result.history
+    for step in result.history:
+        assert step.objective_before is not None
+        assert step.objective_after is not None
+        assert step.pre_normalization_beta_norm > 0.0
+        assert step.gradient_norm >= 0.0
+        assert step.linear_residual_norm >= 0.0
+        assert step.gradient_norm == 2.0 * step.linear_residual_norm
+        assert step.relative_linear_residual >= 0.0
+        assert step.linear_solver_iterations == len(step.solver_residual_trace)
+        assert step.linear_solver_status in {"converged", "max_iterations"}
+        assert step.inner_iteration_time_sec >= 0.0
+        assert step.beta is not None
+        assert np.linalg.norm(step.beta) == pytest.approx(1.0)
+        assert all(value >= 0.0 for value in step.solver_residual_trace)
+
+
+def test_disabled_fit_telemetry_keeps_optional_payloads_empty():
+    model = ADP.create(
+        "new",
+        ADPConfig(
+            n_centers=6,
+            n_directions=3,
+            outer_steps=1,
+            inner_steps=1,
+            random_state=73,
+            show_progress=False,
+        ),
+    )
+    data = model.generate_data(n=30, d=3, noise=0.01, link="linear")
+
+    result = model.fit(data.X, data.y, beta0=data.beta)
+
+    assert result.outer_telemetry == []
+    assert result.local_telemetry == []
+    assert result.statistics.weight_sum2 is None
+    assert result.statistics.weight_nonzero is None
+    assert result.statistics.min_weight is None
+    assert result.statistics.max_weight is None

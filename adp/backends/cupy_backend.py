@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import time
 from typing import Any
 
 import numpy as np
@@ -261,7 +262,8 @@ class CupyBackend:
         directions: np.ndarray,  # Направления блока C x P x d.
         q: np.ndarray,  # Значения квадратичной формы C x n.
         kernel: KernelName,  # Имя ядра.
-    ) -> tuple[Any, Any, Any, Any, Any]:
+        record_telemetry: bool = False,
+    ) -> tuple[Any, ...]:
         """Считает блочные суммы Ima, S, U на GPU без D2H до finalize."""
 
         x = self._gpu_array(X)
@@ -274,8 +276,23 @@ class CupyBackend:
         if xq.shape[1] != x.shape[0]:
             raise ValueError("q должен иметь форму C x n")
 
+        weights_started = time.perf_counter()
         weights = self.kernel(xq, kernel)
         counts_gpu = weights.sum(axis=1)
+        weight_payload = None
+        if record_telemetry:
+            weight_payload = {
+                "sum_w2": self.to_numpy((weights * weights).sum(axis=1)),
+                "nonzero": self.to_numpy((weights > 0.0).sum(axis=1)).astype(
+                    int,
+                    copy=False,
+                ),
+                "min_weight": self.to_numpy(weights.min(axis=1)),
+                "max_weight": self.to_numpy(weights.max(axis=1)),
+            }
+        weights_time = time.perf_counter() - weights_started
+
+        statistics_started = time.perf_counter()
         safe_counts = self.xp.maximum(counts_gpu, np.finfo(self.dtype).eps)
 
         xbar = (weights @ x) / safe_counts[:, None]
@@ -287,10 +304,18 @@ class CupyBackend:
         weighted_projected = projected * weights[:, :, None]
         u_raw = self.xp.matmul(self.xp.swapaxes(weighted_projected, 1, 2), x)
         u_mat = u_raw - s_vec[:, :, None] * xbar[:, None, :]
-        return (
+        result = (
             imav,
             s_vec,
             u_mat,
             counts_gpu,
             counts_gpu.mean(),
         )
+        if not record_telemetry:
+            return result
+        assert weight_payload is not None
+        weight_payload["weights_time_sec"] = weights_time
+        weight_payload["statistics_time_sec"] = (
+            time.perf_counter() - statistics_started
+        )
+        return (*result, weight_payload)

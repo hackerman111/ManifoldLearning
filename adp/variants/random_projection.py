@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import numpy as np
 from scipy.sparse.linalg import LinearOperator, cg
 
@@ -47,8 +49,24 @@ class RandomProjectionADP(ADPBase):
             directions,
         )
         accumulator = self.backend.create_statistics_accumulator(J, P, d)
+        distance_started = time.perf_counter()
         norm2_all = self._cached_pairwise_norm2(X, centers)
         proj2_all = self._cached_pairwise_projection2(X, centers, beta) if anisotropy is not None else None
+        distance_time = time.perf_counter() - distance_started
+        weight_sum2 = (
+            np.zeros(J, dtype=float) if self.config.record_telemetry else None
+        )
+        weight_nonzero = (
+            np.zeros(J, dtype=int) if self.config.record_telemetry else None
+        )
+        min_weight = (
+            np.zeros(J, dtype=float) if self.config.record_telemetry else None
+        )
+        max_weight = (
+            np.zeros(J, dtype=float) if self.config.record_telemetry else None
+        )
+        weights_time = 0.0
+        statistics_time = 0.0
 
         for start in range(0, J, self.config.chunk_size):
             stop = min(start + self.config.chunk_size, J)
@@ -57,27 +75,43 @@ class RandomProjectionADP(ADPBase):
             if anisotropy is not None and proj2_all is None:
                 raise RuntimeError("projection cache не подготовлен")
             proj2 = None if proj2_all is None else proj2_all[start:stop]
+            argument_started = time.perf_counter()
             q = self.backend.kernel_argument(
                 norm2,
                 h=h,
                 projection2=proj2,
                 anisotropy=anisotropy,
             )
+            distance_time += time.perf_counter() - argument_started
 
-            imav_chunk, s_chunk, u_chunk, n_chunk, weights_mean = self.backend.random_projection_sums(
+            chunk = self.backend.random_projection_sums(
                 X=X_backend,
                 y=y_backend,
                 centers=center_chunk,
                 directions=directions_backend[start:stop],
                 q=q,
                 kernel=self.config.kernel,
+                record_telemetry=self.config.record_telemetry,
             )
+            imav_chunk, s_chunk, u_chunk, n_chunk, weights_mean = chunk[:5]
             self.backend.accumulate_statistics(
                 accumulator,
                 start,
                 stop,
                 (imav_chunk, s_chunk, u_chunk, n_chunk, weights_mean),
             )
+            if self.config.record_telemetry:
+                block = chunk[5]
+                assert weight_sum2 is not None
+                assert weight_nonzero is not None
+                assert min_weight is not None
+                assert max_weight is not None
+                weight_sum2[start:stop] = block["sum_w2"]
+                weight_nonzero[start:stop] = block["nonzero"]
+                min_weight[start:stop] = block["min_weight"]
+                max_weight[start:stop] = block["max_weight"]
+                weights_time += float(block["weights_time_sec"])
+                statistics_time += float(block["statistics_time_sec"])
 
         imav, s_all, u_all, n_all, weights_mean = self.backend.finalize_statistics(accumulator)
 
@@ -95,6 +129,13 @@ class RandomProjectionADP(ADPBase):
             U=u_all,
             N=n_all,
             anisotropy=anisotropy,
+            weight_sum2=weight_sum2,
+            weight_nonzero=weight_nonzero,
+            min_weight=min_weight,
+            max_weight=max_weight,
+            distance_time_sec=distance_time if self.config.record_telemetry else 0.0,
+            weights_time_sec=weights_time,
+            statistics_time_sec=statistics_time,
         )
 
     def _compute_statistics(
@@ -194,6 +235,8 @@ class RandomProjectionADP(ADPBase):
 
         rhs = u_flat.T @ (slope_flat * residual_flat)
         rhs = rhs + float(lambda_penalty) * prior
+        rhs_norm = float(np.linalg.norm(rhs))
+        residual_scale = max(rhs_norm, float(np.finfo(float).eps))
         operator = LinearOperator((d, d), matvec=matvec, dtype=float)
         preconditioner = None
         if self.config.use_cg_preconditioner:
@@ -205,6 +248,17 @@ class RandomProjectionADP(ADPBase):
                 matvec=lambda vector: inverse_diagonal * vector,
                 dtype=float,
             )
+        iterations = 0
+        residual_trace: list[float] = []
+
+        def record_iteration(candidate: np.ndarray) -> None:
+            nonlocal iterations
+            iterations += 1
+            if self.config.record_solver_trace:
+                residual_trace.append(
+                    float(np.linalg.norm(matvec(candidate) - rhs)) / residual_scale
+                )
+
         beta, info = cg(
             operator,
             rhs,
@@ -213,9 +267,25 @@ class RandomProjectionADP(ADPBase):
             rtol=self.config.tol,
             atol=0.0,
             maxiter=max(50, min(500, 5 * d)),
+            callback=record_iteration,
         )
+        status = "converged" if info == 0 else "max_iterations"
+        if info < 0:
+            status = "breakdown"
         if info < 0 or not np.all(np.isfinite(beta)) or np.linalg.norm(beta) == 0:
-            return prior
+            beta = prior
+            if status != "breakdown":
+                status = "invalid_solution"
+        absolute_residual = float(np.linalg.norm(matvec(beta) - rhs))
+        self._last_solver_telemetry = {
+            "gradient_norm": 2.0 * absolute_residual,
+            "linear_residual_norm": absolute_residual,
+            "relative_linear_residual": absolute_residual / residual_scale,
+            "linear_solver_iterations": iterations,
+            "linear_solver_status": status,
+            "solver_residual_trace": tuple(residual_trace),
+            "scipy_info": int(info),
+        }
         return beta
 
     def _solve_beta(

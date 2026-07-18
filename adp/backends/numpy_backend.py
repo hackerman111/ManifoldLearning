@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -234,7 +235,8 @@ class NumpyBackend:
         directions: np.ndarray,  # Направления блока C x P x d.
         q: np.ndarray,  # Значения квадратичной формы C x n.
         kernel: KernelName,  # Имя ядра.
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
+        record_telemetry: bool = False,
+    ) -> tuple[Any, ...]:
         """Считает блочные суммы Ima, S, U для new-варианта.
 
         Вход:
@@ -258,8 +260,22 @@ class NumpyBackend:
         if xq.shape[1] != x.shape[0]:
             raise ValueError("q должен иметь форму C x n")
         if kernel in {"epanechnikov", "quartic"}:
-            return self._compact_random_projection_sums(x, xy, xdirs, xq, kernel)
-        return self._dense_random_projection_sums(x, xy, xdirs, xq, kernel)
+            return self._compact_random_projection_sums(
+                x,
+                xy,
+                xdirs,
+                xq,
+                kernel,
+                record_telemetry=record_telemetry,
+            )
+        return self._dense_random_projection_sums(
+            x,
+            xy,
+            xdirs,
+            xq,
+            kernel,
+            record_telemetry=record_telemetry,
+        )
 
     def _dense_random_projection_sums(
         self,
@@ -268,11 +284,28 @@ class NumpyBackend:
         xdirs: np.ndarray,  # Направления блока C x P x d.
         xq: np.ndarray,  # Значения квадратичной формы C x n.
         kernel: KernelName,  # Имя ядра.
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
+        *,
+        record_telemetry: bool = False,
+    ) -> tuple[Any, ...]:
         """Считает суммы плотным блочным путем для Gaussian kernel."""
 
+        weights_started = time.perf_counter()
         weights = self.kernel(xq, kernel)
         counts = self.to_numpy(weights.sum(axis=1))
+        weight_payload = None
+        if record_telemetry:
+            weight_payload = {
+                "sum_w2": self.to_numpy(np.square(weights).sum(axis=1)),
+                "nonzero": self.to_numpy((weights > 0.0).sum(axis=1)).astype(
+                    int,
+                    copy=False,
+                ),
+                "min_weight": self.to_numpy(weights.min(axis=1)),
+                "max_weight": self.to_numpy(weights.max(axis=1)),
+            }
+        weights_time = time.perf_counter() - weights_started
+
+        statistics_started = time.perf_counter()
         safe_counts = np.maximum(counts, np.finfo(float).eps)
 
         # centered_i = X_i - Xbar_j, где Xbar_j нормируется на N_j.
@@ -286,13 +319,21 @@ class NumpyBackend:
         projected *= weights[:, :, None]
         u_raw = np.matmul(np.swapaxes(projected, 1, 2), x)
         u_mat = u_raw - s_vec[:, :, None] * xbar[:, None, :]
-        return (
+        result = (
             self.to_numpy(imav),
             self.to_numpy(s_vec),
             self.to_numpy(u_mat),
             counts,
             float(counts.mean()),
         )
+        if not record_telemetry:
+            return result
+        assert weight_payload is not None
+        weight_payload["weights_time_sec"] = weights_time
+        weight_payload["statistics_time_sec"] = (
+            time.perf_counter() - statistics_started
+        )
+        return (*result, weight_payload)
 
     def _compact_random_projection_sums(
         self,
@@ -301,25 +342,46 @@ class NumpyBackend:
         xdirs: np.ndarray,
         xq: np.ndarray,
         kernel: KernelName,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
+        *,
+        record_telemetry: bool = False,
+    ) -> tuple[Any, ...]:
         """Computes compact-kernel sums with in-place projected weights."""
 
+        started = time.perf_counter()
         c_count, p_count, d = xdirs.shape
         imav = np.zeros((c_count, p_count), dtype=self.dtype)
         s_vec = np.zeros((c_count, p_count), dtype=self.dtype)
         u_mat = np.zeros((c_count, p_count, d), dtype=self.dtype)
         counts = np.zeros(c_count, dtype=self.dtype)
+        sum_w2 = np.zeros(c_count, dtype=self.dtype)
+        nonzero = np.zeros(c_count, dtype=int)
+        min_weight = np.zeros(c_count, dtype=self.dtype)
+        max_weight = np.zeros(c_count, dtype=self.dtype)
+        weight_durations = np.zeros(c_count, dtype=float)
         tiny = np.finfo(self.dtype).eps
 
         def compute_center(center_index: int) -> None:
             active = xq[center_index] < 1.0
             if not np.any(active):
                 return
+            weights_started = time.perf_counter()
             weights = self.kernel(xq[center_index, active], kernel).astype(
                 self.dtype,
                 copy=False,
             )
             count = weights.sum(dtype=self.dtype)
+            if record_telemetry:
+                sum_w2[center_index] = np.square(weights).sum(dtype=self.dtype)
+                nonzero[center_index] = int(np.count_nonzero(weights))
+                min_weight[center_index] = (
+                    self.dtype(0.0)
+                    if np.count_nonzero(active) < x.shape[0]
+                    else weights.min()
+                )
+                max_weight[center_index] = weights.max()
+                weight_durations[center_index] = (
+                    time.perf_counter() - weights_started
+                )
             counts[center_index] = count
             safe_count = max(float(count), float(tiny))
             x_active = x[active]
@@ -351,10 +413,25 @@ class NumpyBackend:
             for center_index in range(c_count):
                 compute_center(center_index)
 
-        return (
+        result = (
             self.to_numpy(imav),
             self.to_numpy(s_vec),
             self.to_numpy(u_mat),
             self.to_numpy(counts),
             float(counts.mean()),
+        )
+        if not record_telemetry:
+            return result
+        total_time = time.perf_counter() - started
+        weights_time = min(float(weight_durations.sum()), total_time)
+        return (
+            *result,
+            {
+                "sum_w2": self.to_numpy(sum_w2),
+                "nonzero": self.to_numpy(nonzero).astype(int, copy=False),
+                "min_weight": self.to_numpy(min_weight),
+                "max_weight": self.to_numpy(max_weight),
+                "weights_time_sec": weights_time,
+                "statistics_time_sec": max(0.0, total_time - weights_time),
+            },
         )
