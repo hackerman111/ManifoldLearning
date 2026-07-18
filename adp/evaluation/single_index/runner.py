@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import math
 import os
 import sys
-import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from collections import Counter
+from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -13,9 +12,6 @@ import numpy as np
 from tqdm.auto import tqdm
 
 from ...common.experiment_log import configuration_fingerprint, stable_run_id
-from ...common.resource_monitor import ResourceMonitor
-from .baselines import BaselineUnavailable
-from .datasets import DatasetUnavailable
 from .executors import execute_job
 from .reports import write_single_index_reports
 from .scenarios import full_parameter_grid, smoke_parameter_grid
@@ -23,10 +19,17 @@ from .storage import SingleIndexSeriesStore
 from .types import (
     EXPERIMENT_SELECTORS,
     ExperimentParameters,
-    RunOutcome,
     SeedBundle,
     SingleIndexJob,
     SingleIndexSeriesConfig,
+)
+
+
+_THREAD_LIMIT_VARIABLES = (
+    "OMP_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
 )
 
 
@@ -105,280 +108,235 @@ def run_single_index_benchmark(
     output_root: str | Path,
     *,
     resume: str | Path | None = None,
+    dry_run: bool = False,
+    reports_only: bool = False,
 ) -> Mapping[str, Path]:
-    """Run or resume a normalized, crash-safe single-index benchmark series."""
+    """Run, resume, inspect, or rerender one benchmark series."""
+
+    if dry_run and reports_only:
+        raise ValueError("dry-run and reports-only are mutually exclusive")
+    if reports_only and resume is None:
+        raise ValueError("reports-only requires a resume series")
 
     jobs = build_single_index_jobs(config)
+    if dry_run:
+        _print_dry_run(jobs)
+        return {}
+
     store = (
         SingleIndexSeriesStore.resume(Path(resume), config)
         if resume is not None
         else SingleIndexSeriesStore.create(Path(output_root), config, jobs)
     )
     pending = list(store.pending_jobs(jobs))
+    if reports_only:
+        saved = dict(store.finalize(status=_series_status(store, jobs)))
+        write_single_index_reports(store.series_dir)
+        return saved
+
     total = len(pending)
     completed = 0
-
     with tqdm(
         total=total,
         desc="single-index",
-        unit="job",
+        unit="fit",
         dynamic_ncols=True,
     ) as progress:
-        if config.jobs == 1:
+        process_jobs = _resolve_process_jobs(config.jobs)
+        if process_jobs == 1:
             completed = _run_serial(
                 store,
                 pending,
                 config,
-                completed,
-                total,
-                progress,
+                completed=completed,
+                total=total,
+                progress=progress,
             )
         elif pending:
-            _limit_worker_threads()
-            try:
-                with ProcessPoolExecutor(max_workers=config.jobs) as pool:
-                    futures = {
-                        pool.submit(_execute_and_persist, store, job, config): job
-                        for job in pending
-                    }
-                    for future in as_completed(futures):
-                        job = futures[future]
-                        future.result()
-                        completed = _mark_job_done(
-                            progress,
-                            completed,
-                            total,
-                            job,
-                        )
-            except OSError as exc:
-                print(
-                    f"parallel fallback: {type(exc).__name__}: {exc}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                remaining = list(store.pending_jobs(jobs))
-                completed = total - len(remaining)
-                if progress.n < completed:
-                    progress.update(completed - progress.n)
-                completed = _run_serial(
-                    store,
-                    remaining,
-                    config,
-                    completed,
-                    total,
-                    progress,
-                )
+            completed = _run_parallel(
+                store,
+                pending,
+                config,
+                process_jobs=process_jobs,
+                completed=completed,
+                total=total,
+                progress=progress,
+            )
 
-    statuses = store._committed_statuses()
-    final_status = (
-        "complete"
-        if jobs and all(statuses.get(job.run_id) == "success" for job in jobs)
-        else "partial"
-    )
-    saved = dict(store.finalize(status=final_status))
-    reports = write_single_index_reports(
-        store.series_dir,
-        random_state=config.base_seed,
-    )
-    return {**saved, **reports}
+    saved = dict(store.finalize(status=_series_status(store, jobs)))
+    write_single_index_reports(store.series_dir)
+    return saved
 
 
 def _run_serial(
     store: SingleIndexSeriesStore,
     jobs: Sequence[SingleIndexJob],
     config: SingleIndexSeriesConfig,
+    *,
     completed: int,
     total: int,
     progress: Any,
 ) -> int:
+    _limit_worker_threads()
     for job in jobs:
-        _execute_and_persist(store, job, config)
-        completed = _mark_job_done(progress, completed, total, job)
+        outcome = execute_job(job, config)
+        store.commit(outcome)
+        completed = _mark_job_done(
+            store,
+            progress,
+            completed,
+            total,
+            job,
+            str(outcome.run_row["status"]),
+        )
     return completed
+
+
+def _run_parallel(
+    store: SingleIndexSeriesStore,
+    jobs: Sequence[SingleIndexJob],
+    config: SingleIndexSeriesConfig,
+    *,
+    process_jobs: int,
+    completed: int,
+    total: int,
+    progress: Any,
+) -> int:
+    _limit_worker_threads()
+    pool: ProcessPoolExecutor | None = None
+    futures: dict[Future[tuple[str, str]], SingleIndexJob] = {}
+    try:
+        pool = ProcessPoolExecutor(
+            max_workers=process_jobs,
+            initializer=_initialize_worker,
+        )
+        for job in jobs:
+            future = pool.submit(
+                _execute_and_commit,
+                store.series_dir,
+                job,
+                config,
+            )
+            futures[future] = job
+    except OSError as exc:
+        if pool is not None:
+            pool.shutdown(wait=True, cancel_futures=True)
+        print(
+            f"parallel fallback: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+        remaining = list(store.pending_jobs(jobs))
+        return _run_serial(
+            store,
+            remaining,
+            config,
+            completed=total - len(remaining),
+            total=total,
+            progress=progress,
+        )
+
+    assert pool is not None
+    try:
+        for future in as_completed(futures):
+            job = futures[future]
+            run_id, status = future.result()
+            if run_id != job.run_id:
+                raise RuntimeError(
+                    f"worker returned run_id {run_id!r}, expected {job.run_id!r}"
+                )
+            completed = _mark_job_done(
+                store,
+                progress,
+                completed,
+                total,
+                job,
+                status,
+            )
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
+    return completed
+
+
+def _execute_and_commit(
+    series_dir: Path,
+    job: SingleIndexJob,
+    config: SingleIndexSeriesConfig,
+) -> tuple[str, str]:
+    store = SingleIndexSeriesStore.resume(series_dir, config)
+    outcome = execute_job(job, config)
+    store.commit(outcome)
+    status = str(outcome.run_row["status"])
+    if job.run_id not in store.completed_run_ids():
+        raise RuntimeError(f"commit marker was not published for {job.run_id}")
+    return job.run_id, status
 
 
 def _mark_job_done(
+    store: SingleIndexSeriesStore,
     progress: Any,
     completed: int,
     total: int,
     job: SingleIndexJob,
+    status: str,
 ) -> int:
+    if job.run_id not in store.completed_run_ids():
+        raise RuntimeError(f"progress advanced before commit marker for {job.run_id}")
     completed += 1
     progress.set_postfix(
-        {"scenario": job.scenario.scenario_id, "method": job.method},
+        {
+            "experiment": job.experiment,
+            "seed": job.seed,
+            "status": status,
+        },
         refresh=True,
     )
     progress.update(1)
-    _log_progress(completed, total, job)
-    return completed
-
-
-def _execute_and_persist(
-    store: SingleIndexSeriesStore,
-    job: SingleIndexJob,
-    config: SingleIndexSeriesConfig,
-) -> None:
-    outcome: RunOutcome | None = None
-    status = "success"
-    error = ""
-    stage = "execute"
-    persist_started = time.perf_counter()
-    full_monitor = ResourceMonitor()
-
-    with full_monitor:
-        try:
-            outcome = execute_job(job, config)
-            stage = "persist"
-            persist_started = time.perf_counter()
-            iteration_rows = outcome.iterations or (_summary_iteration(outcome),)
-            store.append_worker_rows(
-                "iterations",
-                (_iteration_row(job, row) for row in iteration_rows),
-            )
-            store.append_worker_rows(
-                "solver_iterations",
-                (_solver_iteration_row(job, row) for row in outcome.solver_iterations),
-            )
-        except (BaselineUnavailable, DatasetUnavailable) as exc:
-            status = "unavailable"
-            error = f"{type(exc).__name__}: {exc}"
-            persist_started = time.perf_counter()
-            _append_failure(store, job, status, exc, stage)
-        except Exception as exc:
-            status = "failed"
-            error = f"{type(exc).__name__}: {exc}"
-            persist_started = time.perf_counter()
-            _append_failure(store, job, status, exc, stage)
-
-    metrics = outcome.metrics if outcome is not None and status == "success" else {}
-    algorithm_usage = _resource_defaults("algorithm")
-    if outcome is not None:
-        algorithm_usage.update(outcome.algorithm_usage)
-    full_usage = full_monitor.usage.to_dict("full_run")
-    persist_time = max(time.perf_counter() - persist_started, np.finfo(float).eps)
-    run_row: dict[str, Any] = {
-        "run_id": job.run_id,
-        "scenario_id": job.scenario.scenario_id,
-        "family": job.scenario.family,
-        "executor": job.scenario.executor,
-        "method": job.method,
-        "repeat": job.repeat,
-        "data_seed": job.seeds.data,
-        "beta_seed": job.seeds.beta,
-        "centers_seed": job.seeds.centers,
-        "directions_seed": job.seeds.directions,
-        "init_seed": job.seeds.init,
-        "status": status,
-        "failed": status == "failed",
-        "error": error,
-        "stage": stage,
-        "stop_reason": outcome.stop_reason if outcome is not None else status,
-        "iteration_rows": len(outcome.iterations or ((),)) if outcome is not None else 0,
-        "solver_iteration_rows": len(outcome.solver_iterations) if outcome is not None else 0,
-        "result_persist_time_sec": persist_time,
-        "cosine": metrics.get("cosine", math.nan),
-        "cosine_abs": metrics.get("cosine_abs", math.nan),
-        "angle_deg": metrics.get("angle_deg", math.nan),
-        "signed_l2": metrics.get("signed_l2", math.nan),
-        "objective": metrics.get("objective", math.nan),
-        "dataset_source": metrics.get("dataset_source", ""),
-        "dataset_path": metrics.get("dataset_path", ""),
-        "dataset_size_bytes": metrics.get("dataset_size_bytes", math.nan),
-        "dataset_sha256": metrics.get("dataset_sha256", ""),
-        "dataset_rows": metrics.get("dataset_rows", math.nan),
-        "dataset_features": metrics.get("dataset_features", math.nan),
-        **algorithm_usage,
-        **full_usage,
-    }
-    # The run row is the commit marker and must be the final write for this job.
-    store.append_worker_rows("runs", (run_row,))
-
-
-def _summary_iteration(outcome: RunOutcome) -> dict[str, Any]:
-    return {
-        "outer_k": -1,
-        "objective": outcome.metrics.get("objective", math.nan),
-        "cosine_abs": outcome.metrics.get("cosine_abs", math.nan),
-        "runtime_sec": outcome.algorithm_usage.get("algorithm_time_sec", math.nan),
-    }
-
-
-def _iteration_row(job: SingleIndexJob, row: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        "run_id": job.run_id,
-        "scenario_id": job.scenario.scenario_id,
-        "method": job.method,
-        **row,
-    }
-
-
-def _solver_iteration_row(
-    job: SingleIndexJob,
-    row: Mapping[str, Any],
-) -> dict[str, Any]:
-    return {
-        "run_id": job.run_id,
-        "scenario_id": job.scenario.scenario_id,
-        "method": job.method,
-        **row,
-    }
-
-
-def _append_failure(
-    store: SingleIndexSeriesStore,
-    job: SingleIndexJob,
-    status: str,
-    exc: Exception,
-    stage: str,
-) -> None:
-    store.append_worker_rows(
-        "failures",
-        (
-            {
-                "run_id": job.run_id,
-                "scenario_id": job.scenario.scenario_id,
-                "method": job.method,
-                "status": status,
-                "category": "optional_dependency" if status == "unavailable" else "runtime",
-                "exception_type": type(exc).__name__,
-                "error": f"{type(exc).__name__}: {exc}",
-                "stage": stage,
-                "last_outer_k": -1,
-                "last_inner_k": -1,
-            },
-        ),
-    )
-
-
-def _resource_defaults(prefix: str) -> dict[str, Any]:
-    return {
-        f"{prefix}_time_sec": math.nan,
-        f"{prefix}_rss_start_mib": math.nan,
-        f"{prefix}_rss_min_mib": math.nan,
-        f"{prefix}_rss_mean_mib": math.nan,
-        f"{prefix}_rss_max_mib": math.nan,
-        f"{prefix}_rss_peak_delta_mib": math.nan,
-        f"{prefix}_memory_samples": 0,
-        f"{prefix}_memory_source": "unavailable",
-    }
-
-
-def _limit_worker_threads() -> None:
-    for variable in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
-        os.environ[variable] = "1"
-
-
-def _log_progress(
-    completed: int,
-    total: int,
-    job: SingleIndexJob,
-) -> None:
     print(
-        f"{completed}/{total} scenario={job.scenario.scenario_id} "
-        f"method={job.method} seed={job.seeds.data}",
+        f"{completed}/{total} experiment={job.experiment} "
+        f"seed={job.seed} status={status}",
         file=sys.stderr,
         flush=True,
     )
+    return completed
 
 
-__all__ = ["build_single_index_jobs", "run_single_index_benchmark"]
+def _series_status(
+    store: SingleIndexSeriesStore,
+    jobs: Sequence[SingleIndexJob],
+) -> str:
+    completed = store.completed_run_ids()
+    return (
+        "complete"
+        if all(job.run_id in completed for job in jobs)
+        else "partial"
+    )
+
+
+def _resolve_process_jobs(value: int | str) -> int:
+    if value == "auto":
+        return max(1, os.cpu_count() or 1)
+    return int(value)
+
+
+def _initialize_worker() -> None:
+    _limit_worker_threads()
+
+
+def _limit_worker_threads() -> None:
+    for variable in _THREAD_LIMIT_VARIABLES:
+        os.environ[variable] = "1"
+
+
+def _print_dry_run(jobs: Sequence[SingleIndexJob]) -> None:
+    counts = Counter(job.experiment for job in jobs)
+    for experiment in EXPERIMENT_SELECTORS:
+        if counts[experiment]:
+            print(f"{experiment}: {counts[experiment]}")
+    print(f"total: {len(jobs)}")
+
+
+__all__ = [
+    "build_single_index_jobs",
+    "run_single_index_benchmark",
+]

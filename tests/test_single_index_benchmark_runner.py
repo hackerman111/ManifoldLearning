@@ -1,8 +1,15 @@
 from collections import Counter
 from dataclasses import replace
+import os
+
+import pandas as pd
 
 import adp.evaluation.single_index.runner as single_index_runner
-from adp.evaluation.single_index.runner import build_single_index_jobs
+from adp.evaluation.single_index.runner import (
+    _initialize_worker,
+    build_single_index_jobs,
+    run_single_index_benchmark,
+)
 from adp.evaluation.single_index.scenarios import EXPERIMENT_COUNTS
 from adp.evaluation.single_index.types import (
     ExperimentParameters,
@@ -131,3 +138,53 @@ def test_smoke_and_max_runs_are_deterministic_post_expansion_limits():
     assert len(smoke) == 11
     assert limited == smoke[:3]
     assert {job.seed for job in smoke} == {0}
+
+
+def test_worker_initializer_caps_every_supported_runtime(monkeypatch):
+    variables = (
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+    )
+    for name in variables:
+        monkeypatch.delenv(name, raising=False)
+
+    _initialize_worker()
+
+    for name in variables:
+        assert os.environ[name] == "1"
+
+
+def test_parallel_runner_commits_one_normalized_outcome_per_fit(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        single_index_runner,
+        "write_single_index_reports",
+        lambda series_dir: pd.DataFrame(),
+    )
+    config = SingleIndexSeriesConfig(
+        profile="smoke",
+        experiments=("1", "3"),
+        jobs=2,
+        seeds=(0,),
+        diagnostic_seeds=(0,),
+        center_fraction=0.25,
+        max_runs=2,
+    )
+
+    saved = run_single_index_benchmark(config, tmp_path)
+
+    runs = pd.read_csv(saved["run_summary"])
+    assert len(runs) == 2
+    assert set(runs["run_id"]) == {
+        job.run_id for job in build_single_index_jobs(config)
+    }
+    assert set(runs["statistics_workers"]) == {1}
+    assert set(runs["status"]) <= {
+        "success",
+        "nonconverged",
+        "numerical_failure",
+    }

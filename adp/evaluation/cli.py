@@ -12,6 +12,8 @@ from .scenarios import BenchmarkMethod, default_scenarios, grid_scenarios
 from .single_index import (
     PROFILE_IDS,
     SingleIndexSeriesConfig,
+    parse_experiment_selectors,
+    parse_seed_selection,
     run_single_index_benchmark,
 )
 
@@ -93,23 +95,37 @@ def build_single_index_parser() -> argparse.ArgumentParser:
         help="Scenario profile (default: smoke).",
     )
     parser.add_argument(
+        "--experiments",
+        default="all",
+        help="Comma-separated selectors or 'all' (default: all).",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=Path("benchmark_outputs/single_index"),
         help="Root directory for a new series.",
     )
-    parser.add_argument("--seed", type=int, default=0, help="Base random seed.")
     parser.add_argument(
         "--jobs",
-        type=positive_int,
-        default=1,
-        help="Process workers (default: 1).",
+        type=process_jobs,
+        default="auto",
+        help="Independent worker processes: auto or a positive integer.",
     )
     parser.add_argument(
-        "--statistics-workers",
-        type=positive_int,
-        default=1,
-        help="NumPy statistics workers inside one ADP fit (default: safe serial 1).",
+        "--seeds",
+        default=None,
+        help="Inclusive START:STOP range or comma-separated seed list.",
+    )
+    parser.add_argument(
+        "--diagnostic-seeds",
+        default="0,1,2",
+        help="Seeds retaining local and linear-solver traces.",
+    )
+    parser.add_argument(
+        "--center-fraction",
+        type=center_fraction,
+        default=1.0,
+        help="Explicit J/n override in (0, 1] (default: 1).",
     )
     parser.add_argument(
         "--resume",
@@ -123,31 +139,72 @@ def build_single_index_parser() -> argparse.ArgumentParser:
         help="Replace and rerun failed commit markers.",
     )
     parser.add_argument(
-        "--max-scenarios",
+        "--dry-run",
+        action="store_true",
+        help="Validate and print deterministic job counts without writing files.",
+    )
+    parser.add_argument(
+        "--reports-only",
+        action="store_true",
+        help="Regenerate reports from a resumed series without executing fits.",
+    )
+    parser.add_argument(
+        "--max-runs",
         type=positive_int,
         default=None,
-        help="Limit the selected profile after registry expansion.",
+        help="Deterministic post-expansion development limit.",
     )
     return parser
 
 
 def run_single_index_command(argv: list[str] | None = None) -> int:
-    args = build_single_index_parser().parse_args(argv)
+    parser = build_single_index_parser()
+    args = parser.parse_args(argv)
+    if args.reports_only and args.resume is None:
+        parser.error("--reports-only requires --resume")
+    if args.retry_failed and args.resume is None:
+        parser.error("--retry-failed requires --resume")
+    if args.dry_run and args.resume is not None:
+        parser.error("--dry-run cannot be combined with --resume")
+    if args.dry_run and args.reports_only:
+        parser.error("--dry-run cannot be combined with --reports-only")
+    if args.reports_only and args.retry_failed:
+        parser.error("--reports-only cannot be combined with --retry-failed")
+    try:
+        experiments = parse_experiment_selectors(args.experiments)
+        seeds = None if args.seeds is None else parse_seed_selection(args.seeds)
+        diagnostic_seeds = parse_seed_selection(args.diagnostic_seeds)
+    except ValueError as exc:
+        parser.error(str(exc))
     config = SingleIndexSeriesConfig(
         profile=args.profile,
-        base_seed=args.seed,
+        experiments=experiments,
         jobs=args.jobs,
-        statistics_workers=args.statistics_workers,
+        seeds=seeds,
+        diagnostic_seeds=diagnostic_seeds,
+        center_fraction=args.center_fraction,
         retry_failed=args.retry_failed,
-        max_scenarios=args.max_scenarios,
+        max_runs=args.max_runs,
     )
     saved = run_single_index_benchmark(
         config,
         args.output,
         resume=args.resume,
+        dry_run=args.dry_run,
+        reports_only=args.reports_only,
     )
+    if args.dry_run:
+        return 0
     print(f"series: {saved['series'].parent}")
-    for name in ("runs", "iterations", "summary", "failures", "artifacts"):
+    for name in (
+        "run_summary",
+        "outer_iterations",
+        "inner_iterations",
+        "local_diagnostics",
+        "solver_iterations",
+        "series",
+        "artifacts",
+    ):
         print(f"{name}: {saved[name]}")
     return 0
 
@@ -230,4 +287,20 @@ def positive_int(value: str) -> int:
         raise argparse.ArgumentTypeError("expected a positive integer") from exc
     if parsed < 1:
         raise argparse.ArgumentTypeError("expected a positive integer")
+    return parsed
+
+
+def process_jobs(value: str) -> int | str:
+    if value == "auto":
+        return value
+    return positive_int(value)
+
+
+def center_fraction(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected a number in (0, 1]") from exc
+    if not 0.0 < parsed <= 1.0:
+        raise argparse.ArgumentTypeError("expected a number in (0, 1]")
     return parsed

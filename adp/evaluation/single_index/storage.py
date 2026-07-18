@@ -132,7 +132,6 @@ class SingleIndexSeriesStore:
             requested_jobs=int(float(str(row.get("requested_jobs", 0)))),
         )
         store.shard_dir.mkdir(exist_ok=True)
-        store._discard_pending_files()
         return store
 
     def completed_run_ids(self) -> set[str]:

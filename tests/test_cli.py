@@ -27,33 +27,36 @@ def test_single_index_help_exposes_series_controls_without_d_series():
 
     for option in (
         "--profile",
+        "--experiments",
         "--jobs",
-        "--statistics-workers",
+        "--seeds",
+        "--diagnostic-seeds",
+        "--center-fraction",
         "--resume",
         "--retry-failed",
-        "--max-scenarios",
+        "--dry-run",
+        "--reports-only",
+        "--max-runs",
     ):
         assert option in result.stdout
+    assert "--statistics-workers" not in result.stdout
+    assert "--base-seed" not in result.stdout
+    assert "--max-scenarios" not in result.stdout
     assert "--data-dir" not in result.stdout
     assert "--allow-download" not in result.stdout
     assert "D01" not in result.stdout
     assert "adp_D1_data" not in result.stdout
 
 
-def test_cli_runs_single_index_smoke_and_writes_only_csv_and_png(tmp_path):
+def test_full_dry_run_reports_24000_without_fitting_or_writing(tmp_path):
     result = subprocess.run(
         [
             sys.executable,
             "run_benchmarks.py",
             "single-index",
             "--profile",
-            "smoke",
-            "--jobs",
-            "1",
-            "--statistics-workers",
-            "1",
-            "--max-scenarios",
-            "1",
+            "full",
+            "--dry-run",
             "--output",
             str(tmp_path),
         ],
@@ -62,22 +65,8 @@ def test_cli_runs_single_index_smoke_and_writes_only_csv_and_png(tmp_path):
         text=True,
     )
 
-    series_dirs = [path for path in tmp_path.iterdir() if path.is_dir()]
-    assert len(series_dirs) == 1
-    series_dir = series_dirs[0]
-    for name in (
-        "single_index_series.csv",
-        "single_index_runs.csv",
-        "single_index_iterations.csv",
-        "single_index_initial_parameters.csv",
-        "single_index_summary.csv",
-        "single_index_artifacts.csv",
-    ):
-        assert (series_dir / name).exists()
-    assert not list(series_dir.rglob("*.json"))
-    assert "series:" in result.stdout
-    assert "not a writable directory" not in result.stderr
-    assert "findfont:" not in result.stderr
+    assert "total: 24000" in result.stdout
+    assert not list(tmp_path.iterdir())
 
 
 def test_single_index_cli_rejects_nonpositive_parallelism():
@@ -89,6 +78,17 @@ def test_single_index_cli_rejects_nonpositive_parallelism():
 
     assert result.returncode == 2
     assert "positive integer" in result.stderr
+
+
+def test_single_index_cli_requires_resume_for_reports_only():
+    result = subprocess.run(
+        [sys.executable, "run_benchmarks.py", "single-index", "--reports-only"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "--reports-only requires --resume" in result.stderr
 
 
 def test_cli_runs_stress_dry_run_from_main_entrypoint(tmp_path):
