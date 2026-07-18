@@ -11,10 +11,8 @@ from .scenarios import (
 )
 from .runner import build_single_index_jobs, run_single_index_benchmark
 from .reports import (
-    build_single_index_summary,
-    fit_scaling_exponents,
-    paired_method_differences,
-    select_worst_five,
+    add_report_metrics,
+    prepare_quantile_band,
     write_single_index_reports,
 )
 from .storage import SingleIndexSeriesStore
@@ -36,15 +34,13 @@ __all__ = [
     "SingleIndexJob",
     "SingleIndexSeriesConfig",
     "SingleIndexSeriesStore",
+    "add_report_metrics",
     "build_single_index_jobs",
-    "build_single_index_summary",
-    "fit_scaling_exponents",
     "full_parameter_grid",
-    "paired_method_differences",
     "parse_experiment_selectors",
     "parse_seed_selection",
+    "prepare_quantile_band",
     "run_single_index_benchmark",
-    "select_worst_five",
     "smoke_parameter_grid",
     "write_single_index_reports",
 ]

@@ -5,7 +5,6 @@ from . import stress
 from .single_index import (
     SingleIndexSeriesConfig,
     build_single_index_jobs,
-    build_single_index_summary,
     run_single_index_benchmark,
     write_single_index_reports,
 )
@@ -20,7 +19,6 @@ __all__ = [
     "save_benchmark_report",
     "SingleIndexSeriesConfig",
     "build_single_index_jobs",
-    "build_single_index_summary",
     "run_single_index_benchmark",
     "stress",
     "write_single_index_reports",

@@ -1,659 +1,1009 @@
 from __future__ import annotations
 
-import csv
-import hashlib
-import math
 import os
-from collections.abc import Callable, Mapping, Sequence
+import uuid
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 
 from ...common.experiment_log import SCHEMA_VERSION
-from ...common.plotting import (
-    apply_adp_axis_style,
-    ensure_matplotlib_config_dir,
-    save_figure,
-    set_adp_figure_size,
+from ...common.plotting import ensure_matplotlib_config_dir
+from .plots import (
+    boxplot,
+    grouped_line,
+    heatmap,
+    line_with_quantile_band,
+    scatter,
+    stacked_runtime,
 )
-from .schema import ARTIFACT_COLUMNS
+from .schema import ARTIFACT_COLUMNS, PUBLIC_TABLE_COLUMNS
+from .types import EXPERIMENT_SELECTORS
 
 
-SUMMARY_METRICS = (
-    "cosine_abs",
-    "angle_deg",
-    "signed_l2",
-    "objective",
-    "result_persist_time_sec",
-    "algorithm_time_sec",
-    "algorithm_rss_min_mib",
-    "algorithm_rss_mean_mib",
-    "algorithm_rss_max_mib",
-    "algorithm_rss_peak_delta_mib",
-    "full_run_time_sec",
-    "full_run_rss_min_mib",
-    "full_run_rss_mean_mib",
-    "full_run_rss_max_mib",
-    "full_run_rss_peak_delta_mib",
-)
+PlotKind = Literal[
+    "quantile",
+    "median_line",
+    "mean_line",
+    "box",
+    "scatter",
+    "heatmap",
+    "stacked",
+]
 
-RUN_REPORT_COLUMNS = (
-    "schema_version",
-    "series_id",
-    "run_id",
-    "scenario_id",
-    "family",
-    "method",
-    "repeat",
-    "data_seed",
-    "status",
-    "failed",
-    "dataset_source",
-    "dataset_path",
-    "dataset_size_bytes",
-    "dataset_sha256",
-    "dataset_rows",
-    "dataset_features",
-    *SUMMARY_METRICS,
-)
 
-PARAMETER_REPORT_COLUMNS = (
-    "run_id",
-    "data_n",
-    "data_d",
-    "data_link",
-    "data_noise",
-    "data_corr",
-    "data_sigma_x",
-    "algorithm_n_centers",
-    "algorithm_n_directions",
-    "algorithm_min_neighbors",
-    "solver_outer_steps",
-    "solver_inner_steps",
+@dataclass(frozen=True, slots=True)
+class PlotSpec:
+    filename: str
+    selectors: tuple[str, ...]
+    table: str
+    kind: PlotKind
+    x: str
+    y: str
+    title: str
+    xlabel: str
+    ylabel: str
+    groups: tuple[str, ...] = ()
+    value: str | None = None
+    components: tuple[str, ...] = ()
+    diagnostic: bool = False
+    log_x: bool = False
+    log_y: bool = False
+
+
+_DIAGNOSTIC_SELECTOR = ("1",)
+_RUNTIME_COMPONENTS = (
+    "distance_time_sec",
+    "weights_time_sec",
+    "statistics_time_sec",
+    "optimization_time_sec",
+    "bandwidth_update_time_sec",
+    "service_overhead_sec",
 )
 
-ITERATION_REPORT_COLUMNS = (
-    "run_id",
-    "scenario_id",
-    "method",
-    "outer_k",
-    "h_k",
-    "rho_k",
-    "local_mass_mean",
-    "local_mass_q05",
-    "local_mass_min",
-    "objective",
-    "cosine_abs",
-    "beta_delta",
-    "runtime_sec",
+
+PLOT_MANIFEST = (
+    PlotSpec(
+        "quality_vs_outer_iteration.png",
+        _DIAGNOSTIC_SELECTOR,
+        "outer",
+        "quantile",
+        "outer_k",
+        "cosine_abs",
+        "Direction quality by outer iteration",
+        "Outer iteration",
+        "Absolute cosine",
+        diagnostic=True,
+    ),
+    PlotSpec(
+        "bandwidth_vs_outer_iteration.png",
+        _DIAGNOSTIC_SELECTOR,
+        "outer",
+        "quantile",
+        "outer_k",
+        "h_k",
+        "Bandwidth by outer iteration",
+        "Outer iteration",
+        "Bandwidth",
+        groups=("d", "n_over_d"),
+        diagnostic=True,
+    ),
+    PlotSpec(
+        "rho_vs_outer_iteration.png",
+        _DIAGNOSTIC_SELECTOR,
+        "outer",
+        "quantile",
+        "outer_k",
+        "rho_k",
+        "Anisotropy by outer iteration",
+        "Outer iteration",
+        "Rho",
+        diagnostic=True,
+    ),
+    PlotSpec(
+        "beta_step_vs_outer_iteration.png",
+        _DIAGNOSTIC_SELECTOR,
+        "outer",
+        "quantile",
+        "outer_k",
+        "beta_delta",
+        "Direction step by outer iteration",
+        "Outer iteration",
+        "Direction step",
+        diagnostic=True,
+        log_y=True,
+    ),
+    PlotSpec(
+        "objective_vs_outer_iteration.png",
+        _DIAGNOSTIC_SELECTOR,
+        "outer",
+        "quantile",
+        "outer_k",
+        "objective_after",
+        "Objective by outer iteration",
+        "Outer iteration",
+        "Objective",
+        diagnostic=True,
+        log_y=True,
+    ),
+    PlotSpec(
+        "objective_vs_inner_iteration.png",
+        _DIAGNOSTIC_SELECTOR,
+        "inner",
+        "quantile",
+        "inner_k",
+        "objective",
+        "Objective by inner iteration",
+        "Inner iteration",
+        "Objective",
+        groups=("outer_k",),
+        diagnostic=True,
+        log_y=True,
+    ),
+    PlotSpec(
+        "beta_step_vs_inner_iteration.png",
+        _DIAGNOSTIC_SELECTOR,
+        "inner",
+        "quantile",
+        "inner_k",
+        "beta_delta",
+        "Direction step by inner iteration",
+        "Inner iteration",
+        "Direction step",
+        groups=("outer_k",),
+        diagnostic=True,
+        log_y=True,
+    ),
+    PlotSpec(
+        "solver_residual_vs_iteration.png",
+        _DIAGNOSTIC_SELECTOR,
+        "solver",
+        "quantile",
+        "solver_k",
+        "relative_residual",
+        "Linear-solver residual",
+        "Solver iteration",
+        "Relative residual",
+        groups=("outer_k", "inner_k"),
+        diagnostic=True,
+        log_y=True,
+    ),
+    PlotSpec(
+        "local_mass_by_outer_iteration.png",
+        _DIAGNOSTIC_SELECTOR,
+        "local",
+        "box",
+        "outer_k",
+        "local_mass",
+        "Local mass by outer iteration",
+        "Outer iteration",
+        "Local mass",
+        diagnostic=True,
+    ),
+    PlotSpec(
+        "effective_neighbors_by_outer_iteration.png",
+        _DIAGNOSTIC_SELECTOR,
+        "local",
+        "box",
+        "outer_k",
+        "ess",
+        "Effective neighbors by outer iteration",
+        "Outer iteration",
+        "Effective neighbors",
+        diagnostic=True,
+    ),
+    PlotSpec(
+        "local_condition_by_outer_iteration.png",
+        _DIAGNOSTIC_SELECTOR,
+        "local",
+        "box",
+        "outer_k",
+        "condition",
+        "Local condition by outer iteration",
+        "Outer iteration",
+        "Condition number",
+        diagnostic=True,
+        log_y=True,
+    ),
+    PlotSpec(
+        "mass_vs_condition.png",
+        _DIAGNOSTIC_SELECTOR,
+        "local",
+        "scatter",
+        "local_mass",
+        "condition",
+        "Local mass versus condition",
+        "Local mass",
+        "Condition number",
+        groups=("outer_k",),
+        diagnostic=True,
+        log_y=True,
+    ),
+    PlotSpec(
+        "local_slopes_by_outer_iteration.png",
+        _DIAGNOSTIC_SELECTOR,
+        "local",
+        "box",
+        "outer_k",
+        "slope",
+        "Local slopes by outer iteration",
+        "Outer iteration",
+        "Local slope",
+        diagnostic=True,
+    ),
+    PlotSpec(
+        "quality_heatmap_d_nd_ratio.png",
+        ("2",),
+        "runs",
+        "heatmap",
+        "n_over_d",
+        "d",
+        "Direction quality over dimension and sample ratio",
+        "n / d",
+        "Dimension",
+        value="cosine_abs",
+    ),
+    PlotSpec(
+        "success_rate_heatmap.png",
+        ("2",),
+        "runs",
+        "heatmap",
+        "n_over_d",
+        "d",
+        "Success rate over dimension and sample ratio",
+        "n / d",
+        "Dimension",
+        value="success_value",
+    ),
+    PlotSpec(
+        "runtime_vs_dimension.png",
+        ("2",),
+        "runs",
+        "median_line",
+        "d",
+        "runtime_sec",
+        "Runtime versus dimension",
+        "Dimension",
+        "Runtime, seconds",
+        groups=("n_over_d",),
+        log_x=True,
+        log_y=True,
+    ),
+    PlotSpec(
+        "memory_vs_dimension.png",
+        ("2",),
+        "runs",
+        "median_line",
+        "d",
+        "peak_memory_mb",
+        "Peak memory versus dimension",
+        "Dimension",
+        "Peak memory, MB",
+        groups=("n_over_d",),
+        log_x=True,
+    ),
+    PlotSpec(
+        "iterations_heatmap_d_nd_ratio.png",
+        ("2",),
+        "runs",
+        "heatmap",
+        "n_over_d",
+        "d",
+        "Outer iterations over dimension and sample ratio",
+        "n / d",
+        "Dimension",
+        value="outer_iterations",
+    ),
+    PlotSpec(
+        "quality_vs_sigma_eps.png",
+        ("3",),
+        "runs",
+        "quantile",
+        "sigma_eps",
+        "cosine_abs",
+        "Direction quality versus noise",
+        "Noise standard deviation",
+        "Absolute cosine",
+        groups=("d", "n_over_d"),
+    ),
+    PlotSpec(
+        "success_rate_vs_sigma_eps.png",
+        ("3",),
+        "runs",
+        "mean_line",
+        "sigma_eps",
+        "success_value",
+        "Success rate versus noise",
+        "Noise standard deviation",
+        "Success rate",
+        groups=("d", "n_over_d"),
+    ),
+    PlotSpec(
+        "runtime_vs_sigma_eps.png",
+        ("3",),
+        "runs",
+        "quantile",
+        "sigma_eps",
+        "runtime_sec",
+        "Runtime versus noise",
+        "Noise standard deviation",
+        "Runtime, seconds",
+        groups=("d", "n_over_d"),
+    ),
+    PlotSpec(
+        "outer_iterations_vs_sigma_eps.png",
+        ("3",),
+        "runs",
+        "quantile",
+        "sigma_eps",
+        "outer_iterations",
+        "Outer iterations versus noise",
+        "Noise standard deviation",
+        "Outer iterations",
+        groups=("d", "n_over_d"),
+    ),
+    PlotSpec(
+        "final_objective_vs_sigma_eps.png",
+        ("3",),
+        "runs",
+        "quantile",
+        "sigma_eps",
+        "objective",
+        "Final objective versus noise",
+        "Noise standard deviation",
+        "Final objective",
+        groups=("d", "n_over_d"),
+        log_y=True,
+    ),
+    PlotSpec(
+        "quality_vs_correlation.png",
+        ("4",),
+        "runs",
+        "quantile",
+        "rho_corr",
+        "cosine_abs",
+        "Direction quality versus correlation",
+        "AR(1) correlation",
+        "Absolute cosine",
+        groups=("d", "n_over_d"),
+    ),
+    PlotSpec(
+        "success_rate_vs_correlation.png",
+        ("4",),
+        "runs",
+        "mean_line",
+        "rho_corr",
+        "success_value",
+        "Success rate versus correlation",
+        "AR(1) correlation",
+        "Success rate",
+        groups=("d", "n_over_d"),
+    ),
+    PlotSpec(
+        "local_condition_vs_correlation.png",
+        ("4",),
+        "outer",
+        "quantile",
+        "rho_corr",
+        "condition_median",
+        "Local condition versus correlation",
+        "AR(1) correlation",
+        "Median condition number",
+        groups=("d", "n_over_d"),
+        log_y=True,
+    ),
+    PlotSpec(
+        "solver_iterations_vs_correlation.png",
+        ("4",),
+        "inner",
+        "quantile",
+        "rho_corr",
+        "linear_solver_iterations",
+        "Solver iterations versus correlation",
+        "AR(1) correlation",
+        "Linear-solver iterations",
+        groups=("d", "n_over_d"),
+    ),
+    PlotSpec(
+        "runtime_vs_correlation.png",
+        ("4",),
+        "runs",
+        "quantile",
+        "rho_corr",
+        "runtime_sec",
+        "Runtime versus correlation",
+        "AR(1) correlation",
+        "Runtime, seconds",
+        groups=("d", "n_over_d"),
+    ),
+    PlotSpec(
+        "quality_vs_sigma_x.png",
+        ("5",),
+        "runs",
+        "quantile",
+        "sigma_x",
+        "cosine_abs",
+        "Direction quality versus feature scale",
+        "Feature scale",
+        "Absolute cosine",
+        groups=("d", "n_over_d"),
+        log_x=True,
+    ),
+    PlotSpec(
+        "h0_vs_sigma_x.png",
+        ("5",),
+        "runs",
+        "quantile",
+        "sigma_x",
+        "h_initial",
+        "Initial bandwidth versus feature scale",
+        "Feature scale",
+        "Initial bandwidth",
+        groups=("d", "n_over_d"),
+        log_x=True,
+    ),
+    PlotSpec(
+        "final_bandwidth_vs_sigma_x.png",
+        ("5",),
+        "runs",
+        "quantile",
+        "sigma_x",
+        "h_final",
+        "Final bandwidth versus feature scale",
+        "Feature scale",
+        "Final bandwidth",
+        groups=("d", "n_over_d"),
+        log_x=True,
+    ),
+    PlotSpec(
+        "local_mass_vs_sigma_x.png",
+        ("5",),
+        "outer",
+        "quantile",
+        "sigma_x",
+        "local_mass_mean",
+        "Local mass versus feature scale",
+        "Feature scale",
+        "Mean local mass",
+        groups=("d", "n_over_d"),
+        log_x=True,
+    ),
+    PlotSpec(
+        "runtime_vs_sigma_x.png",
+        ("5",),
+        "runs",
+        "quantile",
+        "sigma_x",
+        "runtime_sec",
+        "Runtime versus feature scale",
+        "Feature scale",
+        "Runtime, seconds",
+        groups=("d", "n_over_d"),
+        log_x=True,
+    ),
+    PlotSpec(
+        "quality_by_link_function.png",
+        ("6",),
+        "runs",
+        "box",
+        "link",
+        "cosine_abs",
+        "Direction quality by link function",
+        "Link function",
+        "Absolute cosine",
+    ),
+    PlotSpec(
+        "success_rate_by_link_function.png",
+        ("6",),
+        "runs",
+        "mean_line",
+        "link",
+        "success_value",
+        "Success rate by link function",
+        "Link function",
+        "Success rate",
+    ),
+    PlotSpec(
+        "outer_iterations_by_link_function.png",
+        ("6",),
+        "runs",
+        "box",
+        "link",
+        "outer_iterations",
+        "Outer iterations by link function",
+        "Link function",
+        "Outer iterations",
+    ),
+    PlotSpec(
+        "objective_by_link_function.png",
+        ("6",),
+        "runs",
+        "box",
+        "link",
+        "objective",
+        "Final objective by link function",
+        "Link function",
+        "Final objective",
+        log_y=True,
+    ),
+    PlotSpec(
+        "local_slopes_by_link_function.png",
+        ("6",),
+        "local",
+        "box",
+        "link",
+        "slope",
+        "Local slopes by link function",
+        "Link function",
+        "Local slope",
+    ),
+    PlotSpec(
+        "quality_by_x_distribution.png",
+        ("7.1",),
+        "runs",
+        "box",
+        "x_distribution",
+        "cosine_abs",
+        "Direction quality by feature distribution",
+        "Feature distribution",
+        "Absolute cosine",
+    ),
+    PlotSpec(
+        "quality_by_noise_distribution.png",
+        ("7.2",),
+        "runs",
+        "box",
+        "noise_distribution",
+        "cosine_abs",
+        "Direction quality by noise distribution",
+        "Noise distribution",
+        "Absolute cosine",
+    ),
+    PlotSpec(
+        "failure_rate_by_distribution.png",
+        ("7.1", "7.2"),
+        "runs",
+        "mean_line",
+        "distribution",
+        "failure_value",
+        "Numerical-failure rate by distribution",
+        "Distribution",
+        "Numerical-failure rate",
+    ),
+    PlotSpec(
+        "runtime_by_distribution.png",
+        ("7.1", "7.2"),
+        "runs",
+        "median_line",
+        "distribution",
+        "runtime_sec",
+        "Runtime by distribution",
+        "Distribution",
+        "Runtime, seconds",
+    ),
+    PlotSpec(
+        "quality_by_heteroscedasticity.png",
+        ("8.1",),
+        "runs",
+        "box",
+        "heteroscedastic",
+        "cosine_abs",
+        "Direction quality by heteroscedasticity",
+        "Heteroscedastic",
+        "Absolute cosine",
+    ),
+    PlotSpec(
+        "quality_vs_outlier_fraction.png",
+        ("8.2",),
+        "runs",
+        "quantile",
+        "outlier_fraction",
+        "cosine_abs",
+        "Direction quality versus outlier fraction",
+        "Outlier fraction",
+        "Absolute cosine",
+        groups=("outlier_scale",),
+    ),
+    PlotSpec(
+        "failure_rate_vs_outliers.png",
+        ("8.2",),
+        "runs",
+        "mean_line",
+        "outlier_fraction",
+        "failure_value",
+        "Numerical-failure rate versus outliers",
+        "Outlier fraction",
+        "Numerical-failure rate",
+        groups=("outlier_scale",),
+    ),
+    PlotSpec(
+        "quality_vs_model_misspecification.png",
+        ("8.3",),
+        "runs",
+        "quantile",
+        "delta",
+        "cosine_abs",
+        "Direction quality versus model misspecification",
+        "Misspecification strength",
+        "Absolute cosine",
+    ),
+    PlotSpec(
+        "objective_vs_model_misspecification.png",
+        ("8.3",),
+        "runs",
+        "quantile",
+        "delta",
+        "objective",
+        "Objective versus model misspecification",
+        "Misspecification strength",
+        "Final objective",
+        log_y=True,
+    ),
+    PlotSpec(
+        "runtime_breakdown.png",
+        EXPERIMENT_SELECTORS,
+        "outer",
+        "stacked",
+        "experiment",
+        "iteration_time_sec",
+        "Runtime breakdown",
+        "Experiment",
+        "Median time, seconds",
+        components=_RUNTIME_COMPONENTS,
+    ),
 )
 
-SOLVER_REPORT_COLUMNS = (
-    "run_id",
-    "scenario_id",
-    "method",
-    "outer_k",
-    "inner_k",
-    "cg_k",
-    "relative_objective",
-    "relative_residual",
-    "projective_delta",
-    "cg_info",
-)
 
-FAILURE_REPORT_COLUMNS = (
-    "run_id",
-    "scenario_id",
-    "method",
-    "status",
-    "category",
-    "exception_type",
-    "stage",
-)
-
-_TEXT_COLUMNS = {
-    "series_id",
-    "run_id",
-    "scenario_id",
-    "family",
-    "method",
-    "status",
-    "data_link",
-    "category",
-    "exception_type",
-    "stage",
-    "dataset_source",
-    "dataset_path",
-    "dataset_sha256",
+_PRIMARY_TABLES = {
+    "runs": "run_summary",
+    "outer": "outer_iterations",
+    "inner": "inner_iterations",
+    "local": "local_diagnostics",
+    "solver": "solver_iterations",
 }
 
-SCALING_COLUMNS = (
-    "scenario_id",
-    "method",
-    "x_column",
-    "y_column",
-    "point_count",
-    "x_unique",
-    "exponent",
-    "intercept",
-    "r_squared",
-)
 
-PAIRED_COLUMNS = (
-    "scenario_id",
-    "reference_method",
-    "comparison_method",
-    "pair_count",
-    "cosine_abs_delta_mean",
-    "cosine_abs_delta_median",
-    "cosine_abs_delta_bootstrap_ci95_low",
-    "cosine_abs_delta_bootstrap_ci95_high",
-)
+def add_report_metrics(runs: pd.DataFrame) -> pd.DataFrame:
+    """Add explicit success/failure indicators without dropping failed runs."""
 
-_SCALING_SPECS = {
-    "M01": ("data_n", "algorithm_time_sec"),
-    "M02": ("data_d", "algorithm_time_sec"),
-    "M03": ("algorithm_n_centers", "algorithm_time_sec"),
-    "M04": ("algorithm_n_directions", "algorithm_time_sec"),
-    "M05": ("iteration_budget", "algorithm_time_sec"),
-    "M06": ("data_n", "full_run_rss_peak_delta_mib"),
-}
-
-_PLOT_SPECS = {
-    "G01": ("runs", "data_n", "direction_loss", "Размер выборки", "Ошибка направления", "Восстановление с ростом выборки"),
-    "G02": ("runs", "data_noise", "success_value", "Уровень шума", "Доля успешных запусков", "Граница устойчивости к шуму"),
-    "G03": ("runs", "data_d", "success_value", "Размерность", "Доля успешных запусков", "Граница по размерности"),
-    "G04": ("runs", "algorithm_n_directions", "direction_loss", "Число направлений", "Ошибка направления", "Бюджет направлений"),
-    "G05": ("runs", "algorithm_n_directions", "algorithm_time_sec", "Число направлений", "Время алгоритма, с", "Стоимость направленного sketch"),
-    "G06": ("runs", "algorithm_n_centers", "direction_loss", "Число центров", "Ошибка направления", "Чувствительность к числу центров"),
-    "G07": ("runs", "algorithm_min_neighbors", "direction_loss", "Минимальная локальная масса", "Ошибка направления", "Локальная масса и качество"),
-    "G08": ("runs", "algorithm_lambda_penalty", "direction_loss", "Относительная регуляризация", "Ошибка направления", "Регуляризация и устойчивость"),
-    "G09": ("runs", "initial_cosine", "success_value", "Начальный косинус", "Доля успешных запусков", "Область притяжения"),
-    "G10": ("runs", "data_corr", "cosine_abs", "Уровень возмущения", "Медианный модуль косинуса", "Устойчивость к возмущениям"),
-    "G11": ("runs", "algorithm_time_sec", "direction_loss", "Время алгоритма, с", "Ошибка направления", "Фронт качество-время"),
-    "G12": ("scaling", "fitted", "observed", "Предсказанное время", "Наблюдаемое время", "Качество модели масштабирования"),
-    "G13": ("iterations", "outer_k", "cosine_abs", "Внешний шаг", "Модуль косинуса", "Качество по внешним шагам"),
-    "G14": ("iterations", "outer_k", "h_k", "Внешний шаг", "Ширина окна", "Траектория ширины окна"),
-    "G15": ("iterations", "outer_k", "rho_k", "Внешний шаг", "Анизотропия", "Траектория анизотропии"),
-    "G16": ("iterations", "outer_k", "local_mass_q05", "Внешний шаг", "Квантиль локальной массы", "Локальная масса по шагам"),
-    "G17": ("solver", "inner_k", "relative_objective", "Внутренний шаг", "Относительный функционал", "Сходимость ALS"),
-    "G18": ("solver", "inner_k", "projective_delta", "Внутренний шаг", "Проективное изменение", "Стабилизация направления"),
-    "G19": ("solver", "cg_k", "relative_residual", "Итерация CG", "Относительная невязка", "Сходимость CG"),
-    "G20": ("iterations", "center_rank", "local_slope_norm", "Ранг центра", "Квадрат локального наклона", "Распределение локальных наклонов"),
-}
+    _require_columns(runs, ("experiment", "status", "cosine_abs"), "run_summary")
+    enriched = runs.copy()
+    experiment = _normalise_experiment(enriched["experiment"])
+    status = enriched["status"].astype("string")
+    quality = pd.to_numeric(enriched["cosine_abs"], errors="coerce")
+    threshold = np.where(experiment.eq("1"), 0.99, 0.9)
+    numerical_failure = status.eq("numerical_failure").fillna(False)
+    enriched["experiment"] = experiment
+    enriched["success_value"] = (
+        ~numerical_failure & np.isfinite(quality) & quality.ge(threshold)
+    ).astype(float)
+    enriched["failure_value"] = numerical_failure.astype(float)
+    return enriched
 
 
-def build_single_index_summary(
-    runs: pd.DataFrame,
+def prepare_quantile_band(
+    frame: pd.DataFrame,
     *,
-    bootstrap_resamples: int = 1000,
-    random_state: int = 0,
+    x: str,
+    y: str,
+    groups: Sequence[str] = (),
 ) -> pd.DataFrame:
-    """Aggregate run-level status, quality, timing, and memory statistics."""
+    """Compute 5/50/95 percentiles inside every explicit experiment group."""
 
-    if bootstrap_resamples < 1:
-        raise ValueError("bootstrap_resamples must be positive")
-    _require_columns(runs, ("scenario_id", "method", "status"), "runs")
-    source = runs.copy()
-    if "family" not in source:
-        source["family"] = source["scenario_id"].astype(str).str[:1]
-    rows: list[dict[str, Any]] = []
-    for (scenario_id, family, method), group in source.groupby(
-        ["scenario_id", "family", "method"], sort=True, dropna=False
-    ):
-        statuses = group["status"].astype(str)
-        total = len(group)
-        successes = int((statuses == "success").sum())
-        failed = int((statuses == "failed").sum())
-        unavailable = int((statuses == "unavailable").sum())
-        success_low, success_high = wilson_interval(successes, total)
-        row: dict[str, Any] = {
-            "scenario_id": scenario_id,
-            "family": family,
-            "method": method,
-            "total_count": total,
-            "success_count": successes,
-            "failed_count": failed,
-            "unavailable_count": unavailable,
-            "success_rate": successes / total if total else math.nan,
-            "failure_rate": failed / total if total else math.nan,
-            "unavailable_rate": unavailable / total if total else math.nan,
-            "success_ci95_low": success_low,
-            "success_ci95_high": success_high,
-        }
-        successful_group = group.loc[statuses == "success"]
-        for metric in SUMMARY_METRICS:
-            values = (
-                _finite_values(successful_group[metric])
-                if metric in successful_group
-                else np.array([])
-            )
-            row.update(
-                _metric_summary(
-                    metric,
-                    values,
-                    bootstrap_resamples=bootstrap_resamples,
-                    random_state=_derived_seed(random_state, scenario_id, method, metric),
-                )
-            )
-        rows.append(row)
-    return pd.DataFrame(rows, columns=_summary_columns())
-
-
-def wilson_interval(
-    successes: int,
-    total: int,
-    *,
-    z: float = 1.959963984540054,
-) -> tuple[float, float]:
-    if total < 0 or successes < 0 or successes > total:
-        raise ValueError("successes and total must define a valid binomial count")
-    if total == 0:
-        return math.nan, math.nan
-    proportion = successes / total
-    denominator = 1.0 + z * z / total
-    center = (proportion + z * z / (2.0 * total)) / denominator
-    radius = z * math.sqrt(
-        proportion * (1.0 - proportion) / total + z * z / (4.0 * total * total)
-    ) / denominator
-    return max(0.0, center - radius), min(1.0, center + radius)
-
-
-def bootstrap_interval(
-    values: Sequence[float] | np.ndarray,
-    *,
-    resamples: int = 1000,
-    random_state: int = 0,
-    statistic: Callable[[np.ndarray], float] = np.median,
-) -> tuple[float, float]:
-    array = _finite_values(pd.Series(values))
-    if array.size == 0:
-        return math.nan, math.nan
-    if array.size == 1:
-        value = float(statistic(array))
-        return value, value
-    rng = np.random.default_rng(random_state)
-    samples = rng.choice(array, size=(resamples, array.size), replace=True)
-    if statistic is np.median:
-        estimates = np.median(samples, axis=1)
-    else:
-        estimates = np.asarray([statistic(sample) for sample in samples], dtype=float)
-    return tuple(float(value) for value in np.quantile(estimates, [0.025, 0.975]))
-
-
-def select_worst_five(
-    runs: pd.DataFrame,
-    *,
-    metric: str = "cosine_abs",
-) -> pd.DataFrame:
-    _require_columns(runs, ("status", metric), "runs")
-    values = pd.to_numeric(runs[metric], errors="coerce")
-    selected = runs.loc[(runs["status"] == "success") & np.isfinite(values)].copy()
-    selected[metric] = pd.to_numeric(selected[metric], errors="coerce")
-    return selected.sort_values(metric, ascending=True, kind="stable").head(5).reset_index(drop=True)
-
-
-def fit_scaling_exponents(runs: pd.DataFrame) -> pd.DataFrame:
-    _require_columns(runs, ("scenario_id", "method", "status"), "runs")
-    source = runs.copy()
-    if {"solver_outer_steps", "solver_inner_steps"}.issubset(source.columns):
-        source["iteration_budget"] = (
-            pd.to_numeric(source["solver_outer_steps"], errors="coerce")
-            * pd.to_numeric(source["solver_inner_steps"], errors="coerce")
+    keys = _unique_columns((*groups, x))
+    _require_columns(frame, (*keys, y), "plot frame")
+    source = frame[[*keys, y]].copy()
+    source[y] = pd.to_numeric(source[y], errors="coerce")
+    source = source.loc[source[x].notna() & np.isfinite(source[y])]
+    if source.empty:
+        return pd.DataFrame(columns=(*keys, "q05", "median", "q95"))
+    return (
+        source.groupby(list(keys), sort=True, dropna=False, as_index=False)
+        .agg(
+            q05=(y, lambda values: values.quantile(0.05)),
+            median=(y, "median"),
+            q95=(y, lambda values: values.quantile(0.95)),
         )
-    rows = []
-    for (scenario_id, method), group in source.groupby(
-        ["scenario_id", "method"], sort=True
-    ):
-        if scenario_id not in _SCALING_SPECS:
-            continue
-        x_column, y_column = _SCALING_SPECS[str(scenario_id)]
-        fit = _log_log_fit(group, x_column, y_column)
-        rows.append(
-            {
-                "scenario_id": scenario_id,
-                "method": method,
-                "x_column": x_column,
-                "y_column": y_column,
-                **fit,
-            }
-        )
-    return pd.DataFrame(rows, columns=SCALING_COLUMNS)
-
-
-def paired_method_differences(
-    runs: pd.DataFrame,
-    *,
-    reference_method: str = "full_adp",
-    bootstrap_resamples: int = 1000,
-    random_state: int = 0,
-) -> pd.DataFrame:
-    required = ("scenario_id", "method", "repeat", "data_seed", "status", "cosine_abs")
-    _require_columns(runs, required, "runs")
-    success = runs.loc[runs["status"] == "success", list(required)].copy()
-    reference = success.loc[success["method"] == reference_method]
-    rows = []
-    keys = ["scenario_id", "repeat", "data_seed"]
-    for comparison_method in sorted(set(success["method"]) - {reference_method}):
-        comparison = success.loc[success["method"] == comparison_method]
-        paired = reference.merge(comparison, on=keys, suffixes=("_reference", "_comparison"))
-        for scenario_id, group in paired.groupby("scenario_id", sort=True):
-            delta = _finite_values(
-                pd.to_numeric(group["cosine_abs_reference"], errors="coerce")
-                - pd.to_numeric(group["cosine_abs_comparison"], errors="coerce")
-            )
-            low, high = bootstrap_interval(
-                delta,
-                resamples=bootstrap_resamples,
-                random_state=_derived_seed(
-                    random_state, scenario_id, reference_method, comparison_method
-                ),
-            )
-            rows.append(
-                {
-                    "scenario_id": scenario_id,
-                    "reference_method": reference_method,
-                    "comparison_method": comparison_method,
-                    "pair_count": int(delta.size),
-                    "cosine_abs_delta_mean": float(np.mean(delta)) if delta.size else math.nan,
-                    "cosine_abs_delta_median": float(np.median(delta)) if delta.size else math.nan,
-                    "cosine_abs_delta_bootstrap_ci95_low": low,
-                    "cosine_abs_delta_bootstrap_ci95_high": high,
-                }
-            )
-    return pd.DataFrame(rows, columns=PAIRED_COLUMNS)
+        .reset_index(drop=True)
+    )
 
 
 def write_single_index_reports(
     series_dir: str | Path,
     *,
-    bootstrap_resamples: int = 1000,
-    random_state: int = 0,
     dpi: int = 150,
-) -> Mapping[str, Path]:
-    """Rebuild numeric reports and G01-G21 artifacts from primary CSV files."""
+) -> pd.DataFrame:
+    """Rebuild every report artifact exclusively from committed public CSV files."""
 
     root = Path(series_dir)
     frames = _read_primary_frames(root)
-    runs = frames["runs"]
-    summary = build_single_index_summary(
-        runs,
-        bootstrap_resamples=bootstrap_resamples,
-        random_state=random_state,
-    )
-    scaling = fit_scaling_exponents(runs)
-    paired = paired_method_differences(
-        runs,
-        bootstrap_resamples=bootstrap_resamples,
-        random_state=random_state,
-    )
-    worst = select_worst_five(runs)
-
-    saved: dict[str, Path] = {}
-    numeric = {
-        "summary": (root / "single_index_summary.csv", summary),
-        "scaling": (root / "single_index_scaling.csv", scaling),
-        "paired": (root / "single_index_paired_differences.csv", paired),
-        "worst_five": (root / "single_index_worst_five.csv", worst),
-    }
-    artifact_rows = []
-    series_id = _series_id(runs, root)
-    for name, (path, frame) in numeric.items():
-        _atomic_frame_csv(frame, path)
-        saved[name] = path
-        artifact_rows.append(_artifact_row(series_id, root, name, path))
-
-    frames = {**frames, "scaling": scaling}
+    available = set(frames["runs"]["experiment"].dropna().astype(str))
+    series_id = _series_id(frames["runs"])
+    artifact_rows = _csv_artifact_rows(root, series_id)
     ensure_matplotlib_config_dir()
-    plots_dir = root / "plots"
-    plots_dir.mkdir(exist_ok=True)
-    for index in range(1, 22):
-        plot_id = f"G{index:02d}"
-        path = plots_dir / f"{plot_id}.png"
+
+    for spec in PLOT_MANIFEST:
+        path = _plot_path(root, spec)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.unlink(missing_ok=True)
+        applicable = bool(set(spec.selectors) & available)
+        if not applicable:
+            artifact_rows.append(
+                _artifact_row(
+                    series_id,
+                    root,
+                    spec.filename,
+                    path,
+                    status="skipped",
+                )
+            )
+            continue
         try:
-            _render_plot(plot_id, frames, path, dpi=dpi)
+            _render_plot(spec, frames, path, dpi=dpi)
         except Exception as exc:
             path.unlink(missing_ok=True)
             artifact_rows.append(
-                _artifact_row(series_id, root, plot_id, path, error=exc)
+                _artifact_row(
+                    series_id,
+                    root,
+                    spec.filename,
+                    path,
+                    status="error",
+                    error=f"{type(exc).__name__}: {exc}",
+                )
             )
         else:
-            saved[plot_id] = path
-            artifact_rows.append(_artifact_row(series_id, root, plot_id, path))
+            artifact_rows.append(
+                _artifact_row(
+                    series_id,
+                    root,
+                    spec.filename,
+                    path,
+                    status="created",
+                )
+            )
 
-    artifacts_path = root / "single_index_artifacts.csv"
-    _merge_artifacts(artifacts_path, artifact_rows)
-    saved["artifacts"] = artifacts_path
-    return saved
+    return _write_artifact_manifest(root / "artifacts.csv", artifact_rows)
 
 
 def _read_primary_frames(root: Path) -> dict[str, pd.DataFrame]:
-    runs = _read_selected_csv(
-        root / "single_index_runs.csv",
-        RUN_REPORT_COLUMNS,
-        required=("run_id", "scenario_id", "method", "status"),
-    )
-    parameters = _read_selected_csv(
-        root / "single_index_initial_parameters.csv",
-        PARAMETER_REPORT_COLUMNS,
-        required=("run_id",),
-    )
-    parameter_values = parameters.drop(
-        columns=[column for column in parameters if column != "run_id" and column in runs],
-        errors="ignore",
-    )
-    runs = runs.merge(parameter_values, on="run_id", how="left", validate="one_to_one")
-    runs["success_value"] = (runs["status"] == "success").astype(float)
-    runs["direction_loss"] = 1.0 - pd.to_numeric(
-        runs.get("cosine_abs"), errors="coerce"
-    )
-    iterations = _read_selected_csv(
-        root / "single_index_iterations.csv",
-        ITERATION_REPORT_COLUMNS,
-        required=("run_id", "scenario_id", "method", "outer_k"),
-    )
-    solver = _read_selected_csv(
-        root / "single_index_solver_iterations.csv",
-        SOLVER_REPORT_COLUMNS,
-        required=("run_id", "scenario_id", "method", "outer_k", "inner_k", "cg_k"),
-    )
-    failures = _read_selected_csv(
-        root / "single_index_failures.csv",
-        FAILURE_REPORT_COLUMNS,
-        required=("run_id", "scenario_id", "method"),
-    )
-    return {
-        "runs": runs,
-        "iterations": iterations,
-        "solver": solver,
-        "failures": failures,
-    }
+    frames: dict[str, pd.DataFrame] = {}
+    for alias, table in _PRIMARY_TABLES.items():
+        path = root / f"{table}.csv"
+        frames[alias] = _read_public_csv(
+            path,
+            expected=PUBLIC_TABLE_COLUMNS[table],
+        )
+
+    runs = add_report_metrics(frames["runs"])
+    runs["distribution"] = pd.NA
+    x_distribution = runs["experiment"].eq("7.1")
+    noise_distribution = runs["experiment"].eq("7.2")
+    runs.loc[x_distribution, "distribution"] = runs.loc[
+        x_distribution, "x_distribution"
+    ]
+    runs.loc[noise_distribution, "distribution"] = runs.loc[
+        noise_distribution, "noise_distribution"
+    ]
+    frames["runs"] = runs
+    for alias in ("outer", "inner", "local", "solver"):
+        frames[alias] = _enrich_detail(frames[alias], runs)
+    return frames
 
 
-def _read_selected_csv(
-    path: Path,
-    columns: Sequence[str],
-    *,
-    required: Sequence[str],
-) -> pd.DataFrame:
+def _read_public_csv(path: Path, *, expected: Sequence[str]) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(path)
     header = tuple(pd.read_csv(path, nrows=0).columns)
-    missing = sorted(set(required) - set(header))
+    missing = tuple(column for column in expected if column not in header)
     if missing:
         raise ValueError(f"missing columns in {path.name}: {', '.join(missing)}")
-    selected = [column for column in columns if column in header]
-    dtype = {
-        column: "string" if column in _TEXT_COLUMNS else "float64"
-        for column in selected
-    }
-    return pd.read_csv(path, usecols=selected, dtype=dtype)
-
-
-def _metric_summary(
-    metric: str,
-    values: np.ndarray,
-    *,
-    bootstrap_resamples: int,
-    random_state: int,
-) -> dict[str, Any]:
-    prefix = f"{metric}_"
-    if values.size == 0:
-        return {
-            prefix + suffix: 0 if suffix == "count" else math.nan
-            for suffix in (
-                "count",
-                "mean",
-                "median",
-                "iqr",
-                "q05",
-                "q95",
-                "bootstrap_ci95_low",
-                "bootstrap_ci95_high",
-            )
-        }
-    q05, q25, q75, q95 = np.quantile(values, [0.05, 0.25, 0.75, 0.95])
-    low, high = bootstrap_interval(
-        values,
-        resamples=bootstrap_resamples,
-        random_state=random_state,
+    frame = pd.read_csv(
+        path,
+        usecols=list(expected),
+        dtype={
+            "series_id": "string",
+            "run_id": "string",
+            "experiment": "string",
+            "status": "string",
+        },
+        low_memory=False,
     )
-    return {
-        prefix + "count": int(values.size),
-        prefix + "mean": float(np.mean(values)),
-        prefix + "median": float(np.median(values)),
-        prefix + "iqr": float(q75 - q25),
-        prefix + "q05": float(q05),
-        prefix + "q95": float(q95),
-        prefix + "bootstrap_ci95_low": low,
-        prefix + "bootstrap_ci95_high": high,
-    }
+    if "experiment" in frame:
+        frame["experiment"] = _normalise_experiment(frame["experiment"])
+    return frame
 
 
-def _summary_columns() -> list[str]:
-    columns = [
-        "scenario_id",
-        "family",
-        "method",
-        "total_count",
-        "success_count",
-        "failed_count",
-        "unavailable_count",
-        "success_rate",
-        "failure_rate",
-        "unavailable_rate",
-        "success_ci95_low",
-        "success_ci95_high",
+def _enrich_detail(detail: pd.DataFrame, runs: pd.DataFrame) -> pd.DataFrame:
+    metadata_columns = [
+        column
+        for column in runs.columns
+        if column == "run_id" or column not in detail.columns
     ]
-    for metric in SUMMARY_METRICS:
-        columns.extend(
-            f"{metric}_{suffix}"
-            for suffix in (
-                "count",
-                "mean",
-                "median",
-                "iqr",
-                "q05",
-                "q95",
-                "bootstrap_ci95_low",
-                "bootstrap_ci95_high",
-            )
-        )
-    return columns
-
-
-def _log_log_fit(group: pd.DataFrame, x_column: str, y_column: str) -> dict[str, Any]:
-    if x_column not in group or y_column not in group:
-        return _empty_scaling_fit()
-    x = pd.to_numeric(group[x_column], errors="coerce").to_numpy(dtype=float)
-    y = pd.to_numeric(group[y_column], errors="coerce").to_numpy(dtype=float)
-    success = group["status"].to_numpy() == "success"
-    valid = success & np.isfinite(x) & np.isfinite(y) & (x > 0.0) & (y > 0.0)
-    x = x[valid]
-    y = y[valid]
-    if x.size < 2 or np.unique(x).size < 2:
-        return _empty_scaling_fit(point_count=x.size, x_unique=np.unique(x).size)
-    log_x = np.log(x)
-    log_y = np.log(y)
-    exponent, intercept = np.polyfit(log_x, log_y, 1)
-    predicted = intercept + exponent * log_x
-    residual = float(np.sum((log_y - predicted) ** 2))
-    total = float(np.sum((log_y - np.mean(log_y)) ** 2))
-    r_squared = 1.0 if total == 0.0 and residual == 0.0 else 1.0 - residual / total
-    return {
-        "point_count": int(x.size),
-        "x_unique": int(np.unique(x).size),
-        "exponent": float(exponent),
-        "intercept": float(intercept),
-        "r_squared": float(r_squared),
-    }
-
-
-def _empty_scaling_fit(*, point_count: int = 0, x_unique: int = 0) -> dict[str, Any]:
-    return {
-        "point_count": int(point_count),
-        "x_unique": int(x_unique),
-        "exponent": math.nan,
-        "intercept": math.nan,
-        "r_squared": math.nan,
-    }
+    metadata = runs[metadata_columns].drop_duplicates("run_id", keep="last")
+    return detail.merge(metadata, on="run_id", how="left", validate="many_to_one")
 
 
 def _render_plot(
-    plot_id: str,
+    spec: PlotSpec,
     frames: Mapping[str, pd.DataFrame],
     path: Path,
     *,
     dpi: int,
 ) -> None:
-    if plot_id == "G21":
-        _render_failure_plot(frames["failures"], path, dpi=dpi)
+    source = _select_rows(spec, frames)
+    common: dict[str, Any] = {
+        "path": path,
+        "xlabel": spec.xlabel,
+        "ylabel": spec.ylabel,
+        "title": spec.title,
+        "dpi": dpi,
+    }
+    if spec.kind == "quantile":
+        groups = _unique_columns(("experiment", *spec.groups))
+        prepared = prepare_quantile_band(
+            source,
+            x=spec.x,
+            y=spec.y,
+            groups=groups,
+        )
+        prepared = _attach_group_labels(prepared, groups)
+        line_with_quantile_band(
+            prepared,
+            x=spec.x,
+            median="median",
+            q05="q05",
+            q95="q95",
+            group="_group",
+            log_x=spec.log_x,
+            log_y=spec.log_y,
+            **common,
+        )
         return
-    if plot_id not in _PLOT_SPECS:
-        raise ValueError(f"unknown report plot: {plot_id}")
-    source_name, x_column, y_column, xlabel, ylabel, title = _PLOT_SPECS[plot_id]
-    source = frames[source_name]
-    _require_columns(source, (x_column, y_column), source_name)
-    plot_data = source[[x_column, y_column]].copy()
-    plot_data[x_column] = pd.to_numeric(plot_data[x_column], errors="coerce")
-    plot_data[y_column] = pd.to_numeric(plot_data[y_column], errors="coerce")
-    plot_data = plot_data.replace([np.inf, -np.inf], np.nan).dropna()
-    if plot_data.empty:
-        raise ValueError(f"no finite data for {plot_id}")
+    if spec.kind in {"median_line", "mean_line"}:
+        aggregate = "median" if spec.kind == "median_line" else "mean"
+        groups = _unique_columns(("experiment", *spec.groups))
+        prepared = _prepare_aggregate_line(
+            source,
+            x=spec.x,
+            y=spec.y,
+            groups=groups,
+            aggregate=aggregate,
+        )
+        prepared = _attach_group_labels(prepared, groups)
+        grouped_line(
+            prepared,
+            x=spec.x,
+            y=spec.y,
+            group="_group",
+            log_x=spec.log_x,
+            log_y=spec.log_y,
+            **common,
+        )
+        return
+    if spec.kind == "box":
+        boxplot(
+            source,
+            x=spec.x,
+            y=spec.y,
+            log_x=spec.log_x,
+            log_y=spec.log_y,
+            **common,
+        )
+        return
+    if spec.kind == "scatter":
+        groups = _unique_columns(("experiment", *spec.groups))
+        prepared = _attach_group_labels(source, groups)
+        scatter(
+            prepared,
+            x=spec.x,
+            y=spec.y,
+            group="_group",
+            log_x=spec.log_x,
+            log_y=spec.log_y,
+            **common,
+        )
+        return
+    if spec.kind == "heatmap":
+        if spec.value is None:
+            raise ValueError(f"heatmap {spec.filename} has no value column")
+        heatmap(
+            source,
+            x=spec.x,
+            y=spec.y,
+            value=spec.value,
+            **common,
+        )
+        return
+    if spec.kind == "stacked":
+        stacked_runtime(
+            source,
+            category=spec.x,
+            components=spec.components,
+            **common,
+        )
+        return
+    raise ValueError(f"unknown plot kind: {spec.kind}")
 
-    import matplotlib.pyplot as plt
 
-    aggregate = plot_data.groupby(x_column, as_index=False)[y_column].median()
-    fig, ax = plt.subplots()
-    set_adp_figure_size(fig)
-    ax.plot(aggregate[x_column], aggregate[y_column], marker="o", linewidth=1.8)
-    apply_adp_axis_style(ax, xlabel=xlabel, ylabel=ylabel, title=title)
-    save_figure(fig, path, dpi=dpi, close=True)
+def _select_rows(
+    spec: PlotSpec,
+    frames: Mapping[str, pd.DataFrame],
+) -> pd.DataFrame:
+    source = frames[spec.table]
+    selected = source.loc[source["experiment"].isin(spec.selectors)].copy()
+    if spec.diagnostic and "diagnostic" in selected:
+        selected = selected.loc[_truthy(selected["diagnostic"])]
+    return selected
 
 
-def _render_failure_plot(failures: pd.DataFrame, path: Path, *, dpi: int) -> None:
-    _require_columns(failures, ("scenario_id", "category"), "failures")
-    source = failures.dropna(subset=["scenario_id", "category"])
+def _prepare_aggregate_line(
+    frame: pd.DataFrame,
+    *,
+    x: str,
+    y: str,
+    groups: Sequence[str],
+    aggregate: Literal["mean", "median"],
+) -> pd.DataFrame:
+    keys = _unique_columns((*groups, x))
+    _require_columns(frame, (*keys, y), "plot frame")
+    source = frame[[*keys, y]].copy()
+    source[y] = pd.to_numeric(source[y], errors="coerce")
+    source = source.loc[source[x].notna() & np.isfinite(source[y])]
     if source.empty:
-        raise ValueError("no failure data for G21")
-    shares = pd.crosstab(source["scenario_id"], source["category"], normalize="index")
+        return pd.DataFrame(columns=(*keys, y))
+    grouped = source.groupby(list(keys), sort=True, dropna=False, as_index=False)[y]
+    if aggregate == "mean":
+        return grouped.mean()
+    return grouped.median()
 
-    import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots()
-    set_adp_figure_size(fig, width=max(8.0, 0.8 * len(shares)))
-    shares.plot(kind="bar", stacked=True, ax=ax)
-    apply_adp_axis_style(
-        ax,
-        xlabel="Сценарий",
-        ylabel="Доля категории",
-        title="Причины неуспешных запусков",
-        legend_title="Категория",
-        x_rotation=30,
+def _attach_group_labels(
+    frame: pd.DataFrame,
+    groups: Sequence[str],
+) -> pd.DataFrame:
+    result = frame.copy()
+    present = tuple(column for column in groups if column in result)
+    if not present:
+        result["_group"] = "all"
+        return result
+    if result.empty:
+        result["_group"] = pd.Series(dtype="string")
+        return result
+    labels = result[list(present)].astype("string")
+    result["_group"] = labels.apply(
+        lambda row: ", ".join(
+            f"{column}={row[column]}" for column in present
+        ),
+        axis=1,
     )
-    save_figure(fig, path, dpi=dpi, close=True)
+    return result
+
+
+def _plot_path(root: Path, spec: PlotSpec) -> Path:
+    if spec.diagnostic:
+        selector = spec.selectors[0]
+        return root / "plots" / f"experiment_{selector}" / spec.filename
+    return root / "plots" / "summary" / spec.filename
+
+
+def _csv_artifact_rows(root: Path, series_id: str) -> list[dict[str, Any]]:
+    rows = []
+    for table in PUBLIC_TABLE_COLUMNS:
+        path = root / f"{table}.csv"
+        rows.append(
+            _artifact_row(
+                series_id,
+                root,
+                table,
+                path,
+                status="created" if path.exists() or table == "artifacts" else "missing",
+            )
+        )
+    return rows
 
 
 def _artifact_row(
@@ -662,32 +1012,44 @@ def _artifact_row(
     name: str,
     path: Path,
     *,
-    error: Exception | None = None,
+    status: str,
+    error: str = "",
 ) -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
         "series_id": series_id,
         "artifact_type": path.suffix.lstrip(".") or "file",
         "name": name,
-        "path": str(path.relative_to(root)),
+        "path": path.relative_to(root).as_posix(),
         "size_bytes": path.stat().st_size if path.exists() else 0,
-        "status": "error" if error is not None else "created",
-        "error": f"{type(error).__name__}: {error}" if error is not None else "",
+        "status": status,
+        "error": error,
     }
 
 
-def _merge_artifacts(path: Path, new_rows: Sequence[Mapping[str, Any]]) -> None:
-    existing = pd.read_csv(path) if path.exists() else pd.DataFrame(columns=ARTIFACT_COLUMNS)
-    names = {str(row["name"]) for row in new_rows}
-    if "name" in existing:
-        existing = existing.loc[~existing["name"].astype(str).isin(names)]
-    combined = pd.concat([existing, pd.DataFrame(new_rows)], ignore_index=True)
-    combined = combined.reindex(columns=ARTIFACT_COLUMNS)
-    _atomic_frame_csv(combined, path)
+def _write_artifact_manifest(
+    path: Path,
+    rows: Sequence[Mapping[str, Any]],
+) -> pd.DataFrame:
+    frame = pd.DataFrame(rows).reindex(columns=ARTIFACT_COLUMNS)
+    artifact_mask = frame["path"].eq(path.name)
+    for _ in range(6):
+        _atomic_frame_csv(frame, path)
+        size = path.stat().st_size
+        recorded = pd.to_numeric(
+            frame.loc[artifact_mask, "size_bytes"], errors="coerce"
+        )
+        if not recorded.empty and int(recorded.iloc[0]) == size:
+            break
+        frame.loc[artifact_mask, "size_bytes"] = size
+    return frame.reset_index(drop=True)
 
 
 def _atomic_frame_csv(frame: pd.DataFrame, path: Path) -> None:
-    temporary = path.with_name(path.name + ".tmp")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(
+        f"pending-{path.name}-{os.getpid()}-{uuid.uuid4().hex}"
+    )
     try:
         frame.to_csv(temporary, index=False)
         os.replace(temporary, path)
@@ -696,40 +1058,36 @@ def _atomic_frame_csv(frame: pd.DataFrame, path: Path) -> None:
         raise
 
 
-def _series_id(runs: pd.DataFrame, root: Path) -> str:
-    if "series_id" in runs and not runs["series_id"].dropna().empty:
-        return str(runs["series_id"].dropna().iloc[0])
-    series_path = root / "single_index_series.csv"
-    if series_path.exists():
-        with series_path.open(newline="", encoding="utf-8") as handle:
-            row = next(csv.DictReader(handle), {})
-        return str(row.get("series_id", ""))
-    return ""
+def _series_id(runs: pd.DataFrame) -> str:
+    if "series_id" not in runs:
+        return ""
+    values = runs["series_id"].dropna()
+    return str(values.iloc[0]) if not values.empty else ""
 
 
-def _finite_values(values: pd.Series | Sequence[float]) -> np.ndarray:
-    numeric = pd.to_numeric(values, errors="coerce")
-    array = np.asarray(numeric, dtype=float)
-    return array[np.isfinite(array)]
+def _normalise_experiment(values: pd.Series) -> pd.Series:
+    result = values.astype("string").str.strip()
+    return result.str.replace(r"\.0$", "", regex=True)
 
 
-def _derived_seed(base: int, *parts: Any) -> int:
-    payload = "\x1f".join(str(part) for part in (base, *parts)).encode("utf-8")
-    return int.from_bytes(hashlib.blake2s(payload, digest_size=4).digest(), "big")
+def _truthy(values: pd.Series) -> pd.Series:
+    return values.astype("string").str.lower().isin({"1", "1.0", "true", "yes"})
+
+
+def _unique_columns(columns: Sequence[str]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(columns))
 
 
 def _require_columns(frame: pd.DataFrame, columns: Sequence[str], name: str) -> None:
-    missing = sorted(set(columns) - set(frame.columns))
+    missing = tuple(column for column in columns if column not in frame)
     if missing:
         raise ValueError(f"missing columns in {name}: {', '.join(missing)}")
 
 
 __all__ = [
-    "bootstrap_interval",
-    "build_single_index_summary",
-    "fit_scaling_exponents",
-    "paired_method_differences",
-    "select_worst_five",
-    "wilson_interval",
+    "PLOT_MANIFEST",
+    "PlotSpec",
+    "add_report_metrics",
+    "prepare_quantile_band",
     "write_single_index_reports",
 ]

@@ -1,217 +1,305 @@
+from __future__ import annotations
+
 import math
 
 import numpy as np
 import pandas as pd
 
+import adp.evaluation.single_index.executors as executors
 import adp.evaluation.single_index.reports as reports
 from adp.evaluation.single_index.reports import (
-    build_single_index_summary,
-    fit_scaling_exponents,
-    paired_method_differences,
-    select_worst_five,
+    add_report_metrics,
+    prepare_quantile_band,
     write_single_index_reports,
 )
-from adp.evaluation.single_index.schema import ARTIFACT_COLUMNS
+from adp.evaluation.single_index.schema import (
+    ARTIFACT_COLUMNS,
+    INNER_ITERATION_COLUMNS,
+    LOCAL_DIAGNOSTIC_COLUMNS,
+    OUTER_ITERATION_COLUMNS,
+    RUN_SUMMARY_COLUMNS,
+    SERIES_COLUMNS,
+    SOLVER_ITERATION_COLUMNS,
+)
+from adp.evaluation.single_index.types import EXPERIMENT_SELECTORS
 
 
-def sample_runs():
-    return pd.DataFrame(
-        [
-            {
-                "run_id": "full-1",
-                "scenario_id": "S01",
-                "family": "S",
-                "method": "full_adp",
-                "repeat": 0,
-                "data_seed": 10,
-                "status": "success",
-                "cosine_abs": 0.9,
-                "algorithm_time_sec": 1.0,
-                "full_run_time_sec": 1.2,
-            },
-            {
-                "run_id": "full-2",
-                "scenario_id": "S01",
-                "family": "S",
-                "method": "full_adp",
-                "repeat": 1,
-                "data_seed": 11,
-                "status": "success",
-                "cosine_abs": 0.7,
-                "algorithm_time_sec": 2.0,
-                "full_run_time_sec": 2.2,
-            },
-            {
-                "run_id": "full-3",
-                "scenario_id": "S01",
-                "family": "S",
-                "method": "full_adp",
-                "repeat": 2,
-                "data_seed": 12,
-                "status": "failed",
-                "cosine_abs": 0.1,
-            },
-            {
-                "run_id": "full-4",
-                "scenario_id": "S01",
-                "family": "S",
-                "method": "full_adp",
-                "repeat": 3,
-                "data_seed": 13,
-                "status": "unavailable",
-                "cosine_abs": np.nan,
-            },
-            {
-                "run_id": "ols-1",
-                "scenario_id": "S01",
-                "family": "S",
-                "method": "ols",
-                "repeat": 0,
-                "data_seed": 10,
-                "status": "success",
-                "cosine_abs": 0.7,
-                "algorithm_time_sec": 0.1,
-                "full_run_time_sec": 0.2,
-            },
-            {
-                "run_id": "ols-2",
-                "scenario_id": "S01",
-                "family": "S",
-                "method": "ols",
-                "repeat": 1,
-                "data_seed": 11,
-                "status": "success",
-                "cosine_abs": 0.6,
-                "algorithm_time_sec": 0.1,
-                "full_run_time_sec": 0.2,
-            },
-        ]
+REQUIRED_PLOTS = {
+    "quality_vs_outer_iteration.png",
+    "bandwidth_vs_outer_iteration.png",
+    "rho_vs_outer_iteration.png",
+    "beta_step_vs_outer_iteration.png",
+    "objective_vs_outer_iteration.png",
+    "objective_vs_inner_iteration.png",
+    "beta_step_vs_inner_iteration.png",
+    "solver_residual_vs_iteration.png",
+    "local_mass_by_outer_iteration.png",
+    "effective_neighbors_by_outer_iteration.png",
+    "local_condition_by_outer_iteration.png",
+    "mass_vs_condition.png",
+    "local_slopes_by_outer_iteration.png",
+    "quality_heatmap_d_nd_ratio.png",
+    "success_rate_heatmap.png",
+    "runtime_vs_dimension.png",
+    "memory_vs_dimension.png",
+    "iterations_heatmap_d_nd_ratio.png",
+    "quality_vs_sigma_eps.png",
+    "success_rate_vs_sigma_eps.png",
+    "runtime_vs_sigma_eps.png",
+    "outer_iterations_vs_sigma_eps.png",
+    "final_objective_vs_sigma_eps.png",
+    "quality_vs_correlation.png",
+    "success_rate_vs_correlation.png",
+    "local_condition_vs_correlation.png",
+    "solver_iterations_vs_correlation.png",
+    "runtime_vs_correlation.png",
+    "quality_vs_sigma_x.png",
+    "h0_vs_sigma_x.png",
+    "final_bandwidth_vs_sigma_x.png",
+    "local_mass_vs_sigma_x.png",
+    "runtime_vs_sigma_x.png",
+    "quality_by_link_function.png",
+    "success_rate_by_link_function.png",
+    "outer_iterations_by_link_function.png",
+    "objective_by_link_function.png",
+    "local_slopes_by_link_function.png",
+    "quality_by_x_distribution.png",
+    "quality_by_noise_distribution.png",
+    "failure_rate_by_distribution.png",
+    "runtime_by_distribution.png",
+    "quality_by_heteroscedasticity.png",
+    "quality_vs_outlier_fraction.png",
+    "failure_rate_vs_outliers.png",
+    "quality_vs_model_misspecification.png",
+    "objective_vs_model_misspecification.png",
+    "runtime_breakdown.png",
+}
+
+
+def _write_frame(path, rows, columns):
+    pd.DataFrame(rows).reindex(columns=columns).to_csv(path, index=False)
+
+
+def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
+    run_rows = []
+    outer_rows = []
+    inner_rows = []
+    local_rows = []
+    solver_rows = []
+    for selector_index, selector in enumerate(selectors):
+        for seed in range(3):
+            run_id = f"run-{selector}-{seed}"
+            failed = seed == 2
+            run_rows.append(
+                {
+                    "schema_version": 1,
+                    "series_id": "series-report-test",
+                    "run_id": run_id,
+                    "experiment": selector,
+                    "seed": seed,
+                    "diagnostic": seed < 2,
+                    "d": 5 + 20 * (seed % 2),
+                    "n": 50 + 50 * seed,
+                    "n_over_d": 2.0 + 3.0 * (seed % 2),
+                    "n_centers": 20,
+                    "center_fraction": 1.0,
+                    "sigma_x": (0.5, 1.0, 2.0)[seed],
+                    "rho_corr": (0.0, 0.5, 0.9)[seed],
+                    "sigma_eps": (0.0, 0.5, 1.0)[seed],
+                    "snr": math.inf if seed == 0 else 4.0 / seed,
+                    "link": ("linear", "quadratic", "sin")[seed],
+                    "x_distribution": ("gaussian", "uniform", "student_t5")[seed],
+                    "noise_distribution": ("gaussian", "student_t5", "student_t3")[seed],
+                    "heteroscedastic": bool(seed % 2),
+                    "outlier_fraction": (0.0, 0.01, 0.05)[seed],
+                    "outlier_scale": 5.0,
+                    "delta": (0.0, 0.1, 0.5)[seed],
+                    "h_initial": 2.0 + seed,
+                    "h_final": 1.0 + seed,
+                    "rho_final": 0.25 * seed,
+                    "outer_iterations": 2 + seed,
+                    "inner_iterations_total": 4 + seed,
+                    "cosine_abs": np.nan if failed else 0.995 - 0.03 * seed,
+                    "projector_error": 0.1 + 0.1 * seed,
+                    "objective": 1.0 + seed,
+                    "runtime_sec": 0.5 + selector_index * 0.1 + seed,
+                    "peak_memory_mb": 100.0 + 10.0 * seed,
+                    "status": "numerical_failure" if failed else "success",
+                    "stop_reason": "numerical_exception" if failed else "tolerance",
+                }
+            )
+            for outer_k in range(2):
+                outer_rows.append(
+                    {
+                        "schema_version": 1,
+                        "series_id": "series-report-test",
+                        "run_id": run_id,
+                        "experiment": selector,
+                        "seed": seed,
+                        "outer_k": outer_k,
+                        "h_k": 2.0 / (outer_k + 1) + seed,
+                        "rho_k": 0.1 * outer_k,
+                        "beta_k": "1|0",
+                        "beta_norm": 1.0,
+                        "cosine_abs": 0.9 + 0.02 * outer_k - 0.01 * seed,
+                        "projector_error": 0.2,
+                        "beta_delta": 0.2 / (outer_k + 1),
+                        "objective_before": 2.0 + seed,
+                        "objective_after": 1.0 + 0.2 * seed,
+                        "relative_objective_decrease": 0.5,
+                        "inner_iterations": 2,
+                        "local_mass_mean": 10.0 + seed,
+                        "local_mass_q05": 5.0 + seed,
+                        "local_mass_median": 9.0 + seed,
+                        "local_mass_q95": 15.0 + seed,
+                        "ess_mean": 8.0 + seed,
+                        "condition_median": 2.0 + seed,
+                        "weights_time_sec": 0.01 + 0.001 * seed,
+                        "statistics_time_sec": 0.02 + 0.001 * seed,
+                        "optimization_time_sec": 0.03 + 0.001 * seed,
+                        "service_overhead_sec": 0.005,
+                        "iteration_time_sec": 0.065 + 0.003 * seed,
+                    }
+                )
+                for inner_k in range(2):
+                    inner_rows.append(
+                        {
+                            "schema_version": 1,
+                            "series_id": "series-report-test",
+                            "run_id": run_id,
+                            "experiment": selector,
+                            "seed": seed,
+                            "outer_k": outer_k,
+                            "inner_k": inner_k,
+                            "objective": 1.0 / (inner_k + 1) + seed,
+                            "beta_delta": 0.1 / (inner_k + 1),
+                            "linear_solver_iterations": 2 + seed,
+                            "relative_linear_residual": 0.01,
+                        }
+                    )
+                for center_j in range(2):
+                    local_rows.append(
+                        {
+                            "schema_version": 1,
+                            "series_id": "series-report-test",
+                            "run_id": run_id,
+                            "experiment": selector,
+                            "seed": seed,
+                            "outer_k": outer_k,
+                            "center_j": center_j,
+                            "local_mass": 5.0 + center_j + seed,
+                            "ess": 4.0 + center_j,
+                            "condition": 2.0 + center_j + seed,
+                            "slope": 0.5 + 0.1 * center_j,
+                        }
+                    )
+                for solver_k in range(1, 3):
+                    solver_rows.append(
+                        {
+                            "schema_version": 1,
+                            "series_id": "series-report-test",
+                            "run_id": run_id,
+                            "experiment": selector,
+                            "seed": seed,
+                            "outer_k": outer_k,
+                            "inner_k": 0,
+                            "solver_k": solver_k,
+                            "relative_residual": 0.1**solver_k,
+                        }
+                    )
+    _write_frame(tmp_path / "run_summary.csv", run_rows, RUN_SUMMARY_COLUMNS)
+    _write_frame(tmp_path / "outer_iterations.csv", outer_rows, OUTER_ITERATION_COLUMNS)
+    _write_frame(tmp_path / "inner_iterations.csv", inner_rows, INNER_ITERATION_COLUMNS)
+    _write_frame(tmp_path / "local_diagnostics.csv", local_rows, LOCAL_DIAGNOSTIC_COLUMNS)
+    _write_frame(tmp_path / "solver_iterations.csv", solver_rows, SOLVER_ITERATION_COLUMNS)
+    _write_frame(
+        tmp_path / "series.csv",
+        [{"schema_version": 1, "series_id": "series-report-test", "status": "complete"}],
+        SERIES_COLUMNS,
+    )
+    _write_frame(tmp_path / "artifacts.csv", [], ARTIFACT_COLUMNS)
+
+
+def test_fixture_csvs_render_every_applicable_plot(tmp_path):
+    write_fixture_tables(tmp_path)
+
+    artifacts = write_single_index_reports(tmp_path, dpi=40)
+
+    created = {
+        path.name
+        for path in artifacts.loc[artifacts.status == "created", "path"].map(tmp_path.__truediv__)
+        if path.suffix == ".png"
+    }
+    assert REQUIRED_PLOTS <= created
+    assert not artifacts.loc[artifacts.path.str.endswith(".png"), "path"].str.startswith("/").any()
+
+
+def test_quantile_bands_keep_experiments_separate_and_use_5_50_95_percentiles():
+    frame = pd.DataFrame(
+        {
+            "experiment": ["1"] * 5 + ["3"] * 5,
+            "outer_k": [0] * 10,
+            "cosine_abs": [0, 1, 2, 3, 100, 10, 11, 12, 13, 14],
+        }
     )
 
-
-def test_summary_keeps_failures_in_denominator_and_excludes_nan_quality():
-    summary = build_single_index_summary(
-        sample_runs(),
-        bootstrap_resamples=200,
-        random_state=17,
+    prepared = prepare_quantile_band(
+        frame,
+        x="outer_k",
+        y="cosine_abs",
+        groups=("experiment",),
     )
-    row = summary.query("scenario_id == 'S01' and method == 'full_adp'").iloc[0]
 
-    assert row["total_count"] == 4
-    assert row["success_count"] == 2
-    assert row["failed_count"] == 1
-    assert row["unavailable_count"] == 1
-    assert row["success_rate"] == 0.5
-    assert row["failure_rate"] == 0.25
-    assert row["cosine_abs_count"] == 2
-    assert row["cosine_abs_mean"] == 0.8
-    assert row["cosine_abs_median"] == 0.8
-    assert math.isclose(row["cosine_abs_iqr"], 0.1)
-    assert math.isclose(row["cosine_abs_q05"], 0.71)
-    assert math.isclose(row["cosine_abs_q95"], 0.89)
-    assert row["success_ci95_low"] < 0.5 < row["success_ci95_high"]
-    assert 0.7 <= row["cosine_abs_bootstrap_ci95_low"] <= 0.8
-    assert 0.8 <= row["cosine_abs_bootstrap_ci95_high"] <= 0.9
+    first = prepared.loc[prepared.experiment == "1"].iloc[0]
+    second = prepared.loc[prepared.experiment == "3"].iloc[0]
+    assert first["q05"] == np.quantile([0, 1, 2, 3, 100], 0.05)
+    assert first["median"] == 2
+    assert first["q95"] == np.quantile([0, 1, 2, 3, 100], 0.95)
+    assert second["median"] == 12
 
 
-def test_worst_five_returns_lowest_finite_successful_runs():
+def test_success_metrics_count_failures_and_use_strict_experiment_one_threshold():
     runs = pd.DataFrame(
         {
-            "run_id": [f"run-{index}" for index in range(8)],
-            "scenario_id": ["S01"] * 8,
-            "method": ["full_adp"] * 8,
-            "status": ["success"] * 7 + ["failed"],
-            "cosine_abs": [0.8, 0.2, 0.6, 0.1, 0.4, 0.3, 0.5, np.nan],
+            "experiment": ["1", "1", "2", "2", "2"],
+            "status": ["success", "success", "success", "nonconverged", "numerical_failure"],
+            "cosine_abs": [0.995, 0.95, 0.91, 0.905, np.nan],
         }
     )
 
-    worst = select_worst_five(runs)
+    enriched = add_report_metrics(runs)
 
-    assert list(worst["run_id"]) == ["run-3", "run-1", "run-5", "run-4", "run-6"]
-
-
-def test_scaling_fit_and_paired_differences_use_matching_data_seeds():
-    scaling = pd.DataFrame(
-        {
-            "scenario_id": ["M01"] * 3 + ["M06"] * 3,
-            "method": ["full_adp"] * 6,
-            "status": ["success"] * 6,
-            "data_n": [100, 200, 400, 100, 200, 400],
-            "data_d": [5] * 6,
-            "algorithm_n_centers": [10] * 6,
-            "algorithm_n_directions": [4] * 6,
-            "solver_outer_steps": [2] * 6,
-            "solver_inner_steps": [3] * 6,
-            "algorithm_time_sec": [1, 2, 4, 1, 1, 1],
-            "full_run_rss_peak_delta_mib": [1, 1, 1, 2, 4, 8],
-        }
-    )
-
-    fitted = fit_scaling_exponents(scaling)
-    m01 = fitted.query("scenario_id == 'M01'").iloc[0]
-    m06 = fitted.query("scenario_id == 'M06'").iloc[0]
-    assert math.isclose(m01["exponent"], 1.0)
-    assert m01["x_column"] == "data_n"
-    assert m01["y_column"] == "algorithm_time_sec"
-    assert math.isclose(m06["exponent"], 1.0)
-    assert m06["y_column"] == "full_run_rss_peak_delta_mib"
-
-    paired = paired_method_differences(sample_runs())
-    row = paired.iloc[0]
-    assert row["reference_method"] == "full_adp"
-    assert row["comparison_method"] == "ols"
-    assert row["pair_count"] == 2
-    assert math.isclose(row["cosine_abs_delta_mean"], 0.15)
+    assert list(enriched["success_value"]) == [1.0, 0.0, 1.0, 1.0, 0.0]
+    assert list(enriched["failure_value"]) == [0.0, 0.0, 0.0, 0.0, 1.0]
 
 
-def test_report_publishes_numeric_csv_when_one_plot_fails(tmp_path, monkeypatch):
-    runs = sample_runs().query("status == 'success'").copy()
-    parameters = runs[
-        ["run_id", "scenario_id", "family", "method", "repeat", "data_seed"]
-    ].copy()
-    parameters["data_n"] = [100, 200, 100, 200]
-    parameters["data_d"] = 5
-    parameters["algorithm_n_centers"] = 10
-    parameters["algorithm_n_directions"] = 4
-    parameters["solver_outer_steps"] = 2
-    parameters["solver_inner_steps"] = 3
-    runs.to_csv(tmp_path / "single_index_runs.csv", index=False)
-    parameters.to_csv(tmp_path / "single_index_initial_parameters.csv", index=False)
-    pd.DataFrame(columns=["run_id", "scenario_id", "method", "outer_k"]).to_csv(
-        tmp_path / "single_index_iterations.csv", index=False
-    )
-    pd.DataFrame(
-        columns=["run_id", "scenario_id", "method", "outer_k", "inner_k", "cg_k"]
-    ).to_csv(tmp_path / "single_index_solver_iterations.csv", index=False)
-    pd.DataFrame(columns=["run_id", "scenario_id", "method", "category"]).to_csv(
-        tmp_path / "single_index_failures.csv", index=False
-    )
-    pd.DataFrame(columns=ARTIFACT_COLUMNS).to_csv(
-        tmp_path / "single_index_artifacts.csv", index=False
-    )
+def test_report_rerender_never_executes_fit_and_isolates_plot_failures(
+    tmp_path,
+    monkeypatch,
+):
+    write_fixture_tables(tmp_path, selectors=("1",))
 
+    def fail_execute(*args, **kwargs):
+        raise AssertionError("executor must not be called by reports")
+
+    monkeypatch.setattr(executors, "execute_job", fail_execute)
     original = reports._render_plot
 
-    def fail_g02(plot_id, *args, **kwargs):
-        if plot_id == "G02":
+    def fail_one(spec, *args, **kwargs):
+        if spec.filename == "bandwidth_vs_outer_iteration.png":
             raise RuntimeError("forced plot failure")
-        return original(plot_id, *args, **kwargs)
+        return original(spec, *args, **kwargs)
 
-    monkeypatch.setattr(reports, "_render_plot", fail_g02)
+    monkeypatch.setattr(reports, "_render_plot", fail_one)
 
-    saved = write_single_index_reports(
-        tmp_path,
-        bootstrap_resamples=50,
-        random_state=9,
-    )
+    artifacts = write_single_index_reports(tmp_path, dpi=40)
 
-    assert saved["summary"].exists()
-    assert saved["scaling"].exists()
-    assert saved["paired"].exists()
-    assert not any(column.startswith("Unnamed") for column in pd.read_csv(saved["summary"]))
-    artifacts = pd.read_csv(saved["artifacts"])
-    summary_artifact = artifacts.query("name == 'summary'").iloc[0]
-    failed_plot = artifacts.query("name == 'G02'").iloc[0]
-    assert summary_artifact["status"] == "created"
-    assert failed_plot["status"] == "error"
-    assert "forced plot failure" in failed_plot["error"]
+    failed = artifacts.loc[
+        artifacts.path.str.endswith("bandwidth_vs_outer_iteration.png")
+    ].iloc[0]
+    later = artifacts.loc[
+        artifacts.path.str.endswith("rho_vs_outer_iteration.png")
+    ].iloc[0]
+    assert failed["status"] == "error"
+    assert "forced plot failure" in failed["error"]
+    assert later["status"] == "created"
