@@ -141,6 +141,7 @@ def run_single_index_benchmark(
         desc="single-index",
         unit="fit",
         dynamic_ncols=True,
+        disable=not sys.stderr.isatty(),
     ) as progress:
         process_jobs = _resolve_process_jobs(config.jobs)
         if process_jobs == 1:
@@ -292,12 +293,13 @@ def _mark_job_done(
         refresh=True,
     )
     progress.update(1)
-    print(
-        f"{completed}/{total} experiment={job.experiment} "
-        f"seed={job.seed} status={status}",
-        file=sys.stderr,
-        flush=True,
-    )
+    if progress.disable:
+        print(
+            f"{completed}/{total} experiment={job.experiment} "
+            f"seed={job.seed} status={status}",
+            file=sys.stderr,
+            flush=True,
+        )
     return completed
 
 

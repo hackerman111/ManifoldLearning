@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,6 +17,7 @@ from .plots import (
     grouped_line,
     heatmap,
     line_with_quantile_band,
+    line_with_wilson_interval,
     scatter,
     stacked_runtime,
 )
@@ -28,6 +29,7 @@ PlotKind = Literal[
     "quantile",
     "median_line",
     "mean_line",
+    "proportion",
     "box",
     "scatter",
     "heatmap",
@@ -52,6 +54,19 @@ class PlotSpec:
     diagnostic: bool = False
     log_x: bool = False
     log_y: bool = False
+    subtitle: str = ""
+    xscale: Literal["linear", "log", "log2", "symlog"] = "linear"
+    yscale: Literal["linear", "log", "log2", "symlog"] = "linear"
+    xlim: tuple[float, float] | None = None
+    ylim: tuple[float, float] | None = None
+    reference_y: float | None = None
+    reference_label: str | None = None
+    facet: tuple[str, ...] = ()
+    category_order: tuple[Any, ...] = ()
+    colorbar_label: str | None = None
+    value_limits: tuple[float, float] | None = None
+    integer_values: bool = False
+    normalize: bool = False
 
 
 _DIAGNOSTIC_SELECTOR = ("1",)
@@ -63,9 +78,20 @@ _RUNTIME_COMPONENTS = (
     "bandwidth_update_time_sec",
     "service_overhead_sec",
 )
+_COMPONENT_LABELS = {
+    "distance_time_sec": "расстояния",
+    "weights_time_sec": "веса",
+    "statistics_time_sec": "статистики",
+    "optimization_time_sec": "оптимизация",
+    "bandwidth_update_time_sec": "обновление ширины окна",
+    "service_overhead_sec": "служебные расходы",
+    "success": "успех",
+    "nonconverged": "нет сходимости",
+    "numerical_failure": "численный сбой",
+}
 
 
-PLOT_MANIFEST = (
+_BASE_PLOT_MANIFEST = (
     PlotSpec(
         "quality_vs_outer_iteration.png",
         _DIAGNOSTIC_SELECTOR,
@@ -654,7 +680,294 @@ PLOT_MANIFEST = (
         "Median time, seconds",
         components=_RUNTIME_COMPONENTS,
     ),
+    PlotSpec(
+        "projector_error_vs_outer_iteration.png",
+        ("1",),
+        "outer",
+        "quantile",
+        "outer_k",
+        "projector_error",
+        "Projector error by outer iteration",
+        "Outer iteration",
+        "Projector error",
+        diagnostic=True,
+    ),
+    PlotSpec(
+        "singular_fraction_vs_correlation.png",
+        ("4",),
+        "outer",
+        "quantile",
+        "rho_corr",
+        "singular_fraction",
+        "Singular fraction versus correlation",
+        "AR(1) correlation",
+        "Singular fraction",
+        groups=("d", "n_over_d"),
+    ),
+    PlotSpec(
+        "bandwidth_ratio_vs_sigma_x.png",
+        ("5",),
+        "runs",
+        "quantile",
+        "sigma_x",
+        "bandwidth_ratio",
+        "Bandwidth ratio versus feature scale",
+        "Feature scale",
+        "Final bandwidth / feature scale",
+        groups=("d", "n_over_d"),
+    ),
+    PlotSpec(
+        "status_breakdown.png",
+        EXPERIMENT_SELECTORS,
+        "runs",
+        "stacked",
+        "experiment",
+        "status",
+        "Status breakdown",
+        "Experiment",
+        "Fraction of runs",
+        components=("success", "nonconverged", "numerical_failure"),
+    ),
+    PlotSpec(
+        "runtime_share_breakdown.png",
+        EXPERIMENT_SELECTORS,
+        "outer",
+        "stacked",
+        "experiment",
+        "iteration_time_sec",
+        "Runtime component shares",
+        "Experiment",
+        "Runtime share",
+        components=_RUNTIME_COMPONENTS,
+    ),
 )
+
+
+_PLOT_SUBJECTS = {
+    "quality_vs_outer_iteration.png": "качество направления по внешним итерациям",
+    "bandwidth_vs_outer_iteration.png": "ширина окна по внешним итерациям",
+    "rho_vs_outer_iteration.png": "анизотропия по внешним итерациям",
+    "beta_step_vs_outer_iteration.png": "изменение направления по внешним итерациям",
+    "objective_vs_outer_iteration.png": "целевая функция по внешним итерациям",
+    "objective_vs_inner_iteration.png": "целевая функция по внутренним итерациям",
+    "beta_step_vs_inner_iteration.png": "изменение направления по внутренним итерациям",
+    "solver_residual_vs_iteration.png": "невязка линейного решателя",
+    "local_mass_by_outer_iteration.png": "локальная масса по внешним итерациям",
+    "effective_neighbors_by_outer_iteration.png": "эффективное число соседей по внешним итерациям",
+    "local_condition_by_outer_iteration.png": "обусловленность локальных систем",
+    "mass_vs_condition.png": "связь локальной массы и обусловленности",
+    "local_slopes_by_outer_iteration.png": "локальные наклоны по внешним итерациям",
+    "quality_heatmap_d_nd_ratio.png": "качество по размерности и объёму выборки",
+    "success_rate_heatmap.png": "доля успешных запусков по размерности и объёму выборки",
+    "runtime_vs_dimension.png": "время работы в зависимости от размерности",
+    "memory_vs_dimension.png": "пиковая память в зависимости от размерности",
+    "iterations_heatmap_d_nd_ratio.png": "число внешних итераций по размерности и объёму выборки",
+    "quality_vs_sigma_eps.png": "качество направления в зависимости от шума",
+    "success_rate_vs_sigma_eps.png": "доля успешных запусков в зависимости от шума",
+    "runtime_vs_sigma_eps.png": "время работы в зависимости от шума",
+    "outer_iterations_vs_sigma_eps.png": "число внешних итераций в зависимости от шума",
+    "final_objective_vs_sigma_eps.png": "финальная целевая функция в зависимости от шума",
+    "quality_vs_correlation.png": "качество направления в зависимости от корреляции",
+    "success_rate_vs_correlation.png": "доля успешных запусков в зависимости от корреляции",
+    "local_condition_vs_correlation.png": "локальная обусловленность в зависимости от корреляции",
+    "solver_iterations_vs_correlation.png": "работа линейного решателя в зависимости от корреляции",
+    "runtime_vs_correlation.png": "время работы в зависимости от корреляции",
+    "quality_vs_sigma_x.png": "качество направления при изменении масштаба признаков",
+    "h0_vs_sigma_x.png": "начальная ширина окна при изменении масштаба признаков",
+    "final_bandwidth_vs_sigma_x.png": "финальная ширина окна при изменении масштаба признаков",
+    "local_mass_vs_sigma_x.png": "локальная масса при изменении масштаба признаков",
+    "runtime_vs_sigma_x.png": "время работы при изменении масштаба признаков",
+    "quality_by_link_function.png": "качество направления для разных функций связи",
+    "success_rate_by_link_function.png": "доля успешных запусков для разных функций связи",
+    "outer_iterations_by_link_function.png": "число внешних итераций для разных функций связи",
+    "objective_by_link_function.png": "целевая функция для разных функций связи",
+    "local_slopes_by_link_function.png": "локальные наклоны для разных функций связи",
+    "quality_by_x_distribution.png": "качество для разных распределений признаков",
+    "quality_by_noise_distribution.png": "качество для разных распределений шума",
+    "failure_rate_by_distribution.png": "доля численных сбоев для разных распределений",
+    "runtime_by_distribution.png": "время работы для разных распределений",
+    "quality_by_heteroscedasticity.png": "влияние гетероскедастичности на качество",
+    "quality_vs_outlier_fraction.png": "качество в зависимости от доли выбросов",
+    "failure_rate_vs_outliers.png": "доля численных сбоев в зависимости от выбросов",
+    "quality_vs_model_misspecification.png": "качество при нарушении одноиндексной модели",
+    "objective_vs_model_misspecification.png": "целевая функция при нарушении одноиндексной модели",
+    "runtime_breakdown.png": "абсолютное время по этапам алгоритма",
+    "projector_error_vs_outer_iteration.png": "ошибка проектора по внешним итерациям",
+    "singular_fraction_vs_correlation.png": "доля вырожденных локальных систем",
+    "bandwidth_ratio_vs_sigma_x.png": "масштабная эквивариантность ширины окна",
+    "status_breakdown.png": "технические статусы запусков",
+    "runtime_share_breakdown.png": "доли времени по этапам алгоритма",
+}
+
+_AXIS_LABELS = {
+    "outer_k": "Внешняя итерация",
+    "inner_k": "Внутренняя итерация",
+    "solver_k": "Итерация линейного решателя",
+    "n_over_d": "Отношение объёма выборки к размерности, n/d",
+    "d": "Размерность, d",
+    "sigma_eps": "Стандартное отклонение шума, σₑ",
+    "rho_corr": "Корреляция признаков AR(1), ρ",
+    "sigma_x": "Масштаб признаков, σₓ",
+    "link": "Функция связи",
+    "x_distribution": "Распределение признаков",
+    "noise_distribution": "Распределение шума",
+    "distribution": "Распределение",
+    "heteroscedastic": "Гетероскедастичность",
+    "outlier_fraction": "Доля выбросов",
+    "delta": "Сила нарушения модели, δ",
+    "experiment": "Эксперимент",
+    "local_mass": "Локальная масса",
+    "cosine_abs": "Абсолютный косинус направления",
+    "h_k": "Ширина окна h",
+    "rho_k": "Параметр анизотропии ρ",
+    "beta_delta": "Изменение направления",
+    "objective_after": "Значение целевой функции",
+    "objective": "Значение целевой функции",
+    "relative_residual": "Относительная невязка",
+    "ess": "Эффективное число соседей",
+    "condition": "Число обусловленности",
+    "slope": "Локальный наклон",
+    "runtime_sec": "Время работы, с",
+    "peak_memory_mb": "Пиковая память, МБ",
+    "outer_iterations": "Число внешних итераций",
+    "success_value": "Доля успешных запусков",
+    "failure_value": "Доля численных сбоев",
+    "condition_median": "Медианное число обусловленности",
+    "linear_solver_iterations": "Суммарное число итераций решателя",
+    "h_initial": "Начальная ширина окна",
+    "h_final": "Финальная ширина окна",
+    "local_mass_mean": "Средняя локальная масса",
+    "iteration_time_sec": "Медианное время, с",
+    "projector_error": "Ошибка проектора",
+    "singular_fraction": "Доля вырожденных систем",
+    "bandwidth_ratio": "Отношение h финальной к σₓ",
+    "status": "Доля запусков",
+}
+
+_SYMLOG_Y = {
+    "beta_step_vs_outer_iteration.png", "objective_vs_outer_iteration.png",
+    "objective_vs_inner_iteration.png", "beta_step_vs_inner_iteration.png",
+    "solver_residual_vs_iteration.png", "local_slopes_by_outer_iteration.png",
+    "projector_error_vs_outer_iteration.png", "final_objective_vs_sigma_eps.png",
+    "objective_by_link_function.png", "local_slopes_by_link_function.png",
+    "objective_vs_model_misspecification.png",
+}
+_LOG_Y = {
+    "bandwidth_vs_outer_iteration.png", "local_condition_by_outer_iteration.png",
+    "mass_vs_condition.png", "runtime_vs_dimension.png",
+    "local_condition_vs_correlation.png", "h0_vs_sigma_x.png",
+    "final_bandwidth_vs_sigma_x.png", "runtime_vs_sigma_x.png",
+}
+_LOG_X = {"runtime_vs_dimension.png", "memory_vs_dimension.png"}
+_LOG2_X = {
+    "quality_vs_sigma_x.png", "h0_vs_sigma_x.png", "final_bandwidth_vs_sigma_x.png",
+    "local_mass_vs_sigma_x.png", "runtime_vs_sigma_x.png", "bandwidth_ratio_vs_sigma_x.png",
+}
+_QUALITY_FILENAMES = {
+    filename for filename, subject in _PLOT_SUBJECTS.items()
+    if "качество" in subject or "доля успеш" in subject or "доля числен" in subject
+} | {"quality_vs_outer_iteration.png", "singular_fraction_vs_correlation.png"}
+_CATEGORY_ORDERS = {
+    "link": ("linear", "quadratic", "square", "sin", "tanh", "oscillating"),
+    "x_distribution": ("gaussian", "uniform", "student_t5", "student_t3"),
+    "noise_distribution": ("gaussian", "student_t5", "student_t3"),
+    "distribution": ("gaussian", "uniform", "student_t5", "student_t3"),
+    "heteroscedastic": (False, True),
+}
+
+
+def _build_plot_manifest() -> tuple[PlotSpec, ...]:
+    result = []
+    for base in _BASE_PLOT_MANIFEST:
+        summary = len(base.selectors) > 1 or base.filename in {
+            "runtime_breakdown.png", "status_breakdown.png", "runtime_share_breakdown.png"
+        }
+        prefix = "Сводка —" if summary else f"Эксперимент {base.selectors[0]} —"
+        kind = "proportion" if base.kind == "mean_line" and base.y in {
+            "success_value", "failure_value"
+        } else base.kind
+        if kind == "quantile":
+            subtitle = "медиана и интервал 5–95% по запускам"
+        elif kind == "proportion":
+            subtitle = "оценка доли и 95% доверительный интервал Уилсона"
+        elif kind == "box":
+            subtitle = "медиана, коробка 25–75%, усики 5–95%"
+        elif kind == "heatmap":
+            subtitle = "медиана по запускам в каждой ячейке"
+        elif kind == "scatter":
+            subtitle = "распределение по центрам диагностических запусков"
+        else:
+            subtitle = "медиана по запускам"
+        if base.filename == "runtime_breakdown.png":
+            subtitle = "сумма по внешним итерациям запуска; медиана между запусками"
+        elif base.filename == "runtime_share_breakdown.png":
+            subtitle = "медианные доли времени по запускам; каждый столбец равен 100%"
+        elif base.filename == "status_breakdown.png":
+            subtitle = "доли технических статусов; каждый столбец равен 100%"
+        facets: tuple[str, ...] = ()
+        groups = base.groups
+        if base.selectors == ("1",):
+            facets = ("d", "link")
+        elif base.selectors and base.selectors[0] in {"3", "4", "5", "6", "7.1", "7.2", "8.1", "8.2", "8.3"}:
+            facets = ("d",)
+        if base.selectors == ("8.2",):
+            groups = ("n_over_d", "outlier_scale")
+        elif facets:
+            groups = tuple(column for column in groups if column not in facets)
+            if base.table == "runs" and base.x in _CATEGORY_ORDERS and "n_over_d" not in groups:
+                groups = ("n_over_d",)
+        if base.selectors == ("1",):
+            if kind == "box":
+                facets = tuple(dict.fromkeys((*facets, "n_over_d")))
+                groups = tuple(column for column in groups if column != "n_over_d")
+            else:
+                groups = tuple(dict.fromkeys(("n_over_d", *groups)))
+        elif kind == "box" and facets:
+            facets = tuple(dict.fromkeys((*facets, "n_over_d")))
+            groups = tuple(column for column in groups if column != "n_over_d")
+        xscale = "log2" if base.filename in _LOG2_X else "log" if base.filename in _LOG_X else "linear"
+        yscale = "symlog" if base.filename in _SYMLOG_Y else "log" if base.filename in _LOG_Y else "linear"
+        xlabel = _AXIS_LABELS[base.x]
+        ylabel = _AXIS_LABELS.get(base.y, base.ylabel)
+        if xscale == "log":
+            xlabel += " (логарифмическая шкала)"
+        elif xscale == "log2":
+            xlabel += " (логарифмическая шкала, основание 2)"
+        if yscale == "log":
+            ylabel += " (логарифмическая шкала)"
+        elif yscale == "symlog":
+            ylabel += " (симлог-шкала)"
+        quality = base.filename in _QUALITY_FILENAMES or base.filename == "rho_vs_outer_iteration.png"
+        threshold = None
+        if "quality" in base.filename:
+            threshold = 0.99 if base.selectors == ("1",) else 0.9
+        colorbar = _AXIS_LABELS.get(base.value or "", None)
+        result.append(replace(
+            base,
+            kind=kind,
+            title=f"{prefix} {_PLOT_SUBJECTS[base.filename]}",
+            xlabel=xlabel,
+            ylabel=ylabel,
+            subtitle=subtitle,
+            xscale=xscale,
+            yscale=yscale,
+            ylim=(0.0, 1.0) if quality else None,
+            reference_y=threshold,
+            reference_label=f"порог качества {threshold:g}" if threshold is not None else None,
+            facet=facets,
+            groups=groups,
+            category_order=_CATEGORY_ORDERS.get(base.x, ()),
+            colorbar_label=colorbar,
+            value_limits=(0.0, 1.0) if base.value in {"cosine_abs", "success_value"} else None,
+            integer_values=base.value == "outer_iterations",
+            normalize=base.filename in {"status_breakdown.png", "runtime_share_breakdown.png"},
+            log_x=False,
+            log_y=False,
+        ))
+    return tuple(result)
+
+
+PLOT_MANIFEST = _build_plot_manifest()
 
 
 _PRIMARY_TABLES = {
@@ -711,10 +1024,41 @@ def prepare_quantile_band(
     )
 
 
+def prepare_wilson_interval(
+    frame: pd.DataFrame,
+    *,
+    x: str,
+    y: str,
+    groups: Sequence[str] = (),
+) -> pd.DataFrame:
+    """Compute a two-sided 95% Wilson interval for grouped binary outcomes."""
+
+    keys = _unique_columns((*groups, x))
+    _require_columns(frame, (*keys, y), "plot frame")
+    source = frame[[*keys, y]].copy()
+    source[y] = pd.to_numeric(source[y], errors="coerce")
+    source = source.loc[source[x].notna() & source[y].isin((0.0, 1.0))]
+    columns = (*keys, "estimate", "low", "high", "n")
+    if source.empty:
+        return pd.DataFrame(columns=columns)
+    counts = source.groupby(list(keys), sort=True, dropna=False)[y].agg(["sum", "count"]).reset_index()
+    z = 1.959963984540054
+    n = counts["count"].astype(float)
+    estimate = counts["sum"] / n
+    denominator = 1.0 + z**2 / n
+    center = (estimate + z**2 / (2.0 * n)) / denominator
+    margin = z * np.sqrt(estimate * (1.0 - estimate) / n + z**2 / (4.0 * n**2)) / denominator
+    counts["estimate"] = estimate
+    counts["low"] = center - margin
+    counts["high"] = center + margin
+    counts["n"] = counts["count"].astype(int)
+    return counts[list(columns)]
+
+
 def write_single_index_reports(
     series_dir: str | Path,
     *,
-    dpi: int = 150,
+    dpi: int = 300,
 ) -> pd.DataFrame:
     """Rebuild every report artifact exclusively from committed public CSV files."""
 
@@ -835,21 +1179,34 @@ def _render_plot(
     dpi: int,
 ) -> None:
     source = _select_rows(spec, frames)
+    source = _prepare_plot_source(spec, source)
+    source = _attach_facet_labels(source, spec.facet)
+    data_notes = _invalid_value_notes(source, spec.y)
     common: dict[str, Any] = {
         "path": path,
         "xlabel": spec.xlabel,
         "ylabel": spec.ylabel,
         "title": spec.title,
+        "subtitle": spec.subtitle,
+        "xscale": spec.xscale,
+        "yscale": spec.yscale,
+        "xlim": spec.xlim,
+        "ylim": spec.ylim,
+        "reference_y": spec.reference_y,
+        "reference_label": spec.reference_label,
+        "category_order": spec.category_order,
+        "facet": "_facet" if spec.facet else None,
         "dpi": dpi,
     }
     if spec.kind == "quantile":
-        groups = _unique_columns(("experiment", *spec.groups))
+        groups = _unique_columns(spec.groups)
         prepared = prepare_quantile_band(
             source,
             x=spec.x,
             y=spec.y,
-            groups=groups,
+            groups=(*spec.facet, *groups),
         )
+        prepared = _attach_facet_labels(prepared, spec.facet)
         prepared = _attach_group_labels(prepared, groups)
         line_with_quantile_band(
             prepared,
@@ -858,29 +1215,49 @@ def _render_plot(
             q05="q05",
             q95="q95",
             group="_group",
-            log_x=spec.log_x,
-            log_y=spec.log_y,
+            data_notes=data_notes,
+            **common,
+        )
+        return
+    if spec.kind == "proportion":
+        groups = _unique_columns(spec.groups)
+        prepared = prepare_wilson_interval(
+            source,
+            x=spec.x,
+            y=spec.y,
+            groups=(*spec.facet, *groups),
+        )
+        prepared = _attach_facet_labels(prepared, spec.facet)
+        prepared = _attach_group_labels(prepared, groups)
+        line_with_wilson_interval(
+            prepared,
+            x=spec.x,
+            estimate="estimate",
+            low="low",
+            high="high",
+            group="_group",
+            data_notes=data_notes,
             **common,
         )
         return
     if spec.kind in {"median_line", "mean_line"}:
         aggregate = "median" if spec.kind == "median_line" else "mean"
-        groups = _unique_columns(("experiment", *spec.groups))
+        groups = _unique_columns(spec.groups)
         prepared = _prepare_aggregate_line(
             source,
             x=spec.x,
             y=spec.y,
-            groups=groups,
+            groups=(*spec.facet, *groups),
             aggregate=aggregate,
         )
+        prepared = _attach_facet_labels(prepared, spec.facet)
         prepared = _attach_group_labels(prepared, groups)
         grouped_line(
             prepared,
             x=spec.x,
             y=spec.y,
             group="_group",
-            log_x=spec.log_x,
-            log_y=spec.log_y,
+            data_notes=data_notes,
             **common,
         )
         return
@@ -889,21 +1266,17 @@ def _render_plot(
             source,
             x=spec.x,
             y=spec.y,
-            log_x=spec.log_x,
-            log_y=spec.log_y,
             **common,
         )
         return
     if spec.kind == "scatter":
-        groups = _unique_columns(("experiment", *spec.groups))
+        groups = _unique_columns(spec.groups)
         prepared = _attach_group_labels(source, groups)
         scatter(
             prepared,
             x=spec.x,
             y=spec.y,
             group="_group",
-            log_x=spec.log_x,
-            log_y=spec.log_y,
             **common,
         )
         return
@@ -915,7 +1288,15 @@ def _render_plot(
             x=spec.x,
             y=spec.y,
             value=spec.value,
-            **common,
+            path=path,
+            xlabel=spec.xlabel,
+            ylabel=spec.ylabel,
+            title=spec.title,
+            subtitle=spec.subtitle,
+            colorbar_label=spec.colorbar_label or spec.ylabel,
+            value_limits=spec.value_limits,
+            integer_values=spec.integer_values,
+            dpi=dpi,
         )
         return
     if spec.kind == "stacked":
@@ -923,7 +1304,15 @@ def _render_plot(
             source,
             category=spec.x,
             components=spec.components,
-            **common,
+            path=path,
+            xlabel=spec.xlabel,
+            ylabel=spec.ylabel,
+            title=spec.title,
+            subtitle=spec.subtitle,
+            component_labels=_COMPONENT_LABELS,
+            aggregate="mean" if spec.filename == "status_breakdown.png" else "median",
+            normalize=spec.normalize,
+            dpi=dpi,
         )
         return
     raise ValueError(f"unknown plot kind: {spec.kind}")
@@ -938,6 +1327,132 @@ def _select_rows(
     if spec.diagnostic and "diagnostic" in selected:
         selected = selected.loc[_truthy(selected["diagnostic"])]
     return selected
+
+
+def _prepare_plot_source(spec: PlotSpec, source: pd.DataFrame) -> pd.DataFrame:
+    result = source.copy()
+    if spec.filename == "success_rate_heatmap.png":
+        result = (
+            result.groupby(
+                ["d", "n_over_d"], sort=True, dropna=False, as_index=False
+            )["success_value"]
+            .mean()
+        )
+    if spec.filename == "bandwidth_ratio_vs_sigma_x.png":
+        sigma = pd.to_numeric(result["sigma_x"], errors="coerce")
+        bandwidth = pd.to_numeric(result["h_final"], errors="coerce")
+        result["bandwidth_ratio"] = bandwidth / sigma.where(sigma.ne(0.0))
+    if spec.filename == "singular_fraction_vs_correlation.png":
+        singular = pd.to_numeric(result["singular_centers"], errors="coerce")
+        centers = pd.to_numeric(result["n_centers"], errors="coerce")
+        result["singular_fraction"] = singular / centers.where(centers.gt(0.0))
+        result = _collapse_run_metric(result, "singular_fraction", "max")
+    elif spec.filename == "local_condition_vs_correlation.png":
+        result = _last_outer_rows(result)
+    elif spec.filename == "solver_iterations_vs_correlation.png":
+        result = _collapse_run_metric(result, "linear_solver_iterations", "sum")
+    elif spec.filename == "local_mass_vs_sigma_x.png":
+        result = _last_outer_rows(result)
+    elif spec.filename == "local_slopes_by_link_function.png":
+        result = _last_outer_rows(result)
+        result = _collapse_run_metric(result, "slope", "median")
+    if spec.filename in {"runtime_breakdown.png", "runtime_share_breakdown.png"}:
+        result = _collapse_run_components(result, spec.components)
+    if spec.filename == "status_breakdown.png":
+        status = result["status"].astype("string")
+        for component in spec.components:
+            result[component] = status.eq(component).astype(float)
+    return result
+
+
+def _invalid_value_notes(
+    frame: pd.DataFrame,
+    value: str,
+) -> dict[str | None, str]:
+    if value not in frame:
+        return {}
+    groups = ((None, frame),)
+    if "_facet" in frame:
+        groups = tuple(
+            (str(label), subset)
+            for label, subset in frame.groupby("_facet", sort=False, dropna=False)
+        )
+    notes: dict[str | None, str] = {}
+    for label, subset in groups:
+        values = pd.to_numeric(subset[value], errors="coerce").to_numpy(dtype=float)
+        if values.size == 0:
+            continue
+        finite = np.isfinite(values)
+        nan_count = int(np.isnan(values).sum())
+        posinf = int(np.isposinf(values).sum())
+        neginf = int(np.isneginf(values).sum())
+        if finite.any():
+            if nan_count or posinf or neginf:
+                notes[label] = (
+                    f"невалидные: NaN = {nan_count}, +∞ = {posinf}, −∞ = {neginf}"
+                )
+            continue
+        if posinf == values.size:
+            notes[label] = f"все {values.size} {_russian_value_word(values.size)} равны +∞"
+        elif neginf == values.size:
+            notes[label] = f"все {values.size} {_russian_value_word(values.size)} равны −∞"
+        else:
+            notes[label] = (
+                f"нет конечных значений: NaN = {nan_count}, "
+                f"+∞ = {posinf}, −∞ = {neginf}"
+            )
+    return notes
+
+
+def _russian_value_word(count: int) -> str:
+    if 11 <= count % 100 <= 14:
+        return "значений"
+    if count % 10 == 1:
+        return "значение"
+    if 2 <= count % 10 <= 4:
+        return "значения"
+    return "значений"
+
+
+def _last_outer_rows(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty or not {"run_id", "outer_k"} <= set(frame):
+        return frame.copy()
+    outer = pd.to_numeric(frame["outer_k"], errors="coerce")
+    maximum = outer.groupby(frame["run_id"], dropna=False).transform("max")
+    return frame.loc[outer.eq(maximum)].copy()
+
+
+def _collapse_run_metric(
+    frame: pd.DataFrame,
+    metric: str,
+    aggregate: Literal["max", "sum", "median"],
+) -> pd.DataFrame:
+    if frame.empty:
+        return frame.copy()
+    _require_columns(frame, ("run_id", metric), "detail table")
+    values = frame[["run_id", metric]].copy()
+    values[metric] = pd.to_numeric(values[metric], errors="coerce")
+    grouped = values.groupby("run_id", sort=False, dropna=False)[metric]
+    if aggregate == "max":
+        collapsed = grouped.max().reset_index()
+    elif aggregate == "sum":
+        collapsed = grouped.sum(min_count=1).reset_index()
+    else:
+        collapsed = grouped.median().reset_index()
+    metadata = frame.drop(columns=[metric]).drop_duplicates("run_id", keep="last")
+    return metadata.merge(collapsed, on="run_id", how="left", validate="one_to_one")
+
+
+def _collapse_run_components(frame: pd.DataFrame, components: Sequence[str]) -> pd.DataFrame:
+    if frame.empty:
+        return frame.copy()
+    _require_columns(frame, ("run_id", *components), "outer_iterations")
+    values = frame[["run_id", *components]].copy()
+    for component in components:
+        values[component] = pd.to_numeric(values[component], errors="coerce")
+    collapsed = values.groupby("run_id", sort=False, dropna=False)[list(components)].sum(min_count=1).reset_index()
+    metadata = frame.drop(columns=list(components)).drop_duplicates("run_id", keep="last")
+    return metadata.merge(collapsed, on="run_id", how="left", validate="one_to_one")
 
 
 def _prepare_aggregate_line(
@@ -968,7 +1483,7 @@ def _attach_group_labels(
     result = frame.copy()
     present = tuple(column for column in groups if column in result)
     if not present:
-        result["_group"] = "all"
+        result["_group"] = ""
         return result
     if result.empty:
         result["_group"] = pd.Series(dtype="string")
@@ -976,15 +1491,56 @@ def _attach_group_labels(
     labels = result[list(present)].astype("string")
     result["_group"] = labels.apply(
         lambda row: ", ".join(
-            f"{column}={row[column]}" for column in present
+            _format_parameter(column, row[column]) for column in present
         ),
         axis=1,
     )
     return result
 
 
+def _attach_facet_labels(frame: pd.DataFrame, facets: Sequence[str]) -> pd.DataFrame:
+    result = frame.copy()
+    present = tuple(column for column in facets if column in result)
+    if not present:
+        return result
+    if result.empty:
+        result["_facet"] = pd.Series(dtype="string")
+        return result
+    labels = result[list(present)].astype("string")
+    result["_facet"] = labels.apply(
+        lambda row: ", ".join(_format_parameter(column, row[column]) for column in present),
+        axis=1,
+    )
+    return result
+
+
+def _format_parameter(column: str, value: Any) -> str:
+    names = {
+        "d": "d",
+        "n_over_d": "n/d",
+        "outer_k": "внешняя итерация",
+        "inner_k": "внутренняя итерация",
+        "outlier_scale": "масштаб выбросов",
+        "link": "функция связи",
+        "experiment": "эксперимент",
+    }
+    text = str(value)
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        translated = {
+            "linear": "линейная", "quadratic": "квадратичная", "square": "квадрат",
+            "sin": "синус", "tanh": "гиперболический тангенс", "oscillating": "осциллирующая",
+        }.get(text, text)
+        return f"{names.get(column, column)} = {translated}"
+    return f"{names.get(column, column)} = {number:g}"
+
+
 def _plot_path(root: Path, spec: PlotSpec) -> Path:
-    if spec.diagnostic:
+    if spec.diagnostic or spec.filename in {
+        "singular_fraction_vs_correlation.png",
+        "bandwidth_ratio_vs_sigma_x.png",
+    }:
         selector = spec.selectors[0]
         return root / "plots" / f"experiment_{selector}" / spec.filename
     return root / "plots" / "summary" / spec.filename
@@ -1089,5 +1645,6 @@ __all__ = [
     "PlotSpec",
     "add_report_metrics",
     "prepare_quantile_band",
+    "prepare_wilson_interval",
     "write_single_index_reports",
 ]

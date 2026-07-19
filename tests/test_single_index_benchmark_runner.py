@@ -7,6 +7,7 @@ import pandas as pd
 import adp.evaluation.single_index.runner as single_index_runner
 from adp.evaluation.single_index.runner import (
     _initialize_worker,
+    _mark_job_done,
     build_single_index_jobs,
     run_single_index_benchmark,
 )
@@ -154,6 +155,57 @@ def test_worker_initializer_caps_every_supported_runtime(monkeypatch):
 
     for name in variables:
         assert os.environ[name] == "1"
+
+
+class _ProgressRecorder:
+    def __init__(self, *, disable):
+        self.disable = disable
+        self.postfix = None
+        self.updated = 0
+
+    def set_postfix(self, values, refresh=True):
+        self.postfix = values
+
+    def update(self, amount):
+        self.updated += amount
+
+
+class _CommittedStore:
+    def __init__(self, run_id):
+        self.run_id = run_id
+
+    def completed_run_ids(self):
+        return {self.run_id}
+
+
+def test_interactive_tqdm_updates_without_printing_a_new_line(capsys):
+    job = build_single_index_jobs(
+        SingleIndexSeriesConfig(profile="smoke", max_runs=1)
+    )[0]
+    progress = _ProgressRecorder(disable=False)
+
+    completed = _mark_job_done(
+        _CommittedStore(job.run_id), progress, 0, 1, job, "success"
+    )
+
+    assert completed == 1
+    assert progress.updated == 1
+    assert capsys.readouterr().err == ""
+
+
+def test_disabled_tqdm_keeps_line_oriented_progress_for_redirected_logs(capsys):
+    job = build_single_index_jobs(
+        SingleIndexSeriesConfig(profile="smoke", max_runs=1)
+    )[0]
+    progress = _ProgressRecorder(disable=True)
+
+    _mark_job_done(
+        _CommittedStore(job.run_id), progress, 0, 1, job, "success"
+    )
+
+    assert capsys.readouterr().err == (
+        "1/1 experiment=1 seed=0 status=success\n"
+    )
 
 
 def test_parallel_runner_commits_one_normalized_outcome_per_fit(

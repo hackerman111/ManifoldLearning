@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import math
+import inspect
 
 import numpy as np
 import pandas as pd
+import pytest
 
 import adp.evaluation.single_index.executors as executors
 import adp.evaluation.single_index.reports as reports
+import adp.evaluation.single_index.plots as report_plots
 from adp.evaluation.single_index.reports import (
     add_report_metrics,
     prepare_quantile_band,
+    prepare_wilson_interval,
     write_single_index_reports,
 )
 from adp.evaluation.single_index.schema import (
@@ -73,6 +77,11 @@ REQUIRED_PLOTS = {
     "quality_vs_model_misspecification.png",
     "objective_vs_model_misspecification.png",
     "runtime_breakdown.png",
+    "projector_error_vs_outer_iteration.png",
+    "singular_fraction_vs_correlation.png",
+    "bandwidth_ratio_vs_sigma_x.png",
+    "status_breakdown.png",
+    "runtime_share_breakdown.png",
 }
 
 
@@ -232,6 +241,350 @@ def test_fixture_csvs_render_every_applicable_plot(tmp_path):
     }
     assert REQUIRED_PLOTS <= created
     assert not artifacts.loc[artifacts.path.str.endswith(".png"), "path"].str.startswith("/").any()
+
+
+def test_manifest_has_russian_labels_explicit_scales_and_stable_53_names():
+    assert len(reports.PLOT_MANIFEST) == 53
+    assert {spec.filename for spec in reports.PLOT_MANIFEST} == REQUIRED_PLOTS
+    assert all(spec.title.startswith(("Эксперимент ", "Сводка —")) for spec in reports.PLOT_MANIFEST)
+    assert all(spec.subtitle for spec in reports.PLOT_MANIFEST)
+    assert all(any("а" <= char.lower() <= "я" or char in "ёЁ" for char in spec.xlabel) for spec in reports.PLOT_MANIFEST)
+    assert all(any("а" <= char.lower() <= "я" or char in "ёЁ" for char in spec.ylabel) for spec in reports.PLOT_MANIFEST)
+
+    by_name = {spec.filename: spec for spec in reports.PLOT_MANIFEST}
+    assert by_name["runtime_vs_dimension.png"].xscale == "log"
+    assert by_name["runtime_vs_dimension.png"].yscale == "log"
+    assert by_name["quality_vs_sigma_eps.png"].xscale == "linear"
+    assert by_name["quality_vs_sigma_eps.png"].ylim == (0.0, 1.0)
+    assert by_name["quality_vs_sigma_x.png"].xscale == "log2"
+    assert by_name["objective_vs_model_misspecification.png"].yscale == "symlog"
+    assert by_name["rho_vs_outer_iteration.png"].ylim == (0.0, 1.0)
+    assert "n_over_d" in by_name["quality_vs_outer_iteration.png"].groups
+    assert "n_over_d" in by_name["local_mass_by_outer_iteration.png"].facet
+    assert "n_over_d" in by_name["quality_by_link_function.png"].facet
+
+
+def test_default_single_index_report_dpi_is_300():
+    assert inspect.signature(write_single_index_reports).parameters["dpi"].default == 300
+
+
+def test_wilson_interval_matches_reference_values_and_keeps_groups_separate():
+    frame = pd.DataFrame(
+        {
+            "experiment": ["3"] * 10 + ["4"] * 4,
+            "sigma_eps": [0.5] * 14,
+            "success_value": [1.0] * 8 + [0.0] * 2 + [1.0, 0.0, 0.0, 0.0],
+        }
+    )
+
+    prepared = prepare_wilson_interval(
+        frame,
+        x="sigma_eps",
+        y="success_value",
+        groups=("experiment",),
+    )
+
+    first = prepared.loc[prepared.experiment == "3"].iloc[0]
+    second = prepared.loc[prepared.experiment == "4"].iloc[0]
+    assert first["estimate"] == 0.8
+    assert first["low"] == pytest.approx(0.49016247153664183)
+    assert first["high"] == pytest.approx(0.9433178485456247)
+    assert first["n"] == 10
+    assert second["estimate"] == 0.25
+
+
+def test_quantile_plot_uses_external_russian_legends_and_quality_limits(
+    tmp_path,
+    monkeypatch,
+):
+    captured = {}
+
+    def capture(fig, path, *, dpi, close=False):
+        captured["fig"] = fig
+        captured["dpi"] = dpi
+        return path
+
+    monkeypatch.setattr(report_plots, "save_figure", capture)
+    frame = pd.DataFrame(
+        {
+            "outer_k": [0, 1],
+            "median": [0.96, 0.995],
+            "q05": [0.90, 0.98],
+            "q95": [0.99, 1.0],
+            "group": ["n/d = 5", "n/d = 5"],
+        }
+    )
+
+    report_plots.line_with_quantile_band(
+        frame,
+        x="outer_k",
+        median="median",
+        q05="q05",
+        q95="q95",
+        path=tmp_path / "plot.png",
+        xlabel="Внешняя итерация",
+        ylabel="Абсолютный косинус",
+        title="Эксперимент 1 — качество направления",
+        subtitle="медиана и интервал 5–95%",
+        group="group",
+        ylim=(0.0, 1.0),
+        reference_y=0.99,
+        dpi=37,
+    )
+
+    fig = captured["fig"]
+    ax = fig.axes[0]
+    assert captured["dpi"] == 37
+    assert ax.get_ylim() == pytest.approx((0.0, 1.0))
+    assert "медиана и интервал 5–95%" in [text.get_text() for text in fig.texts]
+    legends = fig.legends
+    assert [legend.get_title().get_text() for legend in legends] == ["Параметры", "Статистика"]
+    assert all(legend.get_bbox_to_anchor().x0 >= 1.0 for legend in legends)
+    statistic_labels = [text.get_text() for text in legends[1].get_texts()]
+    assert statistic_labels == ["линия с маркером — медиана", "полоса — интервал 5–95%"]
+
+
+def test_group_styles_are_global_and_distinct_across_facets(tmp_path, monkeypatch):
+    captured = {}
+
+    def capture(fig, path, *, dpi, close=False):
+        captured["fig"] = fig
+        return path
+
+    monkeypatch.setattr(report_plots, "save_figure", capture)
+    frame = pd.DataFrame(
+        {
+            "facet": ["d = 5", "d = 5", "d = 25"],
+            "group": [
+                "n/d = 2, масштаб выбросов = 5",
+                "n/d = 2, масштаб выбросов = 10",
+                "n/d = 5, масштаб выбросов = 5",
+            ],
+            "x": [1.0, 1.0, 1.0],
+            "median": [0.95, 0.94, 0.96],
+            "q05": [0.90, 0.89, 0.91],
+            "q95": [0.99, 0.98, 0.99],
+        }
+    )
+
+    report_plots.line_with_quantile_band(
+        frame,
+        x="x",
+        median="median",
+        q05="q05",
+        q95="q95",
+        path=tmp_path / "facets.png",
+        xlabel="Параметр",
+        ylabel="Качество",
+        title="Эксперимент 3 — тест фасетов",
+        group="group",
+        facet="facet",
+        dpi=30,
+    )
+
+    parameter_legend = captured["fig"].legends[0]
+    colors = [handle.get_color() for handle in parameter_legend.legend_handles]
+    styles = [handle.get_linestyle() for handle in parameter_legend.legend_handles]
+    assert colors[0] == colors[1]
+    assert colors[0] != colors[2]
+    assert styles[0] != styles[1]
+    assert styles[0] == styles[2]
+
+
+def test_detail_summary_collapses_solver_iterations_to_one_value_per_run():
+    spec = next(
+        item for item in reports.PLOT_MANIFEST
+        if item.filename == "solver_iterations_vs_correlation.png"
+    )
+    source = pd.DataFrame(
+        {
+            "run_id": ["long", "long", "long", "short"],
+            "linear_solver_iterations": [2, 3, 5, 7],
+            "rho_corr": [0.5, 0.5, 0.5, 0.5],
+            "d": [25, 25, 25, 25],
+            "n_over_d": [5, 5, 5, 5],
+        }
+    )
+
+    collapsed = reports._prepare_plot_source(spec, source)
+
+    assert collapsed.set_index("run_id")["linear_solver_iterations"].to_dict() == {
+        "long": 10,
+        "short": 7,
+    }
+
+
+def test_success_heatmap_uses_sample_fraction_in_each_cell():
+    spec = next(
+        item for item in reports.PLOT_MANIFEST
+        if item.filename == "success_rate_heatmap.png"
+    )
+    source = pd.DataFrame(
+        {
+            "d": [25, 25, 25],
+            "n_over_d": [5, 5, 5],
+            "success_value": [1.0, 0.0, 0.0],
+        }
+    )
+
+    prepared = reports._prepare_plot_source(spec, source)
+
+    assert len(prepared) == 1
+    assert prepared.iloc[0]["success_value"] == pytest.approx(1 / 3)
+
+
+def test_heatmap_labels_scale_and_missing_cells_are_explicit(tmp_path, monkeypatch):
+    captured = {}
+
+    def capture(fig, path, *, dpi, close=False):
+        captured["fig"] = fig
+        return path
+
+    monkeypatch.setattr(report_plots, "save_figure", capture)
+    report_plots.heatmap(
+        pd.DataFrame(
+            {
+                "ratio": [2, 5],
+                "dimension": [5, 25],
+                "quality": [0.75, 1.0],
+            }
+        ),
+        x="ratio",
+        y="dimension",
+        value="quality",
+        path=tmp_path / "heatmap.png",
+        xlabel="Отношение n/d",
+        ylabel="Размерность",
+        title="Эксперимент 2 — качество",
+        colorbar_label="Абсолютный косинус направления",
+        value_limits=(0.0, 1.0),
+        dpi=30,
+    )
+
+    fig = captured["fig"]
+    assert fig.axes[0].images[0].get_clim() == (0.0, 1.0)
+    assert fig.axes[1].get_ylabel() == "Абсолютный косинус направления"
+    assert [tick.get_text() for tick in fig.axes[0].get_xticklabels()] == ["2", "5"]
+    assert [tick.get_text() for tick in fig.axes[0].get_yticklabels()] == ["5", "25"]
+    assert [text.get_text() for text in fig.axes[0].texts].count("нет данных") == 2
+
+
+def test_all_infinite_values_have_exact_russian_annotation(tmp_path, monkeypatch):
+    captured = {}
+
+    def capture(fig, path, *, dpi, close=False):
+        captured["fig"] = fig
+        return path
+
+    monkeypatch.setattr(report_plots, "save_figure", capture)
+    report_plots.boxplot(
+        pd.DataFrame({"outer": [0, 0, 0], "condition": [np.inf, np.inf, np.inf]}),
+        x="outer",
+        y="condition",
+        path=tmp_path / "condition.png",
+        xlabel="Внешняя итерация",
+        ylabel="Число обусловленности",
+        title="Эксперимент 1 — обусловленность",
+        yscale="log",
+        dpi=30,
+    )
+
+    assert "все 3 значения равны +∞" in [
+        text.get_text() for text in captured["fig"].axes[0].texts
+    ]
+
+
+def test_symlog_axis_reports_actual_linear_threshold(tmp_path, monkeypatch):
+    captured = {}
+
+    def capture(fig, path, *, dpi, close=False):
+        captured["fig"] = fig
+        return path
+
+    monkeypatch.setattr(report_plots, "save_figure", capture)
+    report_plots.grouped_line(
+        pd.DataFrame({"x": [0, 1, 2], "value": [-2.0, 0.0, 4.0]}),
+        x="x",
+        y="value",
+        path=tmp_path / "symlog.png",
+        xlabel="Итерация",
+        ylabel="Значение (симлог-шкала)",
+        title="Эксперимент 1 — знакопеременная метрика",
+        yscale="symlog",
+        dpi=30,
+    )
+
+    labels = [text.get_text() for text in captured["fig"].axes[0].texts]
+    assert "симлог: linthresh = 0.2" in labels
+
+
+def test_nonfinite_notes_are_preserved_per_facet_before_aggregation():
+    source = pd.DataFrame(
+        {
+            "_facet": ["d = 5", "d = 5", "d = 25"],
+            "condition": [np.inf, np.inf, np.nan],
+        }
+    )
+
+    notes = reports._invalid_value_notes(source, "condition")
+
+    assert notes == {
+        "d = 5": "все 2 значения равны +∞",
+        "d = 25": "нет конечных значений: NaN = 1, +∞ = 0, −∞ = 0",
+    }
+
+
+def test_empty_aggregate_keeps_facet_for_nonfinite_annotation(tmp_path, monkeypatch):
+    captured = {}
+
+    def capture(fig, path, *, dpi, close=False):
+        captured["fig"] = fig
+        return path
+
+    monkeypatch.setattr(report_plots, "save_figure", capture)
+    report_plots.line_with_quantile_band(
+        pd.DataFrame(columns=["facet", "x", "median", "q05", "q95"]),
+        x="x",
+        median="median",
+        q05="q05",
+        q95="q95",
+        path=tmp_path / "infinite.png",
+        xlabel="Корреляция",
+        ylabel="Число обусловленности",
+        title="Эксперимент 4 — обусловленность",
+        facet="facet",
+        data_notes={"d = 25": "все 3 значения равны +∞"},
+        dpi=30,
+    )
+
+    ax = captured["fig"].axes[0]
+    assert ax.get_title() == "d = 25"
+    assert "все 3 значения равны +∞" in [text.get_text() for text in ax.texts]
+
+
+def test_log2_axis_uses_original_experimental_values_as_ticks(tmp_path, monkeypatch):
+    captured = {}
+
+    def capture(fig, path, *, dpi, close=False):
+        captured["fig"] = fig
+        return path
+
+    monkeypatch.setattr(report_plots, "save_figure", capture)
+    values = [0.25, 0.5, 1.0, 2.0, 4.0]
+    report_plots.grouped_line(
+        pd.DataFrame({"sigma_x": values, "quality": np.linspace(0.8, 1.0, 5)}),
+        x="sigma_x",
+        y="quality",
+        path=tmp_path / "log2.png",
+        xlabel="Масштаб признаков (логарифмическая шкала, основание 2)",
+        ylabel="Качество",
+        title="Эксперимент 5 — масштаб признаков",
+        xscale="log2",
+        dpi=30,
+    )
+
+    labels = [tick.get_text() for tick in captured["fig"].axes[0].get_xticklabels()]
+    assert labels == ["0.25", "0.5", "1", "2", "4"]
 
 
 def test_quantile_bands_keep_experiments_separate_and_use_5_50_95_percentiles():
