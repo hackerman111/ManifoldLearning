@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import math
-from dataclasses import FrozenInstanceError, fields, replace
+import time
+from dataclasses import FrozenInstanceError, asdict, fields, replace
 
 import numpy as np
 import pandas as pd
@@ -817,6 +818,110 @@ def test_execute_job_returns_all_normalized_row_groups():
         assert all(row["run_id"] == job.run_id for row in rows)
     assert outcome.run_row["run_id"] == job.run_id
     assert outcome.run_row["statistics_workers"] == 1
+
+
+def test_execute_job_logs_disjoint_phase_times_resources_and_full_adp_config(
+    monkeypatch,
+):
+    job = replace(
+        make_job(d=4, n_over_d=20, center_fraction=0.2),
+        seed=0,
+        run_id="run-resource-contract",
+        diagnostic=True,
+    )
+    generated = generate_synthetic_data(job)
+    adp_config = executors._benchmark_adp_config(job)
+    model = executors.ADP.create("new", adp_config)
+    result = model.fit(
+        generated.data.X,
+        generated.data.y,
+        centers=generated.data.centers,
+        directions=generated.data.directions,
+    )
+    result.timings["total"] = 999.0
+    result.resource_usage = {
+        "algorithm_time_sec": 1.25,
+        "algorithm_rss_start_mib": 100.0,
+        "algorithm_rss_min_mib": 99.0,
+        "algorithm_rss_mean_mib": 105.0,
+        "algorithm_rss_max_mib": 112.0,
+        "algorithm_rss_peak_delta_mib": 12.0,
+        "algorithm_memory_samples": 7,
+        "algorithm_memory_source": "test-reader",
+    }
+
+    def delayed_generation(_job):
+        time.sleep(0.03)
+        return generated
+
+    monkeypatch.setattr(executors, "generate_synthetic_data", delayed_generation)
+    monkeypatch.setattr(executors, "_fit_adp", lambda *args, **kwargs: result)
+
+    row = executors.execute_job(job, make_config()).run_row
+
+    assert row["algorithm_time_sec"] == 1.25
+    assert row["algorithm_rss_max_mib"] == 112.0
+    assert row["algorithm_rss_peak_delta_mib"] == 12.0
+    assert row["algorithm_memory_samples"] == 7
+    assert row["algorithm_memory_source"] == "test-reader"
+    assert row["data_generation_time_sec"] >= 0.02
+    assert 0.0 <= row["fit_wall_time_sec"] < row["data_generation_time_sec"]
+    assert row["telemetry_serialization_time_sec"] >= 0.0
+    assert row["job_wall_time_sec"] >= (
+        row["data_generation_time_sec"]
+        + row["fit_wall_time_sec"]
+        + row["telemetry_serialization_time_sec"]
+    )
+    for name, value in asdict(adp_config).items():
+        assert row[f"adp_{name}"] == value
+
+
+def test_failed_fit_without_partial_result_retains_algorithm_resources(
+    monkeypatch,
+):
+    job = replace(
+        make_job(d=4, n_over_d=20, center_fraction=0.2),
+        seed=4,
+        run_id="run-failed-resource-contract",
+        diagnostic=False,
+    )
+
+    class FailingModel:
+        result_ = None
+        last_resource_usage_: dict[str, float | int | str] = {}
+
+        def fit(self, *args, **kwargs):
+            self.last_resource_usage_ = {
+                "algorithm_time_sec": 1.23,
+                "algorithm_rss_start_mib": 40.0,
+                "algorithm_rss_min_mib": 39.5,
+                "algorithm_rss_mean_mib": 43.0,
+                "algorithm_rss_max_mib": 45.6,
+                "algorithm_rss_peak_delta_mib": 5.6,
+                "algorithm_memory_samples": 9,
+                "algorithm_memory_source": "failure-reader",
+            }
+            raise ValueError("forced numerical failure")
+
+    failing_model = FailingModel()
+    monkeypatch.setattr(
+        executors.ADP,
+        "create",
+        lambda *args, **kwargs: failing_model,
+    )
+
+    row = executors.execute_job(job, make_config(diagnostic_seeds=())).run_row
+
+    assert row["status"] == "numerical_failure"
+    assert row["error_type"] == "ValueError"
+    assert row["algorithm_time_sec"] == 1.23
+    assert row["algorithm_rss_start_mib"] == 40.0
+    assert row["algorithm_rss_max_mib"] == 45.6
+    assert row["algorithm_rss_peak_delta_mib"] == 5.6
+    assert row["algorithm_memory_samples"] == 9
+    assert row["algorithm_memory_source"] == "failure-reader"
+    assert row["fit_wall_time_sec"] >= 0.0
+    assert row["job_wall_time_sec"] >= row["fit_wall_time_sec"]
 
 
 def test_nonfinite_result_is_numerical_failure_and_keeps_partial_rows(monkeypatch):

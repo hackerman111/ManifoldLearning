@@ -1,9 +1,15 @@
+from dataclasses import fields
+
+from adp.common.experiment_log import SCHEMA_VERSION as COMMON_SCHEMA_VERSION
+from adp.common.types import ADPConfig
 from adp.evaluation.single_index.schema import (
+    ADP_CONFIG_COLUMNS,
     ARTIFACT_COLUMNS,
     INNER_ITERATION_COLUMNS,
     LOCAL_DIAGNOSTIC_COLUMNS,
     OUTER_ITERATION_COLUMNS,
     RUN_SUMMARY_COLUMNS,
+    SCHEMA_VERSION,
     SERIES_COLUMNS,
     SOLVER_ITERATION_COLUMNS,
 )
@@ -71,8 +77,18 @@ def test_run_summary_contains_reproduction_status_and_quality_contract():
         "cosine_abs",
         "projector_error",
         "objective",
-        "runtime_sec",
-        "peak_memory_mb",
+        "data_generation_time_sec",
+        "fit_wall_time_sec",
+        "algorithm_time_sec",
+        "telemetry_serialization_time_sec",
+        "job_wall_time_sec",
+        "algorithm_rss_start_mib",
+        "algorithm_rss_min_mib",
+        "algorithm_rss_mean_mib",
+        "algorithm_rss_max_mib",
+        "algorithm_rss_peak_delta_mib",
+        "algorithm_memory_samples",
+        "algorithm_memory_source",
         "singular_local_count",
         "invalid_value_count",
         "stop_reason",
@@ -83,6 +99,19 @@ def test_run_summary_contains_reproduction_status_and_quality_contract():
     }
 
     assert expected <= set(RUN_SUMMARY_COLUMNS)
+
+
+def test_run_summary_v2_logs_every_effective_adp_config_field_without_aliases():
+    expected_config_columns = tuple(
+        f"adp_{field.name}" for field in fields(ADPConfig)
+    )
+
+    assert SCHEMA_VERSION == 2
+    assert COMMON_SCHEMA_VERSION == 1
+    assert ADP_CONFIG_COLUMNS == expected_config_columns
+    assert set(expected_config_columns) <= set(RUN_SUMMARY_COLUMNS)
+    assert "runtime_sec" not in RUN_SUMMARY_COLUMNS
+    assert "peak_memory_mb" not in RUN_SUMMARY_COLUMNS
 
 
 def test_detail_schemas_cover_requested_diagnostics():

@@ -1,8 +1,26 @@
 from __future__ import annotations
 
+from dataclasses import fields
 
+from ...common.types import ADPConfig
+
+
+SCHEMA_VERSION = 2
 RUN_IDENTITY_COLUMNS = ("schema_version", "series_id", "run_id")
 SERIES_IDENTITY_COLUMNS = ("schema_version", "series_id")
+ADP_CONFIG_COLUMNS = tuple(
+    f"adp_{field.name}" for field in fields(ADPConfig)
+)
+ALGORITHM_RESOURCE_COLUMNS = (
+    "algorithm_time_sec",
+    "algorithm_rss_start_mib",
+    "algorithm_rss_min_mib",
+    "algorithm_rss_mean_mib",
+    "algorithm_rss_max_mib",
+    "algorithm_rss_peak_delta_mib",
+    "algorithm_memory_samples",
+    "algorithm_memory_source",
+)
 STAGE_NAMES = (
     "beta_initializer",
     "center_selector",
@@ -50,6 +68,7 @@ RUN_SUMMARY_COLUMNS = RUN_IDENTITY_COLUMNS + (
     "n_directions",
     "effective_n_directions",
     "statistics_workers",
+) + ADP_CONFIG_COLUMNS + (
     "seed_beta",
     "seed_features",
     "seed_noise",
@@ -68,9 +87,11 @@ RUN_SUMMARY_COLUMNS = RUN_IDENTITY_COLUMNS + (
     "cosine_abs",
     "projector_error",
     "objective",
-    "runtime_sec",
+    "data_generation_time_sec",
     "fit_wall_time_sec",
-    "peak_memory_mb",
+) + ALGORITHM_RESOURCE_COLUMNS + (
+    "telemetry_serialization_time_sec",
+    "job_wall_time_sec",
     "singular_local_count",
     "invalid_value_count",
     "stop_reason",
@@ -230,12 +251,15 @@ PUBLIC_TABLE_COLUMNS = {
 
 
 __all__ = [
+    "ADP_CONFIG_COLUMNS",
+    "ALGORITHM_RESOURCE_COLUMNS",
     "ARTIFACT_COLUMNS",
     "INNER_ITERATION_COLUMNS",
     "LOCAL_DIAGNOSTIC_COLUMNS",
     "OUTER_ITERATION_COLUMNS",
     "PUBLIC_TABLE_COLUMNS",
     "RUN_SUMMARY_COLUMNS",
+    "SCHEMA_VERSION",
     "SERIES_COLUMNS",
     "SOLVER_ITERATION_COLUMNS",
     "STAGE_NAMES",

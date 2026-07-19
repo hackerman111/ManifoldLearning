@@ -10,7 +10,6 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 
-from ...common.experiment_log import SCHEMA_VERSION
 from ...common.plotting import ensure_matplotlib_config_dir
 from .plots import (
     boxplot,
@@ -21,7 +20,7 @@ from .plots import (
     scatter,
     stacked_runtime,
 )
-from .schema import ARTIFACT_COLUMNS, PUBLIC_TABLE_COLUMNS
+from .schema import ARTIFACT_COLUMNS, PUBLIC_TABLE_COLUMNS, SCHEMA_VERSION
 from .types import EXPERIMENT_SELECTORS
 
 
@@ -290,7 +289,7 @@ _BASE_PLOT_MANIFEST = (
         "runs",
         "median_line",
         "d",
-        "runtime_sec",
+        "algorithm_time_sec",
         "Runtime versus dimension",
         "Dimension",
         "Runtime, seconds",
@@ -304,10 +303,10 @@ _BASE_PLOT_MANIFEST = (
         "runs",
         "median_line",
         "d",
-        "peak_memory_mb",
+        "algorithm_rss_max_mib",
         "Peak memory versus dimension",
         "Dimension",
-        "Peak memory, MB",
+        "Peak process RSS, MiB",
         groups=("n_over_d",),
         log_x=True,
     ),
@@ -353,7 +352,7 @@ _BASE_PLOT_MANIFEST = (
         "runs",
         "quantile",
         "sigma_eps",
-        "runtime_sec",
+        "algorithm_time_sec",
         "Runtime versus noise",
         "Noise standard deviation",
         "Runtime, seconds",
@@ -439,7 +438,7 @@ _BASE_PLOT_MANIFEST = (
         "runs",
         "quantile",
         "rho_corr",
-        "runtime_sec",
+        "algorithm_time_sec",
         "Runtime versus correlation",
         "AR(1) correlation",
         "Runtime, seconds",
@@ -503,7 +502,7 @@ _BASE_PLOT_MANIFEST = (
         "runs",
         "quantile",
         "sigma_x",
-        "runtime_sec",
+        "algorithm_time_sec",
         "Runtime versus feature scale",
         "Feature scale",
         "Runtime, seconds",
@@ -605,7 +604,7 @@ _BASE_PLOT_MANIFEST = (
         "runs",
         "median_line",
         "distribution",
-        "runtime_sec",
+        "algorithm_time_sec",
         "Runtime by distribution",
         "Distribution",
         "Runtime, seconds",
@@ -827,8 +826,8 @@ _AXIS_LABELS = {
     "ess": "Эффективное число соседей",
     "condition": "Число обусловленности",
     "slope": "Локальный наклон",
-    "runtime_sec": "Время работы, с",
-    "peak_memory_mb": "Пиковая память, МБ",
+    "algorithm_time_sec": "Время алгоритма, с",
+    "algorithm_rss_max_mib": "Максимальный RSS процесса, МиБ",
     "outer_iterations": "Число внешних итераций",
     "success_value": "Доля успешных запусков",
     "failure_value": "Доля численных сбоев",

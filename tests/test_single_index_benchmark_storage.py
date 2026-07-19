@@ -6,12 +6,12 @@ from dataclasses import replace
 import pandas as pd
 import pytest
 
-from adp.common.experiment_log import SCHEMA_VERSION
 from adp.evaluation.single_index.schema import (
     INNER_ITERATION_COLUMNS,
     LOCAL_DIAGNOSTIC_COLUMNS,
     OUTER_ITERATION_COLUMNS,
     RUN_SUMMARY_COLUMNS,
+    SCHEMA_VERSION,
     SOLVER_ITERATION_COLUMNS,
 )
 from adp.evaluation.single_index.storage import SingleIndexSeriesStore
@@ -213,7 +213,7 @@ def test_resume_fingerprint_excludes_jobs_retry_and_rejects_scientific_changes(
 
     series_path = store.series_dir / "series.csv"
     series = pd.read_csv(series_path)
-    series.loc[0, "schema_version"] = SCHEMA_VERSION + 1
+    series.loc[0, "schema_version"] = 1
     series.to_csv(series_path, index=False)
     with pytest.raises(ValueError, match="schema version mismatch"):
         SingleIndexSeriesStore.resume(store.series_dir, config)

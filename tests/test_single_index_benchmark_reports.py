@@ -22,6 +22,7 @@ from adp.evaluation.single_index.schema import (
     LOCAL_DIAGNOSTIC_COLUMNS,
     OUTER_ITERATION_COLUMNS,
     RUN_SUMMARY_COLUMNS,
+    SCHEMA_VERSION,
     SERIES_COLUMNS,
     SOLVER_ITERATION_COLUMNS,
 )
@@ -101,7 +102,7 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
             failed = seed == 2
             run_rows.append(
                 {
-                    "schema_version": 1,
+                    "schema_version": SCHEMA_VERSION,
                     "series_id": "series-report-test",
                     "run_id": run_id,
                     "experiment": selector,
@@ -131,8 +132,8 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                     "cosine_abs": np.nan if failed else 0.995 - 0.03 * seed,
                     "projector_error": 0.1 + 0.1 * seed,
                     "objective": 1.0 + seed,
-                    "runtime_sec": 0.5 + selector_index * 0.1 + seed,
-                    "peak_memory_mb": 100.0 + 10.0 * seed,
+                    "algorithm_time_sec": 0.5 + selector_index * 0.1 + seed,
+                    "algorithm_rss_max_mib": 100.0 + 10.0 * seed,
                     "status": "numerical_failure" if failed else "success",
                     "stop_reason": "numerical_exception" if failed else "tolerance",
                 }
@@ -140,7 +141,7 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
             for outer_k in range(2):
                 outer_rows.append(
                     {
-                        "schema_version": 1,
+                        "schema_version": SCHEMA_VERSION,
                         "series_id": "series-report-test",
                         "run_id": run_id,
                         "experiment": selector,
@@ -173,7 +174,7 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                 for inner_k in range(2):
                     inner_rows.append(
                         {
-                            "schema_version": 1,
+                            "schema_version": SCHEMA_VERSION,
                             "series_id": "series-report-test",
                             "run_id": run_id,
                             "experiment": selector,
@@ -189,7 +190,7 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                 for center_j in range(2):
                     local_rows.append(
                         {
-                            "schema_version": 1,
+                            "schema_version": SCHEMA_VERSION,
                             "series_id": "series-report-test",
                             "run_id": run_id,
                             "experiment": selector,
@@ -205,7 +206,7 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                 for solver_k in range(1, 3):
                     solver_rows.append(
                         {
-                            "schema_version": 1,
+                            "schema_version": SCHEMA_VERSION,
                             "series_id": "series-report-test",
                             "run_id": run_id,
                             "experiment": selector,
@@ -223,7 +224,13 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
     _write_frame(tmp_path / "solver_iterations.csv", solver_rows, SOLVER_ITERATION_COLUMNS)
     _write_frame(
         tmp_path / "series.csv",
-        [{"schema_version": 1, "series_id": "series-report-test", "status": "complete"}],
+        [
+            {
+                "schema_version": SCHEMA_VERSION,
+                "series_id": "series-report-test",
+                "status": "complete",
+            }
+        ],
         SERIES_COLUMNS,
     )
     _write_frame(tmp_path / "artifacts.csv", [], ARTIFACT_COLUMNS)
@@ -252,8 +259,11 @@ def test_manifest_has_russian_labels_explicit_scales_and_stable_53_names():
     assert all(any("а" <= char.lower() <= "я" or char in "ёЁ" for char in spec.ylabel) for spec in reports.PLOT_MANIFEST)
 
     by_name = {spec.filename: spec for spec in reports.PLOT_MANIFEST}
+    assert by_name["runtime_vs_dimension.png"].y == "algorithm_time_sec"
     assert by_name["runtime_vs_dimension.png"].xscale == "log"
     assert by_name["runtime_vs_dimension.png"].yscale == "log"
+    assert by_name["memory_vs_dimension.png"].y == "algorithm_rss_max_mib"
+    assert by_name["memory_vs_dimension.png"].ylabel.endswith("МиБ")
     assert by_name["quality_vs_sigma_eps.png"].xscale == "linear"
     assert by_name["quality_vs_sigma_eps.png"].ylim == (0.0, 1.0)
     assert by_name["quality_vs_sigma_x.png"].xscale == "log2"

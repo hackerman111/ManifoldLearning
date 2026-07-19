@@ -13,6 +13,7 @@ from ...common.experiment_log import Scalar
 from ...common.types import ADPConfig, ADPResult, TrainingStep
 from ...engine.base import ADP
 from .datasets import GeneratedSingleIndexData, generate_synthetic_data
+from .schema import ALGORITHM_RESOURCE_COLUMNS
 from .telemetry import encode_beta
 from .types import RunOutcome, SingleIndexJob, SingleIndexSeriesConfig
 
@@ -31,14 +32,29 @@ def execute_job(
 ) -> RunOutcome:
     """Execute one deterministic ADP fit and normalize its diagnostics."""
 
+    job_started = time.perf_counter()
     generated: GeneratedSingleIndexData | None = None
     result: ADPResult | None = None
     caught: Exception | None = None
     caught_traceback = ""
-    started = time.perf_counter()
+    resource_usage: dict[str, Scalar] = {}
+    data_generation_time_sec = math.nan
+    fit_wall_time_sec = math.nan
+    adp_config = _benchmark_adp_config(job)
     try:
-        generated = generate_synthetic_data(job)
-        result = _fit_adp(job, config, generated)
+        generation_started = time.perf_counter()
+        try:
+            generated = generate_synthetic_data(job)
+        finally:
+            data_generation_time_sec = time.perf_counter() - generation_started
+
+        model = ADP.create("new", adp_config)
+        fit_started = time.perf_counter()
+        try:
+            result = _fit_adp(model, generated)
+        finally:
+            fit_wall_time_sec = time.perf_counter() - fit_started
+        resource_usage = dict(result.resource_usage)
     except Exception as exc:
         if not isinstance(exc, _NUMERICAL_EXCEPTIONS):
             raise
@@ -47,7 +63,13 @@ def execute_job(
         partial = getattr(exc, "partial_result", None)
         if isinstance(partial, ADPResult):
             result = partial
+        partial_usage = getattr(exc, "partial_resource_usage", None)
+        if isinstance(partial_usage, Mapping):
+            resource_usage = dict(partial_usage)
+        elif result is not None:
+            resource_usage = dict(result.resource_usage)
 
+    serialization_started = time.perf_counter()
     outer_rows = _outer_rows(job, result, generated)
     inner_rows = _inner_rows(job, result, generated)
     all_local_rows = _local_rows(job, result)
@@ -67,17 +89,24 @@ def execute_job(
         job,
         generated,
         result,
+        adp_config=adp_config,
+        resource_usage=resource_usage,
         status=status,
         stop_reason=stop_reason,
         invalid_value_count=invalid_value_count,
         error=caught,
         error_traceback=caught_traceback,
-        wall_time_sec=time.perf_counter() - started,
+        data_generation_time_sec=data_generation_time_sec,
+        fit_wall_time_sec=fit_wall_time_sec,
         outer_rows=outer_rows,
         inner_rows=inner_rows,
         local_rows=all_local_rows,
         solver_rows=solver_rows,
     )
+    run_row["telemetry_serialization_time_sec"] = (
+        time.perf_counter() - serialization_started
+    )
+    run_row["job_wall_time_sec"] = time.perf_counter() - job_started
     return RunOutcome(
         run_row=run_row,
         outer_rows=outer_rows,
@@ -88,12 +117,9 @@ def execute_job(
 
 
 def _fit_adp(
-    job: SingleIndexJob,
-    config: SingleIndexSeriesConfig,
+    model: Any,
     generated: GeneratedSingleIndexData,
 ) -> ADPResult:
-    del config
-    model = ADP.create("new", _benchmark_adp_config(job))
     try:
         with threadpool_limits(limits=1):
             return model.fit(
@@ -105,6 +131,9 @@ def _fit_adp(
     except _NUMERICAL_EXCEPTIONS as exc:
         if model.result_ is not None:
             setattr(exc, "partial_result", model.result_)
+        usage = getattr(model, "last_resource_usage_", None)
+        if isinstance(usage, Mapping):
+            setattr(exc, "partial_resource_usage", dict(usage))
         raise
 
 
@@ -125,12 +154,15 @@ def _run_row(
     generated: GeneratedSingleIndexData | None,
     result: ADPResult | None,
     *,
+    adp_config: ADPConfig,
+    resource_usage: Mapping[str, Scalar],
     status: str,
     stop_reason: str,
     invalid_value_count: int,
     error: Exception | None,
     error_traceback: str,
-    wall_time_sec: float,
+    data_generation_time_sec: float,
+    fit_wall_time_sec: float,
     outer_rows: tuple[dict[str, Scalar], ...],
     inner_rows: tuple[dict[str, Scalar], ...],
     local_rows: tuple[dict[str, Scalar], ...],
@@ -147,6 +179,10 @@ def _run_row(
         "n_centers": parameters.n_centers,
         "n_directions": max(4, min(parameters.d, 32)),
         "statistics_workers": 1,
+        **{
+            f"adp_{name}": value
+            for name, value in asdict(adp_config).items()
+        },
     }
     for seed_field in fields(job.seeds):
         values[f"seed_{seed_field.name}"] = int(
@@ -160,8 +196,6 @@ def _run_row(
     cosine_abs, projector_error = _truth_metrics(beta, truth)
     first_outer = outer_rows[0] if outer_rows else {}
     last_outer = outer_rows[-1] if outer_rows else {}
-    usage = {} if result is None else result.resource_usage
-    runtime_sec = _result_runtime(result, wall_time_sec)
     values.update(
         {
             "h_initial": first_outer.get("h_k", math.nan),
@@ -174,14 +208,8 @@ def _run_row(
             "objective": (
                 math.nan if result is None else _safe_float(result.objective)
             ),
-            "runtime_sec": runtime_sec,
-            "fit_wall_time_sec": float(wall_time_sec),
-            "peak_memory_mb": _safe_float(
-                usage.get(
-                    "algorithm_rss_max_mib",
-                    usage.get("algorithm_rss_peak_delta_mib", math.nan),
-                )
-            ),
+            "data_generation_time_sec": float(data_generation_time_sec),
+            "fit_wall_time_sec": float(fit_wall_time_sec),
             "singular_local_count": sum(
                 bool(row.get("is_singular", False)) for row in local_rows
             ),
@@ -197,6 +225,11 @@ def _run_row(
             "solver_row_count": len(solver_rows),
         }
     )
+    for column in ALGORITHM_RESOURCE_COLUMNS:
+        values[column] = resource_usage.get(
+            column,
+            "" if column == "algorithm_memory_source" else math.nan,
+        )
     return values
 
 
@@ -502,16 +535,6 @@ def _append_stage_columns(
         row[f"stage_{stage}_time_sec"] = _safe_float(elapsed)
     for stage, calls in dict(telemetry.get("stage_calls", {})).items():
         row[f"stage_{stage}_calls"] = int(calls)
-
-
-def _result_runtime(result: ADPResult | None, fallback: float) -> float:
-    if result is None:
-        return float(fallback)
-    timing = _safe_float(result.timings.get("total"))
-    if math.isfinite(timing):
-        return timing
-    resource_timing = _safe_float(result.resource_usage.get("algorithm_time_sec"))
-    return resource_timing if math.isfinite(resource_timing) else float(fallback)
 
 
 def _encode_optional_beta(beta: np.ndarray) -> str:

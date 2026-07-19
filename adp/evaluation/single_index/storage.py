@@ -12,13 +12,14 @@ from typing import Self
 
 import numpy as np
 
-from ...common.experiment_log import SCHEMA_VERSION, Scalar, configuration_fingerprint
+from ...common.experiment_log import Scalar, configuration_fingerprint
 from .schema import (
     ARTIFACT_COLUMNS,
     INNER_ITERATION_COLUMNS,
     LOCAL_DIAGNOSTIC_COLUMNS,
     OUTER_ITERATION_COLUMNS,
     RUN_SUMMARY_COLUMNS,
+    SCHEMA_VERSION,
     SERIES_COLUMNS,
     SOLVER_ITERATION_COLUMNS,
 )
