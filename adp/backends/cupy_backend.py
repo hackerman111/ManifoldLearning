@@ -293,17 +293,19 @@ class CupyBackend:
         weights_time = time.perf_counter() - weights_started
 
         statistics_started = time.perf_counter()
-        safe_counts = self.xp.maximum(counts_gpu, np.finfo(self.dtype).eps)
-
-        xbar = (weights @ x) / safe_counts[:, None]
         projected = self.xp.matmul(x[None, :, :], self.xp.swapaxes(xdirs, 1, 2))
-        xbar_projected = self.xp.einsum("cd,cpd->cp", xbar, xdirs, optimize=True)
-        projected = projected - xbar_projected[:, None, :]
-        imav = self.xp.einsum("n,cn,cnp->cp", xy, weights, projected, optimize=True)
-        s_vec = self.xp.einsum("cn,cnp->cp", weights, projected, optimize=True)
-        weighted_projected = projected * weights[:, :, None]
-        u_raw = self.xp.matmul(self.xp.swapaxes(weighted_projected, 1, 2), x)
-        u_mat = u_raw - s_vec[:, :, None] * xbar[:, None, :]
+        center_projected = self.xp.einsum(
+            "cd,cpd->cp",
+            xcenters,
+            xdirs,
+            optimize=True,
+        )
+        projected = projected - center_projected[:, None, :]
+        projected *= weights[:, :, None]
+        s_vec = projected.sum(axis=1)
+        imav = self.xp.einsum("cnp,n->cp", projected, xy, optimize=True)
+        u_raw = self.xp.matmul(self.xp.swapaxes(projected, 1, 2), x)
+        u_mat = u_raw - s_vec[:, :, None] * xcenters[:, None, :]
         result = (
             imav,
             s_vec,

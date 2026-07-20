@@ -41,22 +41,50 @@ def install_fake_cupy(monkeypatch):
 
 
 def reference_random_projection_sums(X, y, centers, directions, q, kernel):
-    backend = NumpyBackend()
+    backend = NumpyBackend(np.asarray(X).dtype.name)
     weights = backend.kernel(q, kernel)
     counts = weights.sum(axis=1)
-    imav = np.zeros((centers.shape[0], directions.shape[1]))
+    imav = np.zeros(
+        (centers.shape[0], directions.shape[1]),
+        dtype=np.asarray(X).dtype,
+    )
     s_all = np.zeros_like(imav)
-    u_all = np.zeros((centers.shape[0], directions.shape[1], X.shape[1]))
+    u_all = np.zeros(
+        (centers.shape[0], directions.shape[1], X.shape[1]),
+        dtype=np.asarray(X).dtype,
+    )
     for j in range(centers.shape[0]):
-        safe_count = max(float(counts[j]), np.finfo(float).eps)
-        xbar = (weights[j] @ X) / safe_count
-        centered = X - xbar
-        projected = centered @ directions[j].T
-        weighted_projected = projected * weights[j, :, None]
-        s_all[j] = weighted_projected.sum(axis=0)
-        imav[j] = (weights[j] * y) @ projected
-        u_all[j] = weighted_projected.T @ centered
+        for direction in range(directions.shape[1]):
+            for observation in range(X.shape[0]):
+                difference = X[observation] - centers[j]
+                projection = difference @ directions[j, direction]
+                weighted_projection = weights[j, observation] * projection
+                imav[j, direction] += y[observation] * weighted_projection
+                s_all[j, direction] += weighted_projection
+                u_all[j, direction] += difference * weighted_projection
     return imav, s_all, u_all, counts, float(counts.mean())
+
+
+class _RejectFeatureCenteredDifference(np.ndarray):
+    """Array that rejects allocating ``X_active - center`` in feature space."""
+
+    def __new__(cls, values):
+        instance = np.asarray(values).view(cls)
+        instance.feature_count = instance.shape[1]
+        return instance
+
+    def __array_finalize__(self, source):
+        self.feature_count = getattr(source, "feature_count", None)
+
+    def __sub__(self, other):
+        other_array = np.asarray(other)
+        if (
+            self.ndim == 2
+            and other_array.ndim == 1
+            and other_array.shape == (self.feature_count,)
+        ):
+            raise AssertionError("compact statistics allocated X_active - center")
+        return super().__sub__(other)
 
 
 @pytest.mark.parametrize("kernel", ("epanechnikov", "quartic", "gaussian"))
@@ -115,7 +143,7 @@ def test_config_rejects_unknown_initial_beta_and_local_mass_modes():
         ADPConfig(local_mass_mode="bad")
 
 
-def test_backend_random_projection_sums_match_weighted_xbar_reference():
+def test_backend_random_projection_sums_match_center_based_direct_reference():
     X = np.array(
         [
             [-1.0, 0.5, 0.1],
@@ -148,6 +176,115 @@ def test_backend_random_projection_sums_match_weighted_xbar_reference():
 
     for actual_part, expected_part in zip(actual, expected):
         np.testing.assert_allclose(actual_part, expected_part, rtol=1e-12, atol=1e-12)
+
+
+def test_factored_compact_statistics_avoid_feature_centered_difference_buffer():
+    rng = np.random.default_rng(902)
+    X = rng.normal(size=(18, 5))
+    y = rng.normal(size=18)
+    centers = rng.normal(size=(4, 5))
+    directions = rng.normal(size=(4, 3, 5))
+    directions /= np.linalg.norm(directions, axis=-1, keepdims=True)
+    q = rng.uniform(0.0, 1.5, size=(4, 18))
+    q[:, 0] = 0.25
+    backend = NumpyBackend()
+
+    actual = backend._factored_compact_random_projection_sums(
+        _RejectFeatureCenteredDifference(X),
+        y,
+        centers,
+        directions,
+        q,
+        "epanechnikov",
+    )
+    expected = reference_random_projection_sums(
+        X,
+        y,
+        centers,
+        directions,
+        q,
+        "epanechnikov",
+    )
+
+    for actual_part, expected_part in zip(actual, expected):
+        np.testing.assert_allclose(actual_part, expected_part, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize("kernel", ("epanechnikov", "quartic", "gaussian"))
+def test_factored_random_projection_sums_match_direct_reference(kernel):
+    rng = np.random.default_rng(903)
+    X = rng.normal(size=(20, 4))
+    y = rng.normal(size=20)
+    centers = rng.normal(size=(5, 4))
+    directions = rng.normal(size=(5, 3, 4))
+    directions /= np.linalg.norm(directions, axis=-1, keepdims=True)
+    q = rng.uniform(0.0, 1.5, size=(5, 20))
+
+    actual = NumpyBackend().factored_random_projection_sums(
+        X=X,
+        y=y,
+        centers=centers,
+        directions=directions,
+        q=q,
+        kernel=kernel,
+    )
+    expected = reference_random_projection_sums(
+        X,
+        y,
+        centers,
+        directions,
+        q,
+        kernel,
+    )
+
+    for actual_part, expected_part in zip(actual, expected):
+        np.testing.assert_allclose(actual_part, expected_part, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize("kernel", ("epanechnikov", "quartic", "gaussian"))
+@pytest.mark.parametrize(
+    ("dtype", "rtol", "atol"),
+    (("float64", 1e-11, 1e-12), ("float32", 3e-5, 3e-6)),
+)
+def test_cpu_batched_statistics_match_center_based_direct_reference(
+    kernel,
+    dtype,
+    rtol,
+    atol,
+):
+    rng = np.random.default_rng(431)
+    X = rng.normal(size=(30, 5)).astype(dtype)
+    y = rng.normal(size=30).astype(dtype)
+    centers = rng.normal(size=(10, 5)).astype(dtype)
+    directions = rng.normal(size=(10, 4, 5)).astype(dtype)
+    directions /= np.linalg.norm(directions, axis=-1, keepdims=True)
+    q = (pairwise_norm2(X, centers) / 6.0).astype(dtype)
+    backend = NumpyBackend(dtype)
+
+    actual = backend.batched_random_projection_sums(
+        X=X,
+        y=y,
+        centers=centers,
+        directions=directions,
+        q=q,
+        kernel=kernel,
+    )
+    expected = reference_random_projection_sums(
+        X,
+        y,
+        centers,
+        directions,
+        q,
+        kernel,
+    )
+
+    for actual_part, expected_part in zip(actual, expected):
+        np.testing.assert_allclose(
+            actual_part,
+            expected_part,
+            rtol=rtol,
+            atol=atol,
+        )
 
 
 def test_cupy_backend_covers_gpu_md_pairwise_kernel_and_local_mass(monkeypatch):
@@ -659,7 +796,7 @@ def test_float32_config_preserves_statistics_dtype():
     ("dtype", "rtol", "atol"),
     (("float64", 1e-11, 1e-12), ("float32", 2e-5, 2e-6)),
 )
-def test_fused_compact_statistics_match_reference_and_make_s_exact_zero(
+def test_fused_compact_statistics_match_center_based_reference(
     kernel,
     dtype,
     rtol,
@@ -685,13 +822,42 @@ def test_fused_compact_statistics_match_reference_and_make_s_exact_zero(
     expected = reference_random_projection_sums(X, y, centers, directions, q, kernel)
 
     np.testing.assert_allclose(actual[0], expected[0], rtol=rtol, atol=atol)
-    np.testing.assert_array_equal(actual[1], np.zeros_like(actual[1]))
+    np.testing.assert_allclose(actual[1], expected[1], rtol=rtol, atol=atol)
     np.testing.assert_allclose(actual[2], expected[2], rtol=rtol, atol=atol)
     np.testing.assert_allclose(actual[3], expected[3], rtol=rtol, atol=atol)
     assert actual[0].dtype == np.dtype(dtype)
     assert actual[1].dtype == np.dtype(dtype)
     assert actual[2].dtype == np.dtype(dtype)
     assert actual[3].dtype == np.dtype(dtype)
+
+
+def test_local_solver_matches_batched_regularized_two_by_two_systems():
+    rng = np.random.default_rng(432)
+    model = ADP.create(
+        "new",
+        ADPConfig(ridge=1e-8, show_progress=False),
+    )
+    stats = LocalStatistics(
+        variant="new",
+        imav=rng.normal(size=(7, 5)),
+        centers=rng.normal(size=(7, 3)),
+        h=1.0,
+        weights_mean=10.0,
+        S=rng.normal(size=(7, 5)),
+        U=rng.normal(size=(7, 5, 3)),
+    )
+    beta = rng.normal(size=3)
+
+    intercepts, slopes = model._solve_local_coefficients(stats, beta)
+
+    projected = stats.U @ beta
+    design = np.stack((stats.S, projected), axis=-1)
+    gram = np.swapaxes(design, 1, 2) @ design
+    gram += model.config.ridge * np.eye(2)[None, :, :]
+    rhs = np.einsum("jpk,jp->jk", design, stats.imav)
+    expected = np.linalg.solve(gram, rhs[..., None])[..., 0]
+    np.testing.assert_allclose(intercepts, expected[:, 0], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(slopes, expected[:, 1], rtol=1e-12, atol=1e-12)
 
 
 def test_fused_compact_statistics_keep_empty_center_zero():
@@ -818,6 +984,7 @@ def test_opt_in_fit_telemetry_records_real_cg_and_local_diagnostics():
             inner_steps=2,
             tol=1e-12,
             record_telemetry=True,
+            record_local_trace=True,
             record_solver_trace=True,
             random_state=71,
             show_progress=False,
@@ -854,6 +1021,30 @@ def test_opt_in_fit_telemetry_records_real_cg_and_local_diagnostics():
         assert step.beta is not None
         assert np.linalg.norm(step.beta) == pytest.approx(1.0)
         assert all(value >= 0.0 for value in step.solver_residual_trace)
+
+
+def test_local_trace_is_independent_from_aggregate_telemetry():
+    model = ADP.create(
+        "new",
+        ADPConfig(
+            n_centers=8,
+            n_directions=4,
+            min_neighbors=4,
+            outer_steps=1,
+            inner_steps=1,
+            record_telemetry=True,
+            record_local_trace=False,
+            random_state=72,
+            show_progress=False,
+        ),
+    )
+    data = model.generate_data(n=48, d=4, noise=0.05, link="quadratic")
+
+    result = model.fit(data.X, data.y, beta0=data.beta)
+
+    assert result.outer_telemetry
+    assert not math.isnan(result.outer_telemetry[0]["condition_median"])
+    assert result.local_telemetry == []
 
 
 def test_disabled_fit_telemetry_keeps_optional_payloads_empty():

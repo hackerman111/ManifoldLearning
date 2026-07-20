@@ -83,6 +83,7 @@ REQUIRED_PLOTS = {
     "bandwidth_ratio_vs_sigma_x.png",
     "status_breakdown.png",
     "runtime_share_breakdown.png",
+    "correctness_rate.png",
 }
 
 
@@ -111,6 +112,9 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                     "d": 5 + 20 * (seed % 2),
                     "n": 50 + 50 * seed,
                     "n_over_d": 2.0 + 3.0 * (seed % 2),
+                    "statistics_builder": (
+                        "cpu_batched" if seed % 2 else "random_projection"
+                    ),
                     "n_centers": 20,
                     "center_fraction": 1.0,
                     "sigma_x": (0.5, 1.0, 2.0)[seed],
@@ -122,6 +126,7 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                     "noise_distribution": ("gaussian", "student_t5", "student_t3")[seed],
                     "heteroscedastic": bool(seed % 2),
                     "outlier_fraction": (0.0, 0.01, 0.05)[seed],
+                    "effective_outlier_fraction": (0.0, 0.02, 0.06)[seed],
                     "outlier_scale": 5.0,
                     "delta": (0.0, 0.1, 0.5)[seed],
                     "h_initial": 2.0 + seed,
@@ -133,6 +138,8 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                     "projector_error": 0.1 + 0.1 * seed,
                     "objective": 1.0 + seed,
                     "algorithm_time_sec": 0.5 + selector_index * 0.1 + seed,
+                    "statistics_builder_time_sec": 0.2 + 0.1 * seed,
+                    "statistics_builder_calls": 2 + seed,
                     "algorithm_rss_max_mib": 100.0 + 10.0 * seed,
                     "status": "numerical_failure" if failed else "success",
                     "stop_reason": "numerical_exception" if failed else "tolerance",
@@ -250,8 +257,8 @@ def test_fixture_csvs_render_every_applicable_plot(tmp_path):
     assert not artifacts.loc[artifacts.path.str.endswith(".png"), "path"].str.startswith("/").any()
 
 
-def test_manifest_has_russian_labels_explicit_scales_and_stable_53_names():
-    assert len(reports.PLOT_MANIFEST) == 53
+def test_manifest_has_russian_labels_explicit_scales_and_stable_54_names():
+    assert len(reports.PLOT_MANIFEST) == 54
     assert {spec.filename for spec in reports.PLOT_MANIFEST} == REQUIRED_PLOTS
     assert all(spec.title.startswith(("Эксперимент ", "Сводка —")) for spec in reports.PLOT_MANIFEST)
     assert all(spec.subtitle for spec in reports.PLOT_MANIFEST)
@@ -262,6 +269,7 @@ def test_manifest_has_russian_labels_explicit_scales_and_stable_53_names():
     assert by_name["runtime_vs_dimension.png"].y == "algorithm_time_sec"
     assert by_name["runtime_vs_dimension.png"].xscale == "log"
     assert by_name["runtime_vs_dimension.png"].yscale == "log"
+    assert by_name["runtime_vs_dimension.png"].groups == ("n_over_d",)
     assert by_name["memory_vs_dimension.png"].y == "algorithm_rss_max_mib"
     assert by_name["memory_vs_dimension.png"].ylabel.endswith("МиБ")
     assert by_name["quality_vs_sigma_eps.png"].xscale == "linear"
@@ -272,6 +280,21 @@ def test_manifest_has_russian_labels_explicit_scales_and_stable_53_names():
     assert "n_over_d" in by_name["quality_vs_outer_iteration.png"].groups
     assert "n_over_d" in by_name["local_mass_by_outer_iteration.png"].facet
     assert "n_over_d" in by_name["quality_by_link_function.png"].facet
+    assert by_name["correctness_rate.png"].selectors == ("1",)
+    assert by_name["correctness_rate.png"].y == "success_value"
+    assert by_name["correctness_rate.png"].facet == ("d",)
+    for filename in (
+        "failure_rate_by_distribution.png",
+        "runtime_by_distribution.png",
+    ):
+        assert "experiment" in by_name[filename].groups
+        assert "n_over_d" in by_name[filename].groups
+    assert by_name["quality_vs_outlier_fraction.png"].x == (
+        "effective_outlier_fraction"
+    )
+    assert by_name["failure_rate_vs_outliers.png"].x == (
+        "effective_outlier_fraction"
+    )
 
 
 def test_default_single_index_report_dpi_is_300():
@@ -426,7 +449,8 @@ def test_detail_summary_collapses_solver_iterations_to_one_value_per_run():
 
 def test_success_heatmap_uses_sample_fraction_in_each_cell():
     spec = next(
-        item for item in reports.PLOT_MANIFEST
+        item
+        for item in reports.PLOT_MANIFEST
         if item.filename == "success_rate_heatmap.png"
     )
     source = pd.DataFrame(

@@ -54,6 +54,7 @@ def test_run_summary_contains_reproduction_status_and_quality_contract():
         "d",
         "n",
         "n_over_d",
+        "statistics_builder",
         "n_centers",
         "center_fraction",
         "sigma_x",
@@ -65,6 +66,8 @@ def test_run_summary_contains_reproduction_status_and_quality_contract():
         "x_distribution",
         "noise_distribution",
         "effective_noise_distribution",
+        "effective_outlier_fraction",
+        "link_index_divisor",
         "seed_beta",
         "seed_features",
         "seed_noise",
@@ -79,6 +82,8 @@ def test_run_summary_contains_reproduction_status_and_quality_contract():
         "objective",
         "data_generation_time_sec",
         "fit_wall_time_sec",
+        "statistics_builder_time_sec",
+        "statistics_builder_calls",
         "algorithm_time_sec",
         "telemetry_serialization_time_sec",
         "job_wall_time_sec",
@@ -101,12 +106,12 @@ def test_run_summary_contains_reproduction_status_and_quality_contract():
     assert expected <= set(RUN_SUMMARY_COLUMNS)
 
 
-def test_run_summary_v2_logs_every_effective_adp_config_field_without_aliases():
+def test_run_summary_v4_logs_every_effective_adp_config_field_without_aliases():
     expected_config_columns = tuple(
         f"adp_{field.name}" for field in fields(ADPConfig)
     )
 
-    assert SCHEMA_VERSION == 2
+    assert SCHEMA_VERSION == 4
     assert COMMON_SCHEMA_VERSION == 1
     assert ADP_CONFIG_COLUMNS == expected_config_columns
     assert set(expected_config_columns) <= set(RUN_SUMMARY_COLUMNS)

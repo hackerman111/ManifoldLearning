@@ -41,6 +41,37 @@ model = ADP.create(
 )
 ```
 
+Для плотного батчевого расчёта статистик на CPU выберите именованную
+реализацию `cpu_batched`:
+
+```python
+model = ADP.create(
+    "new",
+    ADPConfig(show_progress=False),
+    stages={"statistics_builder": "cpu_batched"},
+)
+```
+
+Обе реализации используют статистики из `manifold_new.tex` с разностями
+`X_i - x_j`. `random_projection` сохраняет разреженный путь для компактных
+ядер, а `cpu_batched` обрабатывает блок центров матричными операциями.
+
+Вариант `cpu_compact_factored` сохраняет разреженный обход
+`random_projection`, но вычисляет центрированные суммы без временного массива
+`X_active - center`:
+
+```python
+factored_model = ADP.create(
+    "new",
+    ADPConfig(show_progress=False),
+    stages={"statistics_builder": "cpu_compact_factored"},
+)
+```
+
+Его можно передать в `compare_models` вместе с моделью
+`statistics_builder="random_projection"` для изолированного сравнения двух
+compact-реализаций.
+
 Новый исследовательский solver можно передать напрямую:
 
 ```python
@@ -224,6 +255,63 @@ python run_benchmarks.py single-index \
 
 PNG строятся только из этих CSV и сохраняются в `plots/experiment_<selector>/`
 и `plots/summary/`. JSON-файлы новый benchmark не создаёт.
+
+Сравнение времени и памяти двух ADP-совместимых моделей на сетке эксперимента 2
+вынесено в отдельный модуль:
+
+```python
+from experiments.compare_model_efficiency import (
+    compare_models,
+    write_comparison_artifacts,
+)
+
+runs = compare_models(
+    first_model,
+    second_model,
+    model_names=("first", "second"),
+    seeds=(0, 1, 2),
+    jobs=4,
+)
+write_comparison_artifacts(
+    runs,
+    "benchmark_outputs/model_comparison",
+    model_names=("first", "second"),
+)
+```
+
+Модели должны поддерживать вызов
+`fit(X, y, centers=..., beta0=..., directions=...)` и сериализацию через
+`cloudpickle`. Каждый `fit` выполняется в новом процессе на одинаковых данных,
+центрах, начальном направлении и случайных направлениях. Время запуска процесса
+и сериализации не входит в `fit_time_sec`; RSS измеряется только во время
+`fit`. `jobs` задаёт число параллельных процессов, а `tqdm` показывает число
+завершённых запусков. Для измерения времени без конкуренции за CPU используйте
+`jobs=1`; большие значения измеряют пропускную способность при параллельной
+нагрузке. Готовое сравнение текущих реализаций запускается так:
+
+```bash
+python experiments/compare_model_efficiency.py \
+  --profile full \
+  --seeds 0:99 \
+  --jobs 4 \
+  --output benchmark_outputs/model_comparison
+```
+
+Полное сравнение исходной compact-реализации с вариантом, который выносит
+члены центра из матричных произведений, запускается отдельно:
+
+```bash
+python experiments/compare_compact_factored_efficiency.py \
+  --profile full \
+  --seeds 0:99 \
+  --jobs 1 \
+  --output benchmark_outputs/compact_factored_comparison
+```
+
+Такой запуск выполняет 20 конфигураций эксперимента 2, 100 seed и две модели,
+то есть 4000 изолированных `fit`. Для измерения времени без конкуренции за CPU
+оставьте `--jobs 1`; большее значение измеряет throughput под параллельной
+нагрузкой.
 
 Запускаемый пример честного сравнения matrix-free CG и плотного direct solver
 на одинаковых данных, начальном `beta`, центрах и направлениях:

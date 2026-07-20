@@ -86,6 +86,44 @@ class RandomProjectionStatisticsBuilder:
         )
 
 
+class CpuBatchedStatisticsBuilder:
+    def __init__(self, context: StageContext) -> None:
+        self.model = context.model
+
+    def compute(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        centers: np.ndarray,
+        h: float,
+        beta: np.ndarray,
+        directions: np.ndarray | None,
+        anisotropy: float | None,
+    ):
+        return self.model._compute_statistics_cpu_batched(
+            X, y, centers, h, beta, directions, anisotropy
+        )
+
+
+class CpuCompactFactoredStatisticsBuilder:
+    def __init__(self, context: StageContext) -> None:
+        self.model = context.model
+
+    def compute(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        centers: np.ndarray,
+        h: float,
+        beta: np.ndarray,
+        directions: np.ndarray | None,
+        anisotropy: float | None,
+    ):
+        return self.model._compute_statistics_cpu_compact_factored(
+            X, y, centers, h, beta, directions, anisotropy
+        )
+
+
 class LeastSquaresLocalSolver:
     def __init__(self, context: StageContext) -> None:
         self.model = context.model
@@ -144,20 +182,30 @@ class ConvergenceStopRule:
 
 
 BUILTIN_STAGE_TYPES = {
-    "beta_initializer": DefaultBetaInitializer,
-    "center_selector": RandomCenterSelector,
-    "bandwidth_selector": AdaptiveMassBandwidthSelector,
-    "direction_sampler": RandomSphereDirectionSampler,
-    "statistics_builder": RandomProjectionStatisticsBuilder,
-    "local_solver": LeastSquaresLocalSolver,
-    "beta_solver": ConjugateGradientBetaSolver,
-    "stop_rule": ConvergenceStopRule,
+    "beta_initializer": {"default": DefaultBetaInitializer},
+    "center_selector": {"random_sample": RandomCenterSelector},
+    "bandwidth_selector": {"adaptive_mass": AdaptiveMassBandwidthSelector},
+    "direction_sampler": {"random_sphere": RandomSphereDirectionSampler},
+    "statistics_builder": {
+        "random_projection": RandomProjectionStatisticsBuilder,
+        "cpu_batched": CpuBatchedStatisticsBuilder,
+        "cpu_compact_factored": CpuCompactFactoredStatisticsBuilder,
+    },
+    "local_solver": {"least_squares": LeastSquaresLocalSolver},
+    "beta_solver": {"cg": ConjugateGradientBetaSolver},
+    "stop_rule": {"convergence": ConvergenceStopRule},
 }
 
 
-def build_builtin_stage(category: str, context: StageContext):
+def build_builtin_stage(
+    category: str,
+    implementation: str,
+    context: StageContext,
+):
     try:
-        stage_type = BUILTIN_STAGE_TYPES[category]
+        stage_type = BUILTIN_STAGE_TYPES[category][implementation]
     except KeyError as exc:
-        raise ValueError(f"Нет встроенного этапа {category!r}") from exc
+        raise ValueError(
+            f"Нет встроенного этапа {category!r} ({implementation!r})"
+        ) from exc
     return stage_type(context)

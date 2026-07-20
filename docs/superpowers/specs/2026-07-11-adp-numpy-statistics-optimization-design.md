@@ -92,29 +92,27 @@ expression behind the same method.
 
 For each center with active indices `q < 1`:
 
-1. compute compact-kernel weights, their mass `N`, and the weighted mean
-   `xbar`;
-2. form `centered = X_active - xbar`;
-3. form `projected = centered @ directions.T`;
+1. compute compact-kernel weights and their mass `N`;
+2. form `differences = X_active - center`;
+3. form `projected = differences @ directions.T`;
 4. multiply `projected` by weights in place;
 5. compute `imav = y_active @ projected`;
-6. compute `U = projected.T @ centered`;
-7. write `N` and output arrays directly.
+6. compute `S = projected.sum(axis=0)`;
+7. compute `U = projected.T @ differences`;
+8. write `N` and output arrays directly.
 
 This removes the separate `weighted_projected` allocation and the separate
 `weights * y` temporary.
 
-The statistic
+The statistics use the center from `manifold_new.tex` literally:
 
 ```text
-S = sum_i w_i * <X_i - xbar, phi>
+S = sum_i w_i * <X_i - center, phi>
 ```
 
-is identically zero because `xbar` is the weighted mean. The implementation
-therefore preserves the existing `S` array, dtype, and shape but fills it with
-zeros rather than performing another reduction. Existing custom stage APIs
-remain structurally compatible; the only difference is removal of floating
-round-off around mathematical zero.
+It is generally nonzero. An earlier implementation centered on the weighted
+mean and therefore changed the ADP objective; that behavior is not a valid
+optimization of the formulas in the TeX source.
 
 Centers with no active observations keep zero `imav`, `S`, `U`, and `N`, as in
 the current implementation.

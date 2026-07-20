@@ -216,14 +216,13 @@ def _statistics_case(seed: int):
     u_mat = np.zeros_like(actual[2])
     counts = weights.sum(axis=1)
     for center in range(centers.shape[0]):
-        xbar = (weights[center, :, None] * X).sum(axis=0) / counts[center]
-        centered = X - xbar
-        projected = centered @ directions[center].T
+        differences = X - centers[center]
+        projected = differences @ directions[center].T
         imav[center] = (y[:, None] * projected * weights[center, :, None]).sum(axis=0)
         s_vec[center] = (projected * weights[center, :, None]).sum(axis=0)
         for direction in range(directions.shape[1]):
             u_mat[center, direction] = (
-                centered
+                differences
                 * projected[:, direction, None]
                 * weights[center, :, None]
             ).sum(axis=0)

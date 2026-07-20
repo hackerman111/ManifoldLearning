@@ -10,6 +10,7 @@ from adp.evaluation.single_index.scenarios import (
     full_parameter_grid,
     parse_experiment_selectors,
     parse_seed_selection,
+    smoke_parameter_grid,
 )
 from adp.evaluation.single_index.types import (
     ExperimentParameters,
@@ -81,7 +82,12 @@ def test_full_grids_use_the_literal_cartesian_products():
                 ("linear", "quadratic"),
             )
         },
-        "2": set(product((5, 25, 50, 100), (1.0, 1.15, 2.0, 5.0, 10.0))),
+        "2": set(
+            product(
+                (5, 25, 50, 100),
+                (1.0, 1.15, 2.0, 5.0, 10.0),
+            )
+        ),
         "3": set(
             product(
                 (25, 100),
@@ -213,3 +219,9 @@ def test_full_grid_values_are_finite_and_valid():
             assert parameters.sigma_eps >= 0.0
             distribution_counts[parameters.x_distribution] += 1
     assert {"gaussian", "uniform", "student_t5"} <= set(distribution_counts)
+
+
+def test_experiment_two_smoke_uses_original_single_configuration():
+    grid = smoke_parameter_grid("2")
+
+    assert grid == (ExperimentParameters(d=4, n_over_d=2.0),)

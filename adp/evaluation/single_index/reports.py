@@ -260,6 +260,17 @@ _BASE_PLOT_MANIFEST = (
         diagnostic=True,
     ),
     PlotSpec(
+        "correctness_rate.png",
+        ("1",),
+        "runs",
+        "mean_line",
+        "link",
+        "success_value",
+        "Strict correctness rate",
+        "Link function",
+        "Correctness rate",
+    ),
+    PlotSpec(
         "quality_heatmap_d_nd_ratio.png",
         ("2",),
         "runs",
@@ -597,6 +608,7 @@ _BASE_PLOT_MANIFEST = (
         "Numerical-failure rate by distribution",
         "Distribution",
         "Numerical-failure rate",
+        groups=("experiment",),
     ),
     PlotSpec(
         "runtime_by_distribution.png",
@@ -608,6 +620,7 @@ _BASE_PLOT_MANIFEST = (
         "Runtime by distribution",
         "Distribution",
         "Runtime, seconds",
+        groups=("experiment",),
     ),
     PlotSpec(
         "quality_by_heteroscedasticity.png",
@@ -625,7 +638,7 @@ _BASE_PLOT_MANIFEST = (
         ("8.2",),
         "runs",
         "quantile",
-        "outlier_fraction",
+        "effective_outlier_fraction",
         "cosine_abs",
         "Direction quality versus outlier fraction",
         "Outlier fraction",
@@ -637,7 +650,7 @@ _BASE_PLOT_MANIFEST = (
         ("8.2",),
         "runs",
         "mean_line",
-        "outlier_fraction",
+        "effective_outlier_fraction",
         "failure_value",
         "Numerical-failure rate versus outliers",
         "Outlier fraction",
@@ -756,6 +769,7 @@ _PLOT_SUBJECTS = {
     "local_condition_by_outer_iteration.png": "обусловленность локальных систем",
     "mass_vs_condition.png": "связь локальной массы и обусловленности",
     "local_slopes_by_outer_iteration.png": "локальные наклоны по внешним итерациям",
+    "correctness_rate.png": "доля направлений с абсолютным косинусом не ниже 0,99",
     "quality_heatmap_d_nd_ratio.png": "качество по размерности и объёму выборки",
     "success_rate_heatmap.png": "доля успешных запусков по размерности и объёму выборки",
     "runtime_vs_dimension.png": "время работы в зависимости от размерности",
@@ -804,6 +818,7 @@ _AXIS_LABELS = {
     "solver_k": "Итерация линейного решателя",
     "n_over_d": "Отношение объёма выборки к размерности, n/d",
     "d": "Размерность, d",
+    "statistics_builder": "Реализация статистик",
     "sigma_eps": "Стандартное отклонение шума, σₑ",
     "rho_corr": "Корреляция признаков AR(1), ρ",
     "sigma_x": "Масштаб признаков, σₓ",
@@ -813,6 +828,7 @@ _AXIS_LABELS = {
     "distribution": "Распределение",
     "heteroscedastic": "Гетероскедастичность",
     "outlier_fraction": "Доля выбросов",
+    "effective_outlier_fraction": "Фактическая доля выбросов",
     "delta": "Сила нарушения модели, δ",
     "experiment": "Эксперимент",
     "local_mass": "Локальная масса",
@@ -828,6 +844,9 @@ _AXIS_LABELS = {
     "slope": "Локальный наклон",
     "algorithm_time_sec": "Время алгоритма, с",
     "algorithm_rss_max_mib": "Максимальный RSS процесса, МиБ",
+    "algorithm_rss_peak_delta_mib": "Прирост максимального RSS процесса, МиБ",
+    "statistics_builder_time_sec": "Время построения статистик, с",
+    "statistics_speedup": "Ускорение относительно random_projection",
     "outer_iterations": "Число внешних итераций",
     "success_value": "Доля успешных запусков",
     "failure_value": "Доля численных сбоев",
@@ -914,7 +933,9 @@ def _build_plot_manifest() -> tuple[PlotSpec, ...]:
         elif facets:
             groups = tuple(column for column in groups if column not in facets)
             if base.table == "runs" and base.x in _CATEGORY_ORDERS and "n_over_d" not in groups:
-                groups = ("n_over_d",)
+                groups = tuple(dict.fromkeys((*groups, "n_over_d")))
+        if base.filename == "correctness_rate.png":
+            facets = ("d",)
         if base.selectors == ("1",):
             if kind == "box":
                 facets = tuple(dict.fromkeys((*facets, "n_over_d")))
@@ -951,8 +972,12 @@ def _build_plot_manifest() -> tuple[PlotSpec, ...]:
             xscale=xscale,
             yscale=yscale,
             ylim=(0.0, 1.0) if quality else None,
-            reference_y=threshold,
-            reference_label=f"порог качества {threshold:g}" if threshold is not None else None,
+            reference_y=threshold if threshold is not None else base.reference_y,
+            reference_label=(
+                f"порог качества {threshold:g}"
+                if threshold is not None
+                else base.reference_label
+            ),
             facet=facets,
             groups=groups,
             category_order=_CATEGORY_ORDERS.get(base.x, ()),

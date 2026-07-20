@@ -23,6 +23,39 @@ def test_default_stage_registries_are_isolated():
     assert "experimental" in first.available("beta_solver")
     assert "experimental" not in second.available("beta_solver")
     assert "cg" in second.available("beta_solver")
+    assert second.available("statistics_builder") == (
+        "cpu_batched",
+        "cpu_compact_factored",
+        "random_projection",
+    )
+
+
+def test_model_resolves_cpu_batched_statistics_builder():
+    model = ADP.create(
+        "new",
+        ADPConfig(show_progress=False),
+        stages={"statistics_builder": "cpu_batched"},
+    )
+
+    assert model.algorithm.stage_names["statistics_builder"] == "cpu_batched"
+    assert type(model.algorithm.components["statistics_builder"]).__name__ == (
+        "CpuBatchedStatisticsBuilder"
+    )
+
+
+def test_model_resolves_cpu_compact_factored_statistics_builder():
+    model = ADP.create(
+        "new",
+        ADPConfig(show_progress=False),
+        stages={"statistics_builder": "cpu_compact_factored"},
+    )
+
+    assert model.algorithm.stage_names["statistics_builder"] == (
+        "cpu_compact_factored"
+    )
+    assert type(model.algorithm.components["statistics_builder"]).__name__ == (
+        "CpuCompactFactoredStatisticsBuilder"
+    )
 
 
 def test_factory_types_are_part_of_public_api():
@@ -253,6 +286,35 @@ def test_stop_rule_receives_complete_adp_state():
     assert inner_state.centers is not None
     assert inner_state.beta is not None
     assert inner_state.statistics is not None
+
+
+def test_fit_records_actual_inner_and_outer_stop_decisions():
+    class LastAllowedStepStopRule:
+        def should_stop(self, phase, state, *, step=None, **metrics):
+            return phase == "inner" and metrics["inner"] == 1
+
+    model = ADP.create(
+        "new",
+        ADPConfig(
+            n_centers=8,
+            n_directions=3,
+            min_neighbors=4,
+            outer_steps=1,
+            inner_steps=2,
+            show_progress=False,
+            random_state=141,
+        ),
+        stage_factories={
+            "stop_rule": lambda context: LastAllowedStepStopRule()
+        },
+    )
+    data = model.generate_data(n=40, d=3, noise=0.01, link="linear")
+
+    result = model.fit(data.X, data.y)
+
+    assert len(result.history) == 2
+    assert result.history[-1].inner_stop_reason == "tolerance"
+    assert result.stop_reason == "scheduled_completion"
 
 
 def test_invalid_initializer_is_attributed_before_normalization():

@@ -76,6 +76,34 @@ def test_job_ids_and_subseeds_do_not_depend_on_process_count_or_order():
     assert serial_identity == parallel_identity == reversed_identity
 
 
+def test_parameter_sweeps_reuse_common_random_substreams_within_experiment():
+    jobs = build_single_index_jobs(
+        SingleIndexSeriesConfig(
+            profile="full",
+            experiments=("3",),
+            seeds=(7,),
+        )
+    )
+
+    assert len({job.seeds for job in jobs}) == 1
+    assert len({job.run_id for job in jobs}) == len(jobs)
+
+
+def test_experiment_two_keeps_original_random_projection_grid():
+    jobs = build_single_index_jobs(
+        SingleIndexSeriesConfig(
+            profile="full",
+            experiments=("2",),
+            seeds=(7,),
+        )
+    )
+
+    assert len(jobs) == 20
+    assert {job.parameters.statistics_builder for job in jobs} == {
+        "random_projection"
+    }
+
+
 def test_job_identity_canonicalizes_signed_zero_parameters():
     positive_zero = ExperimentParameters(
         d=25,
@@ -157,6 +185,33 @@ def test_worker_initializer_caps_every_supported_runtime(monkeypatch):
         assert os.environ[name] == "1"
 
 
+def test_process_pool_recycles_worker_after_every_measured_fit(monkeypatch):
+    captured = {}
+
+    class RecordingPool:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def shutdown(self, **kwargs):
+            captured["shutdown"] = kwargs
+
+    monkeypatch.setattr(single_index_runner, "ProcessPoolExecutor", RecordingPool)
+
+    completed = single_index_runner._run_parallel(
+        store=None,
+        jobs=(),
+        config=SingleIndexSeriesConfig(profile="smoke"),
+        process_jobs=3,
+        completed=0,
+        total=0,
+        progress=None,
+    )
+
+    assert completed == 0
+    assert captured["max_workers"] == 3
+    assert captured["max_tasks_per_child"] == 1
+
+
 class _ProgressRecorder:
     def __init__(self, *, disable):
         self.disable = disable
@@ -206,6 +261,32 @@ def test_disabled_tqdm_keeps_line_oriented_progress_for_redirected_logs(capsys):
     assert capsys.readouterr().err == (
         "1/1 experiment=1 seed=0 status=success\n"
     )
+
+
+def test_jobs_one_still_runs_fit_in_an_isolated_worker(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        single_index_runner,
+        "write_single_index_reports",
+        lambda series_dir: pd.DataFrame(),
+    )
+
+    def forbidden_parent_fit(*args, **kwargs):
+        raise AssertionError("fit executed in the parent process")
+
+    monkeypatch.setattr(single_index_runner, "execute_job", forbidden_parent_fit)
+    config = SingleIndexSeriesConfig(
+        profile="smoke",
+        experiments=("1",),
+        jobs=1,
+        seeds=(0,),
+        diagnostic_seeds=(),
+        center_fraction=0.25,
+        max_runs=1,
+    )
+
+    saved = run_single_index_benchmark(config, tmp_path)
+
+    assert len(pd.read_csv(saved["run_summary"])) == 1
 
 
 def test_parallel_runner_commits_one_normalized_outcome_per_fit(

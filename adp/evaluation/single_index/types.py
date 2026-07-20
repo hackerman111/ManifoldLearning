@@ -31,18 +31,21 @@ LinkName = Literal[
 ]
 FeatureDistribution = Literal["gaussian", "uniform", "student_t5"]
 NoiseDistribution = Literal["gaussian", "student_t5", "student_t3"]
+StatisticsBuilderName = Literal["random_projection", "cpu_batched"]
 
 _LINKS = frozenset(
     {"linear", "quadratic", "square", "sin", "tanh", "oscillating"}
 )
 _FEATURE_DISTRIBUTIONS = frozenset({"gaussian", "uniform", "student_t5"})
 _NOISE_DISTRIBUTIONS = frozenset({"gaussian", "student_t5", "student_t3"})
+_STATISTICS_BUILDERS = frozenset({"random_projection", "cpu_batched"})
 
 
 @dataclass(frozen=True, slots=True)
 class ExperimentParameters:
     d: int
     n_over_d: float
+    statistics_builder: StatisticsBuilderName = "random_projection"
     sigma_x: float = 1.0
     rho_corr: float = 0.0
     sigma_eps: float = 0.5
@@ -59,6 +62,13 @@ class ExperimentParameters:
         if isinstance(self.d, bool) or not isinstance(self.d, int) or self.d < 1:
             raise ValueError("d must be a positive integer")
         _require_positive_finite("n_over_d", self.n_over_d)
+        if (
+            not isinstance(self.statistics_builder, str)
+            or self.statistics_builder not in _STATISTICS_BUILDERS
+        ):
+            raise ValueError(
+                f"unknown statistics builder: {self.statistics_builder}"
+            )
         _require_positive_finite("sigma_x", self.sigma_x)
         _require_nonnegative_finite("rho_corr", self.rho_corr)
         if float(self.rho_corr) >= 1.0:

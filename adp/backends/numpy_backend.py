@@ -263,31 +263,108 @@ class NumpyBackend:
             return self._compact_random_projection_sums(
                 x,
                 xy,
+                xcenters,
                 xdirs,
                 xq,
                 kernel,
                 record_telemetry=record_telemetry,
             )
-        return self._dense_random_projection_sums(
+        return self._batched_random_projection_sums(
             x,
             xy,
+            xcenters,
             xdirs,
             xq,
             kernel,
             record_telemetry=record_telemetry,
         )
 
-    def _dense_random_projection_sums(
+    def batched_random_projection_sums(
+        self,
+        *,
+        X: np.ndarray,
+        y: np.ndarray,
+        centers: np.ndarray,
+        directions: np.ndarray,
+        q: np.ndarray,
+        kernel: KernelName,
+        record_telemetry: bool = False,
+    ) -> tuple[Any, ...]:
+        """Считает I, S и U для блока центров плотными batched-операциями."""
+
+        x = self.asarray(X)
+        xy = self.asarray(y)
+        xcenters = self.asarray(centers)
+        xdirs = self.asarray(directions)
+        xq = self.asarray(q)
+        if xcenters.shape[0] != xdirs.shape[0] or xq.shape[0] != xdirs.shape[0]:
+            raise ValueError("centers, directions и q должны иметь одинаковое число центров")
+        if xq.shape[1] != x.shape[0]:
+            raise ValueError("q должен иметь форму C x n")
+        return self._batched_random_projection_sums(
+            x,
+            xy,
+            xcenters,
+            xdirs,
+            xq,
+            kernel,
+            record_telemetry=record_telemetry,
+        )
+
+    def factored_random_projection_sums(
+        self,
+        *,
+        X: np.ndarray,
+        y: np.ndarray,
+        centers: np.ndarray,
+        directions: np.ndarray,
+        q: np.ndarray,
+        kernel: KernelName,
+        record_telemetry: bool = False,
+    ) -> tuple[Any, ...]:
+        """Считает compact-суммы без временного массива центрированных X."""
+
+        x = self.asarray(X)
+        xy = self.asarray(y)
+        xcenters = self.asarray(centers)
+        xdirs = self.asarray(directions)
+        xq = self.asarray(q)
+        if xcenters.shape[0] != xdirs.shape[0] or xq.shape[0] != xdirs.shape[0]:
+            raise ValueError("centers, directions и q должны иметь одинаковое число центров")
+        if xq.shape[1] != x.shape[0]:
+            raise ValueError("q должен иметь форму C x n")
+        if kernel in {"epanechnikov", "quartic"}:
+            return self._factored_compact_random_projection_sums(
+                x,
+                xy,
+                xcenters,
+                xdirs,
+                xq,
+                kernel,
+                record_telemetry=record_telemetry,
+            )
+        return self._batched_random_projection_sums(
+            x,
+            xy,
+            xcenters,
+            xdirs,
+            xq,
+            kernel,
+            record_telemetry=record_telemetry,
+        )
+
+    def _batched_random_projection_sums(
         self,
         x: np.ndarray,  # Матрица наблюдений n x d.
         xy: np.ndarray,  # Вектор ответов длины n.
+        xcenters: np.ndarray,  # Центры блока C x d.
         xdirs: np.ndarray,  # Направления блока C x P x d.
         xq: np.ndarray,  # Значения квадратичной формы C x n.
         kernel: KernelName,  # Имя ядра.
         *,
         record_telemetry: bool = False,
     ) -> tuple[Any, ...]:
-        """Считает суммы плотным блочным путем для Gaussian kernel."""
+        """Считает суммы блока по формулам из manifold_new.tex через BLAS."""
 
         weights_started = time.perf_counter()
         weights = self.kernel(xq, kernel)
@@ -306,19 +383,19 @@ class NumpyBackend:
         weights_time = time.perf_counter() - weights_started
 
         statistics_started = time.perf_counter()
-        safe_counts = np.maximum(counts, np.finfo(float).eps)
-
-        # centered_i = X_i - Xbar_j, где Xbar_j нормируется на N_j.
-        # Алгебра ниже избегает временного массива C x n x d.
-        xbar = (weights @ x) / safe_counts[:, None]
         projected = np.matmul(x[None, :, :], np.swapaxes(xdirs, 1, 2))
-        xbar_projected = np.einsum("cd,cpd->cp", xbar, xdirs, optimize=True)
-        projected -= xbar_projected[:, None, :]
-        imav = np.einsum("n,cn,cnp->cp", xy, weights, projected, optimize=True)
-        s_vec = np.einsum("cn,cnp->cp", weights, projected, optimize=True)
+        center_projected = np.einsum(
+            "cd,cpd->cp",
+            xcenters,
+            xdirs,
+            optimize=True,
+        )
+        projected -= center_projected[:, None, :]
         projected *= weights[:, :, None]
+        s_vec = projected.sum(axis=1)
+        imav = np.einsum("cnp,n->cp", projected, xy, optimize=True)
         u_raw = np.matmul(np.swapaxes(projected, 1, 2), x)
-        u_mat = u_raw - s_vec[:, :, None] * xbar[:, None, :]
+        u_mat = u_raw - s_vec[:, :, None] * xcenters[:, None, :]
         result = (
             self.to_numpy(imav),
             self.to_numpy(s_vec),
@@ -339,6 +416,7 @@ class NumpyBackend:
         self,
         x: np.ndarray,
         xy: np.ndarray,
+        xcenters: np.ndarray,
         xdirs: np.ndarray,
         xq: np.ndarray,
         kernel: KernelName,
@@ -383,15 +461,118 @@ class NumpyBackend:
                     time.perf_counter() - weights_started
                 )
             counts[center_index] = count
-            safe_count = max(float(count), float(tiny))
             x_active = x[active]
             y_active = xy[active]
-            xbar = (weights @ x_active) / safe_count
-            centered = x_active - xbar[None, :]
-            projected = centered @ xdirs[center_index].T
+            differences = x_active - xcenters[center_index]
+            projected = differences @ xdirs[center_index].T
             projected *= weights[:, None]
+            s_vec[center_index] = projected.sum(axis=0)
             imav[center_index] = y_active @ projected
-            u_mat[center_index] = projected.T @ centered
+            u_mat[center_index] = projected.T @ differences
+
+        work_proxy = c_count * x.shape[0] * p_count * d
+        use_parallel = (
+            self.statistics_workers > 1
+            and c_count > 1
+            and work_proxy >= PARALLEL_STATISTICS_MIN_WORK
+        )
+        if use_parallel:
+            worker_count = min(self.statistics_workers, c_count)
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                list(
+                    executor.map(
+                        compute_center,
+                        range(c_count),
+                        buffersize=worker_count,
+                    )
+                )
+        else:
+            for center_index in range(c_count):
+                compute_center(center_index)
+
+        result = (
+            self.to_numpy(imav),
+            self.to_numpy(s_vec),
+            self.to_numpy(u_mat),
+            self.to_numpy(counts),
+            float(counts.mean()),
+        )
+        if not record_telemetry:
+            return result
+        total_time = time.perf_counter() - started
+        weights_time = min(float(weight_durations.sum()), total_time)
+        return (
+            *result,
+            {
+                "sum_w2": self.to_numpy(sum_w2),
+                "nonzero": self.to_numpy(nonzero).astype(int, copy=False),
+                "min_weight": self.to_numpy(min_weight),
+                "max_weight": self.to_numpy(max_weight),
+                "weights_time_sec": weights_time,
+                "statistics_time_sec": max(0.0, total_time - weights_time),
+            },
+        )
+
+    def _factored_compact_random_projection_sums(
+        self,
+        x: np.ndarray,
+        xy: np.ndarray,
+        xcenters: np.ndarray,
+        xdirs: np.ndarray,
+        xq: np.ndarray,
+        kernel: KernelName,
+        *,
+        record_telemetry: bool = False,
+    ) -> tuple[Any, ...]:
+        """Computes compact sums with center terms factored out of X."""
+
+        started = time.perf_counter()
+        c_count, p_count, d = xdirs.shape
+        imav = np.zeros((c_count, p_count), dtype=self.dtype)
+        s_vec = np.zeros((c_count, p_count), dtype=self.dtype)
+        u_mat = np.zeros((c_count, p_count, d), dtype=self.dtype)
+        counts = np.zeros(c_count, dtype=self.dtype)
+        sum_w2 = np.zeros(c_count, dtype=self.dtype)
+        nonzero = np.zeros(c_count, dtype=int)
+        min_weight = np.zeros(c_count, dtype=self.dtype)
+        max_weight = np.zeros(c_count, dtype=self.dtype)
+        weight_durations = np.zeros(c_count, dtype=float)
+
+        def compute_center(center_index: int) -> None:
+            active = xq[center_index] < 1.0
+            if not np.any(active):
+                return
+            weights_started = time.perf_counter()
+            weights = self.kernel(xq[center_index, active], kernel).astype(
+                self.dtype,
+                copy=False,
+            )
+            count = weights.sum(dtype=self.dtype)
+            if record_telemetry:
+                sum_w2[center_index] = np.square(weights).sum(dtype=self.dtype)
+                nonzero[center_index] = int(np.count_nonzero(weights))
+                min_weight[center_index] = (
+                    self.dtype(0.0)
+                    if np.count_nonzero(active) < x.shape[0]
+                    else weights.min()
+                )
+                max_weight[center_index] = weights.max()
+                weight_durations[center_index] = (
+                    time.perf_counter() - weights_started
+                )
+            counts[center_index] = count
+            x_active = x[active]
+            y_active = xy[active]
+            center = xcenters[center_index]
+            projected = x_active @ xdirs[center_index].T
+            projected -= center @ xdirs[center_index].T
+            projected *= weights[:, None]
+            s_vec[center_index] = projected.sum(axis=0)
+            imav[center_index] = y_active @ projected
+            u_mat[center_index] = (
+                projected.T @ x_active
+                - s_vec[center_index, :, None] * center[None, :]
+            )
 
         work_proxy = c_count * x.shape[0] * p_count * d
         use_parallel = (

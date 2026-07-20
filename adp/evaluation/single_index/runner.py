@@ -84,7 +84,14 @@ def _build_single_index_job(
             "seed": seed,
         }
     )
-    entropy = int(identity_fingerprint.removeprefix("cfg-"), 16)
+    seed_fingerprint = configuration_fingerprint(
+        {
+            "experiment": experiment,
+            "seed": seed,
+            "seed_design": "paired-within-experiment-v1",
+        }
+    )
+    entropy = int(seed_fingerprint.removeprefix("cfg-"), 16)
     state = np.random.SeedSequence(entropy).generate_state(10)
     sub_seeds = SeedBundle(*(int(value) for value in state))
     return SingleIndexJob(
@@ -144,16 +151,7 @@ def run_single_index_benchmark(
         disable=not sys.stderr.isatty(),
     ) as progress:
         process_jobs = _resolve_process_jobs(config.jobs)
-        if process_jobs == 1:
-            completed = _run_serial(
-                store,
-                pending,
-                config,
-                completed=completed,
-                total=total,
-                progress=progress,
-            )
-        elif pending:
+        if pending:
             completed = _run_parallel(
                 store,
                 pending,
@@ -167,30 +165,6 @@ def run_single_index_benchmark(
     saved = dict(store.finalize(status=_series_status(store, jobs)))
     write_single_index_reports(store.series_dir)
     return saved
-
-
-def _run_serial(
-    store: SingleIndexSeriesStore,
-    jobs: Sequence[SingleIndexJob],
-    config: SingleIndexSeriesConfig,
-    *,
-    completed: int,
-    total: int,
-    progress: Any,
-) -> int:
-    _limit_worker_threads()
-    for job in jobs:
-        outcome = execute_job(job, config)
-        store.commit(outcome)
-        completed = _mark_job_done(
-            store,
-            progress,
-            completed,
-            total,
-            job,
-            str(outcome.run_row["status"]),
-        )
-    return completed
 
 
 def _run_parallel(
@@ -210,6 +184,7 @@ def _run_parallel(
         pool = ProcessPoolExecutor(
             max_workers=process_jobs,
             initializer=_initialize_worker,
+            max_tasks_per_child=1,
         )
         for job in jobs:
             future = pool.submit(
@@ -222,20 +197,9 @@ def _run_parallel(
     except OSError as exc:
         if pool is not None:
             pool.shutdown(wait=True, cancel_futures=True)
-        print(
-            f"parallel fallback: {type(exc).__name__}: {exc}",
-            file=sys.stderr,
-            flush=True,
-        )
-        remaining = list(store.pending_jobs(jobs))
-        return _run_serial(
-            store,
-            remaining,
-            config,
-            completed=total - len(remaining),
-            total=total,
-            progress=progress,
-        )
+        raise RuntimeError(
+            "cannot create isolated benchmark worker processes"
+        ) from exc
 
     assert pool is not None
     try:

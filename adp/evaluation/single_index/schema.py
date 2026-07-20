@@ -5,7 +5,7 @@ from dataclasses import fields
 from ...common.types import ADPConfig
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 RUN_IDENTITY_COLUMNS = ("schema_version", "series_id", "run_id")
 SERIES_IDENTITY_COLUMNS = ("schema_version", "series_id")
 ADP_CONFIG_COLUMNS = tuple(
@@ -40,6 +40,7 @@ RUN_SUMMARY_COLUMNS = RUN_IDENTITY_COLUMNS + (
     "d",
     "n",
     "n_over_d",
+    "statistics_builder",
     "n_centers",
     "center_fraction",
     "sigma_x",
@@ -50,6 +51,7 @@ RUN_SUMMARY_COLUMNS = RUN_IDENTITY_COLUMNS + (
     "link",
     "link_mean",
     "link_std",
+    "link_index_divisor",
     "x_distribution",
     "noise_distribution",
     "effective_noise_distribution",
@@ -58,6 +60,7 @@ RUN_SUMMARY_COLUMNS = RUN_IDENTITY_COLUMNS + (
     "outlier_fraction",
     "outlier_scale",
     "outlier_count",
+    "effective_outlier_fraction",
     "delta",
     "misspecified",
     "misspecification_mean",
@@ -89,6 +92,8 @@ RUN_SUMMARY_COLUMNS = RUN_IDENTITY_COLUMNS + (
     "objective",
     "data_generation_time_sec",
     "fit_wall_time_sec",
+    "statistics_builder_time_sec",
+    "statistics_builder_calls",
 ) + ALGORITHM_RESOURCE_COLUMNS + (
     "telemetry_serialization_time_sec",
     "job_wall_time_sec",

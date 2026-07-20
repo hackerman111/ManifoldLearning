@@ -171,6 +171,7 @@ class ADPAlgorithm:
         timings: dict[str, float] = {}
         outer_telemetry: list[dict[str, Any]] = []
         local_telemetry: list[dict[str, Any]] = []
+        fit_stop_reason = "scheduled_completion"
         intercepts = np.zeros(centers_arr.shape[0])
         slopes = np.ones(centers_arr.shape[0])
         statistics: LocalStatistics | None = None
@@ -303,6 +304,7 @@ class ADPAlgorithm:
                     outer_telemetry.append(outer_row)
                     local_telemetry.extend(local_rows)
                 if should_stop:
+                    fit_stop_reason = "tolerance"
                     break
         finally:
             if progress_bar is not None and hasattr(progress_bar, "close"):
@@ -352,6 +354,7 @@ class ADPAlgorithm:
         result.stage_calls = dict(self.stage_calls)
         result.outer_telemetry = outer_telemetry
         result.local_telemetry = local_telemetry
+        result.stop_reason = fit_stop_reason
         return result
 
     def _alternating_solve(
@@ -386,7 +389,8 @@ class ADPAlgorithm:
         last_objective = math.inf
         objective_interval = max(1, int(config.objective_check_every))
 
-        for inner in range(max(1, config.inner_steps)):
+        inner_steps = max(1, config.inner_steps)
+        for inner in range(inner_steps):
             inner_started = time.perf_counter()
             old_beta = beta.copy()
             old_intercepts = intercepts.copy()
@@ -534,7 +538,7 @@ class ADPAlgorithm:
             state.intercepts = intercepts
             state.slopes = slopes
             state.history.append(history[-1])
-            if self._invoke(
+            should_stop = self._invoke(
                 "stop_rule",
                 "should_stop",
                 "inner",
@@ -546,8 +550,12 @@ class ADPAlgorithm:
                 inner=inner,
                 _outer=outer,
                 _inner=inner,
-            ):
+            )
+            if should_stop:
+                history[-1].inner_stop_reason = "tolerance"
                 break
+            if inner == inner_steps - 1:
+                history[-1].inner_stop_reason = "iteration_limit"
 
         if history and history[-1].inner % objective_interval != 0:
             history[-1].objective = float(
@@ -575,7 +583,7 @@ class ADPAlgorithm:
         stage_calls_before: dict[str, int],
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         iteration_time = time.perf_counter() - iteration_started
-        local_rows = self._build_local_telemetry(
+        conditions, singular_count, local_rows = self._build_local_telemetry(
             statistics,
             beta_after,
             intercepts,
@@ -599,11 +607,6 @@ class ADPAlgorithm:
             out=np.zeros_like(masses),
             where=sum_w2 > 0.0,
         )
-        conditions = np.asarray(
-            [float(row["condition"]) for row in local_rows],
-            dtype=float,
-        )
-        singular_count = sum(bool(row["singular"]) for row in local_rows)
         nonzero = (
             np.asarray(statistics.weight_nonzero, dtype=int)
             if statistics.weight_nonzero is not None
@@ -706,41 +709,45 @@ class ADPAlgorithm:
         *,
         outer: int,
         n_observations: int,
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[np.ndarray, int, list[dict[str, Any]]]:
         if statistics.S is None or statistics.U is None:
-            return []
+            return np.zeros(0, dtype=float), 0, []
         s_values = np.asarray(statistics.S)
         u_values = np.asarray(statistics.U)
         responses = np.asarray(statistics.imav)
         beta_values = np.asarray(beta).reshape(-1)
         projected = u_values @ beta_values
-        masses = (
-            np.asarray(statistics.N, dtype=float)
-            if statistics.N is not None
-            else np.zeros(s_values.shape[0], dtype=float)
-        )
-        sum_w2 = (
-            np.asarray(statistics.weight_sum2, dtype=float)
-            if statistics.weight_sum2 is not None
-            else np.zeros_like(masses)
-        )
-        ess = np.divide(
-            masses**2,
-            sum_w2,
-            out=np.zeros_like(masses),
-            where=sum_w2 > 0.0,
-        )
-        nonzero = (
-            np.asarray(statistics.weight_nonzero, dtype=int)
-            if statistics.weight_nonzero is not None
-            else np.zeros_like(masses, dtype=int)
-        )
-        min_weight = _optional_vector(statistics.min_weight, masses.size)
-        max_weight = _optional_vector(statistics.max_weight, masses.size)
         dtype = np.result_type(s_values.dtype, u_values.dtype, responses.dtype)
         eps = float(np.finfo(dtype).eps)
         regularization = float(self.context.config.ridge)
+        record_rows = self.context.config.record_local_trace
+        conditions = np.empty(s_values.shape[0], dtype=float)
+        singular_count = 0
         rows: list[dict[str, Any]] = []
+        if record_rows:
+            masses = (
+                np.asarray(statistics.N, dtype=float)
+                if statistics.N is not None
+                else np.zeros(s_values.shape[0], dtype=float)
+            )
+            sum_w2 = (
+                np.asarray(statistics.weight_sum2, dtype=float)
+                if statistics.weight_sum2 is not None
+                else np.zeros_like(masses)
+            )
+            ess = np.divide(
+                masses**2,
+                sum_w2,
+                out=np.zeros_like(masses),
+                where=sum_w2 > 0.0,
+            )
+            nonzero = (
+                np.asarray(statistics.weight_nonzero, dtype=int)
+                if statistics.weight_nonzero is not None
+                else np.zeros_like(masses, dtype=int)
+            )
+            min_weight = _optional_vector(statistics.min_weight, masses.size)
+            max_weight = _optional_vector(statistics.max_weight, masses.size)
         for center_index in range(s_values.shape[0]):
             s_row = s_values[center_index]
             u_row = projected[center_index]
@@ -762,6 +769,10 @@ class ADPAlgorithm:
             condition = (
                 math.inf if singular else float(lambda_max / lambda_min)
             )
+            conditions[center_index] = condition
+            singular_count += int(singular)
+            if not record_rows:
+                continue
             fitted = (
                 float(intercepts[center_index]) * s_row
                 + float(slopes[center_index]) * u_row
@@ -789,7 +800,7 @@ class ADPAlgorithm:
                     "singular": singular,
                 }
             )
-        return rows
+        return conditions, singular_count, rows
 
     def _invoke(
         self,

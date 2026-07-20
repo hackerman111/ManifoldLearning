@@ -4,6 +4,7 @@ import hashlib
 import math
 import time
 from dataclasses import FrozenInstanceError, asdict, fields, replace
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -494,6 +495,32 @@ def test_each_link_uses_exact_formula_and_realized_normalization(
     assert generated.data.link_name == link_name
 
 
+def test_feature_scale_experiment_changes_only_feature_scale():
+    base_job = replace(
+        make_job(sigma_x=1.0, sigma_eps=0.5),
+        experiment="5",
+    )
+    scaled_job = replace(
+        base_job,
+        parameters=replace(base_job.parameters, sigma_x=4.0),
+        run_id="run-feature-scale-test-scaled",
+    )
+
+    base = generate_synthetic_data(base_job)
+    scaled = generate_synthetic_data(scaled_job)
+
+    np.testing.assert_allclose(
+        scaled.data.X,
+        4.0 * base.data.X,
+        rtol=0.0,
+        atol=0.0,
+    )
+    np.testing.assert_allclose(scaled.signal, base.signal, rtol=0.0, atol=2e-15)
+    np.testing.assert_array_equal(scaled.ordinary_noise, base.ordinary_noise)
+    assert base.metadata["link_index_divisor"] == 1.0
+    assert scaled.metadata["link_index_divisor"] == 4.0
+
+
 def test_zero_noise_has_infinite_snr_and_zero_errors():
     generated = generate_synthetic_data(make_job(sigma_eps=0.0))
 
@@ -533,11 +560,9 @@ def test_outliers_replace_exact_selected_errors_with_independent_gaussians():
 
     generated = generate_synthetic_data(job)
     count = math.ceil(job.parameters.outlier_fraction * job.parameters.n)
-    indices = np.random.default_rng(job.seeds.outliers).choice(
-        job.parameters.n,
-        size=count,
-        replace=False,
-    )
+    indices = np.random.default_rng(job.seeds.outliers).permutation(
+        job.parameters.n
+    )[:count]
     replacements = np.random.default_rng(job.seeds.outlier_noise).normal(
         scale=job.parameters.outlier_scale * job.parameters.sigma_eps,
         size=count,
@@ -551,6 +576,25 @@ def test_outliers_replace_exact_selected_errors_with_independent_gaussians():
         np.sort(indices),
     )
     assert generated.metadata["outlier_count"] == count
+    assert generated.metadata["effective_outlier_fraction"] == pytest.approx(
+        count / job.parameters.n
+    )
+
+
+def test_outlier_sets_are_nested_across_fraction_sweep():
+    small_job = make_job(n_over_d=50, outlier_fraction=0.01)
+    large_job = make_job(n_over_d=50, outlier_fraction=0.05)
+
+    small = generate_synthetic_data(small_job)
+    large = generate_synthetic_data(large_job)
+    small_indices = set(
+        np.flatnonzero(small.data.noise != small.ordinary_noise).tolist()
+    )
+    large_indices = set(
+        np.flatnonzero(large.data.noise != large.ordinary_noise).tolist()
+    )
+
+    assert small_indices < large_indices
 
 
 def test_misspecification_gamma_is_orthogonal_and_response_uses_plus_sign():
@@ -820,6 +864,74 @@ def test_execute_job_returns_all_normalized_row_groups():
     assert outcome.run_row["statistics_workers"] == 1
 
 
+def test_experiment_two_selects_and_times_cpu_batched_statistics_builder():
+    job = replace(
+        make_job(
+            d=4,
+            n_over_d=20,
+            center_fraction=0.2,
+            statistics_builder="cpu_batched",
+        ),
+        experiment="2",
+        seed=0,
+        run_id="run-cpu-batched-statistics",
+        diagnostic=False,
+    )
+
+    outcome = executors.execute_job(job, make_config(diagnostic_seeds=()))
+
+    assert outcome.run_row["statistics_builder"] == "cpu_batched"
+    assert outcome.run_row["statistics_builder_calls"] > 0
+    assert outcome.run_row["statistics_builder_time_sec"] > 0.0
+    assert all(
+        row["stage_statistics_builder_calls"] == 1
+        for row in outcome.outer_rows
+    )
+
+
+def test_nondiagnostic_job_keeps_aggregates_without_local_trace_rows():
+    job = replace(
+        make_job(d=4, n_over_d=20, center_fraction=0.2),
+        seed=5,
+        run_id="run-executor-no-local-trace",
+        diagnostic=False,
+    )
+
+    outcome = executors.execute_job(job, make_config(diagnostic_seeds=()))
+
+    assert outcome.outer_rows
+    assert outcome.local_rows == ()
+    assert outcome.run_row["local_row_count"] == 0
+    assert outcome.run_row["adp_record_local_trace"] is False
+
+
+def test_final_allowed_inner_step_can_converge_without_nonconverged_status():
+    history = [
+        executors.TrainingStep(
+            outer=0,
+            inner=inner,
+            objective=1.0,
+            beta_delta=0.0,
+            h=1.0,
+            anisotropy=None,
+            elapsed=0.0,
+            inner_stop_reason=("tolerance" if inner == 19 else None),
+        )
+        for inner in range(20)
+    ]
+    result = SimpleNamespace(
+        beta=np.array([1.0, 0.0]),
+        history=history,
+        stop_reason="scheduled_completion",
+    )
+
+    assert executors._classify_status(
+        result,
+        None,
+        invalid_value_count=0,
+    ) == ("success", "scheduled_completion")
+
+
 def test_execute_job_logs_disjoint_phase_times_resources_and_full_adp_config(
     monkeypatch,
 ):
@@ -946,4 +1058,4 @@ def test_nonfinite_result_is_numerical_failure_and_keeps_partial_rows(monkeypatc
     assert outcome.run_row["invalid_value_count"] > 0
     assert outcome.outer_rows
     assert outcome.inner_rows
-    assert outcome.local_rows
+    assert outcome.local_rows == ()

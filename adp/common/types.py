@@ -64,6 +64,7 @@ class ADPConfig:
     random_state: int | None = None
     use_neighbor_index: bool = True
     record_telemetry: bool = False
+    record_local_trace: bool = False
     record_solver_trace: bool = False
 
     def __post_init__(
@@ -109,6 +110,8 @@ class ADPConfig:
             raise ValueError("initial_bandwidth_inflation должен быть положительным")
         if not isinstance(self.record_telemetry, bool):
             raise ValueError("record_telemetry должен быть boolean")
+        if not isinstance(self.record_local_trace, bool):
+            raise ValueError("record_local_trace должен быть boolean")
         if not isinstance(self.record_solver_trace, bool):
             raise ValueError("record_solver_trace должен быть boolean")
 
@@ -207,6 +210,7 @@ class TrainingStep:
     inner_iteration_time_sec: float = 0.0
     beta: np.ndarray | None = None
     solver_residual_trace: tuple[float, ...] = ()
+    inner_stop_reason: str | None = None
 
 
 @dataclass(slots=True)
@@ -236,6 +240,7 @@ class ADPResult:
     resource_usage: dict[str, float | int | str] = field(default_factory=dict)
     outer_telemetry: list[dict[str, Any]] = field(default_factory=list)
     local_telemetry: list[dict[str, Any]] = field(default_factory=list)
+    stop_reason: str = "scheduled_completion"
 
     @property
     def projector(

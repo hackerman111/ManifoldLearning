@@ -38,6 +38,81 @@ class RandomProjectionADP(ADPBase):
             LocalStatistics с imav, S, U и directions.
         """
 
+        return self._compute_statistics_with_backend_sums(
+            X,
+            y,
+            centers,
+            h,
+            beta,
+            directions,
+            anisotropy,
+            backend_sum_method="random_projection_sums",
+        )
+
+    def _compute_statistics_cpu_batched(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        centers: np.ndarray,
+        h: float,
+        beta: np.ndarray,
+        directions: np.ndarray | None,
+        anisotropy: float | None,
+    ) -> LocalStatistics:
+        """Вычисляет те же статистики плотными CPU-batched блоками."""
+
+        if self.backend.name != "numpy":
+            raise ValueError("cpu_batched statistics builder требует backend='numpy'")
+        return self._compute_statistics_with_backend_sums(
+            X,
+            y,
+            centers,
+            h,
+            beta,
+            directions,
+            anisotropy,
+            backend_sum_method="batched_random_projection_sums",
+        )
+
+    def _compute_statistics_cpu_compact_factored(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        centers: np.ndarray,
+        h: float,
+        beta: np.ndarray,
+        directions: np.ndarray | None,
+        anisotropy: float | None,
+    ) -> LocalStatistics:
+        """Вычисляет compact-статистики с вынесенными членами центра."""
+
+        if self.backend.name != "numpy":
+            raise ValueError(
+                "cpu_compact_factored statistics builder требует backend='numpy'"
+            )
+        return self._compute_statistics_with_backend_sums(
+            X,
+            y,
+            centers,
+            h,
+            beta,
+            directions,
+            anisotropy,
+            backend_sum_method="factored_random_projection_sums",
+        )
+
+    def _compute_statistics_with_backend_sums(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        centers: np.ndarray,
+        h: float,
+        beta: np.ndarray,
+        directions: np.ndarray | None,
+        anisotropy: float | None,
+        *,
+        backend_sum_method: str,
+    ) -> LocalStatistics:
         if directions is None:
             raise ValueError("new-вариант требует directions")
         directions = self.backend.asarray(directions)
@@ -84,7 +159,8 @@ class RandomProjectionADP(ADPBase):
             )
             distance_time += time.perf_counter() - argument_started
 
-            chunk = self.backend.random_projection_sums(
+            sum_method = getattr(self.backend, backend_sum_method)
+            chunk = sum_method(
                 X=X_backend,
                 y=y_backend,
                 centers=center_chunk,
@@ -173,15 +249,27 @@ class RandomProjectionADP(ADPBase):
             Кортеж intercepts и slopes.
         """
 
-        if stats.U is None:
+        if stats.S is None or stats.U is None:
             raise ValueError("Некорректные статистики new-варианта")
-        intercepts = np.zeros(stats.U.shape[0])
-        ubeta = stats.U @ beta
-        numerator = np.sum(stats.imav * ubeta, axis=1)
-        denominator = np.sum(ubeta * ubeta, axis=1)
-        denominator = np.maximum(denominator, np.finfo(float).tiny)
-        slopes = numerator / denominator
-        return intercepts, slopes
+        projected = stats.U @ beta
+        design = np.stack((stats.S, projected), axis=-1)
+        gram = np.swapaxes(design, 1, 2) @ design
+        gram += float(self.config.ridge) * np.eye(
+            2,
+            dtype=gram.dtype,
+        )[None, :, :]
+        rhs = np.einsum("jpk,jp->jk", design, stats.imav, optimize=True)
+        try:
+            coefficients = np.linalg.solve(gram, rhs[..., None])[..., 0]
+        except np.linalg.LinAlgError:
+            coefficients = np.empty((design.shape[0], 2), dtype=design.dtype)
+            for center_index in range(design.shape[0]):
+                coefficients[center_index] = np.linalg.lstsq(
+                    design[center_index],
+                    stats.imav[center_index],
+                    rcond=None,
+                )[0]
+        return coefficients[:, 0], coefficients[:, 1]
 
     def _solve_local_coefficients(
         self,

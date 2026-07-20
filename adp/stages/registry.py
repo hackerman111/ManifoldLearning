@@ -28,11 +28,16 @@ DEFAULT_STAGE_NAMES: dict[str, str] = {
 }
 
 
-def _deferred_builtin_factory(category: str) -> StageFactory:
+EXTRA_BUILTIN_STAGE_NAMES: dict[str, tuple[str, ...]] = {
+    "statistics_builder": ("cpu_batched", "cpu_compact_factored"),
+}
+
+
+def _deferred_builtin_factory(category: str, implementation: str) -> StageFactory:
     def factory(context: StageContext):
         from .builtins import build_builtin_stage
 
-        return build_builtin_stage(category, context)
+        return build_builtin_stage(category, implementation, context)
 
     return factory
 
@@ -49,7 +54,18 @@ class StageRegistry:
     def with_defaults(cls) -> "StageRegistry":
         registry = cls()
         for category, name in DEFAULT_STAGE_NAMES.items():
-            registry.register(category, name, _deferred_builtin_factory(category))
+            registry.register(
+                category,
+                name,
+                _deferred_builtin_factory(category, name),
+            )
+        for category, names in EXTRA_BUILTIN_STAGE_NAMES.items():
+            for name in names:
+                registry.register(
+                    category,
+                    name,
+                    _deferred_builtin_factory(category, name),
+                )
         return registry
 
     def copy(self) -> "StageRegistry":
@@ -104,4 +120,3 @@ class StageRegistry:
             raise ValueError(
                 f"Неизвестный этап {category!r}; доступны: {available}"
             )
-

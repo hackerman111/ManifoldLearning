@@ -57,7 +57,10 @@ def generate_synthetic_data(job: SingleIndexJob) -> GeneratedSingleIndexData:
     beta = _unit_normal_vector(np.random.default_rng(job.seeds.beta), d, "beta")
     X = _generate_features(job)
     index = X @ beta
-    raw_signal = _apply_link(index, parameters.link)
+    link_index_divisor = (
+        parameters.sigma_x if job.experiment == "5" else 1.0
+    )
+    raw_signal = _apply_link(index / link_index_divisor, parameters.link)
     signal, link_mean, link_std = _standardize_sample(
         raw_signal,
         f"{parameters.link} link",
@@ -150,6 +153,8 @@ def generate_synthetic_data(job: SingleIndexJob) -> GeneratedSingleIndexData:
         "outliers_enabled": outlier_count > 0,
         "misspecified": parameters.delta > 0.0,
         "outlier_count": outlier_count,
+        "effective_outlier_fraction": outlier_count / n,
+        "link_index_divisor": link_index_divisor,
         "sigma_x": parameters.sigma_x,
         "rho_corr": parameters.rho_corr,
         "effective_rho_corr": (
@@ -235,11 +240,9 @@ def _replace_outliers(
         parameters.n,
         math.ceil(parameters.outlier_fraction * parameters.n),
     )
-    indices = np.random.default_rng(job.seeds.outliers).choice(
-        parameters.n,
-        size=count,
-        replace=False,
-    )
+    indices = np.random.default_rng(job.seeds.outliers).permutation(
+        parameters.n
+    )[:count]
     replacements = np.random.default_rng(job.seeds.outlier_noise).normal(
         scale=parameters.outlier_scale * parameters.sigma_eps,
         size=count,

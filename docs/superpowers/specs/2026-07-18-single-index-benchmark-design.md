@@ -119,7 +119,10 @@ value follows `new_benchmark.md` literally.
 A job is one experiment selector, one parameter configuration, and one user
 seed. Its stable `run_id` includes the canonical configuration fingerprint and
 seed. Changing process count, completion order, or resume order cannot change a
-job's random values or identity.
+job's random values or identity. Sub-seeds depend on the experiment selector and
+user seed, but not on varied parameter values. Configurations within one
+experiment therefore use common random numbers and form a paired sweep, while
+their `run_id` values remain distinct.
 
 Each user seed is deterministically split into independent substreams for:
 
@@ -189,6 +192,14 @@ xi_i ~ N(0, 1), Z_i = beta_true^T X_i.
 For response outliers, the ordinary error at selected observations is replaced
 by an independent Gaussian error with standard deviation
 `outlier_scale * sigma_eps`. The `(0, 1)` configuration selects no outliers.
+One seeded permutation defines a common outlier ordering within a sweep, so a
+larger requested fraction contains every observation contaminated at a smaller
+fraction. Both the requested fraction and `outlier_count / n` are persisted.
+
+Experiment 5 changes only the feature scale. Its quadratic link is evaluated at
+`beta_true^T X / sigma_x`, so changing `sigma_x` does not also change the
+relative linear and quadratic components of the standardized response signal.
+The applied divisor is persisted.
 
 For model misspecification, draw a Gaussian vector, project it orthogonally to
 `beta_true`, normalize it to obtain `gamma`, and regenerate if the projected
@@ -206,8 +217,12 @@ generated arrays are not persisted.
 
 The parent expands deterministic jobs and distributes them through
 `ProcessPoolExecutor`. One future corresponds to one ADP fit and its atomic
-worker-shard publication. The parent performs no ADP work; it advances progress,
-merges committed shards, finalizes series metadata, and builds reports.
+worker-shard publication. Each worker is recycled after one fit, including when
+`--jobs 1`, so allocator state, BLAS warm-up, and retained RSS from a previous
+configuration cannot contaminate the next measurement. The parent performs no
+ADP work; it advances progress, merges committed shards, finalizes series
+metadata, and builds reports. Failure to create isolated workers aborts the run
+instead of silently falling back to in-process measurements.
 
 Single-core execution inside a worker is enforced at three layers:
 
@@ -241,7 +256,8 @@ The ADP result exposes scalar outer/inner telemetry and transient vectors needed
 to compute truth-based metrics in the benchmark executor. Detailed center and
 linear-residual traces are enabled only for diagnostic seeds. Aggregate local
 statistics are always computed because they are required in
-`outer_iterations.csv`.
+`outer_iterations.csv`; per-center row dictionaries and residual diagnostics are
+not created for ordinary seeds.
 
 ### Weight and neighborhood telemetry
 

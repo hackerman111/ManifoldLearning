@@ -48,7 +48,13 @@ def execute_job(
         finally:
             data_generation_time_sec = time.perf_counter() - generation_started
 
-        model = ADP.create("new", adp_config)
+        model = ADP.create(
+            "new",
+            adp_config,
+            stages={
+                "statistics_builder": job.parameters.statistics_builder,
+            },
+        )
         fit_started = time.perf_counter()
         try:
             result = _fit_adp(model, generated)
@@ -144,6 +150,7 @@ def _benchmark_adp_config(job: SingleIndexJob) -> ADPConfig:
         statistics_workers=1,
         show_progress=False,
         record_telemetry=True,
+        record_local_trace=job.diagnostic,
         record_solver_trace=job.diagnostic,
         random_state=job.seeds.init,
     )
@@ -210,6 +217,18 @@ def _run_row(
             ),
             "data_generation_time_sec": float(data_generation_time_sec),
             "fit_wall_time_sec": float(fit_wall_time_sec),
+            "statistics_builder_time_sec": (
+                math.nan
+                if result is None
+                else _safe_float(
+                    result.stage_timings.get("statistics_builder")
+                )
+            ),
+            "statistics_builder_calls": (
+                0
+                if result is None
+                else int(result.stage_calls.get("statistics_builder", 0))
+            ),
             "singular_local_count": sum(
                 bool(row.get("is_singular", False)) for row in local_rows
             ),
@@ -460,13 +479,12 @@ def _classify_status(
     if "max_iterations" in solver_statuses:
         return "nonconverged", "linear_iteration_limit"
 
-    inner_limit = ADPConfig().inner_steps
-    counts: dict[int, int] = {}
-    for step in result.history:
-        counts[int(step.outer)] = counts.get(int(step.outer), 0) + 1
-    if counts and any(count >= inner_limit for count in counts.values()):
+    if any(
+        step.inner_stop_reason == "iteration_limit"
+        for step in result.history
+    ):
         return "nonconverged", "alternating_iteration_limit"
-    return "success", "tolerance"
+    return "success", result.stop_reason
 
 
 def _invalid_value_count(result: ADPResult | None) -> int:
