@@ -1002,6 +1002,25 @@ _PRIMARY_TABLES = {
     "solver": "solver_iterations",
 }
 
+_LOCAL_SOLVER_COMPARISON_GROUPS = (
+    "experiment",
+    "d",
+    "n_over_d",
+    "statistics_builder",
+    "sigma_x",
+    "rho_corr",
+    "sigma_eps",
+    "link",
+    "x_distribution",
+    "noise_distribution",
+    "heteroscedastic",
+    "outlier_fraction",
+    "outlier_scale",
+    "delta",
+    "center_fraction",
+    "local_solver",
+)
+
 
 def add_report_metrics(runs: pd.DataFrame) -> pd.DataFrame:
     """Add explicit success/failure indicators without dropping failed runs."""
@@ -1088,53 +1107,151 @@ def write_single_index_reports(
 
     root = Path(series_dir)
     frames = _read_primary_frames(root)
-    available = set(frames["runs"]["experiment"].dropna().astype(str))
     series_id = _series_id(frames["runs"])
     artifact_rows = _csv_artifact_rows(root, series_id)
     ensure_matplotlib_config_dir()
 
-    for spec in PLOT_MANIFEST:
-        path = _plot_path(root, spec)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.unlink(missing_ok=True)
-        applicable = bool(set(spec.selectors) & available)
-        if not applicable:
-            artifact_rows.append(
-                _artifact_row(
-                    series_id,
-                    root,
-                    spec.filename,
-                    path,
-                    status="skipped",
-                )
+    observed_local_solvers = tuple(
+        frames["runs"]["local_solver"].dropna().astype(str).drop_duplicates()
+    )
+    configured_local_solvers = _configured_local_solvers(root)
+    is_multi_solver = (
+        len(configured_local_solvers) > 1 or len(observed_local_solvers) > 1
+    )
+    if is_multi_solver:
+        comparison_path = root / "local_solver_comparison.csv"
+        comparison = _prepare_local_solver_comparison(frames["runs"])
+        _atomic_frame_csv(comparison, comparison_path)
+        artifact_rows.append(
+            _artifact_row(
+                series_id,
+                root,
+                "local_solver_comparison",
+                comparison_path,
+                status="created",
             )
-            continue
-        try:
-            _render_plot(spec, frames, path, dpi=dpi)
-        except Exception as exc:
+        )
+        render_sets = tuple(
+            (
+                local_solver,
+                {
+                    name: frame.loc[
+                        frame["local_solver"].astype("string").eq(local_solver)
+                    ].copy()
+                    for name, frame in frames.items()
+                },
+            )
+            for local_solver in observed_local_solvers
+        )
+    else:
+        render_sets = ((None, frames),)
+
+    for local_solver, render_frames in render_sets:
+        available = set(
+            render_frames["runs"]["experiment"].dropna().astype(str)
+        )
+        for spec in PLOT_MANIFEST:
+            path = _plot_path(root, spec, local_solver=local_solver)
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.unlink(missing_ok=True)
-            artifact_rows.append(
-                _artifact_row(
-                    series_id,
-                    root,
-                    spec.filename,
-                    path,
-                    status="error",
-                    error=f"{type(exc).__name__}: {exc}",
-                )
+            artifact_name = (
+                spec.filename
+                if local_solver is None
+                else f"{local_solver}/{spec.filename}"
             )
-        else:
-            artifact_rows.append(
-                _artifact_row(
-                    series_id,
-                    root,
-                    spec.filename,
-                    path,
-                    status="created",
+            applicable = bool(set(spec.selectors) & available)
+            if not applicable:
+                artifact_rows.append(
+                    _artifact_row(
+                        series_id,
+                        root,
+                        artifact_name,
+                        path,
+                        status="skipped",
+                    )
                 )
-            )
+                continue
+            try:
+                _render_plot(spec, render_frames, path, dpi=dpi)
+            except Exception as exc:
+                path.unlink(missing_ok=True)
+                artifact_rows.append(
+                    _artifact_row(
+                        series_id,
+                        root,
+                        artifact_name,
+                        path,
+                        status="error",
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
+                )
+            else:
+                artifact_rows.append(
+                    _artifact_row(
+                        series_id,
+                        root,
+                        artifact_name,
+                        path,
+                        status="created",
+                    )
+                )
 
     return _write_artifact_manifest(root / "artifacts.csv", artifact_rows)
+
+
+def _configured_local_solvers(root: Path) -> tuple[str, ...]:
+    series = _read_public_csv(
+        root / "series.csv",
+        expected=PUBLIC_TABLE_COLUMNS["series"],
+    )
+    if series.empty or series["local_solvers"].dropna().empty:
+        return ()
+    encoded = str(series["local_solvers"].dropna().iloc[-1])
+    return tuple(dict.fromkeys(name for name in encoded.split("|") if name))
+
+
+def _prepare_local_solver_comparison(runs: pd.DataFrame) -> pd.DataFrame:
+    metrics = (
+        "cosine_abs",
+        "fit_wall_time_sec",
+        "algorithm_time_sec",
+        "local_solver_time_sec",
+        "algorithm_rss_peak_delta_mib",
+    )
+    _require_columns(
+        runs,
+        (*_LOCAL_SOLVER_COMPARISON_GROUPS, "status", *metrics),
+        "run_summary",
+    )
+    source = runs.copy()
+    source["_converged"] = (
+        source["status"].astype("string").eq("success").astype(float)
+    )
+    for metric in metrics:
+        source[metric] = pd.to_numeric(source[metric], errors="coerce")
+    return (
+        source.groupby(
+            list(_LOCAL_SOLVER_COMPARISON_GROUPS),
+            sort=True,
+            dropna=False,
+            as_index=False,
+        )
+        .agg(
+            run_count=("run_id", "size"),
+            convergence_rate=("_converged", "mean"),
+            mean_cosine_abs=("cosine_abs", "mean"),
+            median_cosine_abs=("cosine_abs", "median"),
+            mean_fit_wall_time_sec=("fit_wall_time_sec", "mean"),
+            median_fit_wall_time_sec=("fit_wall_time_sec", "median"),
+            mean_algorithm_time_sec=("algorithm_time_sec", "mean"),
+            mean_local_solver_time_sec=("local_solver_time_sec", "mean"),
+            mean_algorithm_rss_peak_delta_mib=(
+                "algorithm_rss_peak_delta_mib",
+                "mean",
+            ),
+        )
+        .reset_index(drop=True)
+    )
 
 
 def _read_primary_frames(root: Path) -> dict[str, pd.DataFrame]:
@@ -1560,14 +1677,22 @@ def _format_parameter(column: str, value: Any) -> str:
     return f"{names.get(column, column)} = {number:g}"
 
 
-def _plot_path(root: Path, spec: PlotSpec) -> Path:
+def _plot_path(
+    root: Path,
+    spec: PlotSpec,
+    *,
+    local_solver: str | None = None,
+) -> Path:
+    plot_root = root / "plots"
+    if local_solver is not None:
+        plot_root = plot_root / "by_local_solver" / local_solver
     if spec.diagnostic or spec.filename in {
         "singular_fraction_vs_correlation.png",
         "bandwidth_ratio_vs_sigma_x.png",
     }:
         selector = spec.selectors[0]
-        return root / "plots" / f"experiment_{selector}" / spec.filename
-    return root / "plots" / "summary" / spec.filename
+        return plot_root / f"experiment_{selector}" / spec.filename
+    return plot_root / "summary" / spec.filename
 
 
 def _csv_artifact_rows(root: Path, series_id: str) -> list[dict[str, Any]]:

@@ -207,6 +207,18 @@ def test_parameter_sizes_and_series_validation():
         SingleIndexSeriesConfig(diagnostic_seeds=(-1,))
 
 
+def test_local_solver_selection_is_ordered_unique_and_strict():
+    config = SingleIndexSeriesConfig(
+        local_solvers=("zero_intercept", "least_squares", "zero_intercept")
+    )
+
+    assert config.local_solvers == ("zero_intercept", "least_squares")
+    with pytest.raises(ValueError, match="local_solvers"):
+        SingleIndexSeriesConfig(local_solvers=())
+    with pytest.raises(ValueError, match="unknown local solver"):
+        SingleIndexSeriesConfig(local_solvers=("missing",))
+
+
 def test_full_grid_values_are_finite_and_valid():
     distribution_counts = Counter()
     for selector in EXPERIMENT_SELECTORS:

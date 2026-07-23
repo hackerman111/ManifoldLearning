@@ -1,6 +1,7 @@
 from collections import Counter
 from dataclasses import replace
 import os
+from types import SimpleNamespace
 
 import pandas as pd
 
@@ -25,6 +26,27 @@ def test_full_profile_expands_to_exactly_24000_jobs():
     assert Counter(job.experiment for job in jobs) == EXPERIMENT_COUNTS
     assert {job.seed for job in jobs} == set(range(100))
     assert all(job.parameters.n_centers == job.parameters.n for job in jobs)
+
+
+def test_local_solver_axis_pairs_run_ids_and_reuses_seed_bundles():
+    jobs = build_single_index_jobs(
+        SingleIndexSeriesConfig(
+            profile="full",
+            experiments=("2",),
+            seeds=(7,),
+            local_solvers=("zero_intercept", "least_squares"),
+        )
+    )
+
+    assert len(jobs) == 40
+    for index in range(0, len(jobs), 2):
+        zero_intercept, least_squares = jobs[index : index + 2]
+        assert zero_intercept.parameters == least_squares.parameters
+        assert zero_intercept.seed == least_squares.seed == 7
+        assert zero_intercept.local_solver == "zero_intercept"
+        assert least_squares.local_solver == "least_squares"
+        assert zero_intercept.seeds == least_squares.seeds
+        assert zero_intercept.run_id != least_squares.run_id
 
 
 def test_parameter_families_are_not_cross_multiplied():
@@ -185,7 +207,7 @@ def test_worker_initializer_caps_every_supported_runtime(monkeypatch):
         assert os.environ[name] == "1"
 
 
-def test_process_pool_recycles_worker_after_every_measured_fit(monkeypatch):
+def test_process_pool_reuses_workers_for_pool_lifetime(monkeypatch):
     captured = {}
 
     class RecordingPool:
@@ -209,7 +231,7 @@ def test_process_pool_recycles_worker_after_every_measured_fit(monkeypatch):
 
     assert completed == 0
     assert captured["max_workers"] == 3
-    assert captured["max_tasks_per_child"] == 1
+    assert "max_tasks_per_child" not in captured
 
 
 class _ProgressRecorder:
@@ -259,21 +281,61 @@ def test_disabled_tqdm_keeps_line_oriented_progress_for_redirected_logs(capsys):
     )
 
     assert capsys.readouterr().err == (
-        "1/1 experiment=1 seed=0 status=success\n"
+        "1/1 experiment=1 local_solver=least_squares seed=0 status=success\n"
     )
 
 
-def test_jobs_one_still_runs_fit_in_an_isolated_worker(tmp_path, monkeypatch):
+def test_jobs_one_uses_serial_path_without_process_pool(tmp_path, monkeypatch):
+    executed = []
+
+    class RecordingStore:
+        def __init__(self):
+            self.series_dir = tmp_path
+            self.completed = set()
+            self.final_status = None
+
+        def pending_jobs(self, jobs):
+            return jobs
+
+        def commit(self, outcome):
+            self.completed.add(outcome.run_row["run_id"])
+
+        def completed_run_ids(self):
+            return set(self.completed)
+
+        def finalize(self, *, status):
+            self.final_status = status
+            return {}
+
+    store = RecordingStore()
+
+    class RecordingStoreFactory:
+        @staticmethod
+        def create(output_root, config, jobs):
+            return store
+
+    class ForbiddenPool:
+        def __init__(self, **kwargs):
+            raise AssertionError("process pool selected for jobs=1")
+
+    def execute_without_fit(job, config):
+        executed.append(job.run_id)
+        return SimpleNamespace(
+            run_row={"run_id": job.run_id, "status": "success"}
+        )
+
+    monkeypatch.setattr(
+        single_index_runner,
+        "SingleIndexSeriesStore",
+        RecordingStoreFactory,
+    )
+    monkeypatch.setattr(single_index_runner, "ProcessPoolExecutor", ForbiddenPool)
+    monkeypatch.setattr(single_index_runner, "execute_job", execute_without_fit)
     monkeypatch.setattr(
         single_index_runner,
         "write_single_index_reports",
         lambda series_dir: pd.DataFrame(),
     )
-
-    def forbidden_parent_fit(*args, **kwargs):
-        raise AssertionError("fit executed in the parent process")
-
-    monkeypatch.setattr(single_index_runner, "execute_job", forbidden_parent_fit)
     config = SingleIndexSeriesConfig(
         profile="smoke",
         experiments=("1",),
@@ -284,9 +346,11 @@ def test_jobs_one_still_runs_fit_in_an_isolated_worker(tmp_path, monkeypatch):
         max_runs=1,
     )
 
-    saved = run_single_index_benchmark(config, tmp_path)
+    run_single_index_benchmark(config, tmp_path)
 
-    assert len(pd.read_csv(saved["run_summary"])) == 1
+    assert len(executed) == 1
+    assert store.completed == set(executed)
+    assert store.final_status == "complete"
 
 
 def test_parallel_runner_commits_one_normalized_outcome_per_fit(

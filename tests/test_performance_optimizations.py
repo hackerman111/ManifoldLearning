@@ -10,7 +10,7 @@ from adp import ADP, ADPConfig
 from adp.backends import numpy_backend
 from adp.backends.numpy_backend import NumpyBackend
 from adp.common.types import LocalStatistics
-from adp.common.utils import kernel_np, pairwise_norm2
+from adp.common.utils import kernel_np, pairwise_norm2, pairwise_projection2
 
 
 def install_fake_cupy(monkeypatch):
@@ -34,6 +34,7 @@ def install_fake_cupy(monkeypatch):
         swapaxes=record("swapaxes", np.swapaxes),
         zeros=record("zeros", np.zeros),
         quantile=record("quantile", np.quantile),
+        isfinite=record("isfinite", np.isfinite),
         finfo=np.finfo,
     )
     monkeypatch.setitem(sys.modules, "cupy", fake)
@@ -65,28 +66,6 @@ def reference_random_projection_sums(X, y, centers, directions, q, kernel):
     return imav, s_all, u_all, counts, float(counts.mean())
 
 
-class _RejectFeatureCenteredDifference(np.ndarray):
-    """Array that rejects allocating ``X_active - center`` in feature space."""
-
-    def __new__(cls, values):
-        instance = np.asarray(values).view(cls)
-        instance.feature_count = instance.shape[1]
-        return instance
-
-    def __array_finalize__(self, source):
-        self.feature_count = getattr(source, "feature_count", None)
-
-    def __sub__(self, other):
-        other_array = np.asarray(other)
-        if (
-            self.ndim == 2
-            and other_array.ndim == 1
-            and other_array.shape == (self.feature_count,)
-        ):
-            raise AssertionError("compact statistics allocated X_active - center")
-        return super().__sub__(other)
-
-
 @pytest.mark.parametrize("kernel", ("epanechnikov", "quartic", "gaussian"))
 def test_numpy_and_cupy_kernels_match_squared_distance_convention(monkeypatch, kernel):
     from adp.backends.cupy_backend import CupyBackend
@@ -98,6 +77,40 @@ def test_numpy_and_cupy_kernels_match_squared_distance_convention(monkeypatch, k
     np.testing.assert_allclose(NumpyBackend().kernel(q, kernel), expected)
     cupy_backend = CupyBackend()
     np.testing.assert_allclose(cupy_backend.to_numpy(cupy_backend.kernel(q, kernel)), expected)
+
+
+@pytest.mark.parametrize("kernel", ("gausian", None, []))
+def test_numpy_backend_rejects_unknown_kernel(kernel):
+    with pytest.raises(ValueError, match="kernel"):
+        NumpyBackend().kernel(np.array([0.25]), kernel)
+
+
+def test_common_and_cupy_kernels_reject_unhashable_unknown_name(monkeypatch):
+    from adp.backends.cupy_backend import CupyBackend
+
+    install_fake_cupy(monkeypatch)
+    with pytest.raises(ValueError, match="kernel"):
+        kernel_np(np.array([0.25]), [])
+    with pytest.raises(ValueError, match="kernel"):
+        CupyBackend().kernel(np.array([0.25]), [])
+
+
+def test_numpy_backend_rejects_nonfinite_statistics_input():
+    X = np.array([[0.0, 0.0], [1.0, 1.0]])
+    y = np.array([0.0, 1.0])
+    centers = np.array([[0.0, 0.0]])
+    directions = np.array([[[1.0, 0.0]]])
+    q = np.array([[0.0, np.nan]])
+
+    with pytest.raises(ValueError, match="q.*конечные"):
+        NumpyBackend().random_projection_sums(
+            X=X,
+            y=y,
+            centers=centers,
+            directions=directions,
+            q=q,
+            kernel="epanechnikov",
+        )
 
 
 def test_local_mass_mode_selects_mean_or_configured_quantile():
@@ -178,55 +191,88 @@ def test_backend_random_projection_sums_match_center_based_direct_reference():
         np.testing.assert_allclose(actual_part, expected_part, rtol=1e-12, atol=1e-12)
 
 
-def test_factored_compact_statistics_avoid_feature_centered_difference_buffer():
-    rng = np.random.default_rng(902)
-    X = rng.normal(size=(18, 5))
-    y = rng.normal(size=18)
-    centers = rng.normal(size=(4, 5))
-    directions = rng.normal(size=(4, 3, 5))
-    directions /= np.linalg.norm(directions, axis=-1, keepdims=True)
-    q = rng.uniform(0.0, 1.5, size=(4, 18))
-    q[:, 0] = 0.25
+def test_removed_numpy_statistics_implementations_are_not_exposed():
     backend = NumpyBackend()
 
-    actual = backend._factored_compact_random_projection_sums(
-        _RejectFeatureCenteredDifference(X),
-        y,
-        centers,
-        directions,
-        q,
-        "epanechnikov",
+    assert not hasattr(backend, "batched_random_projection_sums")
+    assert not hasattr(backend, "factored_random_projection_sums")
+    assert not hasattr(backend, "_batched_random_projection_sums")
+    assert not hasattr(backend, "_factored_compact_random_projection_sums")
+
+
+@pytest.mark.parametrize("implementation", ("common", "backend"))
+def test_float32_pairwise_distances_are_translation_invariant(implementation):
+    X = np.array(
+        [[0.0, 0.25, -0.5], [1.0, -0.75, 0.5], [-0.25, 0.5, 1.0]],
+        dtype=np.float32,
     )
-    expected = reference_random_projection_sums(
-        X,
-        y,
-        centers,
-        directions,
-        q,
-        "epanechnikov",
+    centers = np.array(
+        [[0.5, -0.25, 0.75], [-0.5, 1.0, -0.25]],
+        dtype=np.float32,
     )
+    shifted_X = X + np.float32(10_000.0)
+    shifted_centers = centers + np.float32(10_000.0)
+    distance = pairwise_norm2 if implementation == "common" else NumpyBackend("float32").pairwise_norm2
 
-    for actual_part, expected_part in zip(actual, expected):
-        np.testing.assert_allclose(actual_part, expected_part, rtol=1e-12, atol=1e-12)
+    expected = distance(X, centers)
+    actual = distance(shifted_X, shifted_centers)
+
+    np.testing.assert_array_equal(actual, expected)
+    assert actual.dtype == np.float32
 
 
-@pytest.mark.parametrize("kernel", ("epanechnikov", "quartic", "gaussian"))
-def test_factored_random_projection_sums_match_direct_reference(kernel):
-    rng = np.random.default_rng(903)
-    X = rng.normal(size=(20, 4))
-    y = rng.normal(size=20)
-    centers = rng.normal(size=(5, 4))
-    directions = rng.normal(size=(5, 3, 4))
+@pytest.mark.parametrize("implementation", ("common", "backend"))
+def test_float32_pairwise_projections_are_translation_invariant(implementation):
+    X = np.array(
+        [[0.0, 0.25, -0.5], [1.0, -0.75, 0.5], [-0.25, 0.5, 1.0]],
+        dtype=np.float32,
+    )
+    centers = np.array(
+        [[0.5, -0.25, 0.75], [-0.5, 1.0, -0.25]],
+        dtype=np.float32,
+    )
+    beta = np.array([0.3, -0.7, 0.2], dtype=np.float32)
+    shifted_X = X + np.float32(10_000.0)
+    shifted_centers = centers + np.float32(10_000.0)
+    projection = pairwise_projection2 if implementation == "common" else NumpyBackend("float32").pairwise_projection2
+
+    expected = projection(X, centers, beta)
+    actual = projection(shifted_X, shifted_centers, beta)
+
+    np.testing.assert_array_equal(actual, expected)
+    assert actual.dtype == np.float32
+
+
+def test_gaussian_statistics_use_all_points_and_stable_centered_differences():
+    X = np.array(
+        [[0.0, 0.25, -0.5], [1.0, -0.75, 0.5], [-0.25, 0.5, 1.0]],
+        dtype=np.float32,
+    )
+    centers = np.array(
+        [[0.5, -0.25, 0.75], [-0.5, 1.0, -0.25]],
+        dtype=np.float32,
+    )
+    X += np.float32(10_000.0)
+    centers += np.float32(10_000.0)
+    y = np.array([0.5, -1.0, 0.25], dtype=np.float32)
+    directions = np.array(
+        [
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            [[0.0, 0.0, 1.0], [1.0, 1.0, 0.0]],
+        ],
+        dtype=np.float32,
+    )
     directions /= np.linalg.norm(directions, axis=-1, keepdims=True)
-    q = rng.uniform(0.0, 1.5, size=(5, 20))
+    backend = NumpyBackend("float32")
+    q = backend.pairwise_norm2(X, centers) / np.float32(0.5)
 
-    actual = NumpyBackend().factored_random_projection_sums(
+    actual = backend.random_projection_sums(
         X=X,
         y=y,
         centers=centers,
         directions=directions,
         q=q,
-        kernel=kernel,
+        kernel="gaussian",
     )
     expected = reference_random_projection_sums(
         X,
@@ -234,57 +280,12 @@ def test_factored_random_projection_sums_match_direct_reference(kernel):
         centers,
         directions,
         q,
-        kernel,
+        "gaussian",
     )
 
+    assert np.any(q > 1.0)
     for actual_part, expected_part in zip(actual, expected):
-        np.testing.assert_allclose(actual_part, expected_part, rtol=1e-12, atol=1e-12)
-
-
-@pytest.mark.parametrize("kernel", ("epanechnikov", "quartic", "gaussian"))
-@pytest.mark.parametrize(
-    ("dtype", "rtol", "atol"),
-    (("float64", 1e-11, 1e-12), ("float32", 3e-5, 3e-6)),
-)
-def test_cpu_batched_statistics_match_center_based_direct_reference(
-    kernel,
-    dtype,
-    rtol,
-    atol,
-):
-    rng = np.random.default_rng(431)
-    X = rng.normal(size=(30, 5)).astype(dtype)
-    y = rng.normal(size=30).astype(dtype)
-    centers = rng.normal(size=(10, 5)).astype(dtype)
-    directions = rng.normal(size=(10, 4, 5)).astype(dtype)
-    directions /= np.linalg.norm(directions, axis=-1, keepdims=True)
-    q = (pairwise_norm2(X, centers) / 6.0).astype(dtype)
-    backend = NumpyBackend(dtype)
-
-    actual = backend.batched_random_projection_sums(
-        X=X,
-        y=y,
-        centers=centers,
-        directions=directions,
-        q=q,
-        kernel=kernel,
-    )
-    expected = reference_random_projection_sums(
-        X,
-        y,
-        centers,
-        directions,
-        q,
-        kernel,
-    )
-
-    for actual_part, expected_part in zip(actual, expected):
-        np.testing.assert_allclose(
-            actual_part,
-            expected_part,
-            rtol=rtol,
-            atol=atol,
-        )
+        np.testing.assert_allclose(actual_part, expected_part, rtol=2e-6, atol=2e-6)
 
 
 def test_cupy_backend_covers_gpu_md_pairwise_kernel_and_local_mass(monkeypatch):

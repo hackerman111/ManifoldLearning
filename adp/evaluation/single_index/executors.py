@@ -53,6 +53,7 @@ def execute_job(
             adp_config,
             stages={
                 "statistics_builder": job.parameters.statistics_builder,
+                "local_solver": job.local_solver,
             },
         )
         fit_started = time.perf_counter()
@@ -180,6 +181,7 @@ def _run_row(
         "run_id": job.run_id,
         "experiment": job.experiment,
         "seed": job.seed,
+        "local_solver": job.local_solver,
         "diagnostic": job.diagnostic,
         **asdict(parameters),
         "n": parameters.n,
@@ -229,8 +231,18 @@ def _run_row(
                 if result is None
                 else int(result.stage_calls.get("statistics_builder", 0))
             ),
+            "local_solver_time_sec": (
+                math.nan
+                if result is None
+                else _safe_float(result.stage_timings.get("local_solver"))
+            ),
+            "local_solver_calls": (
+                0
+                if result is None
+                else int(result.stage_calls.get("local_solver", 0))
+            ),
             "singular_local_count": sum(
-                bool(row.get("is_singular", False)) for row in local_rows
+                int(row.get("singular_centers", 0)) for row in outer_rows
             ),
             "invalid_value_count": int(invalid_value_count),
             "stop_reason": stop_reason,
@@ -268,6 +280,7 @@ def _outer_rows(
             "run_id": job.run_id,
             "experiment": job.experiment,
             "seed": job.seed,
+            "local_solver": job.local_solver,
             "outer_k": int(telemetry.get("outer", len(rows))),
             "h_k": _safe_float(telemetry.get("h")),
             "rho_k": _safe_float(telemetry.get("anisotropy")),
@@ -354,6 +367,7 @@ def _inner_rows(
                 "run_id": job.run_id,
                 "experiment": job.experiment,
                 "seed": job.seed,
+                "local_solver": job.local_solver,
                 "outer_k": int(step.outer),
                 "inner_k": int(step.inner),
                 "objective": (
@@ -408,6 +422,7 @@ def _local_rows(
                 "run_id": job.run_id,
                 "experiment": job.experiment,
                 "seed": job.seed,
+                "local_solver": job.local_solver,
                 "outer_k": int(telemetry.get("outer", 0)),
                 "center_j": int(telemetry.get("center", 0)),
                 "local_mass": _safe_float(telemetry.get("local_mass")),
@@ -449,6 +464,7 @@ def _solver_rows(
                     "run_id": job.run_id,
                     "experiment": job.experiment,
                     "seed": job.seed,
+                    "local_solver": job.local_solver,
                     "outer_k": int(step.outer),
                     "inner_k": int(step.inner),
                     "solver_k": solver_k,

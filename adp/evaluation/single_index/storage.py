@@ -363,6 +363,7 @@ class SingleIndexSeriesStore:
             "experiments": "|".join(self.config.experiments),
             "seeds": _encode_seeds(self.config.seeds),
             "diagnostic_seeds": _encode_seeds(self.config.diagnostic_seeds),
+            "local_solvers": "|".join(self.config.local_solvers),
             "center_fraction": self.config.center_fraction,
             "process_jobs": self.config.jobs,
             "statistics_workers": 1,
@@ -429,6 +430,7 @@ def _config_fingerprint(config: SingleIndexSeriesConfig) -> str:
             "experiments": config.experiments,
             "seeds": config.seeds,
             "diagnostic_seeds": config.diagnostic_seeds,
+            "local_solvers": config.local_solvers,
             "center_fraction": config.center_fraction,
         }
     )

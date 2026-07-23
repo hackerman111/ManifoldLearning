@@ -31,14 +31,16 @@ LinkName = Literal[
 ]
 FeatureDistribution = Literal["gaussian", "uniform", "student_t5"]
 NoiseDistribution = Literal["gaussian", "student_t5", "student_t3"]
-StatisticsBuilderName = Literal["random_projection", "cpu_batched"]
+StatisticsBuilderName = Literal["random_projection"]
+LocalSolverName = Literal["least_squares", "zero_intercept"]
 
 _LINKS = frozenset(
     {"linear", "quadratic", "square", "sin", "tanh", "oscillating"}
 )
 _FEATURE_DISTRIBUTIONS = frozenset({"gaussian", "uniform", "student_t5"})
 _NOISE_DISTRIBUTIONS = frozenset({"gaussian", "student_t5", "student_t3"})
-_STATISTICS_BUILDERS = frozenset({"random_projection", "cpu_batched"})
+_STATISTICS_BUILDERS = frozenset({"random_projection"})
+_LOCAL_SOLVERS = frozenset({"least_squares", "zero_intercept"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +144,7 @@ class SingleIndexJob:
     seed: int
     seeds: SeedBundle
     run_id: str
+    local_solver: LocalSolverName = "least_squares"
     diagnostic: bool = False
 
     def __post_init__(self) -> None:
@@ -157,6 +160,8 @@ class SingleIndexJob:
             raise ValueError("seeds must be SeedBundle")
         if not isinstance(self.run_id, str) or not self.run_id.strip():
             raise ValueError("run_id must be a nonempty string")
+        if self.local_solver not in _LOCAL_SOLVERS:
+            raise ValueError(f"unknown local solver: {self.local_solver}")
         if not isinstance(self.diagnostic, bool):
             raise ValueError("diagnostic must be boolean")
 
@@ -168,6 +173,7 @@ class SingleIndexSeriesConfig:
     jobs: int | Literal["auto"] = "auto"
     seeds: tuple[int, ...] | None = None
     diagnostic_seeds: tuple[int, ...] = (0, 1, 2)
+    local_solvers: tuple[LocalSolverName, ...] = ("least_squares",)
     center_fraction: float = 1.0
     retry_failed: bool = False
     max_runs: int | None = None
@@ -204,6 +210,11 @@ class SingleIndexSeriesConfig:
                 self.diagnostic_seeds,
                 allow_empty=True,
             ),
+        )
+        object.__setattr__(
+            self,
+            "local_solvers",
+            _canonical_local_solvers(self.local_solvers),
         )
         _require_center_fraction(self.center_fraction)
         object.__setattr__(self, "center_fraction", float(self.center_fraction))
@@ -272,11 +283,34 @@ def _canonical_seeds(
     return tuple(sorted(set(values)))
 
 
+def _canonical_local_solvers(
+    values: tuple[LocalSolverName, ...],
+) -> tuple[LocalSolverName, ...]:
+    if not isinstance(values, tuple) or not values:
+        raise ValueError("local_solvers must be a nonempty tuple")
+    canonical: list[LocalSolverName] = []
+    for value in values:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("local_solvers must contain nonempty names")
+        if value not in _LOCAL_SOLVERS:
+            raise ValueError(f"unknown local solver: {value}")
+        if value not in canonical:
+            canonical.append(value)
+    return tuple(canonical)
+
+
+def parse_local_solver_selection(value: str) -> tuple[LocalSolverName, ...]:
+    parts = tuple(part.strip() for part in value.split(","))
+    return _canonical_local_solvers(parts)
+
+
 __all__ = [
     "EXPERIMENT_SELECTORS",
     "ExperimentParameters",
+    "LocalSolverName",
     "RunOutcome",
     "SeedBundle",
     "SingleIndexJob",
     "SingleIndexSeriesConfig",
+    "parse_local_solver_selection",
 ]

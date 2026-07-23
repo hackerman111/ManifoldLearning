@@ -9,6 +9,9 @@ import numpy as np
 from ..common.types import KernelName
 
 
+PAIRWISE_TEMPORARY_BYTES = 64 * 1024 * 1024
+
+
 class CupyBackend:
     """Опциональный CuPy-backend для тяжелых локальных сумм ADP."""
 
@@ -180,12 +183,33 @@ class CupyBackend:
     ) -> Any:
         """Вычисляет веса ядра на GPU."""
 
+        if (
+            not isinstance(name, str)
+            or name not in {"epanechnikov", "quartic", "gaussian"}
+        ):
+            raise ValueError(
+                "kernel должен быть 'epanechnikov', 'quartic' или 'gaussian'"
+            )
         xq = self._gpu_array(q)
+        if not self._device_scalar_bool(self.xp.isfinite(xq).all()):
+            raise ValueError("q должен содержать только конечные значения")
+        return self._evaluate_kernel(xq, name)
+
+    def _evaluate_kernel(self, q: Any, name: KernelName) -> Any:
+        """Вычисляет ядро для уже проверенного device-массива."""
+
         if name == "gaussian":
-            return self.xp.exp(-0.5 * xq)
+            return self.xp.exp(-0.5 * q)
         if name == "quartic":
-            return self.xp.square(self.xp.maximum(1.0 - xq, 0.0))
-        return self.xp.maximum(1.0 - xq, 0.0)
+            return self.xp.square(self.xp.maximum(1.0 - q, 0.0))
+        return self.xp.maximum(1.0 - q, 0.0)
+
+    @staticmethod
+    def _device_scalar_bool(value: Any) -> bool:
+        """Копирует на CPU только один логический device-скаляр."""
+
+        item = getattr(value, "item", None)
+        return bool(item() if item is not None else value)
 
     def pairwise_norm2(
         self,
@@ -196,10 +220,18 @@ class CupyBackend:
 
         x = self._cached_gpu_array("X", X)
         xcenters = self._cached_gpu_array("centers", centers)
-        x_sq = self.xp.einsum("ij,ij->i", x, x)
-        center_sq = self.xp.einsum("ij,ij->i", xcenters, xcenters)
-        norm2 = center_sq[:, None] + x_sq[None, :] - 2.0 * (xcenters @ x.T)
-        return self.xp.maximum(norm2, 0.0)
+        n_centers = int(xcenters.shape[0])
+        norm2 = self.xp.zeros((n_centers, x.shape[0]), dtype=self.dtype)
+        block_size = self._pairwise_center_block_size(x)
+        for start in range(0, n_centers, block_size):
+            stop = min(start + block_size, n_centers)
+            differences = x[None, :, :] - xcenters[start:stop, None, :]
+            norm2[start:stop] = self.xp.einsum(
+                "cnd,cnd->cn",
+                differences,
+                differences,
+            )
+        return norm2
 
     def pairwise_projection2(
         self,
@@ -212,9 +244,22 @@ class CupyBackend:
         x = self._cached_gpu_array("X", X)
         xcenters = self._cached_gpu_array("centers", centers)
         xbeta = self._gpu_array(beta).reshape(-1)
-        x_proj = x @ xbeta
-        center_proj = xcenters @ xbeta
-        return (x_proj[None, :] - center_proj[:, None]) ** 2
+        n_centers = int(xcenters.shape[0])
+        projection2 = self.xp.zeros((n_centers, x.shape[0]), dtype=self.dtype)
+        block_size = self._pairwise_center_block_size(x)
+        for start in range(0, n_centers, block_size):
+            stop = min(start + block_size, n_centers)
+            differences = x[None, :, :] - xcenters[start:stop, None, :]
+            projections = self.xp.einsum("cnd,d->cn", differences, xbeta)
+            projection2[start:stop] = self.xp.square(projections)
+        return projection2
+
+    def _pairwise_center_block_size(self, X: Any) -> int:
+        """Ограничивает временный C x n x d массив прямых разностей."""
+
+        elements_per_center = max(1, int(X.shape[0]) * int(X.shape[1]))
+        itemsize = np.dtype(self.dtype).itemsize
+        return max(1, PAIRWISE_TEMPORARY_BYTES // (itemsize * elements_per_center))
 
     def kernel_argument(
         self,
@@ -271,13 +316,17 @@ class CupyBackend:
         xcenters = self._gpu_array(centers)
         xdirs = self._gpu_array(directions)
         xq = self._gpu_array(q)
-        if xcenters.shape[0] != xdirs.shape[0] or xq.shape[0] != xdirs.shape[0]:
-            raise ValueError("centers, directions и q должны иметь одинаковое число центров")
-        if xq.shape[1] != x.shape[0]:
-            raise ValueError("q должен иметь форму C x n")
+        self._validate_random_projection_inputs(
+            x,
+            xy,
+            xcenters,
+            xdirs,
+            xq,
+            kernel,
+        )
 
         weights_started = time.perf_counter()
-        weights = self.kernel(xq, kernel)
+        weights = self._evaluate_kernel(xq, kernel)
         counts_gpu = weights.sum(axis=1)
         weight_payload = None
         if record_telemetry:
@@ -293,19 +342,33 @@ class CupyBackend:
         weights_time = time.perf_counter() - weights_started
 
         statistics_started = time.perf_counter()
-        projected = self.xp.matmul(x[None, :, :], self.xp.swapaxes(xdirs, 1, 2))
-        center_projected = self.xp.einsum(
-            "cd,cpd->cp",
-            xcenters,
-            xdirs,
-            optimize=True,
+        c_count, p_count, dimension = xdirs.shape
+        imav = self.xp.zeros((c_count, p_count), dtype=self.dtype)
+        s_vec = self.xp.zeros((c_count, p_count), dtype=self.dtype)
+        u_mat = self.xp.zeros(
+            (c_count, p_count, dimension),
+            dtype=self.dtype,
         )
-        projected = projected - center_projected[:, None, :]
-        projected *= weights[:, :, None]
-        s_vec = projected.sum(axis=1)
-        imav = self.xp.einsum("cnp,n->cp", projected, xy, optimize=True)
-        u_raw = self.xp.matmul(self.xp.swapaxes(projected, 1, 2), x)
-        u_mat = u_raw - s_vec[:, :, None] * xcenters[:, None, :]
+        block_size = self._pairwise_center_block_size(x)
+        for start in range(0, c_count, block_size):
+            stop = min(start + block_size, c_count)
+            differences = x[None, :, :] - xcenters[start:stop, None, :]
+            projected = self.xp.matmul(
+                differences,
+                self.xp.swapaxes(xdirs[start:stop], 1, 2),
+            )
+            projected *= weights[start:stop, :, None]
+            s_vec[start:stop] = projected.sum(axis=1)
+            imav[start:stop] = self.xp.einsum(
+                "cnp,n->cp",
+                projected,
+                xy,
+                optimize=True,
+            )
+            u_mat[start:stop] = self.xp.matmul(
+                self.xp.swapaxes(projected, 1, 2),
+                differences,
+            )
         result = (
             imav,
             s_vec,
@@ -321,3 +384,59 @@ class CupyBackend:
             time.perf_counter() - statistics_started
         )
         return (*result, weight_payload)
+
+    def _validate_random_projection_inputs(
+        self,
+        X: Any,
+        y: Any,
+        centers: Any,
+        directions: Any,
+        q: Any,
+        kernel: KernelName,
+    ) -> None:
+        """Проверяет публичный контракт статистик без копирования массивов на CPU."""
+
+        if (
+            not isinstance(kernel, str)
+            or kernel not in {"epanechnikov", "quartic", "gaussian"}
+        ):
+            raise ValueError(
+                "kernel должен быть 'epanechnikov', 'quartic' или 'gaussian'"
+            )
+        if X.ndim != 2:
+            raise ValueError("X должен быть двумерным массивом")
+        if y.ndim != 1 or y.shape[0] != X.shape[0]:
+            raise ValueError("y должен быть вектором длины n")
+        if centers.ndim != 2 or centers.shape[1] != X.shape[1]:
+            raise ValueError("centers должен иметь форму C x d")
+        if directions.ndim != 3 or directions.shape[2] != X.shape[1]:
+            raise ValueError("directions должен иметь форму C x P x d")
+        if q.ndim != 2:
+            raise ValueError("q должен иметь форму C x n")
+        if centers.shape[0] != directions.shape[0] or q.shape[0] != directions.shape[0]:
+            raise ValueError(
+                "centers, directions и q должны иметь одинаковое число центров"
+            )
+        if q.shape[1] != X.shape[0]:
+            raise ValueError("q должен иметь форму C x n")
+
+        finite_checks = tuple(
+            (name, self.xp.isfinite(value).all())
+            for name, value in (
+                ("X", X),
+                ("y", y),
+                ("centers", centers),
+                ("directions", directions),
+                ("q", q),
+            )
+        )
+        all_finite = finite_checks[0][1]
+        for _, is_finite in finite_checks[1:]:
+            all_finite = all_finite & is_finite
+        if self._device_scalar_bool(all_finite):
+            return
+        for name, is_finite in finite_checks:
+            if not self._device_scalar_bool(is_finite):
+                raise ValueError(
+                    f"{name} должен содержать только конечные значения"
+                )

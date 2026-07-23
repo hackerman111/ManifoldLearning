@@ -5,7 +5,7 @@ from dataclasses import fields
 from ...common.types import ADPConfig
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 RUN_IDENTITY_COLUMNS = ("schema_version", "series_id", "run_id")
 SERIES_IDENTITY_COLUMNS = ("schema_version", "series_id")
 ADP_CONFIG_COLUMNS = tuple(
@@ -41,6 +41,7 @@ RUN_SUMMARY_COLUMNS = RUN_IDENTITY_COLUMNS + (
     "n",
     "n_over_d",
     "statistics_builder",
+    "local_solver",
     "n_centers",
     "center_fraction",
     "sigma_x",
@@ -94,6 +95,8 @@ RUN_SUMMARY_COLUMNS = RUN_IDENTITY_COLUMNS + (
     "fit_wall_time_sec",
     "statistics_builder_time_sec",
     "statistics_builder_calls",
+    "local_solver_time_sec",
+    "local_solver_calls",
 ) + ALGORITHM_RESOURCE_COLUMNS + (
     "telemetry_serialization_time_sec",
     "job_wall_time_sec",
@@ -114,6 +117,7 @@ RUN_SUMMARY_COLUMNS = RUN_IDENTITY_COLUMNS + (
 OUTER_ITERATION_COLUMNS = RUN_IDENTITY_COLUMNS + (
     "experiment",
     "seed",
+    "local_solver",
     "outer_k",
     "h_k",
     "rho_k",
@@ -153,6 +157,7 @@ OUTER_ITERATION_COLUMNS = RUN_IDENTITY_COLUMNS + (
 INNER_ITERATION_COLUMNS = RUN_IDENTITY_COLUMNS + (
     "experiment",
     "seed",
+    "local_solver",
     "outer_k",
     "inner_k",
     "objective",
@@ -177,6 +182,7 @@ INNER_ITERATION_COLUMNS = RUN_IDENTITY_COLUMNS + (
 LOCAL_DIAGNOSTIC_COLUMNS = RUN_IDENTITY_COLUMNS + (
     "experiment",
     "seed",
+    "local_solver",
     "outer_k",
     "center_j",
     "local_mass",
@@ -201,6 +207,7 @@ LOCAL_DIAGNOSTIC_COLUMNS = RUN_IDENTITY_COLUMNS + (
 SOLVER_ITERATION_COLUMNS = RUN_IDENTITY_COLUMNS + (
     "experiment",
     "seed",
+    "local_solver",
     "outer_k",
     "inner_k",
     "solver_k",
@@ -215,6 +222,7 @@ SERIES_COLUMNS = SERIES_IDENTITY_COLUMNS + (
     "experiments",
     "seeds",
     "diagnostic_seeds",
+    "local_solvers",
     "center_fraction",
     "process_jobs",
     "statistics_workers",

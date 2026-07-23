@@ -13,6 +13,7 @@ from .single_index import (
     PROFILE_IDS,
     SingleIndexSeriesConfig,
     parse_experiment_selectors,
+    parse_local_solver_selection,
     parse_seed_selection,
     run_single_index_benchmark,
 )
@@ -122,6 +123,14 @@ def build_single_index_parser() -> argparse.ArgumentParser:
         help="Seeds retaining local and linear-solver traces.",
     )
     parser.add_argument(
+        "--local-solvers",
+        default="least_squares",
+        help=(
+            "Comma-separated local solvers: least_squares or zero_intercept "
+            "(default: least_squares)."
+        ),
+    )
+    parser.add_argument(
         "--center-fraction",
         type=center_fraction,
         default=1.0,
@@ -174,6 +183,7 @@ def run_single_index_command(argv: list[str] | None = None) -> int:
         experiments = parse_experiment_selectors(args.experiments)
         seeds = None if args.seeds is None else parse_seed_selection(args.seeds)
         diagnostic_seeds = parse_seed_selection(args.diagnostic_seeds)
+        local_solvers = parse_local_solver_selection(args.local_solvers)
     except ValueError as exc:
         parser.error(str(exc))
     config = SingleIndexSeriesConfig(
@@ -182,6 +192,7 @@ def run_single_index_command(argv: list[str] | None = None) -> int:
         jobs=args.jobs,
         seeds=seeds,
         diagnostic_seeds=diagnostic_seeds,
+        local_solvers=local_solvers,
         center_fraction=args.center_fraction,
         retry_failed=args.retry_failed,
         max_runs=args.max_runs,

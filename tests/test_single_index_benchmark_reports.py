@@ -112,9 +112,8 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                     "d": 5 + 20 * (seed % 2),
                     "n": 50 + 50 * seed,
                     "n_over_d": 2.0 + 3.0 * (seed % 2),
-                    "statistics_builder": (
-                        "cpu_batched" if seed % 2 else "random_projection"
-                    ),
+                    "statistics_builder": "random_projection",
+                    "local_solver": "least_squares",
                     "n_centers": 20,
                     "center_fraction": 1.0,
                     "sigma_x": (0.5, 1.0, 2.0)[seed],
@@ -140,6 +139,8 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                     "algorithm_time_sec": 0.5 + selector_index * 0.1 + seed,
                     "statistics_builder_time_sec": 0.2 + 0.1 * seed,
                     "statistics_builder_calls": 2 + seed,
+                    "local_solver_time_sec": 0.05 + 0.01 * seed,
+                    "local_solver_calls": 4 + seed,
                     "algorithm_rss_max_mib": 100.0 + 10.0 * seed,
                     "status": "numerical_failure" if failed else "success",
                     "stop_reason": "numerical_exception" if failed else "tolerance",
@@ -153,6 +154,7 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                         "run_id": run_id,
                         "experiment": selector,
                         "seed": seed,
+                        "local_solver": "least_squares",
                         "outer_k": outer_k,
                         "h_k": 2.0 / (outer_k + 1) + seed,
                         "rho_k": 0.1 * outer_k,
@@ -186,6 +188,7 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                             "run_id": run_id,
                             "experiment": selector,
                             "seed": seed,
+                            "local_solver": "least_squares",
                             "outer_k": outer_k,
                             "inner_k": inner_k,
                             "objective": 1.0 / (inner_k + 1) + seed,
@@ -202,6 +205,7 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                             "run_id": run_id,
                             "experiment": selector,
                             "seed": seed,
+                            "local_solver": "least_squares",
                             "outer_k": outer_k,
                             "center_j": center_j,
                             "local_mass": 5.0 + center_j + seed,
@@ -218,6 +222,7 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                             "run_id": run_id,
                             "experiment": selector,
                             "seed": seed,
+                            "local_solver": "least_squares",
                             "outer_k": outer_k,
                             "inner_k": 0,
                             "solver_k": solver_k,
@@ -236,11 +241,36 @@ def write_fixture_tables(tmp_path, selectors=EXPERIMENT_SELECTORS):
                 "schema_version": SCHEMA_VERSION,
                 "series_id": "series-report-test",
                 "status": "complete",
+                "local_solvers": "least_squares",
             }
         ],
         SERIES_COLUMNS,
     )
     _write_frame(tmp_path / "artifacts.csv", [], ARTIFACT_COLUMNS)
+
+
+def _duplicate_fixture_for_local_solvers(tmp_path, local_solvers):
+    for table, columns in (
+        ("run_summary", RUN_SUMMARY_COLUMNS),
+        ("outer_iterations", OUTER_ITERATION_COLUMNS),
+        ("inner_iterations", INNER_ITERATION_COLUMNS),
+        ("local_diagnostics", LOCAL_DIAGNOSTIC_COLUMNS),
+        ("solver_iterations", SOLVER_ITERATION_COLUMNS),
+    ):
+        original = pd.read_csv(tmp_path / f"{table}.csv")
+        copies = []
+        for local_solver in local_solvers:
+            copied = original.copy()
+            copied["local_solver"] = local_solver
+            copied["run_id"] = copied["run_id"].astype(str) + f"-{local_solver}"
+            copies.append(copied)
+        pd.concat(copies, ignore_index=True).reindex(columns=columns).to_csv(
+            tmp_path / f"{table}.csv",
+            index=False,
+        )
+    series = pd.read_csv(tmp_path / "series.csv")
+    series.loc[0, "local_solvers"] = "|".join(local_solvers)
+    series.reindex(columns=SERIES_COLUMNS).to_csv(tmp_path / "series.csv", index=False)
 
 
 def test_fixture_csvs_render_every_applicable_plot(tmp_path):
@@ -255,6 +285,62 @@ def test_fixture_csvs_render_every_applicable_plot(tmp_path):
     }
     assert REQUIRED_PLOTS <= created
     assert not artifacts.loc[artifacts.path.str.endswith(".png"), "path"].str.startswith("/").any()
+
+
+def test_multi_solver_reports_are_split_and_write_comparison_csv(tmp_path):
+    local_solvers = ("zero_intercept", "least_squares")
+    write_fixture_tables(tmp_path, selectors=("2",))
+    _duplicate_fixture_for_local_solvers(tmp_path, local_solvers)
+
+    artifacts = write_single_index_reports(tmp_path, dpi=40)
+    comparison = pd.read_csv(tmp_path / "local_solver_comparison.csv")
+
+    assert set(comparison["local_solver"]) == set(local_solvers)
+    assert len(comparison) == 3 * len(local_solvers)
+    assert comparison["run_count"].eq(1).all()
+    assert {
+        "run_count",
+        "convergence_rate",
+        "mean_cosine_abs",
+        "median_cosine_abs",
+        "mean_fit_wall_time_sec",
+        "median_fit_wall_time_sec",
+        "mean_algorithm_time_sec",
+        "mean_local_solver_time_sec",
+        "mean_algorithm_rss_peak_delta_mib",
+    } <= set(comparison.columns)
+    created_plots = artifacts.loc[
+        artifacts.status.eq("created") & artifacts.path.str.endswith(".png"),
+        "path",
+    ]
+    assert created_plots.str.startswith("plots/by_local_solver/").all()
+    for local_solver in local_solvers:
+        assert created_plots.str.startswith(
+            f"plots/by_local_solver/{local_solver}/"
+        ).any()
+    assert (
+        artifacts.loc[artifacts.name.eq("local_solver_comparison"), "path"]
+        == "local_solver_comparison.csv"
+    ).any()
+
+
+def test_configured_multi_solver_partial_series_keeps_split_report_layout(tmp_path):
+    write_fixture_tables(tmp_path, selectors=("2",))
+    series_path = tmp_path / "series.csv"
+    series = pd.read_csv(series_path)
+    series.loc[0, "local_solvers"] = "zero_intercept|least_squares"
+    series.reindex(columns=SERIES_COLUMNS).to_csv(series_path, index=False)
+
+    artifacts = write_single_index_reports(tmp_path, dpi=40)
+
+    assert (tmp_path / "local_solver_comparison.csv").exists()
+    created_plots = artifacts.loc[
+        artifacts.status.eq("created") & artifacts.path.str.endswith(".png"),
+        "path",
+    ]
+    assert created_plots.str.startswith(
+        "plots/by_local_solver/least_squares/"
+    ).all()
 
 
 def test_manifest_has_russian_labels_explicit_scales_and_stable_54_names():

@@ -22,6 +22,7 @@ from .types import (
     SeedBundle,
     SingleIndexJob,
     SingleIndexSeriesConfig,
+    parse_local_solver_selection,
 )
 
 __all__ = [
@@ -38,6 +39,7 @@ __all__ = [
     "build_single_index_jobs",
     "full_parameter_grid",
     "parse_experiment_selectors",
+    "parse_local_solver_selection",
     "parse_seed_selection",
     "prepare_quantile_band",
     "run_single_index_benchmark",

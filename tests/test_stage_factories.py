@@ -12,6 +12,7 @@ from adp import (
     StageFactory,
     StageRegistry,
 )
+from adp.common.types import LocalStatistics
 
 
 def test_default_stage_registries_are_isolated():
@@ -23,39 +24,70 @@ def test_default_stage_registries_are_isolated():
     assert "experimental" in first.available("beta_solver")
     assert "experimental" not in second.available("beta_solver")
     assert "cg" in second.available("beta_solver")
-    assert second.available("statistics_builder") == (
-        "cpu_batched",
-        "cpu_compact_factored",
-        "random_projection",
+    assert second.available("statistics_builder") == ("random_projection",)
+
+
+def test_zero_intercept_local_solver_is_available_without_changing_default():
+    registry = StageRegistry.with_defaults()
+    model = ADP.create("new", ADPConfig(show_progress=False))
+
+    assert registry.available("local_solver") == (
+        "least_squares",
+        "zero_intercept",
     )
+    assert model.algorithm.stage_names["local_solver"] == "least_squares"
 
 
-def test_model_resolves_cpu_batched_statistics_builder():
+def test_zero_intercept_local_solver_uses_scalar_adp_regression_and_dtype():
+    dtype = np.float32
+    beta = np.array([1.0, -0.5], dtype=dtype)
+    U = np.array(
+        [
+            [[1.0, 0.0], [0.0, 2.0], [1.0, 1.0]],
+            [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+        ],
+        dtype=dtype,
+    )
+    imav = np.array([[2.0, -1.0, 0.5], [4.0, 5.0, 6.0]], dtype=dtype)
+    statistics = LocalStatistics(
+        variant="new",
+        imav=imav,
+        centers=np.zeros((2, 2), dtype=dtype),
+        h=1.0,
+        weights_mean=1.0,
+        S=np.ones((2, 3), dtype=dtype),
+        U=U,
+    )
     model = ADP.create(
         "new",
-        ADPConfig(show_progress=False),
-        stages={"statistics_builder": "cpu_batched"},
+        ADPConfig(dtype="float32", show_progress=False),
+        stages={"local_solver": "zero_intercept"},
     )
 
-    assert model.algorithm.stage_names["statistics_builder"] == "cpu_batched"
-    assert type(model.algorithm.components["statistics_builder"]).__name__ == (
-        "CpuBatchedStatisticsBuilder"
+    intercepts, slopes = model.algorithm.components["local_solver"].solve(
+        statistics,
+        beta,
     )
 
+    projected = U @ beta
+    expected = np.sum(imav * projected, axis=1) / np.maximum(
+        np.sum(projected * projected, axis=1),
+        np.finfo(dtype).tiny,
+    )
+    np.testing.assert_array_equal(intercepts, np.zeros(2, dtype=dtype))
+    np.testing.assert_allclose(slopes, expected)
+    assert intercepts.dtype == dtype
+    assert slopes.dtype == dtype
 
-def test_model_resolves_cpu_compact_factored_statistics_builder():
-    model = ADP.create(
-        "new",
-        ADPConfig(show_progress=False),
-        stages={"statistics_builder": "cpu_compact_factored"},
-    )
 
-    assert model.algorithm.stage_names["statistics_builder"] == (
-        "cpu_compact_factored"
-    )
-    assert type(model.algorithm.components["statistics_builder"]).__name__ == (
-        "CpuCompactFactoredStatisticsBuilder"
-    )
+@pytest.mark.parametrize("name", ("cpu_batched", "cpu_compact_factored"))
+def test_removed_statistics_builders_cannot_be_selected(name):
+    with pytest.raises(ValueError, match="statistics_builder"):
+        ADP.create(
+            "new",
+            ADPConfig(show_progress=False),
+            stages={"statistics_builder": name},
+        )
 
 
 def test_factory_types_are_part_of_public_api():

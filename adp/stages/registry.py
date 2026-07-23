@@ -27,9 +27,8 @@ DEFAULT_STAGE_NAMES: dict[str, str] = {
     "stop_rule": "convergence",
 }
 
-
 EXTRA_BUILTIN_STAGE_NAMES: dict[str, tuple[str, ...]] = {
-    "statistics_builder": ("cpu_batched", "cpu_compact_factored"),
+    "local_solver": ("zero_intercept",),
 }
 
 

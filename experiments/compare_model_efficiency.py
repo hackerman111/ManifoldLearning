@@ -15,6 +15,7 @@ import math
 import multiprocessing as mp
 import sys
 import tempfile
+import time
 from collections.abc import Iterable, Sequence
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -50,6 +51,7 @@ from adp.evaluation.single_index.types import ExperimentParameters
 
 
 _PAIR_KEYS = ("case_id", "seed", "d", "n", "n_over_d")
+_PAIR_CONTEXT_KEYS = (*_PAIR_KEYS, "requested_n_over_d", "actual_n_over_d")
 _MODEL_METRICS = (
     "fit_time_sec",
     "rss_start_mib",
@@ -61,10 +63,34 @@ _MODEL_METRICS = (
     "memory_source",
     "objective",
     "cosine_abs",
+    "beta_encoded",
+    "beta_dimension",
+    "beta_norm",
+    "beta_finite",
+    "objective_finite",
+    "result_finite",
     "statistics_builder_time_sec",
     "statistics_builder_calls",
     "worker_pid",
+    "fit_started_ns",
+    "fit_finished_ns",
+    "actual_fit_order",
+    "assigned_cpu",
+    "worker_cpu_affinity",
+    "worker_cpu_count",
+    "cpu_affinity_supported",
+    "cpu_affinity_pinned",
+    "parallel_pairs",
 )
+
+DEFAULT_MODEL_NAMES = (
+    "random_projection_baseline",
+    "random_projection_candidate",
+)
+DEFAULT_BETA_ATOL = 1e-5
+DEFAULT_PROJECTOR_ATOL = 1e-5
+DEFAULT_OBJECTIVE_RTOL = 1e-5
+DEFAULT_OBJECTIVE_ATOL = 1e-8
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +107,19 @@ class _FitTask:
     sample_interval_sec: float
 
 
+@dataclass(frozen=True, slots=True)
+class _FitPairTask:
+    index: int
+    fits: tuple[_FitTask, _FitTask]
+
+
+@dataclass(frozen=True, slots=True)
+class _AffinityState:
+    supported: bool
+    effective_cpus: tuple[int, ...]
+    pinned: bool
+
+
 def compare_models(
     first_model: Any,
     second_model: Any,
@@ -94,11 +133,13 @@ def compare_models(
 ) -> pd.DataFrame:
     """Compare two ADP-compatible model objects on paired experiment-2 data.
 
-    Every ``fit`` runs in a fresh spawned child. Up to ``jobs`` children run in
-    parallel. The model is serialized with ``cloudpickle`` so factory-based
-    implementations are supported, while mutations, caches, and allocated
-    memory disappear with the process. Both models receive identical ``X``,
-    ``y``, centers, initial beta, and directions.
+    Every ``fit`` runs in a fresh spawned child. Up to ``jobs`` pairs run in
+    parallel, but the two fits of each pair run strictly sequentially in the
+    recorded AB/BA order. Each active pair owns one CPU from the caller's
+    affinity mask where process affinity is supported. The model is serialized
+    with ``cloudpickle`` so factory-based implementations are supported, while
+    mutations, caches, and allocated memory disappear with the process. Both
+    models receive identical ``X``, ``y``, centers, initial beta, and directions.
     """
 
     names = _validate_model_names(model_names)
@@ -110,32 +151,53 @@ def compare_models(
     worker_count = _validate_jobs(jobs)
     if not isinstance(show_progress, bool):
         raise ValueError("show_progress must be boolean")
+    comparison_started = time.perf_counter()
     model_payloads = (
         _serialize_model(first_model),
         _serialize_model(second_model),
     )
-    tasks = iter(
-        _iter_fit_tasks(
-            names,
-            model_payloads,
-            grid,
-            selected_seeds,
-            sample_interval_sec,
-            worker_count,
+    pair_tasks = iter(
+        _iter_fit_pair_tasks(
+            _iter_fit_tasks(
+                names,
+                model_payloads,
+                grid,
+                selected_seeds,
+                sample_interval_sec,
+                worker_count,
+            )
         )
     )
-    total = len(grid) * len(selected_seeds) * 2
+    total_pairs = len(grid) * len(selected_seeds)
+    total = total_pairs * 2
+    available_cpus = _available_cpu_ids()
+    parallel_pairs = min(worker_count, total_pairs, len(available_cpus))
     rows: dict[int, dict[str, object]] = {}
     pool = ProcessPoolExecutor(
-        max_workers=worker_count,
+        max_workers=parallel_pairs,
         mp_context=_spawn_context(),
         max_tasks_per_child=1,
     )
-    pending: dict[Future[tuple[int, dict[str, object]]], _FitTask] = {}
+    pending: dict[
+        Future[tuple[int, dict[str, object]]],
+        tuple[_FitPairTask, int, int],
+    ] = {}
+
+    def submit_fit(pair: _FitPairTask, fit_order: int, cpu_id: int) -> None:
+        fit = pair.fits[fit_order]
+        future = pool.submit(
+            _execute_fit_task,
+            fit,
+            cpu_id,
+            fit_order,
+            parallel_pairs,
+        )
+        pending[future] = (pair, fit_order, cpu_id)
+
     try:
-        for _ in range(min(worker_count, total)):
-            task = next(tasks)
-            pending[pool.submit(_execute_fit_task, task)] = task
+        for cpu_id in available_cpus[:parallel_pairs]:
+            pair = next(pair_tasks)
+            submit_fit(pair, 0, cpu_id)
         with tqdm(
             total=total,
             desc="model comparison",
@@ -145,34 +207,53 @@ def compare_models(
         ) as progress:
             while pending:
                 future = next(as_completed(tuple(pending)))
-                task = pending.pop(future)
+                pair, fit_order, cpu_id = pending.pop(future)
+                fit = pair.fits[fit_order]
                 try:
                     index, row = future.result()
                 except Exception as exc:
                     raise RuntimeError(
-                        f"model fit failed for {task.row['model']} "
-                        f"({task.row['case_id']}, seed={task.row['seed']})"
+                        f"model fit failed for {fit.row['model']} "
+                        f"({fit.row['case_id']}, seed={fit.row['seed']})"
                     ) from exc
                 rows[index] = row
                 progress.update(1)
+                if fit_order == 0:
+                    submit_fit(pair, 1, cpu_id)
+                    continue
                 try:
-                    next_task = next(tasks)
+                    next_pair = next(pair_tasks)
                 except StopIteration:
                     continue
-                pending[pool.submit(_execute_fit_task, next_task)] = next_task
+                submit_fit(next_pair, 0, cpu_id)
     finally:
         pool.shutdown(wait=True, cancel_futures=True)
-    return pd.DataFrame(rows[index] for index in sorted(rows))
+    comparison_wall_time_sec = time.perf_counter() - comparison_started
+    frame = pd.DataFrame(rows[index] for index in sorted(rows))
+    frame["comparison_total_fits"] = len(frame)
+    frame["comparison_wall_time_sec"] = comparison_wall_time_sec
+    frame["comparison_fits_per_sec"] = (
+        len(frame) / comparison_wall_time_sec
+    )
+    return frame
 
 
 def pair_model_runs(
     runs: pd.DataFrame,
     *,
     model_names: tuple[str, str] = ("first", "second"),
+    beta_atol: float = DEFAULT_BETA_ATOL,
+    projector_atol: float = DEFAULT_PROJECTOR_ATOL,
+    objective_rtol: float = DEFAULT_OBJECTIVE_RTOL,
+    objective_atol: float = DEFAULT_OBJECTIVE_ATOL,
 ) -> pd.DataFrame:
-    """Pair run rows and compute candidate efficiency relative to baseline."""
+    """Pair runs and check efficiency plus sign-invariant equivalence."""
 
     baseline_name, candidate_name = _validate_model_names(model_names)
+    beta_atol = _validate_tolerance("beta_atol", beta_atol)
+    projector_atol = _validate_tolerance("projector_atol", projector_atol)
+    objective_rtol = _validate_tolerance("objective_rtol", objective_rtol)
+    objective_atol = _validate_tolerance("objective_atol", objective_atol)
     required = (
         *_PAIR_KEYS,
         "model",
@@ -180,12 +261,19 @@ def pair_model_runs(
         "rss_max_mib",
         "rss_peak_delta_mib",
         "cosine_abs",
+        "objective",
+        "beta_encoded",
+        "result_finite",
     )
     missing = [column for column in required if column not in runs]
     if missing:
         raise ValueError(f"runs is missing columns: {', '.join(missing)}")
 
     source = runs.copy()
+    if "requested_n_over_d" not in source:
+        source["requested_n_over_d"] = source["n_over_d"]
+    if "actual_n_over_d" not in source:
+        source["actual_n_over_d"] = source["n"] / source["d"]
     baseline = source.loc[source["model"].eq(baseline_name)].copy()
     candidate = source.loc[source["model"].eq(candidate_name)].copy()
     if baseline.empty or candidate.empty:
@@ -194,15 +282,15 @@ def pair_model_runs(
     rename_metrics = tuple(
         metric for metric in _MODEL_METRICS if metric in source.columns
     )
-    baseline = baseline[[*_PAIR_KEYS, *rename_metrics]].rename(
+    baseline = baseline[[*_PAIR_CONTEXT_KEYS, *rename_metrics]].rename(
         columns={metric: f"baseline_{metric}" for metric in rename_metrics}
     )
-    candidate = candidate[[*_PAIR_KEYS, *rename_metrics]].rename(
+    candidate = candidate[[*_PAIR_CONTEXT_KEYS, *rename_metrics]].rename(
         columns={metric: f"candidate_{metric}" for metric in rename_metrics}
     )
     paired = baseline.merge(
         candidate,
-        on=list(_PAIR_KEYS),
+        on=list(_PAIR_CONTEXT_KEYS),
         how="inner",
         validate="one_to_one",
     )
@@ -225,7 +313,70 @@ def pair_model_runs(
     paired["cosine_abs_gap"] = (
         paired["baseline_cosine_abs"] - paired["candidate_cosine_abs"]
     ).abs()
-    return paired.sort_values(list(_PAIR_KEYS)).reset_index(drop=True)
+    beta_metrics = [
+        _compare_encoded_betas(first, second, int(d))
+        for first, second, d in zip(
+            paired["baseline_beta_encoded"],
+            paired["candidate_beta_encoded"],
+            paired["d"],
+            strict=True,
+        )
+    ]
+    paired["beta_cosine_abs"] = [metric[0] for metric in beta_metrics]
+    paired["beta_sign_invariant_error"] = [
+        metric[1] for metric in beta_metrics
+    ]
+    paired["projector_frobenius_error"] = [
+        metric[2] for metric in beta_metrics
+    ]
+
+    baseline_objective = pd.to_numeric(
+        paired["baseline_objective"], errors="coerce"
+    )
+    candidate_objective = pd.to_numeric(
+        paired["candidate_objective"], errors="coerce"
+    )
+    paired["objective_abs_gap"] = (
+        baseline_objective - candidate_objective
+    ).abs()
+    objective_scale = np.maximum(
+        baseline_objective.abs(), candidate_objective.abs()
+    )
+    paired["objective_relative_gap"] = paired["objective_abs_gap"] / np.maximum(
+        objective_scale,
+        np.finfo(float).eps,
+    )
+
+    baseline_finite = _boolean_series(paired["baseline_result_finite"])
+    candidate_finite = _boolean_series(paired["candidate_result_finite"])
+    pair_metrics_finite = np.isfinite(
+        paired[
+            [
+                "beta_cosine_abs",
+                "beta_sign_invariant_error",
+                "projector_frobenius_error",
+                "objective_abs_gap",
+                "objective_relative_gap",
+            ]
+        ].to_numpy(dtype=float)
+    ).all(axis=1)
+    paired["result_pair_finite"] = (
+        baseline_finite.to_numpy()
+        & candidate_finite.to_numpy()
+        & pair_metrics_finite
+    )
+    objective_tolerance = objective_atol + objective_rtol * objective_scale
+    paired["beta_atol"] = beta_atol
+    paired["projector_atol"] = projector_atol
+    paired["objective_rtol"] = objective_rtol
+    paired["objective_atol"] = objective_atol
+    paired["numerically_equivalent"] = (
+        paired["result_pair_finite"]
+        & paired["beta_sign_invariant_error"].le(beta_atol)
+        & paired["projector_frobenius_error"].le(projector_atol)
+        & paired["objective_abs_gap"].le(objective_tolerance)
+    )
+    return paired.sort_values(list(_PAIR_CONTEXT_KEYS)).reset_index(drop=True)
 
 
 def summarize_paired_runs(paired: pd.DataFrame) -> pd.DataFrame:
@@ -242,17 +393,61 @@ def summarize_paired_runs(paired: pd.DataFrame) -> pd.DataFrame:
         "candidate_rss_max_mib",
         "peak_rss_ratio",
         "cosine_abs_gap",
+        "beta_cosine_abs",
+        "beta_sign_invariant_error",
+        "projector_frobenius_error",
+        "objective_abs_gap",
+        "objective_relative_gap",
     )
-    missing = [column for column in ("d", "n", "n_over_d", *metrics) if column not in paired]
+    group_columns = (
+        "d",
+        "n",
+        "n_over_d",
+        "requested_n_over_d",
+        "actual_n_over_d",
+    )
+    required = (*group_columns, "result_pair_finite", "numerically_equivalent", *metrics)
+    missing = [column for column in required if column not in paired]
     if missing:
         raise ValueError(f"paired runs is missing columns: {', '.join(missing)}")
-    return (
-        paired.groupby(["d", "n", "n_over_d"], sort=True, as_index=False)[
-            list(metrics)
-        ]
-        .median()
-        .rename(columns={metric: f"median_{metric}" for metric in metrics})
-    )
+
+    rows: list[dict[str, object]] = []
+    grouped = paired.groupby(list(group_columns), sort=True, dropna=False)
+    for keys, group in grouped:
+        row = dict(zip(group_columns, keys, strict=True))
+        row["pair_count"] = int(len(group))
+        row["valid_pair_count"] = int(
+            _boolean_series(group["result_pair_finite"]).sum()
+        )
+        row["equivalent_pair_count"] = int(
+            _boolean_series(group["numerically_equivalent"]).sum()
+        )
+        row["equivalence_rate"] = (
+            row["equivalent_pair_count"] / row["pair_count"]
+        )
+        for metric in metrics:
+            values = pd.to_numeric(group[metric], errors="coerce")
+            valid = values.notna()
+            finite = np.isfinite(values)
+            valid_values = values.loc[valid]
+            finite_values = values.loc[finite]
+            row[f"valid_{metric}_count"] = int(valid.sum())
+            row[f"finite_{metric}_count"] = int(finite.sum())
+            row[f"median_{metric}"] = (
+                math.nan if valid_values.empty else float(valid_values.median())
+            )
+            row[f"q25_{metric}"] = (
+                math.nan
+                if finite_values.empty
+                else float(finite_values.quantile(0.25))
+            )
+            row[f"q75_{metric}"] = (
+                math.nan
+                if finite_values.empty
+                else float(finite_values.quantile(0.75))
+            )
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 def write_comparison_artifacts(
@@ -323,6 +518,7 @@ def _iter_fit_tasks(
     jobs: int,
 ) -> Iterable[_FitTask]:
     index = 0
+    pair_index = 0
     for parameters in grid:
         case_id = _case_id(parameters)
         for seed in seeds:
@@ -334,8 +530,14 @@ def _iter_fit_tasks(
             )
             data = generate_synthetic_data(job).data
             beta0 = _initial_beta(parameters.d, job.seeds.init)
+            model_specs = tuple(zip(names, model_payloads, strict=True))
+            if pair_index % 2:
+                model_specs = tuple(reversed(model_specs))
+                pair_order = "BA"
+            else:
+                pair_order = "AB"
             for fit_order, (name, model_payload) in enumerate(
-                zip(names, model_payloads, strict=True)
+                model_specs
             ):
                 yield _FitTask(
                     index=index,
@@ -345,10 +547,14 @@ def _iter_fit_tasks(
                         "d": parameters.d,
                         "n": parameters.n,
                         "n_over_d": parameters.n_over_d,
+                        "requested_n_over_d": parameters.n_over_d,
+                        "actual_n_over_d": parameters.n / parameters.d,
                         "n_centers": parameters.n_centers,
                         "n_directions": int(data.directions.shape[1]),
+                        "pair_index": pair_index,
                         "model": name,
                         "fit_order": fit_order,
+                        "pair_order": pair_order,
                         "jobs": jobs,
                     },
                     model_payload=model_payload,
@@ -361,9 +567,39 @@ def _iter_fit_tasks(
                     sample_interval_sec=sample_interval_sec,
                 )
                 index += 1
+            pair_index += 1
 
 
-def _execute_fit_task(task: _FitTask) -> tuple[int, dict[str, object]]:
+def _iter_fit_pair_tasks(tasks: Iterable[_FitTask]) -> Iterable[_FitPairTask]:
+    iterator = iter(tasks)
+    pair_index = 0
+    while True:
+        try:
+            first = next(iterator)
+        except StopIteration:
+            return
+        try:
+            second = next(iterator)
+        except StopIteration as exc:
+            raise RuntimeError("fit task stream ended inside a model pair") from exc
+        fits = (first, second)
+        if [fit.row.get("fit_order") for fit in fits] != [0, 1]:
+            raise RuntimeError("fit task pair has an invalid planned order")
+        if any(fit.row.get("pair_index") != pair_index for fit in fits):
+            raise RuntimeError("fit task pair indices are inconsistent")
+        yield _FitPairTask(index=pair_index, fits=fits)
+        pair_index += 1
+
+
+def _execute_fit_task(
+    task: _FitTask,
+    assigned_cpu: int,
+    actual_fit_order: int,
+    parallel_pairs: int,
+) -> tuple[int, dict[str, object]]:
+    if task.row.get("fit_order") != actual_fit_order:
+        raise RuntimeError("scheduled fit order differs from the planned pair order")
+    affinity = _pin_current_process(assigned_cpu)
     model = cloudpickle.loads(task.model_payload)
     _configure_child_model(
         model,
@@ -373,6 +609,7 @@ def _execute_fit_task(task: _FitTask) -> tuple[int, dict[str, object]]:
     monitor = ResourceMonitor(sample_interval_sec=task.sample_interval_sec)
     with threadpool_limits(limits=1):
         with monitor:
+            fit_started_ns = time.perf_counter_ns()
             result = model.fit(
                 task.X,
                 task.y,
@@ -380,11 +617,25 @@ def _execute_fit_task(task: _FitTask) -> tuple[int, dict[str, object]]:
                 beta0=task.beta0,
                 directions=task.directions,
             )
+            fit_finished_ns = time.perf_counter_ns()
     beta = np.asarray(getattr(result, "beta"), dtype=float)
     objective = float(getattr(result, "objective", math.nan))
     stage_timings = getattr(result, "stage_timings", {})
     stage_calls = getattr(result, "stage_calls", {})
     usage = monitor.usage
+    beta_flat = beta.reshape(-1)
+    beta_dimension = int(beta_flat.size)
+    beta_finite = bool(beta.ndim == 1 and np.all(np.isfinite(beta_flat)))
+    beta_norm = float(np.linalg.norm(beta_flat)) if beta_finite else math.nan
+    objective_finite = math.isfinite(objective)
+    result_finite = bool(
+        beta.ndim == 1
+        and beta_dimension == task.beta_true.size
+        and beta_finite
+        and math.isfinite(beta_norm)
+        and beta_norm > np.finfo(float).eps
+        and objective_finite
+    )
     metrics: dict[str, object] = {
         "fit_time_sec": usage.elapsed_sec,
         "rss_start_mib": usage.rss_start_mib,
@@ -396,6 +647,12 @@ def _execute_fit_task(task: _FitTask) -> tuple[int, dict[str, object]]:
         "memory_source": usage.source,
         "objective": objective,
         "cosine_abs": _absolute_cosine(beta, task.beta_true),
+        "beta_encoded": _encode_beta(beta_flat),
+        "beta_dimension": beta_dimension,
+        "beta_norm": beta_norm,
+        "beta_finite": beta_finite,
+        "objective_finite": objective_finite,
+        "result_finite": result_finite,
         "statistics_builder_time_sec": float(
             stage_timings.get("statistics_builder", math.nan)
         ),
@@ -403,6 +660,17 @@ def _execute_fit_task(task: _FitTask) -> tuple[int, dict[str, object]]:
             stage_calls.get("statistics_builder", 0)
         ),
         "worker_pid": os.getpid(),
+        "fit_started_ns": fit_started_ns,
+        "fit_finished_ns": fit_finished_ns,
+        "actual_fit_order": actual_fit_order,
+        "assigned_cpu": assigned_cpu,
+        "worker_cpu_affinity": ",".join(
+            str(cpu_id) for cpu_id in affinity.effective_cpus
+        ),
+        "worker_cpu_count": len(affinity.effective_cpus),
+        "cpu_affinity_supported": affinity.supported,
+        "cpu_affinity_pinned": affinity.pinned,
+        "parallel_pairs": parallel_pairs,
     }
     return task.index, {**task.row, **metrics}
 
@@ -429,10 +697,56 @@ def _configure_child_model(model: Any, n_centers: int, n_directions: int) -> Non
     ):
         if hasattr(config, name):
             setattr(config, name, value)
+    backend = getattr(model, "backend", None)
+    if backend is not None and hasattr(backend, "statistics_workers"):
+        setattr(backend, "statistics_workers", 1)
 
 
 def _spawn_context() -> Any:
     return mp.get_context("spawn")
+
+
+def _available_cpu_ids() -> tuple[int, ...]:
+    get_affinity = getattr(os, "sched_getaffinity", None)
+    if callable(get_affinity):
+        try:
+            cpu_ids = tuple(sorted(int(cpu_id) for cpu_id in get_affinity(0)))
+        except OSError:
+            cpu_ids = ()
+        if cpu_ids:
+            return cpu_ids
+    return tuple(range(max(1, os.cpu_count() or 1)))
+
+
+def _pin_current_process(cpu_id: int) -> _AffinityState:
+    get_affinity = getattr(os, "sched_getaffinity", None)
+    set_affinity = getattr(os, "sched_setaffinity", None)
+    supported = callable(get_affinity) and callable(set_affinity)
+    if supported:
+        try:
+            set_affinity(0, {cpu_id})
+        except OSError as exc:
+            raise RuntimeError(
+                f"failed to pin fit process to CPU {cpu_id}"
+            ) from exc
+    effective_cpus: tuple[int, ...] = ()
+    if callable(get_affinity):
+        try:
+            effective_cpus = tuple(
+                sorted(int(value) for value in get_affinity(0))
+            )
+        except OSError:
+            pass
+    pinned = supported and effective_cpus == (cpu_id,)
+    if supported and not pinned:
+        raise RuntimeError(
+            f"fit process affinity is {effective_cpus}, expected {(cpu_id,)}"
+        )
+    return _AffinityState(
+        supported=supported,
+        effective_cpus=effective_cpus,
+        pinned=pinned,
+    )
 
 
 def _validate_jobs(jobs: int) -> int:
@@ -492,19 +806,93 @@ def _absolute_cosine(first: np.ndarray, second: np.ndarray) -> float:
     first = np.asarray(first, dtype=float).reshape(-1)
     second = np.asarray(second, dtype=float).reshape(-1)
     if first.shape != second.shape:
-        raise ValueError("model beta has the wrong dimension")
+        return math.nan
     denominator = float(np.linalg.norm(first) * np.linalg.norm(second))
     if denominator <= np.finfo(float).eps or not math.isfinite(denominator):
         return math.nan
     return float(abs(np.dot(first, second)) / denominator)
 
 
+def _encode_beta(beta: np.ndarray) -> str:
+    return "|".join(format(float(value), ".17g") for value in beta)
+
+
+def _decode_beta(encoded: object) -> np.ndarray:
+    if not isinstance(encoded, str) or not encoded:
+        return np.array([], dtype=float)
+    try:
+        return np.asarray([float(value) for value in encoded.split("|")])
+    except (TypeError, ValueError):
+        return np.array([], dtype=float)
+
+
+def _compare_encoded_betas(
+    first_encoded: object,
+    second_encoded: object,
+    dimension: int,
+) -> tuple[float, float, float]:
+    first = _decode_beta(first_encoded)
+    second = _decode_beta(second_encoded)
+    if (
+        first.shape != (dimension,)
+        or second.shape != (dimension,)
+        or not np.all(np.isfinite(first))
+        or not np.all(np.isfinite(second))
+    ):
+        return math.nan, math.nan, math.nan
+    first_norm = float(np.linalg.norm(first))
+    second_norm = float(np.linalg.norm(second))
+    denominator = first_norm * second_norm
+    if not math.isfinite(denominator) or denominator <= np.finfo(float).eps:
+        return math.nan, math.nan, math.nan
+    cosine_abs = float(np.clip(abs(np.dot(first, second)) / denominator, 0.0, 1.0))
+    beta_error = min(
+        float(np.linalg.norm(first - second)),
+        float(np.linalg.norm(first + second)),
+    ) / max(first_norm, second_norm, np.finfo(float).eps)
+    projector_error = math.sqrt(max(0.0, 2.0 - 2.0 * cosine_abs**2))
+    return cosine_abs, beta_error, projector_error
+
+
+def _boolean_series(values: pd.Series) -> pd.Series:
+    def parse(value: object) -> bool:
+        if isinstance(value, (bool, np.bool_)):
+            return bool(value)
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes"}
+        if isinstance(value, (int, np.integer)):
+            return int(value) == 1
+        return False
+
+    return values.map(parse).astype(bool)
+
+
+def _validate_tolerance(name: str, value: float) -> float:
+    result = float(value)
+    if not math.isfinite(result) or result < 0.0:
+        raise ValueError(f"{name} must be finite and nonnegative")
+    return result
+
+
 def _safe_ratio(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
     numerator = pd.to_numeric(numerator, errors="coerce")
     denominator = pd.to_numeric(denominator, errors="coerce")
-    valid = np.isfinite(numerator) & np.isfinite(denominator) & denominator.gt(0.0)
+    valid = (
+        np.isfinite(numerator)
+        & np.isfinite(denominator)
+        & numerator.ge(0.0)
+        & denominator.ge(0.0)
+    )
     result = pd.Series(np.nan, index=numerator.index, dtype=float)
-    result.loc[valid] = numerator.loc[valid] / denominator.loc[valid]
+    positive_denominator = valid & denominator.gt(0.0)
+    result.loc[positive_denominator] = (
+        numerator.loc[positive_denominator]
+        / denominator.loc[positive_denominator]
+    )
+    both_zero = valid & numerator.eq(0.0) & denominator.eq(0.0)
+    result.loc[both_zero] = 1.0
+    positive_over_zero = valid & numerator.gt(0.0) & denominator.eq(0.0)
+    result.loc[positive_over_zero] = math.inf
     return result
 
 
@@ -584,7 +972,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--jobs",
         type=_positive_int,
         default=1,
-        help="Parallel isolated fit processes; use 1 for uncontended latency measurements.",
+        help=(
+            "Parallel AB/BA pairs; fits inside a pair are sequential and "
+            "isolated. Use 1 for uncontended latency measurements."
+        ),
     )
     parser.add_argument(
         "--no-progress",
@@ -609,6 +1000,7 @@ def _default_models() -> tuple[Any, Any]:
         "statistics_workers": 1,
         "show_progress": False,
         "record_telemetry": True,
+        "renew_directions": False,
         "random_state": 0,
     }
     baseline = ADP.create(
@@ -619,7 +1011,7 @@ def _default_models() -> tuple[Any, Any]:
     candidate = ADP.create(
         "new",
         ADPConfig(**common),
-        stages={"statistics_builder": "cpu_batched"},
+        stages={"statistics_builder": "random_projection"},
     )
     return baseline, candidate
 
@@ -636,7 +1028,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.seeds is not None
         else (tuple(range(100)) if args.profile == "full" else (0,))
     )
-    names = ("random_projection", "cpu_batched")
+    names = DEFAULT_MODEL_NAMES
     runs = compare_models(
         *_default_models(),
         model_names=names,
@@ -659,8 +1051,23 @@ def main(argv: list[str] | None = None) -> int:
         "median_peak_delta_memory_ratio: "
         f"{paired['peak_delta_memory_ratio'].median():.6f}"
     )
+    valid_pairs = int(paired["result_pair_finite"].sum())
+    equivalent_pairs = int(paired["numerically_equivalent"].sum())
+    print(f"valid_result_pairs: {valid_pairs}/{len(paired)}")
+    print(f"numerically_equivalent_pairs: {equivalent_pairs}/{len(paired)}")
+    print(
+        "comparison_fits_per_sec: "
+        f"{float(runs['comparison_fits_per_sec'].iloc[0]):.6f}"
+    )
     for name, path in artifacts.items():
         print(f"{name}: {path}")
+    if equivalent_pairs != len(paired):
+        print(
+            f"candidate is not numerically equivalent in "
+            f"{len(paired) - equivalent_pairs}/{len(paired)} paired runs",
+            file=sys.stderr,
+        )
+        return 2
     return 0
 
 

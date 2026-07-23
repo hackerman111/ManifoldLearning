@@ -86,50 +86,20 @@ class RandomProjectionStatisticsBuilder:
         )
 
 
-class CpuBatchedStatisticsBuilder:
-    def __init__(self, context: StageContext) -> None:
-        self.model = context.model
-
-    def compute(
-        self,
-        X: np.ndarray,
-        y: np.ndarray,
-        centers: np.ndarray,
-        h: float,
-        beta: np.ndarray,
-        directions: np.ndarray | None,
-        anisotropy: float | None,
-    ):
-        return self.model._compute_statistics_cpu_batched(
-            X, y, centers, h, beta, directions, anisotropy
-        )
-
-
-class CpuCompactFactoredStatisticsBuilder:
-    def __init__(self, context: StageContext) -> None:
-        self.model = context.model
-
-    def compute(
-        self,
-        X: np.ndarray,
-        y: np.ndarray,
-        centers: np.ndarray,
-        h: float,
-        beta: np.ndarray,
-        directions: np.ndarray | None,
-        anisotropy: float | None,
-    ):
-        return self.model._compute_statistics_cpu_compact_factored(
-            X, y, centers, h, beta, directions, anisotropy
-        )
-
-
 class LeastSquaresLocalSolver:
     def __init__(self, context: StageContext) -> None:
         self.model = context.model
 
     def solve(self, statistics, beta: np.ndarray):
         return self.model._solve_local_coefficients_default(statistics, beta)
+
+
+class ZeroInterceptLocalSolver:
+    def __init__(self, context: StageContext) -> None:
+        self.model = context.model
+
+    def solve(self, statistics, beta: np.ndarray):
+        return self.model._solve_local_coefficients_zero_intercept(statistics, beta)
 
 
 class ConjugateGradientBetaSolver:
@@ -186,12 +156,11 @@ BUILTIN_STAGE_TYPES = {
     "center_selector": {"random_sample": RandomCenterSelector},
     "bandwidth_selector": {"adaptive_mass": AdaptiveMassBandwidthSelector},
     "direction_sampler": {"random_sphere": RandomSphereDirectionSampler},
-    "statistics_builder": {
-        "random_projection": RandomProjectionStatisticsBuilder,
-        "cpu_batched": CpuBatchedStatisticsBuilder,
-        "cpu_compact_factored": CpuCompactFactoredStatisticsBuilder,
+    "statistics_builder": {"random_projection": RandomProjectionStatisticsBuilder},
+    "local_solver": {
+        "least_squares": LeastSquaresLocalSolver,
+        "zero_intercept": ZeroInterceptLocalSolver,
     },
-    "local_solver": {"least_squares": LeastSquaresLocalSolver},
     "beta_solver": {"cg": ConjugateGradientBetaSolver},
     "stop_rule": {"convergence": ConvergenceStopRule},
 }

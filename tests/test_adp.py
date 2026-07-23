@@ -87,6 +87,31 @@ def test_config_rejects_nonpositive_data_generation_counts(name, value):
         ADPConfig(**{name: value})
 
 
+@pytest.mark.parametrize("kernel", ("gausian", None, []))
+def test_config_rejects_unknown_kernel(kernel):
+    with pytest.raises(ValueError, match="kernel"):
+        ADPConfig(kernel=kernel)
+
+
+@pytest.mark.parametrize("chunk_size", (0, -1, True, 1.5))
+def test_config_rejects_invalid_chunk_size(chunk_size):
+    with pytest.raises(ValueError, match="chunk_size должен быть положительным целым"):
+        ADPConfig(chunk_size=chunk_size)
+
+
+@pytest.mark.parametrize(
+    ("converter", "value", "name"),
+    (
+        (adp_core.as_2d_float, [[0.0, np.nan]], "X"),
+        (adp_core.as_2d_float, [[0.0, np.inf]], "centers"),
+        (adp_core.as_1d_float, [0.0, -np.inf], "y"),
+    ),
+)
+def test_public_array_converters_reject_nonfinite_values(converter, value, name):
+    with pytest.raises(ValueError, match=rf"{name}.*конечные"):
+        converter(np.asarray(value), name)
+
+
 @pytest.mark.parametrize(
     ("name", "value", "message"),
     [

@@ -42,6 +42,7 @@ def test_single_index_help_exposes_series_controls_without_d_series():
         "--jobs",
         "--seeds",
         "--diagnostic-seeds",
+        "--local-solvers",
         "--center-fraction",
         "--resume",
         "--retry-failed",
@@ -57,6 +58,31 @@ def test_single_index_help_exposes_series_controls_without_d_series():
     assert "--allow-download" not in result.stdout
     assert "D01" not in result.stdout
     assert "adp_D1_data" not in result.stdout
+
+
+def test_single_index_dry_run_expands_requested_local_solvers():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "run_benchmarks.py",
+            "single-index",
+            "--profile",
+            "smoke",
+            "--experiments",
+            "2",
+            "--seeds",
+            "0",
+            "--local-solvers",
+            "zero_intercept,least_squares",
+            "--dry-run",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "2: 2" in result.stdout
+    assert "total: 2" in result.stdout
 
 
 def test_full_dry_run_reports_24000_without_fitting_or_writing(tmp_path):

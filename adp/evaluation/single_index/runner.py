@@ -55,15 +55,17 @@ def build_single_index_jobs(
                 base_parameters,
                 center_fraction=config.center_fraction,
             )
-            for seed in seeds:
-                jobs.append(
-                    _build_single_index_job(
-                        experiment,
-                        parameters,
-                        seed,
-                        diagnostic=seed in diagnostic_seeds,
+            for local_solver in config.local_solvers:
+                for seed in seeds:
+                    jobs.append(
+                        _build_single_index_job(
+                            experiment,
+                            parameters,
+                            seed,
+                            local_solver=local_solver,
+                            diagnostic=seed in diagnostic_seeds,
+                        )
                     )
-                )
     expanded = tuple(jobs)
     if config.max_runs is not None:
         return expanded[: config.max_runs]
@@ -75,6 +77,7 @@ def _build_single_index_job(
     parameters: ExperimentParameters,
     seed: int,
     *,
+    local_solver: str = "least_squares",
     diagnostic: bool,
 ) -> SingleIndexJob:
     identity_fingerprint = configuration_fingerprint(
@@ -82,6 +85,7 @@ def _build_single_index_job(
             "experiment": experiment,
             "parameters": asdict(parameters),
             "seed": seed,
+            "local_solver": local_solver,
         }
     )
     seed_fingerprint = configuration_fingerprint(
@@ -106,6 +110,7 @@ def _build_single_index_job(
             seed,
             config_fingerprint=identity_fingerprint,
         ),
+        local_solver=local_solver,
         diagnostic=diagnostic,
     )
 
@@ -151,7 +156,16 @@ def run_single_index_benchmark(
         disable=not sys.stderr.isatty(),
     ) as progress:
         process_jobs = _resolve_process_jobs(config.jobs)
-        if pending:
+        if process_jobs == 1:
+            completed = _run_serial(
+                store,
+                pending,
+                config,
+                completed=completed,
+                total=total,
+                progress=progress,
+            )
+        elif pending:
             completed = _run_parallel(
                 store,
                 pending,
@@ -165,6 +179,30 @@ def run_single_index_benchmark(
     saved = dict(store.finalize(status=_series_status(store, jobs)))
     write_single_index_reports(store.series_dir)
     return saved
+
+
+def _run_serial(
+    store: SingleIndexSeriesStore,
+    jobs: Sequence[SingleIndexJob],
+    config: SingleIndexSeriesConfig,
+    *,
+    completed: int,
+    total: int,
+    progress: Any,
+) -> int:
+    _limit_worker_threads()
+    for job in jobs:
+        outcome = execute_job(job, config)
+        store.commit(outcome)
+        completed = _mark_job_done(
+            store,
+            progress,
+            completed,
+            total,
+            job,
+            str(outcome.run_row["status"]),
+        )
+    return completed
 
 
 def _run_parallel(
@@ -184,7 +222,6 @@ def _run_parallel(
         pool = ProcessPoolExecutor(
             max_workers=process_jobs,
             initializer=_initialize_worker,
-            max_tasks_per_child=1,
         )
         for job in jobs:
             future = pool.submit(
@@ -251,6 +288,7 @@ def _mark_job_done(
     progress.set_postfix(
         {
             "experiment": job.experiment,
+            "local_solver": job.local_solver,
             "seed": job.seed,
             "status": status,
         },
@@ -260,7 +298,7 @@ def _mark_job_done(
     if progress.disable:
         print(
             f"{completed}/{total} experiment={job.experiment} "
-            f"seed={job.seed} status={status}",
+            f"local_solver={job.local_solver} seed={job.seed} status={status}",
             file=sys.stderr,
             flush=True,
         )

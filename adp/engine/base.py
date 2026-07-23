@@ -181,7 +181,7 @@ class ADPBase(
         stats: LocalStatistics,  # Локальные статистики варианта.
         intercepts: np.ndarray,  # Локальные свободные члены.
         slopes: np.ndarray,  # Локальные наклоны.
-        prior: np.ndarray,  # beta предыдущего внешнего шага.
+        prior: np.ndarray,  # beta предыдущего внутреннего шага.
         lambda_penalty: float,  # Сила регуляризации.
         x0: np.ndarray | None = None,  # Старт CG или None.
     ) -> np.ndarray:

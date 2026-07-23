@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import math
 import time
 
 import numpy as np
 from scipy.sparse.linalg import LinearOperator, cg
 
 from ..common.types import LocalStatistics, VariantName
+from ..common.utils import stable_l2_norm
 from ..engine.base import ADPBase
 
 
@@ -46,59 +48,6 @@ class RandomProjectionADP(ADPBase):
             beta,
             directions,
             anisotropy,
-            backend_sum_method="random_projection_sums",
-        )
-
-    def _compute_statistics_cpu_batched(
-        self,
-        X: np.ndarray,
-        y: np.ndarray,
-        centers: np.ndarray,
-        h: float,
-        beta: np.ndarray,
-        directions: np.ndarray | None,
-        anisotropy: float | None,
-    ) -> LocalStatistics:
-        """Вычисляет те же статистики плотными CPU-batched блоками."""
-
-        if self.backend.name != "numpy":
-            raise ValueError("cpu_batched statistics builder требует backend='numpy'")
-        return self._compute_statistics_with_backend_sums(
-            X,
-            y,
-            centers,
-            h,
-            beta,
-            directions,
-            anisotropy,
-            backend_sum_method="batched_random_projection_sums",
-        )
-
-    def _compute_statistics_cpu_compact_factored(
-        self,
-        X: np.ndarray,
-        y: np.ndarray,
-        centers: np.ndarray,
-        h: float,
-        beta: np.ndarray,
-        directions: np.ndarray | None,
-        anisotropy: float | None,
-    ) -> LocalStatistics:
-        """Вычисляет compact-статистики с вынесенными членами центра."""
-
-        if self.backend.name != "numpy":
-            raise ValueError(
-                "cpu_compact_factored statistics builder требует backend='numpy'"
-            )
-        return self._compute_statistics_with_backend_sums(
-            X,
-            y,
-            centers,
-            h,
-            beta,
-            directions,
-            anisotropy,
-            backend_sum_method="factored_random_projection_sums",
         )
 
     def _compute_statistics_with_backend_sums(
@@ -110,8 +59,6 @@ class RandomProjectionADP(ADPBase):
         beta: np.ndarray,
         directions: np.ndarray | None,
         anisotropy: float | None,
-        *,
-        backend_sum_method: str,
     ) -> LocalStatistics:
         if directions is None:
             raise ValueError("new-вариант требует directions")
@@ -159,8 +106,7 @@ class RandomProjectionADP(ADPBase):
             )
             distance_time += time.perf_counter() - argument_started
 
-            sum_method = getattr(self.backend, backend_sum_method)
-            chunk = sum_method(
+            chunk = self.backend.random_projection_sums(
                 X=X_backend,
                 y=y_backend,
                 centers=center_chunk,
@@ -263,13 +209,53 @@ class RandomProjectionADP(ADPBase):
             coefficients = np.linalg.solve(gram, rhs[..., None])[..., 0]
         except np.linalg.LinAlgError:
             coefficients = np.empty((design.shape[0], 2), dtype=design.dtype)
+            ridge = float(self.config.ridge)
+            ridge_scale = design.dtype.type(np.sqrt(ridge))
+            ridge_rows = ridge_scale * np.eye(2, dtype=design.dtype)
+            ridge_targets = np.zeros(2, dtype=design.dtype)
             for center_index in range(design.shape[0]):
+                augmented_design = np.concatenate(
+                    (design[center_index], ridge_rows),
+                    axis=0,
+                )
+                augmented_response = np.concatenate(
+                    (
+                        np.asarray(
+                            stats.imav[center_index],
+                            dtype=design.dtype,
+                        ),
+                        ridge_targets,
+                    ),
+                    axis=0,
+                )
                 coefficients[center_index] = np.linalg.lstsq(
-                    design[center_index],
-                    stats.imav[center_index],
+                    augmented_design,
+                    augmented_response,
                     rcond=None,
                 )[0]
         return coefficients[:, 0], coefficients[:, 1]
+
+    def _solve_local_coefficients_zero_intercept(
+        self,
+        stats: LocalStatistics,
+        beta: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Решает ADP-регрессию с зафиксированным нулевым intercept."""
+
+        if stats.U is None:
+            raise ValueError("Некорректные статистики new-варианта")
+        dtype = np.dtype(self.config.dtype)
+        projected = np.asarray(stats.U, dtype=dtype) @ np.asarray(
+            beta,
+            dtype=dtype,
+        )
+        response = np.asarray(stats.imav, dtype=dtype)
+        numerator = np.sum(response * projected, axis=1, dtype=dtype)
+        denominator = np.sum(projected * projected, axis=1, dtype=dtype)
+        denominator = np.maximum(denominator, np.finfo(dtype).tiny)
+        intercepts = np.zeros(projected.shape[0], dtype=dtype)
+        slopes = np.asarray(numerator / denominator, dtype=dtype)
+        return intercepts, slopes
 
     def _solve_local_coefficients(
         self,
@@ -288,7 +274,7 @@ class RandomProjectionADP(ADPBase):
         stats: LocalStatistics,  # Статистики с S и U.
         intercepts: np.ndarray,  # Локальные свободные члены.
         slopes: np.ndarray,  # Локальные наклоны.
-        prior: np.ndarray,  # beta предыдущего внешнего шага.
+        prior: np.ndarray,  # beta предыдущего внутреннего шага.
         lambda_penalty: float,  # Сила регуляризации.
         x0: np.ndarray | None = None,  # Стартовая точка CG или None.
     ) -> np.ndarray:
@@ -307,34 +293,74 @@ class RandomProjectionADP(ADPBase):
 
         if stats.S is None or stats.U is None:
             raise ValueError("Некорректные статистики new-варианта")
+        solver_dtype = np.dtype(self.config.dtype)
         d = stats.U.shape[2]
-        residual = stats.imav - intercepts[:, None] * stats.S
-        regularization = float(lambda_penalty) + float(self.config.ridge)
-        u_flat = stats.U.reshape(-1, d)
-        slope_flat = np.repeat(np.asarray(slopes, dtype=float), stats.U.shape[1])
+        imav = np.asarray(stats.imav, dtype=solver_dtype)
+        s_values = np.asarray(stats.S, dtype=solver_dtype)
+        u_values = np.asarray(stats.U, dtype=solver_dtype)
+        intercept_values = np.asarray(intercepts, dtype=solver_dtype)
+        prior_values = np.asarray(prior, dtype=solver_dtype)
+        lambda_value = solver_dtype.type(lambda_penalty)
+        regularization = solver_dtype.type(
+            float(lambda_penalty) + float(self.config.ridge)
+        )
+        residual = imav - intercept_values[:, None] * s_values
+        u_flat = u_values.reshape(-1, d)
+        slope_flat = np.repeat(
+            np.asarray(slopes, dtype=solver_dtype),
+            u_values.shape[1],
+        )
         slope_sq_flat = slope_flat**2
         residual_flat = residual.reshape(-1)
 
         def matvec(vector: np.ndarray) -> np.ndarray:
-            projected = u_flat @ vector
+            vector_values = np.asarray(vector, dtype=solver_dtype)
+            projected = u_flat @ vector_values
             result = u_flat.T @ (slope_sq_flat * projected)
-            result += regularization * vector
+            result += regularization * vector_values
             return result
 
         rhs = u_flat.T @ (slope_flat * residual_flat)
-        rhs = rhs + float(lambda_penalty) * prior
-        rhs_norm = float(np.linalg.norm(rhs))
-        residual_scale = max(rhs_norm, float(np.finfo(float).eps))
-        operator = LinearOperator((d, d), matvec=matvec, dtype=float)
+        rhs = rhs + lambda_value * prior_values
+        if not np.all(np.isfinite(rhs)):
+            self._last_solver_telemetry = {
+                "gradient_norm": np.nan,
+                "linear_residual_norm": np.nan,
+                "relative_linear_residual": np.nan,
+                "linear_solver_iterations": 0,
+                "linear_solver_status": "invalid_system",
+                "solver_residual_trace": (),
+                "scipy_info": None,
+            }
+            raise RuntimeError("CG получил неконечную правую часть")
+        rhs_norm = stable_l2_norm(rhs)
+        dtype_info = np.finfo(solver_dtype)
+        residual_scale = max(rhs_norm, float(dtype_info.eps))
+        operator = LinearOperator((d, d), matvec=matvec, dtype=solver_dtype)
         preconditioner = None
         if self.config.use_cg_preconditioner:
             diagonal = np.sum((u_flat * u_flat) * slope_sq_flat[:, None], axis=0)
             diagonal += regularization
-            inverse_diagonal = 1.0 / np.maximum(diagonal, np.finfo(float).tiny)
+            if not np.all(np.isfinite(diagonal)) or np.any(diagonal <= 0.0):
+                self._last_solver_telemetry = {
+                    "gradient_norm": np.nan,
+                    "linear_residual_norm": np.nan,
+                    "relative_linear_residual": np.nan,
+                    "linear_solver_iterations": 0,
+                    "linear_solver_status": "invalid_system",
+                    "solver_residual_trace": (),
+                    "scipy_info": None,
+                }
+                raise RuntimeError("CG получил некорректный предобуславливатель")
+            inverse_diagonal = solver_dtype.type(1.0) / np.maximum(
+                diagonal,
+                dtype_info.tiny,
+            )
             preconditioner = LinearOperator(
                 (d, d),
-                matvec=lambda vector: inverse_diagonal * vector,
-                dtype=float,
+                matvec=lambda vector: inverse_diagonal
+                * np.asarray(vector, dtype=solver_dtype),
+                dtype=solver_dtype,
             )
         iterations = 0
         residual_trace: list[float] = []
@@ -343,28 +369,42 @@ class RandomProjectionADP(ADPBase):
             nonlocal iterations
             iterations += 1
             if self.config.record_solver_trace:
-                residual_trace.append(
-                    float(np.linalg.norm(matvec(candidate) - rhs)) / residual_scale
-                )
+                residual = matvec(candidate) - rhs
+                if np.all(np.isfinite(residual)):
+                    residual_trace.append(
+                        stable_l2_norm(residual) / residual_scale
+                    )
+                else:
+                    residual_trace.append(np.nan)
 
         beta, info = cg(
             operator,
             rhs,
-            x0=prior if x0 is None else x0,
+            x0=np.asarray(
+                prior_values if x0 is None else x0,
+                dtype=solver_dtype,
+            ),
             M=preconditioner,
             rtol=self.config.tol,
             atol=0.0,
             maxiter=max(50, min(500, 5 * d)),
             callback=record_iteration,
         )
+        beta = np.asarray(beta, dtype=solver_dtype)
         status = "converged" if info == 0 else "max_iterations"
         if info < 0:
             status = "breakdown"
-        if info < 0 or not np.all(np.isfinite(beta)) or np.linalg.norm(beta) == 0:
-            beta = prior
-            if status != "breakdown":
-                status = "invalid_solution"
-        absolute_residual = float(np.linalg.norm(matvec(beta) - rhs))
+        beta_is_finite = bool(np.all(np.isfinite(beta)))
+        beta_norm = stable_l2_norm(beta) if beta_is_finite else math.nan
+        if (not beta_is_finite or beta_norm == 0.0) and status != "breakdown":
+            status = "invalid_solution"
+        residual = matvec(beta) - rhs
+        residual_is_finite = bool(np.all(np.isfinite(residual)))
+        absolute_residual = (
+            stable_l2_norm(residual) if residual_is_finite else math.nan
+        )
+        if not residual_is_finite and status != "breakdown":
+            status = "invalid_solution"
         self._last_solver_telemetry = {
             "gradient_norm": 2.0 * absolute_residual,
             "linear_residual_norm": absolute_residual,
@@ -374,6 +414,8 @@ class RandomProjectionADP(ADPBase):
             "solver_residual_trace": tuple(residual_trace),
             "scipy_info": int(info),
         }
+        if status in {"breakdown", "invalid_solution"}:
+            raise RuntimeError(f"CG завершился с ошибкой {status}")
         return beta
 
     def _solve_beta(
@@ -433,5 +475,9 @@ class RandomProjectionADP(ADPBase):
         ubeta = stats.U @ beta
         pred = intercepts[:, None] * stats.S + slopes[:, None] * ubeta
         total = float(np.sum((stats.imav - pred) ** 2))
-        total += lambda_penalty * float(np.sum((beta - prior) ** 2))
+        ridge = float(self.config.ridge)
+        total += ridge * float(
+            np.sum(intercepts**2) + np.sum(slopes**2) + np.sum(beta**2)
+        )
+        total += float(lambda_penalty) * float(np.sum((beta - prior) ** 2))
         return total

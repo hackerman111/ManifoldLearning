@@ -55,6 +55,7 @@ def test_run_summary_contains_reproduction_status_and_quality_contract():
         "n",
         "n_over_d",
         "statistics_builder",
+        "local_solver",
         "n_centers",
         "center_fraction",
         "sigma_x",
@@ -84,6 +85,8 @@ def test_run_summary_contains_reproduction_status_and_quality_contract():
         "fit_wall_time_sec",
         "statistics_builder_time_sec",
         "statistics_builder_calls",
+        "local_solver_time_sec",
+        "local_solver_calls",
         "algorithm_time_sec",
         "telemetry_serialization_time_sec",
         "job_wall_time_sec",
@@ -106,12 +109,12 @@ def test_run_summary_contains_reproduction_status_and_quality_contract():
     assert expected <= set(RUN_SUMMARY_COLUMNS)
 
 
-def test_run_summary_v4_logs_every_effective_adp_config_field_without_aliases():
+def test_run_summary_v5_logs_every_effective_adp_config_field_without_aliases():
     expected_config_columns = tuple(
         f"adp_{field.name}" for field in fields(ADPConfig)
     )
 
-    assert SCHEMA_VERSION == 4
+    assert SCHEMA_VERSION == 5
     assert COMMON_SCHEMA_VERSION == 1
     assert ADP_CONFIG_COLUMNS == expected_config_columns
     assert set(expected_config_columns) <= set(RUN_SUMMARY_COLUMNS)
@@ -120,6 +123,13 @@ def test_run_summary_v4_logs_every_effective_adp_config_field_without_aliases():
 
 
 def test_detail_schemas_cover_requested_diagnostics():
+    for columns in (
+        OUTER_ITERATION_COLUMNS,
+        INNER_ITERATION_COLUMNS,
+        LOCAL_DIAGNOSTIC_COLUMNS,
+        SOLVER_ITERATION_COLUMNS,
+    ):
+        assert "local_solver" in columns
     assert {
         "beta_k",
         "cosine_abs",
@@ -148,3 +158,4 @@ def test_detail_schemas_cover_requested_diagnostics():
         "is_singular",
     } <= set(LOCAL_DIAGNOSTIC_COLUMNS)
     assert "relative_residual" in SOLVER_ITERATION_COLUMNS
+    assert "local_solvers" in SERIES_COLUMNS

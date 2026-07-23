@@ -7,6 +7,9 @@ import numpy as np
 from .types import KernelName
 
 
+PAIRWISE_DIFFERENCE_BUFFER_BYTES = 64 * 1024 * 1024
+
+
 def as_2d_float(
     value: np.ndarray | None,  # Исходное значение.
     name: str,  # Имя аргумента для сообщения об ошибке.
@@ -25,6 +28,8 @@ def as_2d_float(
     arr = np.asarray(value, dtype=float)
     if arr.ndim != 2:
         raise ValueError(f"{name} должен быть двумерным массивом")
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(f"{name} должен содержать только конечные значения")
     return arr
 
 
@@ -44,6 +49,8 @@ def as_1d_float(
     arr = np.asarray(value, dtype=float)
     if arr.ndim != 1:
         raise ValueError(f"{name} должен быть одномерным массивом")
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(f"{name} должен содержать только конечные значения")
     return arr
 
 
@@ -58,11 +65,24 @@ def unit_vector(
         Нормированный одномерный массив.
     """
 
-    arr = np.asarray(value, dtype=float).reshape(-1)
-    norm = np.linalg.norm(arr)
-    if norm < np.finfo(float).eps:
+    arr = np.asarray(value).reshape(-1)
+    if not np.issubdtype(arr.dtype, np.floating):
+        arr = arr.astype(np.float64)
+    if not np.all(np.isfinite(arr)):
+        raise ValueError("Нельзя нормировать вектор с неконечными значениями")
+    scale = np.max(np.abs(arr), initial=arr.dtype.type(0.0))
+    if scale == 0.0:
         raise ValueError("Нельзя нормировать нулевой вектор")
-    return arr / norm
+    scaled = arr / scale
+    scaled_norm = arr.dtype.type(
+        np.sqrt(np.sum(scaled * scaled, dtype=np.float64))
+    )
+    if not np.isfinite(scaled_norm) or scaled_norm <= 0.0:
+        raise ValueError("Не удалось получить конечную норму вектора")
+    normalized = scaled / scaled_norm
+    if not np.all(np.isfinite(normalized)):
+        raise ValueError("Не удалось получить конечный единичный вектор")
+    return normalized
 
 
 def normalize_rows(
@@ -76,9 +96,43 @@ def normalize_rows(
         Массив той же формы с единичной нормой по последней оси.
     """
 
-    norms = np.linalg.norm(value, axis=-1, keepdims=True)
-    norms = np.maximum(norms, np.finfo(float).eps)
-    return value / norms
+    arr = np.asarray(value)
+    if not np.issubdtype(arr.dtype, np.floating):
+        arr = arr.astype(np.float64)
+    if not np.all(np.isfinite(arr)):
+        raise ValueError("Направления должны содержать только конечные значения")
+    if arr.ndim == 0 or arr.shape[-1] == 0:
+        raise ValueError("Направления должны иметь непустую последнюю ось")
+    scales = np.max(np.abs(arr), axis=-1, keepdims=True)
+    if np.any(scales == 0.0):
+        raise ValueError("Нельзя нормировать нулевое направление")
+    scaled = arr / scales
+    scaled_norms = np.sqrt(
+        np.sum(scaled * scaled, axis=-1, keepdims=True, dtype=np.float64)
+    ).astype(arr.dtype, copy=False)
+    if np.any(~np.isfinite(scaled_norms)) or np.any(scaled_norms <= 0.0):
+        raise ValueError("Не удалось получить конечные нормы направлений")
+    normalized = scaled / scaled_norms
+    if not np.all(np.isfinite(normalized)):
+        raise ValueError("Не удалось получить конечные единичные направления")
+    return normalized
+
+
+def stable_l2_norm(
+    value: np.ndarray,  # Массив, евклидова норма которого нужна.
+) -> float:
+    """Считает L2-норму без переполнения промежуточных квадратов."""
+
+    arr = np.asarray(value)
+    if not np.issubdtype(arr.dtype, np.floating):
+        arr = arr.astype(np.float64)
+    if not np.all(np.isfinite(arr)):
+        raise ValueError("Норма определена только для конечных значений")
+    scale = float(np.max(np.abs(arr), initial=arr.dtype.type(0.0)))
+    if scale == 0.0:
+        return 0.0
+    scaled = arr / arr.dtype.type(scale)
+    return scale * float(np.sqrt(np.sum(scaled * scaled, dtype=np.float64)))
 
 
 def pairwise_norm2(
@@ -94,10 +148,22 @@ def pairwise_norm2(
         Матрица J x n со значениями ||X_i - c_j||^2.
     """
 
-    x_sq = np.einsum("ij,ij->i", X, X)
-    center_sq = np.einsum("ij,ij->i", centers, centers)
-    norm2 = center_sq[:, None] + x_sq[None, :] - 2.0 * (centers @ X.T)
-    np.maximum(norm2, 0.0, out=norm2)
+    x, xcenters = _prepare_pairwise_inputs(X, centers)
+    norm2 = np.empty((xcenters.shape[0], x.shape[0]), dtype=x.dtype)
+    block_size = _pairwise_center_block_size(x)
+    for start in range(0, xcenters.shape[0], block_size):
+        stop = min(start + block_size, xcenters.shape[0])
+        differences = np.subtract(
+            x[None, :, :],
+            xcenters[start:stop, None, :],
+        )
+        np.einsum(
+            "cnd,cnd->cn",
+            differences,
+            differences,
+            out=norm2[start:stop],
+            optimize=True,
+        )
     return norm2
 
 
@@ -116,9 +182,54 @@ def pairwise_projection2(
         Матрица J x n со значениями <X_i - c_j, beta>^2.
     """
 
-    x_proj = X @ beta
-    center_proj = centers @ beta
-    return np.square(x_proj[None, :] - center_proj[:, None])
+    x, xcenters = _prepare_pairwise_inputs(X, centers)
+    xbeta = np.asarray(beta, dtype=x.dtype)
+    if xbeta.ndim != 1 or xbeta.shape[0] != x.shape[1]:
+        raise ValueError(f"beta должен иметь форму {(x.shape[1],)}")
+    if not np.all(np.isfinite(xbeta)):
+        raise ValueError("beta должен содержать только конечные значения")
+    projection2 = np.empty((xcenters.shape[0], x.shape[0]), dtype=x.dtype)
+    block_size = _pairwise_center_block_size(x)
+    for start in range(0, xcenters.shape[0], block_size):
+        stop = min(start + block_size, xcenters.shape[0])
+        differences = np.subtract(
+            x[None, :, :],
+            xcenters[start:stop, None, :],
+        )
+        projected = differences @ xbeta
+        np.square(projected, out=projection2[start:stop])
+    return projection2
+
+
+def _prepare_pairwise_inputs(
+    X: np.ndarray,
+    centers: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Validates pairwise inputs while preserving float32 or float64."""
+
+    x_input = np.asarray(X)
+    centers_input = np.asarray(centers)
+    dtype = np.result_type(x_input.dtype, centers_input.dtype)
+    if not np.issubdtype(dtype, np.floating):
+        dtype = np.dtype(np.float64)
+    x = np.asarray(x_input, dtype=dtype)
+    xcenters = np.asarray(centers_input, dtype=dtype)
+    if x.ndim != 2 or xcenters.ndim != 2:
+        raise ValueError("X и centers должны быть двумерными массивами")
+    if x.shape[1] != xcenters.shape[1]:
+        raise ValueError("X и centers должны иметь одинаковую размерность d")
+    if not np.all(np.isfinite(x)):
+        raise ValueError("X должен содержать только конечные значения")
+    if not np.all(np.isfinite(xcenters)):
+        raise ValueError("centers должен содержать только конечные значения")
+    return x, xcenters
+
+
+def _pairwise_center_block_size(X: np.ndarray) -> int:
+    """Bounds the temporary C x n x d difference buffer."""
+
+    bytes_per_center = max(1, X.shape[0] * X.shape[1] * X.dtype.itemsize)
+    return max(1, PAIRWISE_DIFFERENCE_BUFFER_BYTES // bytes_per_center)
 
 
 def kernel_np(
@@ -134,6 +245,15 @@ def kernel_np(
         Массив весов той же формы.
     """
 
+    if (
+        not isinstance(name, str)
+        or name not in {"epanechnikov", "quartic", "gaussian"}
+    ):
+        raise ValueError(
+            "kernel должен быть 'epanechnikov', 'quartic' или 'gaussian'"
+        )
+    if not np.all(np.isfinite(q)):
+        raise ValueError("q должен содержать только конечные значения")
     if name == "gaussian":
         return np.exp(-0.5 * q)
     if name == "quartic":

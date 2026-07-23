@@ -864,29 +864,54 @@ def test_execute_job_returns_all_normalized_row_groups():
     assert outcome.run_row["statistics_workers"] == 1
 
 
-def test_experiment_two_selects_and_times_cpu_batched_statistics_builder():
+def test_experiment_two_times_random_projection_statistics_builder():
     job = replace(
         make_job(
             d=4,
             n_over_d=20,
             center_fraction=0.2,
-            statistics_builder="cpu_batched",
+            statistics_builder="random_projection",
         ),
         experiment="2",
         seed=0,
-        run_id="run-cpu-batched-statistics",
+        run_id="run-random-projection-statistics",
         diagnostic=False,
     )
 
     outcome = executors.execute_job(job, make_config(diagnostic_seeds=()))
 
-    assert outcome.run_row["statistics_builder"] == "cpu_batched"
+    assert outcome.run_row["statistics_builder"] == "random_projection"
     assert outcome.run_row["statistics_builder_calls"] > 0
     assert outcome.run_row["statistics_builder_time_sec"] > 0.0
     assert all(
         row["stage_statistics_builder_calls"] == 1
         for row in outcome.outer_rows
     )
+
+
+def test_execute_job_selects_and_logs_zero_intercept_local_solver():
+    job = replace(
+        make_job(d=4, n_over_d=20, center_fraction=0.2),
+        experiment="2",
+        seed=0,
+        run_id="run-zero-intercept-local-solver",
+        local_solver="zero_intercept",
+        diagnostic=True,
+    )
+
+    outcome = executors.execute_job(job, make_config())
+
+    assert outcome.run_row["local_solver"] == "zero_intercept"
+    assert outcome.run_row["local_solver_calls"] > 0
+    assert outcome.run_row["local_solver_time_sec"] > 0.0
+    for rows in (
+        outcome.outer_rows,
+        outcome.inner_rows,
+        outcome.local_rows,
+        outcome.solver_rows,
+    ):
+        assert rows
+        assert {row["local_solver"] for row in rows} == {"zero_intercept"}
 
 
 def test_nondiagnostic_job_keeps_aggregates_without_local_trace_rows():
@@ -903,6 +928,26 @@ def test_nondiagnostic_job_keeps_aggregates_without_local_trace_rows():
     assert outcome.local_rows == ()
     assert outcome.run_row["local_row_count"] == 0
     assert outcome.run_row["adp_record_local_trace"] is False
+
+
+def test_nondiagnostic_job_counts_singular_centers_from_outer_aggregates():
+    from adp.evaluation.single_index.runner import _build_single_index_job
+
+    job = _build_single_index_job(
+        "2",
+        ExperimentParameters(d=5, n_over_d=1.0),
+        3,
+        diagnostic=False,
+    )
+
+    outcome = executors.execute_job(job, make_config(diagnostic_seeds=()))
+
+    aggregate_count = sum(
+        int(row["singular_centers"]) for row in outcome.outer_rows
+    )
+    assert aggregate_count > 0
+    assert outcome.local_rows == ()
+    assert outcome.run_row["singular_local_count"] == aggregate_count
 
 
 def test_final_allowed_inner_step_can_converge_without_nonconverged_status():

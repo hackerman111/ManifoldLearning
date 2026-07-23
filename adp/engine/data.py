@@ -6,7 +6,7 @@ import numpy as np
 from scipy import linalg
 
 from ..common.types import ADPData
-from ..common.utils import link_function, normalize_rows, unit_vector
+from ..common.utils import link_function, normalize_rows, stable_l2_norm, unit_vector
 
 
 class DataPreparationMixin:
@@ -229,7 +229,7 @@ class DataPreparationMixin:
             beta, *_ = linalg.lstsq(x_centered, y_centered)
         except Exception:
             beta = x_centered.T @ y_centered
-        if np.linalg.norm(beta) < np.finfo(float).eps:
+        if stable_l2_norm(beta) < np.finfo(float).eps:
             beta = np.zeros(X.shape[1])
             beta[0] = 1.0
         return unit_vector(beta)

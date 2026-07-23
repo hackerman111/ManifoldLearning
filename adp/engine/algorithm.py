@@ -12,7 +12,7 @@ from ..common.progress import format_progress_postfix
 from ..common.resource_monitor import ResourceMonitor
 from ..common.result_store import store_fit_result
 from ..common.types import ADPResult, LocalStatistics, TrainingStep
-from ..common.utils import as_1d_float, as_2d_float, unit_vector
+from ..common.utils import as_1d_float, as_2d_float, stable_l2_norm, unit_vector
 from ..stages.contracts import ADPState, StageContext, StageExecutionError, StageFactory
 from ..stages.registry import (
     DEFAULT_STAGE_NAMES,
@@ -371,14 +371,14 @@ class ADPAlgorithm:
         model = self.context.model
         config = self.context.config
         beta = unit_vector(beta_start)
-        prior = beta.copy()
+        initial_prior = beta.copy()
         if state is None:
             state = ADPState(
-                X=np.empty((0, prior.size)),
+                X=np.empty((0, initial_prior.size)),
                 y=np.empty(0),
                 centers=stats.centers,
                 beta=beta,
-                prior=prior,
+                prior=initial_prior,
                 h=float(stats.h),
                 anisotropy=stats.anisotropy,
                 statistics=stats,
@@ -393,11 +393,13 @@ class ADPAlgorithm:
         for inner in range(inner_steps):
             inner_started = time.perf_counter()
             old_beta = beta.copy()
+            prior = old_beta.copy()
             old_intercepts = intercepts.copy()
             old_slopes = slopes.copy()
-            objective_before = None
-            if config.record_telemetry:
-                objective_before = float(
+            should_check_objective = inner == 0 or inner % objective_interval == 0
+            evaluated_objective_before = None
+            if config.record_telemetry or (should_check_objective and inner > 0):
+                evaluated_objective_before = float(
                     model._objective(
                         stats,
                         old_beta,
@@ -407,6 +409,9 @@ class ADPAlgorithm:
                         lambda_penalty,
                     )
                 )
+            objective_before = (
+                evaluated_objective_before if config.record_telemetry else None
+            )
             model._last_solver_telemetry = None
             if use_protected_adapters:
                 intercepts, slopes = model._solve_local_coefficients(stats, beta)
@@ -427,7 +432,9 @@ class ADPAlgorithm:
                     x0=beta,
                 )
                 beta = self.context.backend.asarray(beta)
-                self._validate_beta(beta, prior.size, "beta_solver", outer, inner)
+                self._validate_beta(
+                    beta, initial_prior.size, "beta_solver", outer, inner
+                )
             else:
                 intercepts, slopes = self._invoke(
                     "local_solver",
@@ -451,12 +458,22 @@ class ADPAlgorithm:
                 )
                 beta = self.context.backend.asarray(beta)
 
-            norm = np.linalg.norm(beta)
-            beta = beta / norm
-            slopes = slopes * norm
-            objective_after = None
-            if config.record_telemetry:
-                objective_after = float(
+            norm = stable_l2_norm(beta)
+            beta = self.context.backend.asarray(unit_vector(beta))
+            with np.errstate(over="ignore", invalid="ignore"):
+                scaled_slopes = slopes * norm
+            if not np.all(np.isfinite(np.asarray(scaled_slopes))):
+                raise StageExecutionError(
+                    "beta_solver",
+                    self.stage_names["beta_solver"],
+                    "масштаб beta нельзя конечным образом перенести в slopes",
+                    outer=outer,
+                    inner=inner,
+                )
+            slopes = scaled_slopes
+            evaluated_objective_after = None
+            if config.record_telemetry or should_check_objective:
+                evaluated_objective_after = float(
                     model._objective(
                         stats,
                         beta,
@@ -466,25 +483,26 @@ class ADPAlgorithm:
                         lambda_penalty,
                     )
                 )
+            objective_after = (
+                evaluated_objective_after if config.record_telemetry else None
+            )
 
-            should_check_objective = inner == 0 or inner % objective_interval == 0
             objective_delta = math.inf
             if should_check_objective:
-                objective = (
-                    objective_after
-                    if objective_after is not None
-                    else model._objective(
-                        stats, beta, intercepts, slopes, prior, lambda_penalty
+                assert evaluated_objective_after is not None
+                objective = evaluated_objective_after
+                if inner > 0:
+                    assert evaluated_objective_before is not None
+                    objective_delta = abs(
+                        evaluated_objective_before - evaluated_objective_after
                     )
-                )
-                objective_delta = abs(last_objective - objective)
                 last_objective = objective
             else:
                 objective = last_objective
             beta_delta = float(
                 min(
-                    np.linalg.norm(beta - old_beta),
-                    np.linalg.norm(beta + old_beta),
+                    stable_l2_norm(beta - old_beta),
+                    stable_l2_norm(beta + old_beta),
                 )
             )
             solver_telemetry = model._last_solver_telemetry or {}
@@ -612,11 +630,18 @@ class ADPAlgorithm:
             if statistics.weight_nonzero is not None
             else np.zeros_like(masses, dtype=int)
         )
+        # Prior меняется на каждом inner-шаге, поэтому сравнима только пара
+        # objective до/после последнего proximal-шага с одним и тем же prior.
+        last_proximal_step = inner_history[-1] if inner_history else None
         objective_before = (
-            inner_history[0].objective_before if inner_history else None
+            last_proximal_step.objective_before
+            if last_proximal_step is not None
+            else None
         )
         objective_after = (
-            inner_history[-1].objective_after if inner_history else None
+            last_proximal_step.objective_after
+            if last_proximal_step is not None
+            else None
         )
         relative_objective_decrease = math.nan
         if objective_before is not None and objective_after is not None:
@@ -625,14 +650,8 @@ class ADPAlgorithm:
             ) / max(abs(float(objective_before)), float(np.finfo(float).eps))
         beta_before_values = np.asarray(beta_before, dtype=float).reshape(-1)
         beta_after_values = np.asarray(beta_after, dtype=float).reshape(-1)
-        beta_before_unit = beta_before_values / max(
-            float(np.linalg.norm(beta_before_values)),
-            float(np.finfo(float).eps),
-        )
-        beta_after_unit = beta_after_values / max(
-            float(np.linalg.norm(beta_after_values)),
-            float(np.finfo(float).eps),
-        )
+        beta_before_unit = unit_vector(beta_before_values)
+        beta_after_unit = unit_vector(beta_after_values)
         adjacent_cosine = float(
             np.clip(abs(beta_before_unit @ beta_after_unit), 0.0, 1.0)
         )
@@ -654,11 +673,11 @@ class ADPAlgorithm:
                 "h": float(statistics.h),
                 "anisotropy": statistics.anisotropy,
                 "beta": beta_after_values.copy(),
-                "beta_norm": float(np.linalg.norm(beta_after_values)),
+                "beta_norm": stable_l2_norm(beta_after_values),
                 "beta_delta": float(
                     min(
-                        np.linalg.norm(beta_after_unit - beta_before_unit),
-                        np.linalg.norm(beta_after_unit + beta_before_unit),
+                        stable_l2_norm(beta_after_unit - beta_before_unit),
+                        stable_l2_norm(beta_after_unit + beta_before_unit),
                     )
                 ),
                 "adjacent_angle_rad": float(math.acos(adjacent_cosine)),
@@ -795,7 +814,7 @@ class ADPAlgorithm:
                     "lambda_max": lambda_max,
                     "condition": condition,
                     "rank": rank,
-                    "residual": float(np.linalg.norm(response - fitted)),
+                    "residual": stable_l2_norm(response - fitted),
                     "regularization": regularization,
                     "singular": singular,
                 }
@@ -981,7 +1000,7 @@ class ADPAlgorithm:
         if (
             beta_arr.shape != (d,)
             or not np.all(np.isfinite(beta_arr))
-            or np.linalg.norm(beta_arr) == 0.0
+            or stable_l2_norm(beta_arr) == 0.0
         ):
             raise StageExecutionError(
                 category,
@@ -996,7 +1015,7 @@ class ADPAlgorithm:
         if (
             beta_arr.shape != (d,)
             or not np.all(np.isfinite(beta_arr))
-            or np.linalg.norm(beta_arr) == 0.0
+            or stable_l2_norm(beta_arr) == 0.0
         ):
             raise ValueError(
                 f"{name} должен быть конечным ненулевым вектором формы {(d,)}, "

@@ -16,6 +16,15 @@ VariantName = Literal["new"]
 BackendName = Literal["numpy", "cupy"]
 
 
+def _is_finite_number(value: Any) -> bool:
+    if isinstance(value, (bool, np.bool_)):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
 @dataclass(slots=True)
 class ADPConfig:
     """Настройки Average Derivative Procedure.
@@ -84,10 +93,40 @@ class ADPConfig:
             raise ValueError("initial_beta_mode должен быть 'ols' или 'random'")
         if self.local_mass_mode not in {"mean", "quantile"}:
             raise ValueError("local_mass_mode должен быть 'mean' или 'quantile'")
+        if (
+            not isinstance(self.kernel, str)
+            or self.kernel not in {"epanechnikov", "quartic", "gaussian"}
+        ):
+            raise ValueError(
+                "kernel должен быть 'epanechnikov', 'quartic' или 'gaussian'"
+            )
         if self.n_centers is not None and self.n_centers <= 0:
             raise ValueError("n_centers должен быть положительным")
         if self.n_directions <= 0:
             raise ValueError("n_directions должен быть положительным")
+        if (
+            not _is_finite_number(self.min_neighbors)
+            or self.min_neighbors <= 0.0
+        ):
+            raise ValueError("min_neighbors должен быть конечным и положительным")
+        if not _is_finite_number(self.ridge) or self.ridge < 0.0:
+            raise ValueError("ridge должен быть конечным и неотрицательным")
+        if self.lambda_penalty is not None and (
+            not _is_finite_number(self.lambda_penalty)
+            or self.lambda_penalty < 0.0
+        ):
+            raise ValueError(
+                "lambda_penalty должен быть конечным и неотрицательным"
+            )
+        effective_regularization = self.resolved_lambda() + float(self.ridge)
+        if (
+            not math.isfinite(effective_regularization)
+            or effective_regularization <= 0.0
+        ):
+            raise ValueError(
+                "lambda_penalty + ridge должны задавать конечную положительную "
+                "регуляризацию beta"
+            )
         if not 0.0 <= self.local_mass_quantile <= 1.0:
             raise ValueError("local_mass_quantile должен быть в диапазоне [0, 1]")
         if self.scale_expand_steps < 1:
@@ -98,6 +137,12 @@ class ADPConfig:
             raise ValueError("anisotropy_search_steps должен быть положительным")
         if self.objective_check_every < 1:
             raise ValueError("objective_check_every должен быть положительным")
+        if (
+            isinstance(self.chunk_size, bool)
+            or not isinstance(self.chunk_size, int)
+            or self.chunk_size < 1
+        ):
+            raise ValueError("chunk_size должен быть положительным целым")
         if (
             isinstance(self.statistics_workers, bool)
             or not isinstance(self.statistics_workers, int)

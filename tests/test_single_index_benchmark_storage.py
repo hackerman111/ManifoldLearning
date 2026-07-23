@@ -219,6 +219,25 @@ def test_resume_fingerprint_excludes_jobs_retry_and_rejects_scientific_changes(
         SingleIndexSeriesStore.resume(store.series_dir, config)
 
 
+def test_series_persists_local_solvers_and_resume_treats_them_as_scientific(
+    tmp_path,
+):
+    jobs = make_jobs(1)
+    config = make_config(
+        local_solvers=("zero_intercept", "least_squares"),
+    )
+    store = SingleIndexSeriesStore.create(tmp_path, config, jobs)
+
+    series = pd.read_csv(store.series_dir / "series.csv").iloc[0]
+
+    assert series["local_solvers"] == "zero_intercept|least_squares"
+    with pytest.raises(ValueError, match="configuration fingerprint mismatch"):
+        SingleIndexSeriesStore.resume(
+            store.series_dir,
+            replace(config, local_solvers=("least_squares",)),
+        )
+
+
 def test_finalize_streams_committed_shards_in_planned_order_with_stable_headers(
     tmp_path,
 ):
