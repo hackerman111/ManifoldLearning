@@ -38,6 +38,204 @@ def test_zero_intercept_local_solver_is_available_without_changing_default():
     assert model.algorithm.stage_names["local_solver"] == "least_squares"
 
 
+def test_initial_direction_and_bandwidth_experiment_variants_are_registered():
+    registry = StageRegistry.with_defaults()
+
+    assert {
+        "default",
+        "e1",
+        "pca",
+        "ridge_0",
+        "ridge_1e-4",
+        "ridge_1e-5",
+        "ridge_1e-6",
+        "ridge_1e-7",
+        "ridge_1e-2",
+    } <= set(registry.available("beta_initializer"))
+    assert {
+        "adaptive_mass",
+        "local_mass_mean",
+        "local_mass_q0",
+        "local_mass_q05",
+        "local_mass_q10",
+        "local_mass_q25",
+        "knn_q90_k1",
+        "knn_q90_k2",
+        "knn_q90_k4",
+    } <= set(registry.available("bandwidth_selector"))
+
+
+def test_builtin_initial_direction_variants_follow_their_definitions():
+    X = np.array(
+        [
+            [-0.2, -3.0, 1.0],
+            [0.1, -1.0, 1.0],
+            [0.0, 1.0, 1.0],
+            [0.2, 3.0, 1.0],
+        ]
+    )
+    y = np.array([-2.0, -1.0, 1.0, 2.0])
+
+    e1_model = ADP.create(
+        "new",
+        ADPConfig(show_progress=False),
+        stages={"beta_initializer": "e1"},
+    )
+    pca_model = ADP.create(
+        "new",
+        ADPConfig(show_progress=False),
+        stages={"beta_initializer": "pca"},
+    )
+    ridge_models = {
+        eta_scale: ADP.create(
+            "new",
+            ADPConfig(show_progress=False),
+            stages={"beta_initializer": initializer},
+        )
+        for eta_scale, initializer in (
+            (1e-2, "ridge_1e-2"),
+            (1e-4, "ridge_1e-4"),
+            (1e-5, "ridge_1e-5"),
+            (1e-6, "ridge_1e-6"),
+            (1e-7, "ridge_1e-7"),
+        )
+    }
+
+    e1 = e1_model.algorithm.components["beta_initializer"].initialize(X, y)
+    pca = pca_model.algorithm.components["beta_initializer"].initialize(X, y)
+
+    np.testing.assert_array_equal(e1, np.array([1.0, 0.0, 0.0]))
+    assert abs(pca[1]) == pytest.approx(1.0, abs=3e-3)
+    gram = X.T @ X
+    for eta_scale, ridge_model in ridge_models.items():
+        ridge = ridge_model.algorithm.components["beta_initializer"].initialize(
+            X,
+            y,
+        )
+        eta = eta_scale * np.trace(gram) / X.shape[1]
+        expected_ridge = np.linalg.solve(
+            gram + eta * np.eye(X.shape[1]),
+            X.T @ (y - y.mean()),
+        )
+        expected_ridge /= np.linalg.norm(expected_ridge)
+        np.testing.assert_allclose(
+            ridge,
+            expected_ridge,
+            rtol=1e-12,
+            atol=1e-12,
+        )
+
+
+def test_fit_exposes_distinct_beta_reference_and_normalized_zero_step():
+    model = ADP.create(
+        "new",
+        ADPConfig(
+            n_centers=8,
+            n_directions=3,
+            min_neighbors=4,
+            outer_steps=1,
+            inner_steps=2,
+            record_telemetry=True,
+            show_progress=False,
+            random_state=71,
+        ),
+        stages={"beta_initializer": "e1"},
+    )
+    data = model.generate_data(n=40, d=3, noise=0.01, link="linear")
+
+    result = model.fit(
+        data.X,
+        data.y,
+        centers=data.centers,
+        directions=data.directions,
+    )
+
+    np.testing.assert_array_equal(result.beta_ref, np.array([1.0, 0.0, 0.0]))
+    np.testing.assert_allclose(np.linalg.norm(result.beta_hat0), 1.0)
+    np.testing.assert_allclose(result.beta_hat0, result.beta_path[0])
+    assert {
+        "local_mass_min",
+        "local_mass_q05",
+        "local_mass_q10",
+        "local_mass_q25",
+    } <= set(result.outer_telemetry[0])
+
+
+def test_knn_bandwidth_variant_uses_q90_of_requested_neighbor_distance():
+    X = np.array([[0.0], [1.0], [2.0], [10.0]])
+    centers = np.array([[0.0], [10.0]])
+    model = ADP.create(
+        "new",
+        ADPConfig(min_neighbors=2.0, show_progress=False),
+        stages={"bandwidth_selector": "knn_q90_k1"},
+    )
+
+    h0 = model.algorithm.components["bandwidth_selector"].select_initial(
+        X,
+        centers,
+        None,
+    )
+
+    # The second nearest observations are at distances 1 and 8.
+    assert h0 == pytest.approx(np.quantile([1.0, 8.0], 0.9))
+
+
+def test_knn_bandwidth_rounds_the_scaled_neighbor_count_once():
+    X = np.arange(6.0).reshape(-1, 1)
+    centers = np.array([[0.0]])
+    model = ADP.create(
+        "new",
+        ADPConfig(min_neighbors=2.5, show_progress=False),
+        stages={"bandwidth_selector": "knn_q90_k2"},
+    )
+
+    h0 = model.algorithm.components["bandwidth_selector"].select_initial(
+        X,
+        centers,
+        None,
+    )
+
+    # ceil(2 * 2.5) = 5, and the fifth observation is at distance 4.
+    assert h0 == pytest.approx(4.0)
+
+
+@pytest.mark.parametrize(
+    ("name", "quantile"),
+    [
+        ("local_mass_q0", 0.0),
+        ("local_mass_q05", 0.05),
+        ("local_mass_q10", 0.1),
+        ("local_mass_q25", 0.25),
+    ],
+)
+def test_quantile_bandwidth_variants_reach_the_named_local_mass_quantile(
+    name,
+    quantile,
+):
+    X = np.array([[0.0], [0.2], [0.4], [2.0], [4.0]])
+    centers = np.array([[0.0], [0.4], [4.0]])
+    model = ADP.create(
+        "new",
+        ADPConfig(
+            min_neighbors=1.5,
+            scale_expand_steps=20,
+            scale_search_steps=30,
+            show_progress=False,
+        ),
+        stages={"bandwidth_selector": name},
+    )
+
+    h0 = model.algorithm.components["bandwidth_selector"].select_initial(
+        X,
+        centers,
+        None,
+    )
+    q = model._cached_pairwise_norm2(X, centers) / (h0 * h0)
+    masses = model.backend.kernel(q, model.config.kernel).sum(axis=1)
+
+    assert np.quantile(masses, quantile) >= model.config.min_neighbors - 2e-3
+
+
 def test_zero_intercept_local_solver_uses_scalar_adp_regression_and_dtype():
     dtype = np.float32
     beta = np.array([1.0, -0.5], dtype=dtype)

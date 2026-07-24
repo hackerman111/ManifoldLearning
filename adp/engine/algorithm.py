@@ -323,7 +323,7 @@ class ADPAlgorithm:
                 beta_prev,
                 intercepts,
                 slopes,
-                beta_prev,
+                state.prior,
                 lambda_penalty,
             )
         )
@@ -352,6 +352,12 @@ class ADPAlgorithm:
         result.stage_names = dict(self.stage_names)
         result.stage_timings = dict(self.stage_timings)
         result.stage_calls = dict(self.stage_calls)
+        result.beta_ref = np.asarray(state.prior).copy()
+        result.beta_hat0 = (
+            np.asarray(beta_path[0]).copy()
+            if beta_path
+            else np.asarray(beta_prev).copy()
+        )
         result.outer_telemetry = outer_telemetry
         result.local_telemetry = local_telemetry
         result.stop_reason = fit_stop_reason
@@ -371,7 +377,11 @@ class ADPAlgorithm:
         model = self.context.model
         config = self.context.config
         beta = unit_vector(beta_start)
-        initial_prior = beta.copy()
+        initial_prior = (
+            beta.copy()
+            if state is None or state.prior is None
+            else unit_vector(state.prior)
+        )
         if state is None:
             state = ADPState(
                 X=np.empty((0, initial_prior.size)),
@@ -393,7 +403,7 @@ class ADPAlgorithm:
         for inner in range(inner_steps):
             inner_started = time.perf_counter()
             old_beta = beta.copy()
-            prior = old_beta.copy()
+            prior = initial_prior
             old_intercepts = intercepts.copy()
             old_slopes = slopes.copy()
             should_check_objective = inner == 0 or inner % objective_interval == 0
@@ -630,8 +640,8 @@ class ADPAlgorithm:
             if statistics.weight_nonzero is not None
             else np.zeros_like(masses, dtype=int)
         )
-        # Prior меняется на каждом inner-шаге, поэтому сравнима только пара
-        # objective до/после последнего proximal-шага с одним и тем же prior.
+        # objective до/после последнего шага использует один фиксированный
+        # beta_ref, выбранный перед начальной оптимизацией.
         last_proximal_step = inner_history[-1] if inner_history else None
         objective_before = (
             last_proximal_step.objective_before
@@ -688,6 +698,8 @@ class ADPAlgorithm:
                 "local_mass_mean": _array_stat(masses, np.mean),
                 "local_mass_min": _array_stat(masses, np.min),
                 "local_mass_q05": _array_quantile(masses, 0.05),
+                "local_mass_q10": _array_quantile(masses, 0.1),
+                "local_mass_q25": _array_quantile(masses, 0.25),
                 "local_mass_median": _array_quantile(masses, 0.5),
                 "local_mass_q95": _array_quantile(masses, 0.95),
                 "ess_mean": _array_stat(ess, np.mean),

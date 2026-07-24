@@ -138,6 +138,21 @@ class SingleIndexSeriesStore:
     def completed_run_ids(self) -> set[str]:
         return set(self._committed_statuses())
 
+    def committed_status(self, run_id: str) -> str | None:
+        """Return one run's committed status without scanning other shards."""
+
+        _validate_run_id(run_id)
+        marker = self.shard_dir / run_id / "run_summary.csv"
+        if not marker.exists():
+            return None
+        row = _read_single_row(marker, RUN_SUMMARY_COLUMNS)
+        marker_run_id = str(row.get("run_id", ""))
+        if marker_run_id != run_id:
+            raise ValueError(
+                f"run marker identity mismatch: {marker_run_id!r} != {run_id!r}"
+            )
+        return str(row.get("status", ""))
+
     def pending_jobs(
         self,
         jobs: Sequence[SingleIndexJob],
@@ -287,16 +302,9 @@ class SingleIndexSeriesStore:
         for run_dir in sorted(self.shard_dir.iterdir()):
             if not run_dir.is_dir() or run_dir.name.startswith("pending-"):
                 continue
-            marker = run_dir / "run_summary.csv"
-            if not marker.exists():
-                continue
-            row = _read_single_row(marker, RUN_SUMMARY_COLUMNS)
-            run_id = str(row.get("run_id", ""))
-            if run_id != run_dir.name:
-                raise ValueError(
-                    f"run marker identity mismatch: {run_id!r} != {run_dir.name!r}"
-                )
-            statuses[run_id] = str(row.get("status", ""))
+            status = self.committed_status(run_dir.name)
+            if status is not None:
+                statuses[run_dir.name] = status
         return statuses
 
     def _merge_order(self, committed: Mapping[str, str]) -> tuple[str, ...]:

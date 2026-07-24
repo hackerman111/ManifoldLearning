@@ -69,6 +69,16 @@ class DiagnosticsMixin:
             "h": float(result.statistics.h),
             "weights_mean": float(result.statistics.weights_mean),
             "objective": float(result.objective),
+            "beta_ref": (
+                None
+                if result.beta_ref is None
+                else np.asarray(result.beta_ref).tolist()
+            ),
+            "beta_hat0": (
+                None
+                if result.beta_hat0 is None
+                else np.asarray(result.beta_hat0).tolist()
+            ),
             "progress_last": dict(result.progress[-1]) if result.progress else None,
             "diagnostic_plots": {name: str(path) for name, path in self.diagnostic_plots_.items()},
             "timings": dict(result.timings),

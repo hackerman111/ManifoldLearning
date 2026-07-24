@@ -73,6 +73,41 @@ result.stage_timings
 result.stage_calls
 ```
 
+### Варианты начального направления и \(h_0\)
+
+Фиксированное направление штрафа хранится отдельно как `result.beta_ref`, а
+нормированный результат первого outer-шага — как `result.beta_hat0`.
+Встроенные варианты `beta_initializer`:
+
+- `e1` — контрольное \(e_1\);
+- `pca` — первый главный компонент центрированной выборки \(X\);
+- `ridge_0`, `ridge_1e-4`, `ridge_1e-2` — нормированное направление
+  \((X^\mathsf{T}X+\eta I)^{-1}X^\mathsf{T}(Y-\bar Y)\), где суффикс задаёт
+  множитель перед \(\operatorname{tr}(X^\mathsf{T}X)/d\).
+
+Например:
+
+```python
+model = ADP.create(
+    "new",
+    ADPConfig(show_progress=False),
+    stages={"beta_initializer": "ridge_1e-4"},
+)
+```
+
+Варианты `bandwidth_selector`:
+
+- `local_mass_mean` — прежнее среднее условие;
+- `local_mass_q0`, `local_mass_q05`, `local_mass_q10`, `local_mass_q25` —
+  условие по соответствующему нижнему квантилю локальной массы;
+- `knn_q90_k1`, `knn_q90_k2`, `knn_q90_k4` — \(Q_{0.9}\) расстояния до
+  \(K\)-го наблюдения для \(K=n_{\min},2n_{\min},4n_{\min}\).
+
+Все варианты меняют только начальный \(h_0\); последующий anisotropy-шаг
+остаётся общим. При `record_telemetry=True` первый элемент
+`result.outer_telemetry` содержит `h`, `local_mass_min`, `local_mass_q05`,
+`local_mass_q10` и `local_mass_q25`.
+
 ## Время и потребление памяти
 
 Каждый вызов `fit()` автоматически измеряет wall-clock время алгоритма и RSS
@@ -225,8 +260,167 @@ python run_benchmarks.py single-index \
 PNG строятся только из этих CSV и сохраняются в `plots/experiment_<selector>/`
 и `plots/summary/`. JSON-файлы новый benchmark не создаёт.
 
-Сравнение времени и памяти двух ADP-совместимых моделей на сетке эксперимента 2
-вынесено в отдельный модуль:
+Для сравнения нескольких реализаций достаточно создать Python-файл с
+именованными фабриками:
+
+```python
+from adp import ADP, ADPConfig
+
+
+def baseline():
+    return ADP.create("new", ADPConfig(show_progress=False))
+
+
+def candidate():
+    return ADP.create(
+        "new",
+        ADPConfig(show_progress=False),
+        stages={"local_solver": "zero_intercept"},
+    )
+
+
+MODELS = {
+    "baseline": baseline,
+    "candidate": candidate,
+}
+```
+
+Первая модель считается baseline, остальные сравниваются с ней. Порядок
+словаря сохраняется. Готовый пример с тремя реализациями находится в
+`examples/model_comparison_models.py`:
+
+```bash
+python run_benchmarks.py compare \
+  --models examples/model_comparison_models.py \
+  --profile smoke \
+  --seeds 0:4 \
+  --jobs 1 \
+  --output benchmark_outputs/model_comparison
+```
+
+Каждый `fit` выполняется в новом процессе. Все модели одной группы получают
+одинаковые `X`, `y`, центры, начальное `beta` и направления, запускаются
+последовательно на одном CPU, а их порядок циклически меняется между seed.
+`--jobs` задаёт число параллельных групп. Для измерения latency без конкуренции
+используйте `--jobs 1`; большие значения измеряют throughput под параллельной
+нагрузкой.
+
+Для эксперимента с внутренними `beta_initializer` общий внешний `beta0`
+необходимо отключить. Два готовых набора моделей запускаются так:
+
+```bash
+python run_benchmarks.py compare \
+  --models examples/initial_direction_models.py \
+  --use-model-initializers \
+  --experiments 2:6 \
+  --profile smoke \
+  --seeds 0:4 \
+  --jobs 1 \
+  --output benchmark_outputs/initial_direction
+
+python run_benchmarks.py compare \
+  --models examples/initial_bandwidth_models.py \
+  --use-model-initializers \
+  --experiments 2:6 \
+  --profile smoke \
+  --seeds 0:4 \
+  --jobs 1 \
+  --output benchmark_outputs/initial_bandwidth
+```
+
+Для отдельного сравнения контрольного направления с малыми значениями
+`ridge_eta` используйте готовый набор из четырёх режимов:
+
+```bash
+python run_benchmarks.py compare \
+  --models examples/ridge_eta_comparison_models.py \
+  --use-model-initializers \
+  --experiments 2:6 \
+  --profile smoke \
+  --seeds 0:25 \
+  --jobs 9 \
+  --output benchmark_outputs/ridge_eta_comparison
+```
+
+Первым baseline идёт обычный контрольный режим `e1_control`, затем
+`ridge_eta_1e-4`, `ridge_eta_1e-5` и `ridge_eta_1e-6`.
+
+Для отдельной ручной сетки эксперимента 2 доступны `--d` и `--n-over-d`.
+Обе опции обязательны вместе и принимают списки через запятую. Например,
+сравнение `e1_control`, `ridge_eta_1e-6` и `ridge_eta_1e-7` запускается так:
+
+```bash
+python run_benchmarks.py compare \
+  --models examples/small_ridge_comparison_models.py \
+  --use-model-initializers \
+  --experiments 2 \
+  --d 5,10 \
+  --n-over-d 5,10 \
+  --seeds 0:25 \
+  --jobs 9 \
+  --output benchmark_outputs/small_ridge_comparison
+```
+
+Ручная сетка использует генератор и параметры эксперимента 2. Поэтому
+результаты получают те же таблицы и отдельные графики времени, памяти и
+абсолютного косинуса для каждого `d`.
+
+Финальное двухмодельное сравнение `e1_control` против `ridge_eta_1e-6`
+использует отдельный конфиг:
+
+```bash
+python run_benchmarks.py compare \
+  --models examples/final_ridge_comparison_models.py \
+  --use-model-initializers \
+  --experiments 2 \
+  --d 5,10 \
+  --n-over-d 5,10 \
+  --seeds 0:25 \
+  --jobs 9 \
+  --output benchmark_outputs/final_ridge_comparison
+```
+
+В этом режиме `X`, `y`, центры и случайные направления остаются одинаковыми,
+но каждая модель сама строит `beta_ref`. `runs.csv` дополнительно сохраняет
+`beta_initializer`, `bandwidth_selector`, `beta_ref_encoded`,
+`beta_hat0_encoded`, начальный `h` и квантильные диагностики локальной массы.
+В готовых файлах `min_neighbors=4`, чтобы условие было достижимо даже на
+минимальном smoke-наборе с `n=8`; для основной серии значение меняется в
+функции `_config()` обоих файлов.
+
+`--experiments` принимает список (`2,4,6`) или включительный диапазон
+ (`2:6`). Для каждого выбранного эксперимента используются его штатные
+ `smoke_parameter_grid()` или `full_parameter_grid()`:
+
+- 2 — размерность и отношение `n/d`;
+- 3 — уровень шума `sigma_eps`;
+- 4 — корреляция признаков `rho_corr`;
+- 5 — масштаб признаков `sigma_x`;
+- 6 — функция связи `link`.
+
+`runs.csv`, `model_summary.csv`, `comparisons.csv` и
+`comparison_summary.csv` содержат номер эксперимента и полный набор параметров.
+При выборе нескольких экспериментов heatmap сохраняются раздельно в
+`plots/experiment_2/`, ..., `plots/experiment_6/`.
+
+Результат содержит:
+
+- `runs.csv` — все запуски, метрики времени/памяти/качества и ошибки;
+- `model_summary.csv` — агрегаты отдельно для каждой модели;
+- `comparisons.csv` — каждый candidate против baseline на том же seed;
+- `comparison_summary.csv` — агрегированные speedup, memory ratio и
+  эквивалентность;
+- `manifest.json` — команда, модели и параметры серии;
+- `plots/` — для каждого `d` отдельные графики runtime, peak RSS и
+  медианного `|cos|` по `n/d`, а также heatmap каждого candidate. При
+  нескольких экспериментах эти графики лежат в `plots/experiment_<id>/`.
+
+Падение одной реализации записывается в `runs.csv`, остальные запуски
+продолжаются; после сохранения артефактов CLI возвращает ненулевой код. Разные
+численные ответы по умолчанию допустимы. Флаг `--require-equivalent` делает
+расхождение с baseline ошибкой команды.
+
+Программный API сравнения двух ADP-совместимых моделей остаётся доступен:
 
 ```python
 from experiments.compare_model_efficiency import (

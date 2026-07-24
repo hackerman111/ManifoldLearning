@@ -38,6 +38,12 @@ def main(argv: list[str] | None = None) -> int:
         return run_benchmark_command(args[1:])
     if args and args[0] == "single-index":
         return run_single_index_command(args[1:])
+    if args and args[0] == "compare":
+        from experiments.compare_model_efficiency import (
+            run_model_set_command,
+        )
+
+        return run_model_set_command(args[1:])
     if args and args[0] in {"-h", "--help"}:
         build_top_parser().parse_args(args)
         return 0
@@ -55,6 +61,10 @@ def build_top_parser() -> argparse.ArgumentParser:
         help="Run the reproducible single-index ADP experiment series.",
     )
     subparsers.add_parser("stress", help="Run ADP single-index stress profiles.")
+    subparsers.add_parser(
+        "compare",
+        help="Compare model implementations from a Python MODELS mapping.",
+    )
     return parser
 
 

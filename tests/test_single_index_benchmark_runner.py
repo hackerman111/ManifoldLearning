@@ -248,11 +248,16 @@ class _ProgressRecorder:
 
 
 class _CommittedStore:
-    def __init__(self, run_id):
+    def __init__(self, run_id, status="success"):
         self.run_id = run_id
+        self.status = status
+
+    def committed_status(self, run_id):
+        assert run_id == self.run_id
+        return self.status
 
     def completed_run_ids(self):
-        return {self.run_id}
+        raise AssertionError("progress must not scan every committed run")
 
 
 def test_interactive_tqdm_updates_without_printing_a_new_line(capsys):
@@ -285,6 +290,58 @@ def test_disabled_tqdm_keeps_line_oriented_progress_for_redirected_logs(capsys):
     )
 
 
+def test_parallel_worker_verifies_only_its_commit_marker(tmp_path, monkeypatch):
+    job = build_single_index_jobs(
+        SingleIndexSeriesConfig(profile="smoke", max_runs=1)
+    )[0]
+    config = SingleIndexSeriesConfig(profile="smoke", max_runs=1)
+    outcome = SimpleNamespace(
+        run_row={"run_id": job.run_id, "status": "success"}
+    )
+
+    class RecordingStore:
+        def __init__(self):
+            self.series_dir = tmp_path
+            self.committed = False
+
+        def commit(self, actual_outcome):
+            assert actual_outcome is outcome
+            self.committed = True
+
+        def committed_status(self, run_id):
+            assert run_id == job.run_id
+            return "success" if self.committed else None
+
+        def completed_run_ids(self):
+            raise AssertionError("worker must not scan every committed run")
+
+    store = RecordingStore()
+
+    class RecordingStoreFactory:
+        @staticmethod
+        def resume(series_dir, actual_config):
+            assert series_dir == tmp_path
+            assert actual_config is config
+            return store
+
+    monkeypatch.setattr(
+        single_index_runner,
+        "SingleIndexSeriesStore",
+        RecordingStoreFactory,
+    )
+    monkeypatch.setattr(
+        single_index_runner,
+        "execute_job",
+        lambda actual_job, actual_config: outcome,
+    )
+
+    assert single_index_runner._execute_and_commit(
+        tmp_path,
+        job,
+        config,
+    ) == (job.run_id, "success")
+
+
 def test_jobs_one_uses_serial_path_without_process_pool(tmp_path, monkeypatch):
     executed = []
 
@@ -299,6 +356,9 @@ def test_jobs_one_uses_serial_path_without_process_pool(tmp_path, monkeypatch):
 
         def commit(self, outcome):
             self.completed.add(outcome.run_row["run_id"])
+
+        def committed_status(self, run_id):
+            return "success" if run_id in self.completed else None
 
         def completed_run_ids(self):
             return set(self.completed)

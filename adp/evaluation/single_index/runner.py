@@ -269,8 +269,12 @@ def _execute_and_commit(
     outcome = execute_job(job, config)
     store.commit(outcome)
     status = str(outcome.run_row["status"])
-    if job.run_id not in store.completed_run_ids():
-        raise RuntimeError(f"commit marker was not published for {job.run_id}")
+    committed_status = store.committed_status(job.run_id)
+    if committed_status != status:
+        raise RuntimeError(
+            f"commit marker for {job.run_id} has status "
+            f"{committed_status!r}, expected {status!r}"
+        )
     return job.run_id, status
 
 
@@ -282,8 +286,12 @@ def _mark_job_done(
     job: SingleIndexJob,
     status: str,
 ) -> int:
-    if job.run_id not in store.completed_run_ids():
-        raise RuntimeError(f"progress advanced before commit marker for {job.run_id}")
+    committed_status = store.committed_status(job.run_id)
+    if committed_status != status:
+        raise RuntimeError(
+            f"progress advanced before a matching commit marker for "
+            f"{job.run_id}: got {committed_status!r}, expected {status!r}"
+        )
     completed += 1
     progress.set_postfix(
         {

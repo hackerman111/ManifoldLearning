@@ -28,6 +28,26 @@ DEFAULT_STAGE_NAMES: dict[str, str] = {
 }
 
 EXTRA_BUILTIN_STAGE_NAMES: dict[str, tuple[str, ...]] = {
+    "beta_initializer": (
+        "e1",
+        "pca",
+        "ridge_0",
+        "ridge_1e-4",
+        "ridge_1e-5",
+        "ridge_1e-6",
+        "ridge_1e-7",
+        "ridge_1e-2",
+    ),
+    "bandwidth_selector": (
+        "local_mass_mean",
+        "local_mass_q0",
+        "local_mass_q05",
+        "local_mass_q10",
+        "local_mass_q25",
+        "knn_q90_k1",
+        "knn_q90_k2",
+        "knn_q90_k4",
+    ),
     "local_solver": ("zero_intercept",),
 }
 

@@ -279,6 +279,8 @@ class ADPResult:
     timings: dict[str, float] = field(default_factory=dict)
     diagnostic_plots: dict[str, Path] = field(default_factory=dict)
     beta_path: list[np.ndarray] = field(default_factory=list)
+    beta_ref: np.ndarray | None = None
+    beta_hat0: np.ndarray | None = None
     stage_names: dict[str, str] = field(default_factory=dict)
     stage_timings: dict[str, float] = field(default_factory=dict)
     stage_calls: dict[str, int] = field(default_factory=dict)

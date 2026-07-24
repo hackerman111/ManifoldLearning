@@ -171,6 +171,27 @@ def test_create_writes_running_series_and_resume_uses_only_markers(tmp_path):
     assert series["requested_jobs"] == 2
 
 
+def test_committed_status_reads_only_the_requested_marker(tmp_path, monkeypatch):
+    first, second = make_jobs()
+    store = SingleIndexSeriesStore.create(
+        tmp_path,
+        make_config(),
+        (first, second),
+    )
+    store.commit(make_outcome(first))
+
+    monkeypatch.setattr(
+        store,
+        "_committed_statuses",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("target lookup must not scan every committed run")
+        ),
+    )
+
+    assert store.committed_status(first.run_id) == "success"
+    assert store.committed_status(second.run_id) is None
+
+
 def test_retry_replaces_failed_marker_and_every_payload_fragment(tmp_path):
     job = make_jobs(1)[0]
     config = make_config()

@@ -192,7 +192,7 @@ def _recording_model(*, record_telemetry: bool):
     return model, beta_solver, stop_rule
 
 
-def test_each_inner_beta_update_uses_the_previous_inner_beta_as_prior():
+def test_each_inner_beta_update_keeps_initial_beta_reference_fixed():
     model, beta_solver, _ = _recording_model(record_telemetry=False)
 
     model._alternating_solve(
@@ -204,9 +204,15 @@ def test_each_inner_beta_update_uses_the_previous_inner_beta_as_prior():
     )
 
     assert len(beta_solver.calls) == 3
-    for prior, start in beta_solver.calls:
-        np.testing.assert_allclose(prior, start, rtol=0.0, atol=1e-15)
-    assert not np.allclose(beta_solver.calls[0][0], beta_solver.calls[1][0])
+    expected_reference = np.array([1.0, 0.0, 0.0])
+    for prior, _ in beta_solver.calls:
+        np.testing.assert_allclose(
+            prior,
+            expected_reference,
+            rtol=0.0,
+            atol=1e-15,
+        )
+    assert not np.allclose(beta_solver.calls[0][1], beta_solver.calls[1][1])
 
 
 def test_objective_stopping_delta_compares_values_within_the_same_inner_step():
