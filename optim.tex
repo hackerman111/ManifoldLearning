@@ -1,0 +1,164 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{amsmath,amssymb,bm}
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage{microtype}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\T}{\mathsf{T}}
+\newcommand{\Id}{I}
+
+\title{Задача оптимизации в Average Derivative Procedure}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+Рассматривается одноиндексная модель
+\[
+Y_i=f(\bm\beta^{\T}X_i)+\varepsilon_i,
+\qquad
+X_i\in\R^d,
+\qquad
+\|\bm\beta\|_2=1.
+\]
+Для локального центра $x_j$ задаются веса $w_{ij}$ и их взвешенное среднее
+\[
+M_j=\frac{\sum_i w_{ij}X_i}{\sum_i w_{ij}}.
+\]
+Центрирование относительно $M_j$ даёт
+\[
+\sum_i w_{ij}(X_i-M_j)=0.
+\]
+Поэтому свободный член локальной линейной аппроксимации не входит в направленные статистики: в задаче ADP можно положить $c_j=0$.
+
+Для набора направлений $\{\varphi_{jr}\}_{r=1}^{P}$ определим
+\[
+I_{jr}
+=
+\sum_i Y_i\,\langle X_i-M_j,\varphi_{jr}\rangle w_{ij},
+\]
+\[
+U_{jr}
+=
+\sum_i (X_i-M_j)
+\langle X_i-M_j,\varphi_{jr}\rangle w_{ij}
+\in\R^d.
+\]
+Положим
+\[
+\bm I_j=(I_{j1},\ldots,I_{jP})^{\T}\in\R^P,
+\qquad
+U_j=
+\begin{pmatrix}
+U_{j1}^{\T}\\
+\vdots\\
+U_{jP}^{\T}
+\end{pmatrix}
+\in\R^{P\times d}.
+\]
+Локальная линеаризация функции связи приводит к модели
+\[
+\bm I_j\approx \ell_jU_j\bm\beta,
+\]
+где $\ell_j$ аппроксимирует локальную производную
+$f'(\bm\beta^{\T}M_j)$.
+
+\section*{Совместная задача}
+При фиксированных весах и статистиках внутренняя задача ADP имеет вид
+\begin{equation}
+\min_{\substack{\bm\beta\in\R^d,\;\|\bm\beta\|_2=1\\
+\ell_1,\ldots,\ell_J\in\R}}
+\frac12\sum_{j=1}^{J}
+\|\bm I_j-\ell_jU_j\bm\beta\|_2^2.
+\label{eq:joint}
+\end{equation}
+Произведение $\ell_jU_j\bm\beta$ билинейно по паре $(\ell_j,\bm\beta)$, поэтому задача \eqref{eq:joint} совместно невыпукла. При фиксации одного блока она становится выпуклой квадратичной задачей по другому блоку. Тем самым \eqref{eq:joint} имеет бивыпуклую структуру.
+
+Кроме того, модель неидентифицируема по масштабу:
+\[
+\bm\beta\mapsto a\bm\beta,
+\qquad
+\ell_j\mapsto a^{-1}\ell_j.
+\]
+Ограничение $\|\bm\beta\|_2=1$ устраняет эту неоднозначность с точностью до знака $\bm\beta\sim-\bm\beta$.
+
+\section*{Альтернированные подзадачи}
+При фиксированной $\bm\beta$ каждая локальная задача независима:
+\[
+\widehat\ell_j
+=
+\arg\min_{\ell\in\R}
+\|\bm I_j-\ell U_j\bm\beta\|_2^2.
+\]
+Её замкнутое решение равно
+\begin{equation}
+\widehat\ell_j
+=
+\frac{\langle\bm I_j,U_j\bm\beta\rangle}
+{\|U_j\bm\beta\|_2^2}.
+\label{eq:l-update}
+\end{equation}
+При малом знаменателе применяется ridge-модификация
+\[
+\widehat\ell_j
+=
+\frac{\langle\bm I_j,U_j\bm\beta\rangle}
+{\|U_j\bm\beta\|_2^2+\eta},
+\qquad \eta>0.
+\]
+
+При фиксированных $(\ell_j)_{j=1}^{J}$ рассматривается регуляризованная подзадача
+\begin{equation}
+\min_{\bm\beta\in\R^d}
+\frac12\sum_{j=1}^{J}
+\|\bm I_j-\ell_jU_j\bm\beta\|_2^2
++
+\frac{\lambda}{2}
+\|\bm\beta-\bm\beta_{\mathrm{init}}\|_2^2.
+\label{eq:beta-subproblem}
+\end{equation}
+Её гессиан
+\[
+H=\sum_{j=1}^{J}\ell_j^2U_j^{\T}U_j+\lambda\Id_d
+\]
+положительно полуопределён при $\lambda=0$ и положительно определён при $\lambda>0$. Условие первого порядка имеет вид
+\[
+H\widehat{\bm\beta}=b,
+\qquad
+b=
+\sum_{j=1}^{J}\ell_jU_j^{\T}\bm I_j
++
+\lambda\bm\beta_{\mathrm{init}}.
+\]
+Следовательно,
+\begin{equation}
+\widehat{\bm\beta}
+=
+\left(
+\sum_{j=1}^{J}\ell_j^2U_j^{\T}U_j+\lambda\Id_d
+\right)^{-1}
+\left(
+\sum_{j=1}^{J}\ell_jU_j^{\T}\bm I_j
++\lambda\bm\beta_{\mathrm{init}}
+\right).
+\label{eq:beta-update}
+\end{equation}
+Формула \eqref{eq:beta-update} представляет нормальные уравнения ridge-регрессии. В реализации обратная матрица не строится: решается система $H\widehat{\bm\beta}=b$.
+
+После свободного решения выполняется нормировка
+\[
+s=\|\widehat{\bm\beta}\|_2,
+\qquad
+\bm\beta\leftarrow\widehat{\bm\beta}/s,
+\qquad
+\ell_j\leftarrow s\ell_j,
+\]
+которая сохраняет произведения $\ell_jU_j\bm\beta$. Такая проекция не совпадает с точным решением квадратичной задачи непосредственно на сфере. Для точного учёта ограничения $\|\bm\beta\|_2=1$ требуется сферический, или риманов, решатель.
+
+\end{document}
