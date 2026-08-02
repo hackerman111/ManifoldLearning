@@ -155,6 +155,88 @@ def full_span_check():
     )
 
 
+def scale_equivariance_check():
+    rng = np.random.default_rng(4402)
+    m, d = 12, 5
+    left = np.linalg.qr(rng.normal(size=(m, d)))[0]
+    right = np.linalg.qr(rng.normal(size=(d, d)))[0]
+    A = left @ np.diag(np.geomspace(2.0, 0.2, d)) @ right.T
+    beta_prior = rng.normal(size=d)
+    beta_prior /= np.linalg.norm(beta_prior)
+    correction = right @ np.linspace(0.5, 1.5, d)
+    noise = rng.normal(size=m)
+    noise -= left @ (left.T @ noise)
+    noise /= np.linalg.norm(noise)
+    I = A @ beta_prior + A @ correction + 0.1 * noise
+    scale = 1e-17
+
+    beta, record = ADP_single_index()._hybrid_krylov(
+        I.reshape(1, m), A.reshape(1, m, d), np.ones(1), beta_prior
+    )
+    scaled_beta, scaled_record = ADP_single_index()._hybrid_krylov(
+        (scale * I).reshape(1, m),
+        (scale * A).reshape(1, m, d),
+        np.ones(1),
+        beta_prior,
+    )
+    direction_error = min(
+        np.linalg.norm(beta - scaled_beta),
+        np.linalg.norm(beta + scaled_beta),
+    )
+    lambda_ratio = (
+        scaled_record["selected_lambda"]
+        / (scale**2 * record["selected_lambda"])
+        if (
+            record["selected_lambda"] is not None
+            and scaled_record["selected_lambda"] is not None
+        )
+        else math.nan
+    )
+    return (
+        bool(
+            record["solver_status"] == scaled_record["solver_status"]
+            and record["krylov_iterations"] == scaled_record["krylov_iterations"]
+            and record["lambda_at_boundary"]
+            == scaled_record["lambda_at_boundary"]
+            and direction_error < 1e-10
+            and np.isclose(lambda_ratio, 1.0, rtol=1e-9, atol=0.0)
+        ),
+        record,
+        scaled_record,
+        direction_error,
+        lambda_ratio,
+    )
+
+
+def initial_orthogonal_residual_check():
+    A = np.array(
+        [
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [0.0, 0.0],
+        ]
+    )
+    beta_prior = np.array([3.0, 4.0]) / 5.0
+    residual = np.array([0.0, 0.0, 2.0])
+    I = A @ beta_prior + residual
+    beta, record = ADP_single_index()._hybrid_krylov(
+        I.reshape(1, 3), A.reshape(1, 3, 2), np.ones(1), beta_prior
+    )
+    expected_gcv = np.dot(residual, residual)
+    return (
+        bool(
+            record["solver_status"] == "breakdown"
+            and record["krylov_iterations"] == 0
+            and record["selected_lambda"] is None
+            and not record["lambda_at_boundary"]
+            and np.array_equal(beta, beta_prior)
+            and np.isclose(record["projected_gcv"], expected_gcv)
+        ),
+        expected_gcv,
+        record["projected_gcv"],
+    )
+
+
 def _positive_integer(value):
     return (
         not isinstance(value, (bool, np.bool_))
@@ -285,11 +367,23 @@ def main(argv=None):
     initial_cosine = _safe_cosine(beta_initial, beta_true)
     final_cosine = _safe_cosine(beta_final, beta_true)
     full_span_valid, direction_error = full_span_check()
+    (
+        scale_valid,
+        unscaled_record,
+        scaled_record,
+        scale_direction_error,
+        lambda_ratio,
+    ) = scale_equivariance_check()
+    k0_valid, expected_k0_gcv, actual_k0_gcv = (
+        initial_orthogonal_residual_check()
+    )
     checks = {
         "projected_ridge": projected_ridge_check(),
         "full_span": full_span_valid,
         "rank_deficient": rank_deficient_check(),
         "flat_boundary": flat_boundary_check(),
+        "scale_equivariance": scale_valid,
+        "k0_gcv": k0_valid,
     }
     timing_names = (
         "initialization",
@@ -355,7 +449,14 @@ def main(argv=None):
     print(
         "numerical_checks "
         + " ".join(f"{name}={'PASS' if valid else 'FAIL'}" for name, valid in checks.items())
-        + f" full_span_direction_error={direction_error:.3e}"
+        + f" full_span_direction_error={direction_error:.3e} "
+        f"scale_direction_error={scale_direction_error:.3e} "
+        f"lambda_scale_ratio={lambda_ratio:.6f} "
+        f"unscaled_status={unscaled_record['solver_status']} "
+        f"scaled_status={scaled_record['solver_status']} "
+        f"unscaled_iterations={unscaled_record['krylov_iterations']} "
+        f"scaled_iterations={scaled_record['krylov_iterations']} "
+        f"k0_gcv={actual_k0_gcv:.6e} expected_k0_gcv={expected_k0_gcv:.6e}"
     )
     print(
         "timings_sec "

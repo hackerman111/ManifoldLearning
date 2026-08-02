@@ -208,18 +208,32 @@ class ADP_single_index(_ADP_single_index):
             raise RuntimeError("Krylov solver received an invalid beta")
         fitted = matvec(beta_prior)
         residual = I.ravel() - fitted
+        right_hand_side_norm = np.linalg.norm(I.ravel())
+        fitted_norm = np.linalg.norm(fitted)
         rho = np.linalg.norm(residual)
-        residual_scale = np.finfo(float).eps * max(
-            1.0, np.linalg.norm(I.ravel()), np.linalg.norm(fitted)
+        residual_tolerance = np.finfo(float).eps * max(
+            right_hand_side_norm, fitted_norm
+        )
+        # Frobenius norm of A without materializing its rows.
+        operator_scale_squared = np.einsum(
+            "j,jpd,jpd->",
+            np.square(slopes),
+            U,
+            U,
+            optimize=True,
         )
         if not (
             np.all(np.isfinite(fitted))
             and np.all(np.isfinite(residual))
+            and np.isfinite(right_hand_side_norm)
+            and np.isfinite(fitted_norm)
             and np.isfinite(rho)
-            and np.isfinite(residual_scale)
+            and np.isfinite(residual_tolerance)
+            and np.isfinite(operator_scale_squared)
+            and operator_scale_squared >= 0
         ):
             raise RuntimeError("Krylov solver received nonfinite data")
-        if rho <= residual_scale:
+        if rho <= residual_tolerance:
             return beta_prior.copy(), {
                 "solver_status": "zero_residual",
                 "krylov_iterations": 0,
@@ -229,6 +243,9 @@ class ADP_single_index(_ADP_single_index):
             }
 
         unit_roundoff = np.finfo(float).eps
+        recurrence_tolerance = unit_roundoff * math.sqrt(
+            operator_scale_squared
+        )
         u = residual / rho
         transpose_product = rmatvec(u)
         alpha = np.linalg.norm(transpose_product)
@@ -238,12 +255,12 @@ class ADP_single_index(_ADP_single_index):
             and np.isfinite(alpha)
         ):
             raise RuntimeError("Krylov recurrence returned nonfinite values")
-        if alpha <= unit_roundoff * max(1.0, np.linalg.norm(transpose_product)):
+        if alpha <= recurrence_tolerance:
             return beta_prior.copy(), {
                 "solver_status": "breakdown",
                 "krylov_iterations": 0,
                 "selected_lambda": previous_lambda,
-                "projected_gcv": 0.0,
+                "projected_gcv": float(rho**2),
                 "lambda_at_boundary": False,
             }
         v = transpose_product / alpha
@@ -279,9 +296,7 @@ class ADP_single_index(_ADP_single_index):
                 and np.isfinite(beta_coefficient)
             ):
                 raise RuntimeError("Krylov recurrence returned nonfinite values")
-            beta_breakdown = beta_coefficient <= unit_roundoff * max(
-                1.0, np.linalg.norm(product), abs(alpha)
-            )
+            beta_breakdown = beta_coefficient <= recurrence_tolerance
             subdiagonal.append(float(beta_coefficient))
 
             next_u = next_v = None
@@ -303,11 +318,7 @@ class ADP_single_index(_ADP_single_index):
                     and np.isfinite(next_alpha)
                 ):
                     raise RuntimeError("Krylov recurrence returned nonfinite values")
-                alpha_breakdown = next_alpha <= unit_roundoff * max(
-                    1.0,
-                    np.linalg.norm(next_transpose_product),
-                    abs(beta_coefficient),
-                )
+                alpha_breakdown = next_alpha <= recurrence_tolerance
                 if not alpha_breakdown:
                     next_v = next_v_raw / next_alpha
 
