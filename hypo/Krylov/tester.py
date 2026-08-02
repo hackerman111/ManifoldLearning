@@ -192,15 +192,24 @@ def _valid_trace_row(row):
         return False
     status = row.get("solver_status")
     iterations = row.get("krylov_iterations")
+    if not isinstance(status, str) or status not in {
+        "stabilized",
+        "max_iterations",
+        "breakdown",
+        "zero_residual",
+    }:
+        return False
+    if (
+        isinstance(iterations, (bool, np.bool_))
+        or not isinstance(iterations, (int, np.integer))
+        or iterations < 0
+    ):
+        return False
     selected_lambda = row.get("selected_lambda")
     lambda_valid = selected_lambda is None or _finite_positive(selected_lambda)
     requires_lambda = iterations != 0 or status not in {"zero_residual", "breakdown"}
     return bool(
-        status in {"stabilized", "max_iterations", "breakdown", "zero_residual"}
-        and not isinstance(iterations, (bool, np.bool_))
-        and isinstance(iterations, (int, np.integer))
-        and iterations >= 0
-        and _finite_nonnegative(row.get("projected_gcv"))
+        _finite_nonnegative(row.get("projected_gcv"))
         and isinstance(row.get("lambda_at_boundary"), (bool, np.bool_))
         and lambda_valid
         and (not requires_lambda or selected_lambda is not None)
