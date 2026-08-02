@@ -55,16 +55,11 @@ class ADP_single_index(_ADP_single_index):
             )
         except np.linalg.LinAlgError as error:
             raise RuntimeError("projected Krylov SVD failed") from error
+        if singular_values.size == 0 or not np.all(np.isfinite(singular_values)):
+            raise RuntimeError("projected Krylov spectrum is invalid")
         largest = singular_values[0]
-        rank_tolerance = (
-            np.finfo(float).eps * max(B.shape) * largest
-        )
-        if (
-            not np.all(np.isfinite(singular_values))
-            or largest <= 0
-            or singular_values[-1] <= rank_tolerance
-        ):
-            raise RuntimeError("projected Krylov matrix is singular")
+        if largest <= 0:
+            raise RuntimeError("projected Krylov spectrum is invalid")
 
         rhs = np.zeros(B.shape[0])
         rhs[0] = rho
@@ -113,8 +108,27 @@ class ADP_single_index(_ADP_single_index):
         if not np.any(np.isfinite(scores)):
             raise RuntimeError("projected GCV has no finite criterion")
         best = int(np.argmin(scores))
-        if best in (0, grid.size - 1):
-            if best == 0:
+
+        def tied_boundaries():
+            def tied(score):
+                tolerance = 64 * np.finfo(float).eps * max(
+                    np.finfo(float).tiny,
+                    abs(score),
+                    abs(scores[best]),
+                )
+                return bool(
+                    np.isfinite(score)
+                    and abs(score - scores[best]) <= tolerance
+                )
+
+            return (
+                tied(scores[0]),
+                tied(scores[-1]),
+            )
+
+        lower_boundary, upper_boundary = tied_boundaries()
+        if lower_boundary or upper_boundary:
+            if lower_boundary and not upper_boundary:
                 low /= 10
             else:
                 high *= 10
@@ -129,10 +143,11 @@ class ADP_single_index(_ADP_single_index):
             if not np.any(np.isfinite(scores)):
                 raise RuntimeError("projected GCV has no finite criterion")
             best = int(np.argmin(scores))
+            lower_boundary, upper_boundary = tied_boundaries()
 
         selected_lambda = float(grid[best])
         selected_gcv = float(scores[best])
-        boundary = best in (0, grid.size - 1)
+        boundary = lower_boundary or upper_boundary
         if not boundary:
             refined = minimize_scalar(
                 lambda log_lambda: evaluate(math.exp(log_lambda))[0],
@@ -163,6 +178,14 @@ class ADP_single_index(_ADP_single_index):
         ):
             raise RuntimeError("projected GCV selection failed")
         return selected_lambda, selected_gcv, coordinates, bool(boundary)
+
+    @staticmethod
+    def _reorthogonalize(vector, basis):
+        vector = vector.copy()
+        for _ in range(2):
+            for basis_vector in basis:
+                vector -= np.dot(basis_vector, vector) * basis_vector
+        return vector
 
     def _hybrid_krylov(self, I, U, slopes, beta_prior):
         d = U.shape[2]
@@ -226,6 +249,7 @@ class ADP_single_index(_ADP_single_index):
         v = transpose_product / alpha
 
         basis = []
+        left_basis = [u.copy()]
         diagonal = []
         subdiagonal = []
         previous_checkpoint = None
@@ -245,7 +269,9 @@ class ADP_single_index(_ADP_single_index):
             diagonal.append(float(alpha))
 
             product = matvec(v)
-            next_u_raw = product - alpha * u
+            next_u_raw = self._reorthogonalize(
+                product - alpha * u, left_basis
+            )
             beta_coefficient = np.linalg.norm(next_u_raw)
             if not (
                 np.all(np.isfinite(product))
@@ -263,8 +289,12 @@ class ADP_single_index(_ADP_single_index):
             alpha_breakdown = False
             if not beta_breakdown:
                 next_u = next_u_raw / beta_coefficient
+                left_basis.append(next_u.copy())
                 next_transpose_product = rmatvec(next_u)
-                next_v_raw = next_transpose_product - beta_coefficient * v
+                next_v_raw = self._reorthogonalize(
+                    next_transpose_product - beta_coefficient * v,
+                    basis,
+                )
                 next_alpha = np.linalg.norm(next_v_raw)
                 if not (
                     np.all(np.isfinite(next_u))

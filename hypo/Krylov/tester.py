@@ -61,5 +61,109 @@ def projected_ridge_check():
     )
 
 
+def rank_deficient_check():
+    B = np.zeros((4, 3))
+    B[0, 0] = 1.0
+    B[1, 1] = 0.5
+    selected_lambda, gcv, coordinates, _ = ADP_single_index()._select_lambda(
+        B, 1.0, None
+    )
+    return bool(
+        np.isfinite(selected_lambda)
+        and selected_lambda > 0
+        and np.isfinite(gcv)
+        and gcv >= 0
+        and np.all(np.isfinite(coordinates))
+    )
+
+
+def flat_boundary_check():
+    module = sys.modules[ADP_single_index.__module__]
+    calls = 0
+
+    def counted_minimize(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return minimize_scalar(*args, **kwargs)
+
+    original = module.minimize_scalar
+    module.minimize_scalar = counted_minimize
+    try:
+        selected_lambda, gcv, coordinates, boundary = (
+            ADP_single_index()._select_lambda(
+                np.array([[0.1], [1.0]]), 1.0, 1e15
+            )
+        )
+    finally:
+        module.minimize_scalar = original
+    return bool(
+        boundary
+        and calls == 0
+        and np.isfinite(selected_lambda)
+        and selected_lambda > 0
+        and np.isfinite(gcv)
+        and gcv >= 0
+        and np.all(np.isfinite(coordinates))
+    )
+
+
+def full_span_check():
+    rng = np.random.default_rng(9917)
+    m, d = 30, 10
+    left = np.linalg.qr(rng.normal(size=(m, d)))[0]
+    right = np.linalg.qr(rng.normal(size=(d, d)))[0]
+    A = left @ np.diag(np.geomspace(1.0, 1e-6, d)) @ right.T
+    beta_prior = rng.normal(size=d)
+    beta_prior /= np.linalg.norm(beta_prior)
+    correction = right @ np.linspace(1.0, 2.0, d)
+    orthogonal_noise = rng.normal(size=m)
+    orthogonal_noise -= left @ (left.T @ orthogonal_noise)
+    orthogonal_noise /= np.linalg.norm(orthogonal_noise)
+    residual = A @ correction + 1e-5 * orthogonal_noise
+    I = (A @ beta_prior + residual).reshape(1, m)
+
+    beta, record = ADP_single_index()._hybrid_krylov(
+        I, A.reshape(1, m, d), np.ones(1), beta_prior
+    )
+    selected_lambda = record["selected_lambda"]
+    dense_left, dense_singular_values, dense_right_transpose = np.linalg.svd(
+        A, full_matrices=False
+    )
+    dense_correction = dense_right_transpose.T @ (
+        dense_singular_values
+        / (np.square(dense_singular_values) + selected_lambda)
+        * (dense_left.T @ residual)
+    )
+    dense = beta_prior + dense_correction
+    dense /= np.linalg.norm(dense)
+    if np.dot(dense, beta_prior) < 0:
+        dense = -dense
+    direction_error = min(
+        np.linalg.norm(beta - dense),
+        np.linalg.norm(beta + dense),
+    )
+    return (
+        bool(
+            np.isfinite(selected_lambda)
+            and selected_lambda > 0
+            and np.all(np.isfinite(beta))
+            and np.isclose(np.linalg.norm(beta), 1.0, atol=1e-12)
+            and direction_error < 1e-9
+        ),
+        direction_error,
+    )
+
+
 if __name__ == "__main__":
-    raise SystemExit(not projected_ridge_check())
+    full_span_valid, direction_error = full_span_check()
+    checks = {
+        "projected_ridge": projected_ridge_check(),
+        "rank_deficient": rank_deficient_check(),
+        "flat_boundary": flat_boundary_check(),
+        "full_span": full_span_valid,
+    }
+    print(
+        " ".join(f"{name}={'PASS' if valid else 'FAIL'}" for name, valid in checks.items())
+        + f" direction_error={direction_error:.3e}"
+    )
+    raise SystemExit(not all(checks.values()))
