@@ -21,7 +21,7 @@ class ADP_Config:
         N_J: int | None = None,
         N_phi: int | None = None,
         lam=1,
-        kernel=lambda x: np.max(0, 1 - x**2),
+        kernel=lambda x: np.maximum(0, 1 - x**2),
         a=np.sqrt(2),
         h_min: float | None = None,
     ):

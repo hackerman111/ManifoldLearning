@@ -1,9 +1,10 @@
 import numpy as np
 from ADP import ADP_Config, ADP_Data
+from ADP.ADP_statistic import calculate_statistics
 
 
 class ADP_single_index:
-    def __init__(self, config: ADP_Config | None = None):
+    def __init__(self, config: ADP_Config | None = None, T_k=None):
         if config is None:
             config = ADP_Config()
 
@@ -23,12 +24,14 @@ class ADP_single_index:
         self.kernel = config.kernel
         self.a = config.a
         self.h_min = config.h_min
+        self.T_k = T_k
 
         self.X, self.noise = self.data.Initialize_input_data()
         self.beta = self.Initialize_beta()
         self.Y = self.Calculate_Y()
         self.x_j = self.Initialize_x_j()
         self.proj = None
+        self.I = self.U = self.mass = self.mean = self.n_eff = self.eta = None
 
     # После отработки реализовать новый вариант
     def Initialize_beta(self) -> np.ndarray:
@@ -76,14 +79,54 @@ class ADP_single_index:
         g = rho * z + xi * beta[None, :]
         return g / np.linalg.norm(g, axis=1, keepdims=True)
 
-    def Calculate_statistic(self) -> None:
-        pass
+    def Calculate_statistic(self, weights, directions, batch_size=32) -> None:
+        statistics = calculate_statistics(
+            self.X.T, self.Y, weights, directions, batch_size
+        )
+        self.I = statistics["I"]
+        self.U = statistics["U"]
+        self.mass = statistics["mass"]
+        self.mean = statistics["mean"]
+        self.n_eff = statistics["n_eff"]
+        self.eta = statistics["eta"]
 
-    def Calculate_weight(self) -> None:
-        pass
+    def Calculate_weight(self, kernel) -> np.ndarray:
+        if self.T_k is None:
+            raise ValueError("T_k is not set")
+        return kernel(self.T_k(self.x_j))
 
-    def Calculate_h0(self) -> None:
-        pass
+    def Calculate_h0(self) -> float:
+        X_sq = np.sum(self.X**2, axis=0)
+        centers_sq = np.sum(self.x_j**2, axis=0)
+        distances_sq = centers_sq[:, None] + X_sq[None, :] - 2 * self.x_j.T @ self.X
+        np.maximum(distances_sq, 0, out=distances_sq)
+
+        target = self.N_loc * self.x_j.shape[1]
+
+        def enough(h):
+            return np.sum(self.kernel(distances_sq / h**2)) >= target
+
+        low = float(self.h_min)
+        if low <= 0:
+            raise ValueError("h_min must be positive")
+        if enough(low):
+            return low
+
+        high = max(2 * low, np.sqrt(distances_sq.max()))
+        for _ in range(100):
+            if enough(high):
+                break
+            high *= 2
+        else:
+            raise ValueError("N_loc cannot be reached with the configured kernel")
+
+        for _ in range(60):
+            middle = (low + high) / 2
+            if enough(middle):
+                high = middle
+            else:
+                low = middle
+        return high
 
     def Calculate_rho_k(self) -> None:
         pass

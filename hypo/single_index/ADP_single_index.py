@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import math
+from time import perf_counter
 
 import numpy as np
-from scipy.sparse.linalg import LinearOperator, lsmr
-
 from ADP.ADP_statistic import calculate_statistics
+from scipy.sparse.linalg import LinearOperator, lsmr
 
 
 class ADP_single_index:
@@ -16,15 +16,16 @@ class ADP_single_index:
         n_directions=8,
         N_loc=10,
         N_lin=None,
-        lambda_penalty=1.0,
+        lambda_penalty=100000.0,
         local_ridge=1e-8,
-        outer_steps=4,
-        inner_steps=5,
+        outer_steps=8,
+        inner_steps=2,
         bandwidth_decay=math.sqrt(2.0),
         h_min=None,
         tol=1e-6,
         batch_size=32,
         seed=42,
+        beta_init="local",
     ):
         for name, value in (
             ("n_centers", n_centers),
@@ -53,6 +54,8 @@ class ADP_single_index:
             raise ValueError("bandwidth_decay must exceed one")
         if h_min is not None and (not np.isfinite(h_min) or h_min <= 0):
             raise ValueError("h_min must be finite and positive")
+        if beta_init not in {"local", "random"}:
+            raise ValueError("beta_init must be 'local' or 'random'")
 
         self.n_centers = n_centers
         self.n_directions = n_directions
@@ -67,35 +70,62 @@ class ADP_single_index:
         self.tol = float(tol)
         self.batch_size = batch_size
         self.seed = seed
+        self.beta_init = beta_init
         self.beta_ = None
         self.beta_init_ = None
         self.slopes_ = None
         self.h0_ = None
         self.trace_ = []
+        self.timings_ = {}
+        self.weight_density_ = None
+        self.mean_zero_weight_fraction_ = None
 
     def fit(self, X, Y):
+        total_started = perf_counter()
+        self.timings_ = {
+            name: 0.0
+            for name in (
+                "initialization",
+                "rho",
+                "directions",
+                "weights",
+                "statistics",
+                "slopes",
+                "lsmr",
+                "total",
+            )
+        }
+        started = perf_counter()
         X, Y = self._prepare_inputs(X, Y)
         n, d = X.shape
         if self.N_loc > n:
             raise ValueError("N_loc cannot exceed n")
-        N_lin = self.N_lin
-        if N_lin is None:
-            N_lin = min(n, max(2 * d + 2, n // max(1, int(self.N_loc))))
-        if N_lin > n:
-            raise ValueError("N_lin cannot exceed n")
 
         rng = np.random.default_rng(self.seed)
         centers = X[rng.choice(n, size=min(self.n_centers, n), replace=False)]
         distance2 = self._pairwise_distance2(X, centers)
-        h_lin = self._search_bandwidth(distance2, N_lin)
-        beta = self._initial_beta(X, Y, centers, distance2, h_lin)
+        if self.beta_init == "random":
+            beta = rng.normal(size=d)
+            beta /= np.linalg.norm(beta)
+        else:
+            N_lin = self.N_lin
+            if N_lin is None:
+                N_lin = min(n, max(2 * d + 2, n // max(1, int(self.N_loc))))
+            if N_lin > n:
+                raise ValueError("N_lin cannot exceed n")
+            h_lin = self._search_bandwidth(distance2, N_lin)
+            beta = self._initial_beta(X, Y, centers, distance2, h_lin)
         h = self._search_bandwidth(distance2, self.N_loc)
         feature_scale = float(np.mean(np.std(X, axis=0)))
         h_min = self.h_min or max(10 * feature_scale / n, np.finfo(float).eps)
+        self.timings_["initialization"] = perf_counter() - started
 
         self.beta_init_ = beta.copy()
         self.h0_ = h
         self.trace_ = []
+        self.weight_density_ = None
+        self.mean_zero_weight_fraction_ = None
+        zero_weight_fractions = []
         slopes = None
         for outer in range(self.outer_steps):
             rho = None
@@ -104,19 +134,31 @@ class ADP_single_index:
                 if next_h < h_min:
                     break
                 h = next_h
+                started = perf_counter()
                 rho = self._search_rho(X, centers, distance2, h, beta)
+                self.timings_["rho"] += perf_counter() - started
 
+            started = perf_counter()
             directions = self._directions(rng, centers.shape[0], d, beta, rho)
+            self.timings_["directions"] += perf_counter() - started
+            started = perf_counter()
             weights = self._weights(X, centers, distance2, h, beta, rho)
+            self.timings_["weights"] += perf_counter() - started
+            self.weight_density_ = float(np.count_nonzero(weights) / weights.size)
+            zero_weight_fractions.append(1 - self.weight_density_)
+            started = perf_counter()
             statistics = calculate_statistics(
                 X, Y, weights, directions, batch_size=self.batch_size
             )
+            self.timings_["statistics"] += perf_counter() - started
             beta, slopes, record = self._alternating(statistics, beta)
             record.update(
                 outer=outer,
                 h=float(h),
                 rho=None if rho is None else float(rho),
                 mean_mass=float(np.mean(statistics["mass"])),
+                weight_density=self.weight_density_,
+                zero_weight_fraction=zero_weight_fractions[-1],
             )
             self.trace_.append(record)
 
@@ -124,6 +166,8 @@ class ADP_single_index:
             raise RuntimeError("ADP did not complete an outer step")
         self.beta_ = beta
         self.slopes_ = slopes
+        self.mean_zero_weight_fraction_ = float(np.mean(zero_weight_fractions))
+        self.timings_["total"] = perf_counter() - total_started
         return self
 
     @staticmethod
@@ -191,9 +235,9 @@ class ADP_single_index:
             root_weight = np.sqrt(weights[j])
             augmented_design = np.vstack((design * root_weight[:, None], ridge_rows))
             augmented_y = np.concatenate((Y * root_weight, np.zeros(d)))
-            gradients[j] = np.linalg.lstsq(
-                augmented_design, augmented_y, rcond=None
-            )[0][1:]
+            gradients[j] = np.linalg.lstsq(augmented_design, augmented_y, rcond=None)[
+                0
+            ][1:]
         _, singular_values, right_vectors = np.linalg.svd(
             gradients, full_matrices=False
         )
@@ -228,9 +272,9 @@ class ADP_single_index:
     def _directions(self, rng, centers, d, beta, rho):
         values = rng.normal(size=(centers, self.n_directions, d))
         if rho is not None:
-            values = rho * values + rng.normal(
-                size=(centers, self.n_directions, 1)
-            ) * beta
+            values = (
+                rho * values + rng.normal(size=(centers, self.n_directions, 1)) * beta
+            )
         norms = np.linalg.norm(values, axis=2, keepdims=True)
         if np.any(norms == 0):
             raise RuntimeError("generated a zero direction")
@@ -240,9 +284,7 @@ class ADP_single_index:
         if rho is None:
             argument = distance2 / h**2
         else:
-            projection2 = np.square(
-                (centers @ beta)[:, None] - (X @ beta)[None, :]
-            )
+            projection2 = np.square((centers @ beta)[:, None] - (X @ beta)[None, :])
             argument = (rho**2 * distance2 + projection2) / h**2
         return self._kernel(argument)
 
@@ -294,17 +336,25 @@ class ADP_single_index:
         delta = math.inf
         for inner in range(self.inner_steps):
             prior = beta
+            started = perf_counter()
             slopes = self._slopes(I, U, prior)
+            self.timings_["slopes"] += perf_counter() - started
+            started = perf_counter()
             beta, stop, iterations = self._solve_beta(I, U, slopes, prior)
-            delta = min(
-                np.linalg.norm(beta - prior), np.linalg.norm(beta + prior)
-            )
+            self.timings_["lsmr"] += perf_counter() - started
+            delta = min(np.linalg.norm(beta - prior), np.linalg.norm(beta + prior))
             if delta < self.tol:
                 break
+        started = perf_counter()
         slopes = self._slopes(I, U, beta)
-        return beta, slopes, {
-            "inner_iterations": inner + 1,
-            "lsmr_stop": stop,
-            "lsmr_iterations": iterations,
-            "beta_delta": float(delta),
-        }
+        self.timings_["slopes"] += perf_counter() - started
+        return (
+            beta,
+            slopes,
+            {
+                "inner_iterations": inner + 1,
+                "lsmr_stop": stop,
+                "lsmr_iterations": iterations,
+                "beta_delta": float(delta),
+            },
+        )

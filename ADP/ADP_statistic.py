@@ -31,9 +31,7 @@ def calculate_statistics(X, Y, weights, directions, batch_size=32):
         H = (Q - residual[..., None]) * Ab[:, None, :]
         s = H.sum(axis=2)
         I[batch] = mass[batch, None] * (H @ Y - s * y_bar[batch, None])
-        U[batch] = mass[batch, None, None] * (
-            H @ Xc - s[..., None] * Mcb[:, None, :]
-        )
+        U[batch] = mass[batch, None, None] * (H @ Xc - s[..., None] * Mcb[:, None, :])
 
     return {
         "I": I,
@@ -78,11 +76,7 @@ def _prepare_inputs(X, Y, weights, directions):
         raise ValueError("Y must have shape (n,)")
     if W.ndim != 2 or W.shape[1] != X.shape[0] or W.shape[0] == 0:
         raise ValueError("weights must have non-empty shape (J, n)")
-    if (
-        Phi.ndim != 3
-        or Phi.shape[0] != W.shape[0]
-        or Phi.shape[2] != X.shape[1]
-    ):
+    if Phi.ndim != 3 or Phi.shape[0] != W.shape[0] or Phi.shape[2] != X.shape[1]:
         raise ValueError("directions must have shape (J, P, d)")
     if Phi.shape[1] == 0:
         raise ValueError("directions must contain at least one direction")

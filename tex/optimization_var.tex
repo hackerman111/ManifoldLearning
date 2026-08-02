@@ -1,0 +1,119 @@
+При фиксированных локальных коэффициентах (\hat f'_j) обновление направления (\beta) записывается как ridge-задача
+
+[
+\hat\beta
+=========
+
+\arg\min_{\beta\in\mathbb R^d}
+\left{
+\sum_{j\in\mathcal J}
+\left|
+I_j-\hat f'_jU_j\beta
+\right|*2^2
++
+\lambda|\beta-\beta*{\mathrm{init}}|_2^2
+\right}.
+]
+
+Определим блочный оператор
+
+[
+A=
+\begin{pmatrix}
+\hat f'_1U_1\
+\vdots\
+\hat f'_J U_J
+\end{pmatrix},
+\qquad
+b=
+\begin{pmatrix}
+I_1\
+\vdots\
+I_J
+\end{pmatrix}.
+]
+
+Тогда задача эквивалентна обычной задаче наименьших квадратов
+
+[
+\hat\beta
+=========
+
+\arg\min_\beta
+\left|
+\begin{pmatrix}
+A\
+\sqrt{\lambda}I_d
+\end{pmatrix}
+\beta
+-----
+
+\begin{pmatrix}
+b\
+\sqrt{\lambda}\beta_{\mathrm{init}}
+\end{pmatrix}
+\right|_2^2.
+]
+
+Она решается методом LSMR без построения матрицы (A). Достаточно реализовать операции
+
+[
+Av
+==
+
+\operatorname{col}_{j\in\mathcal J}
+\left(\hat f'_jU_jv\right),
+]
+
+[
+A^\top u
+========
+
+\sum_{j\in\mathcal J}
+\hat f'_jU_j^\top u_j.
+]
+
+Для расширенного ridge-оператора:
+
+[
+\widetilde A v
+==============
+
+\begin{pmatrix}
+Av\
+\sqrt{\lambda}v
+\end{pmatrix},
+\qquad
+\widetilde A^\top
+\begin{pmatrix}
+u\
+z
+\end{pmatrix}
+=============
+
+A^\top u+\sqrt{\lambda}z.
+]
+
+LSMR решает исходную least-squares задачу, не формируя нормальные уравнения
+
+[
+(A^\top A+\lambda I)\beta
+=========================
+
+A^\top b+\lambda\beta_{\mathrm{init}}.
+]
+
+Поэтому обусловленность не возводится в квадрат, как при решении через CG по (A^\top A). Стоимость одной итерации составляет
+
+[
+O!\left(Jn_\Phi d\right),
+]
+
+а дополнительная память не зависит от размера полной блочной матрицы. После решения направление нормируется:
+
+[
+\beta\leftarrow\frac{\beta}{|\beta|_2}.
+]
+
+Полученное (\beta) фиксируется, после чего обновляются локальные коэффициенты и начинается следующая итерация чередующейся оптимизации.
+
