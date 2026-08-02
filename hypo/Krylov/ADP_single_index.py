@@ -1,0 +1,407 @@
+from __future__ import annotations
+
+import math
+from time import perf_counter
+
+import numpy as np
+from scipy.optimize import minimize_scalar
+
+from hypo.single_index.ADP_single_index import ADP_single_index as _ADP_single_index
+
+
+_CHECK_EVERY = 5
+_MAX_KRYLOV = 100
+_GCV_GRID_SIZE = 21
+_LAMBDA_LOG10_TOL = 0.1
+_PROJECTIVE_DIRECTION_TOL = 1e-3
+_RELATIVE_GCV_TOL = 1e-2
+
+
+class ADP_single_index(_ADP_single_index):
+    def fit(self, X, Y):
+        self.lambda_ = None
+        super().fit(X, Y)
+        timings = self.timings_
+        self.timings_ = {
+            name: timings["lsmr" if name == "krylov" else name]
+            for name in (
+                "initialization",
+                "rho",
+                "directions",
+                "weights",
+                "statistics",
+                "slopes",
+                "krylov",
+                "total",
+            )
+        }
+        return self
+
+    def _select_lambda(self, B, rho, lambda_prior):
+        B = np.asarray(B, dtype=float)
+        if (
+            B.ndim != 2
+            or B.shape[0] != B.shape[1] + 1
+            or B.shape[1] == 0
+            or not np.all(np.isfinite(B))
+            or not np.isfinite(rho)
+            or rho <= 0
+        ):
+            raise RuntimeError("invalid projected Krylov problem")
+
+        try:
+            left, singular_values, right_transpose = np.linalg.svd(
+                B, full_matrices=False
+            )
+        except np.linalg.LinAlgError as error:
+            raise RuntimeError("projected Krylov SVD failed") from error
+        largest = singular_values[0]
+        rank_tolerance = (
+            np.finfo(float).eps * max(B.shape) * largest
+        )
+        if (
+            not np.all(np.isfinite(singular_values))
+            or largest <= 0
+            or singular_values[-1] <= rank_tolerance
+        ):
+            raise RuntimeError("projected Krylov matrix is singular")
+
+        rhs = np.zeros(B.shape[0])
+        rhs[0] = rho
+        projected_rhs = left.T @ rhs
+        right = right_transpose.T
+        squared = np.square(singular_values)
+        scale = squared[0]
+        low, high = 1e-8 * scale, 1e2 * scale
+        if lambda_prior is not None:
+            try:
+                prior = float(lambda_prior)
+            except (TypeError, ValueError):
+                prior = math.nan
+            if np.isfinite(prior) and prior > 0:
+                low = min(low, prior / 100)
+                high = max(high, 100 * prior)
+        if not (np.isfinite(low) and np.isfinite(high) and 0 < low < high):
+            raise RuntimeError("invalid projected GCV interval")
+
+        def evaluate(lambda_value):
+            if not np.isfinite(lambda_value) or lambda_value <= 0:
+                return math.inf, None
+            coordinates = right @ (
+                singular_values
+                / (squared + lambda_value)
+                * projected_rhs
+            )
+            residual = B @ coordinates - rhs
+            denominator = B.shape[0] - np.sum(
+                squared / (squared + lambda_value)
+            )
+            criterion = np.linalg.norm(residual) ** 2 / denominator**2
+            if (
+                not np.all(np.isfinite(coordinates))
+                or not np.all(np.isfinite(residual))
+                or not np.isfinite(denominator)
+                or denominator <= 0
+                or not np.isfinite(criterion)
+                or criterion < 0
+            ):
+                return math.inf, None
+            return float(criterion), coordinates
+
+        grid = np.geomspace(low, high, _GCV_GRID_SIZE)
+        scores = np.array([evaluate(value)[0] for value in grid])
+        if not np.any(np.isfinite(scores)):
+            raise RuntimeError("projected GCV has no finite criterion")
+        best = int(np.argmin(scores))
+        if best in (0, grid.size - 1):
+            if best == 0:
+                low /= 10
+            else:
+                high *= 10
+            if not (
+                np.isfinite(low)
+                and np.isfinite(high)
+                and 0 < low < high
+            ):
+                raise RuntimeError("could not expand projected GCV interval")
+            grid = np.geomspace(low, high, _GCV_GRID_SIZE)
+            scores = np.array([evaluate(value)[0] for value in grid])
+            if not np.any(np.isfinite(scores)):
+                raise RuntimeError("projected GCV has no finite criterion")
+            best = int(np.argmin(scores))
+
+        selected_lambda = float(grid[best])
+        selected_gcv = float(scores[best])
+        boundary = best in (0, grid.size - 1)
+        if not boundary:
+            refined = minimize_scalar(
+                lambda log_lambda: evaluate(math.exp(log_lambda))[0],
+                bounds=(math.log(grid[best - 1]), math.log(grid[best + 1])),
+                method="bounded",
+                options={"xatol": 1e-4},
+            )
+            refined_lambda = math.exp(refined.x)
+            refined_gcv, _ = evaluate(refined_lambda)
+            if (
+                refined.success
+                and np.isfinite(refined_lambda)
+                and refined_lambda > 0
+                and np.isfinite(refined_gcv)
+                and refined_gcv < selected_gcv
+            ):
+                selected_lambda = refined_lambda
+                selected_gcv = refined_gcv
+
+        selected_gcv, coordinates = evaluate(selected_lambda)
+        if (
+            not np.isfinite(selected_lambda)
+            or selected_lambda <= 0
+            or not np.isfinite(selected_gcv)
+            or selected_gcv < 0
+            or coordinates is None
+            or not np.all(np.isfinite(coordinates))
+        ):
+            raise RuntimeError("projected GCV selection failed")
+        return selected_lambda, selected_gcv, coordinates, bool(boundary)
+
+    def _hybrid_krylov(self, I, U, slopes, beta_prior):
+        d = U.shape[2]
+        previous_lambda = getattr(self, "lambda_", None)
+
+        def matvec(vector):
+            return (slopes[:, None] * (U @ vector)).ravel()
+
+        def rmatvec(vector):
+            return np.einsum(
+                "j,jpd,jp->d",
+                slopes,
+                U,
+                vector.reshape(I.shape),
+                optimize=True,
+            )
+
+        beta_prior = np.asarray(beta_prior, dtype=float)
+        if beta_prior.shape != (d,) or not np.all(np.isfinite(beta_prior)):
+            raise RuntimeError("Krylov solver received an invalid beta")
+        fitted = matvec(beta_prior)
+        residual = I.ravel() - fitted
+        rho = np.linalg.norm(residual)
+        residual_scale = np.finfo(float).eps * max(
+            1.0, np.linalg.norm(I.ravel()), np.linalg.norm(fitted)
+        )
+        if not (
+            np.all(np.isfinite(fitted))
+            and np.all(np.isfinite(residual))
+            and np.isfinite(rho)
+            and np.isfinite(residual_scale)
+        ):
+            raise RuntimeError("Krylov solver received nonfinite data")
+        if rho <= residual_scale:
+            return beta_prior.copy(), {
+                "solver_status": "zero_residual",
+                "krylov_iterations": 0,
+                "selected_lambda": previous_lambda,
+                "projected_gcv": 0.0,
+                "lambda_at_boundary": False,
+            }
+
+        unit_roundoff = np.finfo(float).eps
+        u = residual / rho
+        transpose_product = rmatvec(u)
+        alpha = np.linalg.norm(transpose_product)
+        if not (
+            np.all(np.isfinite(u))
+            and np.all(np.isfinite(transpose_product))
+            and np.isfinite(alpha)
+        ):
+            raise RuntimeError("Krylov recurrence returned nonfinite values")
+        if alpha <= unit_roundoff * max(1.0, np.linalg.norm(transpose_product)):
+            return beta_prior.copy(), {
+                "solver_status": "breakdown",
+                "krylov_iterations": 0,
+                "selected_lambda": previous_lambda,
+                "projected_gcv": 0.0,
+                "lambda_at_boundary": False,
+            }
+        v = transpose_product / alpha
+
+        basis = []
+        diagonal = []
+        subdiagonal = []
+        previous_checkpoint = None
+        stable_checkpoints = 0
+        valid_candidate = None
+        lambda_prior = previous_lambda
+        kmax = min(d, _MAX_KRYLOV)
+
+        for iteration in range(1, kmax + 1):
+            if not (
+                np.all(np.isfinite(u))
+                and np.all(np.isfinite(v))
+                and np.isfinite(alpha)
+            ):
+                raise RuntimeError("Krylov recurrence returned nonfinite values")
+            basis.append(v.copy())
+            diagonal.append(float(alpha))
+
+            product = matvec(v)
+            next_u_raw = product - alpha * u
+            beta_coefficient = np.linalg.norm(next_u_raw)
+            if not (
+                np.all(np.isfinite(product))
+                and np.all(np.isfinite(next_u_raw))
+                and np.isfinite(beta_coefficient)
+            ):
+                raise RuntimeError("Krylov recurrence returned nonfinite values")
+            beta_breakdown = beta_coefficient <= unit_roundoff * max(
+                1.0, np.linalg.norm(product), abs(alpha)
+            )
+            subdiagonal.append(float(beta_coefficient))
+
+            next_u = next_v = None
+            next_alpha = math.nan
+            alpha_breakdown = False
+            if not beta_breakdown:
+                next_u = next_u_raw / beta_coefficient
+                next_transpose_product = rmatvec(next_u)
+                next_v_raw = next_transpose_product - beta_coefficient * v
+                next_alpha = np.linalg.norm(next_v_raw)
+                if not (
+                    np.all(np.isfinite(next_u))
+                    and np.all(np.isfinite(next_transpose_product))
+                    and np.all(np.isfinite(next_v_raw))
+                    and np.isfinite(next_alpha)
+                ):
+                    raise RuntimeError("Krylov recurrence returned nonfinite values")
+                alpha_breakdown = next_alpha <= unit_roundoff * max(
+                    1.0,
+                    np.linalg.norm(next_transpose_product),
+                    abs(beta_coefficient),
+                )
+                if not alpha_breakdown:
+                    next_v = next_v_raw / next_alpha
+
+            breakdown = beta_breakdown or alpha_breakdown
+            at_limit = iteration == kmax
+            if iteration % _CHECK_EVERY == 0 or at_limit or breakdown:
+                B = np.zeros((iteration + 1, iteration))
+                indices = np.arange(iteration)
+                B[indices, indices] = diagonal
+                B[indices + 1, indices] = subdiagonal
+                V = np.column_stack(basis)
+                try:
+                    (
+                        selected_lambda,
+                        projected_gcv,
+                        coordinates,
+                        boundary,
+                    ) = self._select_lambda(B, rho, lambda_prior)
+                    candidate = beta_prior + V @ coordinates
+                    candidate_norm = np.linalg.norm(candidate)
+                    if (
+                        not np.all(np.isfinite(candidate))
+                        or not np.isfinite(candidate_norm)
+                        or candidate_norm == 0
+                    ):
+                        raise RuntimeError("Krylov solver returned an invalid beta")
+                    candidate /= candidate_norm
+                    if np.dot(candidate, beta_prior) < 0:
+                        candidate = -candidate
+                except RuntimeError:
+                    if breakdown and valid_candidate is not None:
+                        candidate, record = valid_candidate
+                        return candidate, {
+                            **record,
+                            "solver_status": "breakdown",
+                            "krylov_iterations": iteration,
+                        }
+                    raise
+
+                self.lambda_ = selected_lambda
+                lambda_prior = selected_lambda
+                record = {
+                    "solver_status": "max_iterations",
+                    "krylov_iterations": iteration,
+                    "selected_lambda": selected_lambda,
+                    "projected_gcv": projected_gcv,
+                    "lambda_at_boundary": boundary,
+                }
+                valid_candidate = candidate, record
+
+                if previous_checkpoint is not None:
+                    previous_beta, previous_lambda, previous_gcv = (
+                        previous_checkpoint
+                    )
+                    dot = np.clip(abs(np.dot(candidate, previous_beta)), 0.0, 1.0)
+                    stable = (
+                        not boundary
+                        and abs(
+                            math.log10(selected_lambda)
+                            - math.log10(previous_lambda)
+                        )
+                        < _LAMBDA_LOG10_TOL
+                        and math.sqrt(2 * (1 - dot))
+                        < _PROJECTIVE_DIRECTION_TOL
+                        and abs(projected_gcv - previous_gcv)
+                        / max(1.0, abs(projected_gcv))
+                        < _RELATIVE_GCV_TOL
+                    )
+                    stable_checkpoints = stable_checkpoints + 1 if stable else 0
+                previous_checkpoint = (
+                    candidate.copy(),
+                    selected_lambda,
+                    projected_gcv,
+                )
+
+                if breakdown:
+                    return candidate, {
+                        **record,
+                        "solver_status": "breakdown",
+                    }
+                if stable_checkpoints >= 2:
+                    return candidate, {
+                        **record,
+                        "solver_status": "stabilized",
+                    }
+                if at_limit:
+                    return candidate, record
+
+            if breakdown:
+                if valid_candidate is None:
+                    raise RuntimeError("Krylov breakdown before a valid projection")
+                candidate, record = valid_candidate
+                return candidate, {
+                    **record,
+                    "solver_status": "breakdown",
+                    "krylov_iterations": iteration,
+                }
+            u, v, alpha = next_u, next_v, next_alpha
+
+        raise RuntimeError("Krylov solver did not produce a valid candidate")
+
+    def _alternating(self, statistics, beta):
+        I, U = statistics["I"], statistics["U"]
+        delta = math.inf
+        record = None
+        for inner in range(self.inner_steps):
+            prior = beta
+            started = perf_counter()
+            slopes = self._slopes(I, U, prior)
+            self.timings_["slopes"] += perf_counter() - started
+            started = perf_counter()
+            beta, record = self._hybrid_krylov(I, U, slopes, prior)
+            self.timings_["lsmr"] += perf_counter() - started
+            delta = min(
+                np.linalg.norm(beta - prior),
+                np.linalg.norm(beta + prior),
+            )
+            if delta < self.tol:
+                break
+        started = perf_counter()
+        slopes = self._slopes(I, U, beta)
+        self.timings_["slopes"] += perf_counter() - started
+        return beta, slopes, {
+            **record,
+            "inner_iterations": inner + 1,
+            "beta_delta": float(delta),
+        }
