@@ -269,8 +269,8 @@ def _finite_positive(value):
     )
 
 
-def _valid_trace_row(row):
-    if not isinstance(row, dict):
+def _valid_trace_row(row, krylov_limit):
+    if not isinstance(row, dict) or not _positive_integer(krylov_limit):
         return False
     status = row.get("solver_status")
     iterations = row.get("krylov_iterations")
@@ -284,19 +284,33 @@ def _valid_trace_row(row):
     if (
         isinstance(iterations, (bool, np.bool_))
         or not isinstance(iterations, (int, np.integer))
-        or iterations < 0
+        or not 0 <= iterations <= krylov_limit
     ):
         return False
     selected_lambda = row.get("selected_lambda")
+    projected_gcv = row.get("projected_gcv")
+    boundary = row.get("lambda_at_boundary")
     lambda_valid = selected_lambda is None or _finite_positive(selected_lambda)
-    requires_lambda = iterations != 0 or status not in {"zero_residual", "breakdown"}
-    return bool(
-        _finite_nonnegative(row.get("projected_gcv"))
-        and isinstance(row.get("lambda_at_boundary"), (bool, np.bool_))
+    if not (
+        _finite_nonnegative(projected_gcv)
+        and isinstance(boundary, (bool, np.bool_))
         and lambda_valid
-        and (not requires_lambda or selected_lambda is not None)
         and _positive_integer(row.get("inner_iterations"))
         and _finite_nonnegative(row.get("beta_delta"))
+    ):
+        return False
+    if status == "zero_residual":
+        return iterations == 0 and projected_gcv == 0 and not boundary
+    if status == "breakdown":
+        if iterations == 0:
+            return _finite_positive(projected_gcv) and not boundary
+        return selected_lambda is not None
+    if status == "max_iterations":
+        return iterations == krylov_limit and selected_lambda is not None
+    return (
+        iterations >= 15
+        and iterations % 5 == 0
+        and selected_lambda is not None
     )
 
 
@@ -409,12 +423,13 @@ def main(argv=None):
         row.get("zero_weight_fraction") if isinstance(row, dict) else None
         for row in trace
     ]
+    krylov_limit = min(args.d, 100)
     technical_valid = bool(
         all(checks.values())
         and _unit_finite_vector(beta_final)
         and isinstance(raw_trace, (list, tuple))
         and bool(trace)
-        and all(_valid_trace_row(row) for row in trace)
+        and all(_valid_trace_row(row, krylov_limit) for row in trace)
         and any(
             isinstance(row, dict) and row.get("krylov_iterations", 0) > 0
             for row in trace
