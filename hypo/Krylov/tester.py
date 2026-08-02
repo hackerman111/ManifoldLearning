@@ -12,6 +12,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from hypo.Krylov.ADP_single_index import ADP_single_index
+from hypo.single_index.tester import absolute_cosine, parse_args
 
 
 def projected_ridge_check():
@@ -154,16 +155,133 @@ def full_span_check():
     )
 
 
-if __name__ == "__main__":
+def _positive_integer(value):
+    return (
+        not isinstance(value, (bool, np.bool_))
+        and isinstance(value, (int, np.integer))
+        and value > 0
+    )
+
+
+def _finite_nonnegative(value):
+    return bool(
+        not isinstance(value, (bool, np.bool_))
+        and isinstance(value, (int, float, np.number))
+        and np.isfinite(value)
+        and value >= 0
+    )
+
+
+def _finite_positive(value):
+    return bool(
+        not isinstance(value, (bool, np.bool_))
+        and isinstance(value, (int, float, np.number))
+        and np.isfinite(value)
+        and value > 0
+    )
+
+
+def _valid_trace_row(row):
+    status = row.get("solver_status")
+    iterations = row.get("krylov_iterations")
+    selected_lambda = row.get("selected_lambda")
+    lambda_valid = selected_lambda is None or _finite_positive(selected_lambda)
+    requires_lambda = iterations != 0 or status not in {"zero_residual", "breakdown"}
+    return bool(
+        status in {"stabilized", "max_iterations", "breakdown", "zero_residual"}
+        and not isinstance(iterations, (bool, np.bool_))
+        and isinstance(iterations, (int, np.integer))
+        and iterations >= 0
+        and _finite_nonnegative(row.get("projected_gcv"))
+        and isinstance(row.get("lambda_at_boundary"), (bool, np.bool_))
+        and lambda_valid
+        and (not requires_lambda or selected_lambda is not None)
+        and _positive_integer(row.get("inner_iterations"))
+        and _finite_nonnegative(row.get("beta_delta"))
+    )
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    rng = np.random.default_rng(args.seed)
+    beta_true = rng.normal(size=args.d)
+    beta_true /= np.linalg.norm(beta_true)
+    X = rng.normal(size=(args.n, args.d))
+    Y = np.sin(X @ beta_true) + args.noise * rng.normal(size=args.n)
+
+    model = ADP_single_index(seed=args.seed + 1, beta_init=args.beta_init).fit(X, Y)
+    initial_cosine = absolute_cosine(model.beta_init_, beta_true)
+    final_cosine = absolute_cosine(model.beta_, beta_true)
     full_span_valid, direction_error = full_span_check()
     checks = {
         "projected_ridge": projected_ridge_check(),
+        "full_span": full_span_valid,
         "rank_deficient": rank_deficient_check(),
         "flat_boundary": flat_boundary_check(),
-        "full_span": full_span_valid,
     }
-    print(
-        " ".join(f"{name}={'PASS' if valid else 'FAIL'}" for name, valid in checks.items())
-        + f" direction_error={direction_error:.3e}"
+    timing_names = (
+        "initialization",
+        "rho",
+        "directions",
+        "weights",
+        "statistics",
+        "slopes",
+        "krylov",
+        "total",
     )
-    raise SystemExit(not all(checks.values()))
+    trace = model.trace_
+    weight_fractions = [row.get("zero_weight_fraction") for row in trace]
+    technical_valid = bool(
+        all(checks.values())
+        and np.all(np.isfinite(model.beta_))
+        and np.isclose(np.linalg.norm(model.beta_), 1.0, atol=1e-10)
+        and bool(trace)
+        and all(_valid_trace_row(row) for row in trace)
+        and any(row["krylov_iterations"] > 0 for row in trace)
+        and _finite_positive(model.lambda_)
+        and tuple(model.timings_) == timing_names
+        and all(_finite_nonnegative(model.timings_[name]) for name in timing_names)
+        and model.timings_["total"] > 0
+        and _finite_nonnegative(model.weight_density_)
+        and model.weight_density_ <= 1
+        and _finite_nonnegative(model.mean_zero_weight_fraction_)
+        and model.mean_zero_weight_fraction_ <= 1
+        and all(_finite_nonnegative(value) and value <= 1 for value in weight_fractions)
+        and np.isclose(model.mean_zero_weight_fraction_, np.mean(weight_fractions))
+    )
+    quality_valid = final_cosine >= args.threshold
+    overall_valid = technical_valid and quality_valid
+    last = trace[-1]
+    print(
+        f"seed={args.seed} n={args.n} d={args.d} beta_init={args.beta_init} "
+        f"cosine_init={initial_cosine:.6f} cosine_final={final_cosine:.6f} "
+        f"threshold={args.threshold:.2f} outer_steps={len(trace)} "
+        f"weight_density_final={model.weight_density_:.2%} "
+        f"weight_zero_mean={model.mean_zero_weight_fraction_:.2%} "
+        f"last_solver_status={last['solver_status']} "
+        f"final_selected_lambda={model.lambda_:.6e} "
+        f"technical_status={'PASS' if technical_valid else 'FAIL'} "
+        f"quality_status={'PASS' if quality_valid else 'FAIL'} "
+        f"status={'PASS' if overall_valid else 'FAIL'}"
+    )
+    print(
+        "numerical_checks "
+        + " ".join(f"{name}={'PASS' if valid else 'FAIL'}" for name, valid in checks.items())
+        + f" full_span_direction_error={direction_error:.3e}"
+    )
+    print(
+        "timings_sec "
+        + " ".join(f"{name}={model.timings_[name]:.6f}" for name in timing_names)
+    )
+    print(
+        "timings_pct "
+        + " ".join(
+            f"{name}={model.timings_[name] / model.timings_['total']:.2%}"
+            for name in timing_names
+        )
+    )
+    return int(not overall_valid)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
