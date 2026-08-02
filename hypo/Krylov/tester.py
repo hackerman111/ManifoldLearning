@@ -164,24 +164,32 @@ def _positive_integer(value):
 
 
 def _finite_nonnegative(value):
+    if isinstance(value, (bool, np.bool_)):
+        return False
+    if isinstance(value, (int, np.integer)):
+        return value >= 0
     return bool(
-        not isinstance(value, (bool, np.bool_))
-        and isinstance(value, (int, float, np.number))
+        isinstance(value, (float, np.floating))
         and np.isfinite(value)
         and value >= 0
     )
 
 
 def _finite_positive(value):
+    if isinstance(value, (bool, np.bool_)):
+        return False
+    if isinstance(value, (int, np.integer)):
+        return value > 0
     return bool(
-        not isinstance(value, (bool, np.bool_))
-        and isinstance(value, (int, float, np.number))
+        isinstance(value, (float, np.floating))
         and np.isfinite(value)
         and value > 0
     )
 
 
 def _valid_trace_row(row):
+    if not isinstance(row, dict):
+        return False
     status = row.get("solver_status")
     iterations = row.get("krylov_iterations")
     selected_lambda = row.get("selected_lambda")
@@ -201,6 +209,59 @@ def _valid_trace_row(row):
     )
 
 
+def _unit_finite_vector(value):
+    try:
+        array = np.asarray(value, dtype=float)
+        return bool(
+            array.ndim == 1
+            and array.size
+            and np.all(np.isfinite(array))
+            and np.isclose(np.linalg.norm(array), 1.0, atol=1e-10)
+        )
+    except (TypeError, ValueError, np.linalg.LinAlgError):
+        return False
+
+
+def _safe_cosine(left, right):
+    try:
+        value = absolute_cosine(left, right)
+    except (TypeError, ValueError, FloatingPointError):
+        return math.nan
+    return value if _finite_nonnegative(value) else math.nan
+
+
+def _format_number(value, specifier, placeholder="nan"):
+    if not _finite_nonnegative(value):
+        return placeholder
+    try:
+        return format(value, specifier)
+    except (OverflowError, TypeError, ValueError):
+        return placeholder
+
+
+def _format_fraction(value):
+    return _format_number(value, ".2%", "n/a") if _finite_nonnegative(value) and value <= 1 else "n/a"
+
+
+def _format_timing_percentage(value, total):
+    if not (_finite_nonnegative(value) and _finite_positive(total)):
+        return "n/a"
+    try:
+        ratio = value / total
+    except (ArithmeticError, TypeError, ValueError):
+        return "n/a"
+    return _format_number(ratio, ".2%", "n/a")
+
+
+def _weight_mean_matches(value, fractions):
+    if not fractions or not all(_finite_nonnegative(item) and item <= 1 for item in fractions):
+        return False
+    try:
+        return bool(np.isclose(value, sum(fractions) / len(fractions)))
+    except (ArithmeticError, TypeError, ValueError):
+        return False
+
+
 def main(argv=None):
     args = parse_args(argv)
     rng = np.random.default_rng(args.seed)
@@ -210,8 +271,10 @@ def main(argv=None):
     Y = np.sin(X @ beta_true) + args.noise * rng.normal(size=args.n)
 
     model = ADP_single_index(seed=args.seed + 1, beta_init=args.beta_init).fit(X, Y)
-    initial_cosine = absolute_cosine(model.beta_init_, beta_true)
-    final_cosine = absolute_cosine(model.beta_, beta_true)
+    beta_initial = getattr(model, "beta_init_", None)
+    beta_final = getattr(model, "beta_", None)
+    initial_cosine = _safe_cosine(beta_initial, beta_true)
+    final_cosine = _safe_cosine(beta_final, beta_true)
     full_span_valid, direction_error = full_span_check()
     checks = {
         "projected_ridge": projected_ridge_check(),
@@ -229,37 +292,53 @@ def main(argv=None):
         "krylov",
         "total",
     )
-    trace = model.trace_
-    weight_fractions = [row.get("zero_weight_fraction") for row in trace]
+    raw_trace = getattr(model, "trace_", None)
+    trace = raw_trace if isinstance(raw_trace, (list, tuple)) else ()
+    timings = getattr(model, "timings_", None)
+    timing_values = {
+        name: timings.get(name) if isinstance(timings, dict) else None
+        for name in timing_names
+    }
+    weight_density = getattr(model, "weight_density_", None)
+    mean_zero_weight_fraction = getattr(model, "mean_zero_weight_fraction_", None)
+    selected_lambda = getattr(model, "lambda_", None)
+    weight_fractions = [
+        row.get("zero_weight_fraction") if isinstance(row, dict) else None
+        for row in trace
+    ]
     technical_valid = bool(
         all(checks.values())
-        and np.all(np.isfinite(model.beta_))
-        and np.isclose(np.linalg.norm(model.beta_), 1.0, atol=1e-10)
+        and _unit_finite_vector(beta_final)
+        and isinstance(raw_trace, (list, tuple))
         and bool(trace)
         and all(_valid_trace_row(row) for row in trace)
-        and any(row["krylov_iterations"] > 0 for row in trace)
-        and _finite_positive(model.lambda_)
-        and tuple(model.timings_) == timing_names
-        and all(_finite_nonnegative(model.timings_[name]) for name in timing_names)
-        and model.timings_["total"] > 0
-        and _finite_nonnegative(model.weight_density_)
-        and model.weight_density_ <= 1
-        and _finite_nonnegative(model.mean_zero_weight_fraction_)
-        and model.mean_zero_weight_fraction_ <= 1
-        and all(_finite_nonnegative(value) and value <= 1 for value in weight_fractions)
-        and np.isclose(model.mean_zero_weight_fraction_, np.mean(weight_fractions))
+        and any(
+            isinstance(row, dict) and row.get("krylov_iterations", 0) > 0
+            for row in trace
+        )
+        and _finite_positive(selected_lambda)
+        and isinstance(timings, dict)
+        and tuple(timings) == timing_names
+        and all(_finite_nonnegative(timing_values[name]) for name in timing_names)
+        and _finite_positive(timing_values["total"])
+        and _finite_nonnegative(weight_density)
+        and weight_density <= 1
+        and _finite_nonnegative(mean_zero_weight_fraction)
+        and mean_zero_weight_fraction <= 1
+        and _weight_mean_matches(mean_zero_weight_fraction, weight_fractions)
     )
     quality_valid = final_cosine >= args.threshold
     overall_valid = technical_valid and quality_valid
-    last = trace[-1]
+    last = trace[-1] if trace and isinstance(trace[-1], dict) else {}
+    last_status = last.get("solver_status", "missing")
     print(
         f"seed={args.seed} n={args.n} d={args.d} beta_init={args.beta_init} "
         f"cosine_init={initial_cosine:.6f} cosine_final={final_cosine:.6f} "
         f"threshold={args.threshold:.2f} outer_steps={len(trace)} "
-        f"weight_density_final={model.weight_density_:.2%} "
-        f"weight_zero_mean={model.mean_zero_weight_fraction_:.2%} "
-        f"last_solver_status={last['solver_status']} "
-        f"final_selected_lambda={model.lambda_:.6e} "
+        f"weight_density_final={_format_fraction(weight_density)} "
+        f"weight_zero_mean={_format_fraction(mean_zero_weight_fraction)} "
+        f"last_solver_status={last_status} "
+        f"final_selected_lambda={_format_number(selected_lambda, '.6e', 'missing')} "
         f"technical_status={'PASS' if technical_valid else 'FAIL'} "
         f"quality_status={'PASS' if quality_valid else 'FAIL'} "
         f"status={'PASS' if overall_valid else 'FAIL'}"
@@ -271,12 +350,15 @@ def main(argv=None):
     )
     print(
         "timings_sec "
-        + " ".join(f"{name}={model.timings_[name]:.6f}" for name in timing_names)
+        + " ".join(
+            f"{name}={_format_number(timing_values[name], '.6f')}"
+            for name in timing_names
+        )
     )
     print(
         "timings_pct "
         + " ".join(
-            f"{name}={model.timings_[name] / model.timings_['total']:.2%}"
+            f"{name}={_format_timing_percentage(timing_values[name], timing_values['total'])}"
             for name in timing_names
         )
     )
