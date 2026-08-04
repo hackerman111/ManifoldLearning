@@ -38,7 +38,9 @@ the previously selected lambda are retained.
 At every fifth Krylov step, and at the final step, the solver:
 
 1. computes the SVD of the small \((k+1)\times k\) matrix \(B_k\);
-2. evaluates projected GCV on 21 logarithmically spaced lambda values;
+2. evaluates weighted projected GCV on 21 logarithmically spaced lambda
+   values, using the full moment-row count \(m=JP\), equivalently
+   \(\omega_k=(k+1)/m\);
 3. uses the spectral interval
    \([10^{-8}\theta_1^2,10^2\theta_1^2]\), enlarged to include
    \([\lambda_{\mathrm{prev}}/100,100\lambda_{\mathrm{prev}}]\);
@@ -47,6 +49,10 @@ At every fifth Krylov step, and at the final step, the solver:
 5. refines an interior grid minimum with bounded Brent optimization in
    \(\log\lambda\);
 6. solves the projected ridge problem by the same small SVD.
+
+The continuation value is frozen for all checkpoints of one Golub--Kahan
+process. It is updated only after that process returns a valid candidate, so a
+boundary minimum cannot enlarge its own next checkpoint interval.
 
 The update is
 
@@ -73,17 +79,25 @@ Early stabilization additionally requires an interior lambda minimum.
 - Nonfinite inputs, factors, projected solutions, or a missing valid candidate
   raise `RuntimeError`; they are not reported as convergence.
 - Each outer trace row records solver status, Krylov iterations, selected
-  lambda, projected GCV, boundary status, and sign-invariant beta change.
+  lambda, projected GCV, boundary status, sign-invariant beta change,
+  cross-fitted moment loss, and whether the candidate was accepted.
 - Timing uses a `krylov` field instead of the inherited temporary `lsmr` field.
 - The selected lambda is exposed as `lambda_`.
 
 The fixed `lambda_penalty` value inherited for constructor compatibility is not
 used by this variant.
 
-Weighted GCV, cross-fitted validation, Krylov recycling, and selection by the
-known synthetic truth are intentionally excluded. The TeX recommends weighted
-GCV only after a reproducible bias is observed, and the other selectors require
-an additional validation contract outside the current solver interface.
+The reproducible upper-bound bias of ordinary projected GCV activates the
+weighted criterion described in the TeX. For the strong local initialization,
+candidate updates are checked by a deterministic two-fold observation split:
+local slopes are estimated on one fold and moment residuals are evaluated on
+the other, then the roles are swapped. The initial moment system remains a
+fixed validation target and a candidate is applied only when this loss does
+not increase. Random initialization uses weighted GCV without this early veto
+because sparse cross-fitted moments otherwise prevent the exploratory steps
+needed to leave a poor initial direction.
+
+Krylov recycling and selection by the known synthetic truth remain excluded.
 
 ## Verification
 
@@ -96,6 +110,8 @@ also checks:
 - normalized finite output;
 - a deterministic small projected-ridge calculation against a direct dense
   solve.
+- weighted-GCV equivalence to the full-row denominator;
+- continuation remaining fixed across checkpoints of one Krylov process.
 
 Technical solver validity and the cosine quality threshold are reported
 separately.

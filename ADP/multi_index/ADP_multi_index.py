@@ -24,8 +24,6 @@ class ADP_single_index:
         self.kernel = config.kernel
         self.a = config.a
         self.h_min = config.h_min
-        self.h_k = None
-        self.rho_k = None
         self.T_k = T_k
 
         self.X, self.noise = self.data.Initialize_input_data()
@@ -95,17 +93,7 @@ class ADP_single_index:
     def Calculate_weight(self, kernel) -> np.ndarray:
         if self.T_k is None:
             raise ValueError("T_k is not set")
-
-        transformed_X = self.T_k @ self.X
-        transformed_centers = self.T_k @ self.x_j
-        distances_sq = (
-            np.sum(transformed_centers**2, axis=0)[:, None]
-            + np.sum(transformed_X**2, axis=0)[None, :]
-            - 2 * transformed_centers.T @ transformed_X
-        )
-
-        np.maximum(distances_sq, 0, out=distances_sq)
-        return kernel(distances_sq)
+        return kernel(self.T_k(self.x_j))
 
     def Calculate_h0(self) -> float:
         X_sq = np.sum(self.X**2, axis=0)
@@ -141,66 +129,13 @@ class ADP_single_index:
         return high
 
     def Calculate_rho_k(self) -> None:
-        if self.h_k is None or not np.isfinite(self.h_k) or self.h_k <= 0:
-            raise ValueError("h_k must be finite and positive")
-
-        beta = np.asarray(self.beta, dtype=float)
-        beta_norm = np.linalg.norm(beta)
-        if not np.isfinite(beta_norm) or beta_norm == 0:
-            raise ValueError("beta must be finite and non-zero")
-        beta = beta / beta_norm
-
-        X_sq = np.sum(self.X**2, axis=0)
-        centers_sq = np.sum(self.x_j**2, axis=0)
-        distances_sq = centers_sq[:, None] + X_sq[None, :] - 2 * self.x_j.T @ self.X
-        np.maximum(distances_sq, 0, out=distances_sq)
-        projected_X = beta @ self.X
-        projected_centers = beta @ self.x_j
-        projection_sq = (projected_centers[:, None] - projected_X[None, :]) ** 2
-        target = self.N_loc * self.x_j.shape[1]
-
-        def enough(rho):
-            argument = (rho**2 * distances_sq + projection_sq) / self.h_k**2
-            return np.sum(self.kernel(argument)) >= target
-
-        if enough(1.0):
-            self.rho_k = 1.0
-            return
-        if not enough(0.0):
-            raise ValueError("N_loc cannot be reached at rho_k=0")
-
-        low, high = 0.0, 1.0
-        for _ in range(60):
-            middle = (low + high) / 2
-            if enough(middle):
-                low = middle
-            else:
-                high = middle
-        self.rho_k = low
+        pass
 
     def Calculate_T_k(self) -> None:
-        if self.h_k is None or not np.isfinite(self.h_k) or self.h_k <= 0:
-            raise ValueError("h_k must be finite and positive")
-        if (
-            self.rho_k is None
-            or not np.isfinite(self.rho_k)
-            or not 0 <= self.rho_k <= 1
-        ):
-            raise ValueError("rho_k must be finite and lie in [0, 1]")
-
-        beta = np.asarray(self.beta, dtype=float)
-        beta_norm = np.linalg.norm(beta)
-        if not np.isfinite(beta_norm) or beta_norm == 0:
-            raise ValueError("beta must be finite and non-zero")
-        beta = beta / beta_norm
-        beta_projection = np.outer(beta, beta)
-        self.T_k = (
-            self.rho_k * np.eye(self.d)
-            + (np.sqrt(1 + self.rho_k**2) - self.rho_k) * beta_projection
-        ) / self.h_k
+        pass
 
     def Model_step_0(self) -> None:
-        Phi = Generate_proj()
+        pass
 
     def Model_step_k(self) -> None:
         pass

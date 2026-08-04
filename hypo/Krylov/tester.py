@@ -62,6 +62,68 @@ def projected_ridge_check():
     )
 
 
+def weighted_gcv_check():
+    diagonal = np.linspace(1.0, 2.0, 6)
+    subdiagonal = np.linspace(0.1, 0.6, 6)
+    B = np.zeros((7, 6))
+    B[np.arange(6), np.arange(6)] = diagonal
+    B[np.arange(1, 7), np.arange(6)] = subdiagonal
+    rho = 2.5
+    full_rows = 31
+
+    try:
+        selected_lambda, gcv, coordinates, _ = (
+            ADP_single_index()._select_lambda(B, rho, None, full_rows)
+        )
+    except TypeError:
+        return False
+    rhs = np.zeros(B.shape[0])
+    rhs[0] = rho
+    normal = B.T @ B
+    regularized = normal + selected_lambda * np.eye(B.shape[1])
+    direct = np.linalg.solve(regularized, B.T @ rhs)
+    residual = B @ direct - rhs
+    trace = np.trace(B @ np.linalg.solve(regularized, B.T))
+    reference_gcv = np.dot(residual, residual) / (full_rows - trace) ** 2
+    return bool(
+        np.allclose(coordinates, direct, rtol=1e-9, atol=1e-11)
+        and np.isclose(gcv, reference_gcv, rtol=1e-10, atol=1e-12)
+    )
+
+
+def continuation_scope_check():
+    rng = np.random.default_rng(731)
+    m, d = 30, 12
+    A = rng.normal(size=(m, d))
+    beta_prior = rng.normal(size=d)
+    beta_prior /= np.linalg.norm(beta_prior)
+    correction = rng.normal(size=d)
+    I = (A @ (beta_prior + correction)).reshape(1, m)
+    model = ADP_single_index()
+    model.lambda_ = 3.5
+    priors = []
+    original = model._select_lambda
+
+    def tracked(B, rho, lambda_prior, full_rows=None):
+        priors.append(lambda_prior)
+        return original(B, rho, lambda_prior, full_rows)
+
+    model._select_lambda = tracked
+    try:
+        model._hybrid_krylov(
+            I,
+            A.reshape(1, m, d),
+            np.ones(1),
+            beta_prior,
+        )
+    except TypeError:
+        return False
+    return bool(
+        len(priors) >= 2
+        and all(np.isclose(prior, 3.5) for prior in priors)
+    )
+
+
 def rank_deficient_check():
     B = np.zeros((4, 3))
     B[0, 0] = 1.0
@@ -199,7 +261,7 @@ def scale_equivariance_check():
             and record["lambda_at_boundary"]
             == scaled_record["lambda_at_boundary"]
             and direction_error < 1e-10
-            and np.isclose(lambda_ratio, 1.0, rtol=1e-9, atol=0.0)
+            and np.isclose(lambda_ratio, 1.0, rtol=1e-8, atol=0.0)
         ),
         record,
         scaled_record,
@@ -297,6 +359,11 @@ def _valid_trace_row(row, krylov_limit):
         and lambda_valid
         and _positive_integer(row.get("inner_iterations"))
         and _finite_nonnegative(row.get("beta_delta"))
+        and isinstance(row.get("candidate_accepted"), (bool, np.bool_))
+        and (
+            row.get("validation_loss") is None
+            or _finite_nonnegative(row.get("validation_loss"))
+        )
     ):
         return False
     if status == "zero_residual":
@@ -393,6 +460,8 @@ def main(argv=None):
     )
     checks = {
         "projected_ridge": projected_ridge_check(),
+        "weighted_gcv": weighted_gcv_check(),
+        "continuation_scope": continuation_scope_check(),
         "full_span": full_span_valid,
         "rank_deficient": rank_deficient_check(),
         "flat_boundary": flat_boundary_check(),

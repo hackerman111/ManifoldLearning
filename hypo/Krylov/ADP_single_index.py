@@ -4,13 +4,11 @@ import math
 from time import perf_counter
 
 import numpy as np
+from hypo.single_index.ADP_single_index import ADP_single_index as _ADP_single_index
 from scipy.optimize import minimize_scalar
 
-from hypo.single_index.ADP_single_index import ADP_single_index as _ADP_single_index
-
-
 _CHECK_EVERY = 5
-_MAX_KRYLOV = 100
+_MAX_KRYLOV = 1000
 _GCV_GRID_SIZE = 21
 _LAMBDA_LOG10_TOL = 0.1
 _PROJECTIVE_DIRECTION_TOL = 1e-3
@@ -20,6 +18,7 @@ _RELATIVE_GCV_TOL = 1e-2
 class ADP_single_index(_ADP_single_index):
     def fit(self, X, Y):
         self.lambda_ = None
+        self._fixed_validation_folds = None
         super().fit(X, Y)
         timings = self.timings_
         self.timings_ = {
@@ -37,7 +36,67 @@ class ADP_single_index(_ADP_single_index):
         }
         return self
 
-    def _select_lambda(self, B, rho, lambda_prior):
+    def _calculate_statistics(self, X, Y, weights, directions):
+        statistics = super()._calculate_statistics(X, Y, weights, directions)
+        if self.beta_init == "random":
+            statistics["cross_fitted"] = ()
+            return statistics
+        # Keep the strong local start on one validation target so later
+        # bandwidth changes cannot accept directional drift.
+        if self._fixed_validation_folds is not None:
+            statistics["cross_fitted"] = self._fixed_validation_folds
+            return statistics
+        permutation = np.random.default_rng(self.seed).permutation(X.shape[0])
+        first = np.zeros(X.shape[0], dtype=bool)
+        first[permutation[::2]] = True
+        second = ~first
+        usable = (np.sum(weights[:, first], axis=1) > 0) & (
+            np.sum(weights[:, second], axis=1) > 0
+        )
+        folds = []
+        for training, validation in ((first, second), (second, first)):
+            if not np.any(usable):
+                break
+            folds.append(
+                (
+                    super()._calculate_statistics(
+                        X[training],
+                        Y[training],
+                        weights[usable][:, training],
+                        directions[usable],
+                    ),
+                    super()._calculate_statistics(
+                        X[validation],
+                        Y[validation],
+                        weights[usable][:, validation],
+                        directions[usable],
+                    ),
+                )
+            )
+        self._fixed_validation_folds = folds
+        statistics["cross_fitted"] = folds
+        return statistics
+
+    def _cross_fitted_moment_loss(self, folds, beta):
+        if not folds:
+            return None
+        squared_error = 0.0
+        count = 0
+        for training, validation in folds:
+            slopes = self._slopes(
+                training["I"],
+                training["U"],
+                beta,
+            )
+            residual = validation["I"] - slopes[:, None] * (validation["U"] @ beta)
+            squared_error += float(np.sum(np.square(residual)))
+            count += residual.size
+        loss = squared_error / count
+        if not np.isfinite(loss) or loss < 0:
+            raise RuntimeError("cross-fitted moment loss is invalid")
+        return loss
+
+    def _select_lambda(self, B, rho, lambda_prior, full_rows=None):
         B = np.asarray(B, dtype=float)
         if (
             B.ndim != 2
@@ -60,6 +119,14 @@ class ADP_single_index(_ADP_single_index):
         largest = singular_values[0]
         if largest <= 0:
             raise RuntimeError("projected Krylov spectrum is invalid")
+        if full_rows is None:
+            full_rows = B.shape[0]
+        if (
+            isinstance(full_rows, (bool, np.bool_))
+            or not isinstance(full_rows, (int, np.integer))
+            or full_rows < B.shape[1]
+        ):
+            raise RuntimeError("invalid full problem row count")
 
         rhs = np.zeros(B.shape[0])
         rhs[0] = rho
@@ -83,14 +150,10 @@ class ADP_single_index(_ADP_single_index):
             if not np.isfinite(lambda_value) or lambda_value <= 0:
                 return math.inf, None
             coordinates = right @ (
-                singular_values
-                / (squared + lambda_value)
-                * projected_rhs
+                singular_values / (squared + lambda_value) * projected_rhs
             )
             residual = B @ coordinates - rhs
-            denominator = B.shape[0] - np.sum(
-                squared / (squared + lambda_value)
-            )
+            denominator = full_rows - np.sum(squared / (squared + lambda_value))
             criterion = np.linalg.norm(residual) ** 2 / denominator**2
             if (
                 not np.all(np.isfinite(coordinates))
@@ -111,14 +174,17 @@ class ADP_single_index(_ADP_single_index):
 
         def tied_boundaries():
             def tied(score):
-                tolerance = 64 * np.finfo(float).eps * max(
-                    np.finfo(float).tiny,
-                    abs(score),
-                    abs(scores[best]),
+                tolerance = (
+                    64
+                    * np.finfo(float).eps
+                    * max(
+                        np.finfo(float).tiny,
+                        abs(score),
+                        abs(scores[best]),
+                    )
                 )
                 return bool(
-                    np.isfinite(score)
-                    and abs(score - scores[best]) <= tolerance
+                    np.isfinite(score) and abs(score - scores[best]) <= tolerance
                 )
 
             return (
@@ -132,11 +198,7 @@ class ADP_single_index(_ADP_single_index):
                 low /= 10
             else:
                 high *= 10
-            if not (
-                np.isfinite(low)
-                and np.isfinite(high)
-                and 0 < low < high
-            ):
+            if not (np.isfinite(low) and np.isfinite(high) and 0 < low < high):
                 raise RuntimeError("could not expand projected GCV interval")
             grid = np.geomspace(low, high, _GCV_GRID_SIZE)
             scores = np.array([evaluate(value)[0] for value in grid])
@@ -243,9 +305,7 @@ class ADP_single_index(_ADP_single_index):
             }
 
         unit_roundoff = np.finfo(float).eps
-        recurrence_tolerance = unit_roundoff * math.sqrt(
-            operator_scale_squared
-        )
+        recurrence_tolerance = unit_roundoff * math.sqrt(operator_scale_squared)
         u = residual / rho
         transpose_product = rmatvec(u)
         alpha = np.linalg.norm(transpose_product)
@@ -272,23 +332,27 @@ class ADP_single_index(_ADP_single_index):
         previous_checkpoint = None
         stable_checkpoints = 0
         valid_candidate = None
-        lambda_prior = previous_lambda
         kmax = min(d, _MAX_KRYLOV)
+
+        def finish(candidate, record, status=None, iterations=None):
+            record = dict(record)
+            if status is not None:
+                record["solver_status"] = status
+            if iterations is not None:
+                record["krylov_iterations"] = iterations
+            self.lambda_ = record["selected_lambda"]
+            return candidate, record
 
         for iteration in range(1, kmax + 1):
             if not (
-                np.all(np.isfinite(u))
-                and np.all(np.isfinite(v))
-                and np.isfinite(alpha)
+                np.all(np.isfinite(u)) and np.all(np.isfinite(v)) and np.isfinite(alpha)
             ):
                 raise RuntimeError("Krylov recurrence returned nonfinite values")
             basis.append(v.copy())
             diagonal.append(float(alpha))
 
             product = matvec(v)
-            next_u_raw = self._reorthogonalize(
-                product - alpha * u, left_basis
-            )
+            next_u_raw = self._reorthogonalize(product - alpha * u, left_basis)
             beta_coefficient = np.linalg.norm(next_u_raw)
             if not (
                 np.all(np.isfinite(product))
@@ -336,7 +400,12 @@ class ADP_single_index(_ADP_single_index):
                         projected_gcv,
                         coordinates,
                         boundary,
-                    ) = self._select_lambda(B, rho, lambda_prior)
+                    ) = self._select_lambda(
+                        B,
+                        rho,
+                        previous_lambda,
+                        I.size,
+                    )
                     candidate = beta_prior + V @ coordinates
                     candidate_norm = np.linalg.norm(candidate)
                     if (
@@ -351,15 +420,14 @@ class ADP_single_index(_ADP_single_index):
                 except RuntimeError:
                     if breakdown and valid_candidate is not None:
                         candidate, record = valid_candidate
-                        return candidate, {
-                            **record,
-                            "solver_status": "breakdown",
-                            "krylov_iterations": iteration,
-                        }
+                        return finish(
+                            candidate,
+                            record,
+                            "breakdown",
+                            iteration,
+                        )
                     raise
 
-                self.lambda_ = selected_lambda
-                lambda_prior = selected_lambda
                 record = {
                     "solver_status": "max_iterations",
                     "krylov_iterations": iteration,
@@ -370,19 +438,15 @@ class ADP_single_index(_ADP_single_index):
                 valid_candidate = candidate, record
 
                 if previous_checkpoint is not None:
-                    previous_beta, previous_lambda, previous_gcv = (
-                        previous_checkpoint
-                    )
+                    previous_beta, checkpoint_lambda, previous_gcv = previous_checkpoint
                     dot = np.clip(abs(np.dot(candidate, previous_beta)), 0.0, 1.0)
                     stable = (
                         not boundary
                         and abs(
-                            math.log10(selected_lambda)
-                            - math.log10(previous_lambda)
+                            math.log10(selected_lambda) - math.log10(checkpoint_lambda)
                         )
                         < _LAMBDA_LOG10_TOL
-                        and math.sqrt(2 * (1 - dot))
-                        < _PROJECTIVE_DIRECTION_TOL
+                        and math.sqrt(2 * (1 - dot)) < _PROJECTIVE_DIRECTION_TOL
                         and abs(projected_gcv - previous_gcv)
                         / max(1.0, abs(projected_gcv))
                         < _RELATIVE_GCV_TOL
@@ -395,43 +459,43 @@ class ADP_single_index(_ADP_single_index):
                 )
 
                 if breakdown:
-                    return candidate, {
-                        **record,
-                        "solver_status": "breakdown",
-                    }
+                    return finish(candidate, record, "breakdown")
                 if stable_checkpoints >= 2:
-                    return candidate, {
-                        **record,
-                        "solver_status": "stabilized",
-                    }
+                    return finish(candidate, record, "stabilized")
                 if at_limit:
-                    return candidate, record
+                    return finish(candidate, record)
 
             if breakdown:
                 if valid_candidate is None:
                     raise RuntimeError("Krylov breakdown before a valid projection")
                 candidate, record = valid_candidate
-                return candidate, {
-                    **record,
-                    "solver_status": "breakdown",
-                    "krylov_iterations": iteration,
-                }
+                return finish(
+                    candidate,
+                    record,
+                    "breakdown",
+                    iteration,
+                )
             u, v, alpha = next_u, next_v, next_alpha
 
         raise RuntimeError("Krylov solver did not produce a valid candidate")
 
     def _alternating(self, statistics, beta):
         I, U = statistics["I"], statistics["U"]
+        folds = statistics.get("cross_fitted", ())
         delta = math.inf
         record = None
         for inner in range(self.inner_steps):
             prior = beta
+            prior_loss = self._cross_fitted_moment_loss(folds, prior)
             started = perf_counter()
             slopes = self._slopes(I, U, prior)
             self.timings_["slopes"] += perf_counter() - started
             started = perf_counter()
-            beta, record = self._hybrid_krylov(I, U, slopes, prior)
+            candidate, record = self._hybrid_krylov(I, U, slopes, prior)
             self.timings_["lsmr"] += perf_counter() - started
+            candidate_loss = self._cross_fitted_moment_loss(folds, candidate)
+            accepted = prior_loss is None or candidate_loss <= prior_loss
+            beta = candidate if accepted else prior
             delta = min(
                 np.linalg.norm(beta - prior),
                 np.linalg.norm(beta + prior),
@@ -441,8 +505,14 @@ class ADP_single_index(_ADP_single_index):
         started = perf_counter()
         slopes = self._slopes(I, U, beta)
         self.timings_["slopes"] += perf_counter() - started
-        return beta, slopes, {
-            **record,
-            "inner_iterations": inner + 1,
-            "beta_delta": float(delta),
-        }
+        return (
+            beta,
+            slopes,
+            {
+                **record,
+                "inner_iterations": inner + 1,
+                "beta_delta": float(delta),
+                "candidate_accepted": bool(accepted),
+                "validation_loss": (candidate_loss if accepted else prior_loss),
+            },
+        )

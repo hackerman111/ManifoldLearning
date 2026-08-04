@@ -16,7 +16,7 @@ class ADP_single_index:
         n_directions=8,
         N_loc=10,
         N_lin=None,
-        lambda_penalty=100000.0,
+        lambda_penalty=1000.0,
         local_ridge=1e-8,
         outer_steps=8,
         inner_steps=2,
@@ -147,9 +147,7 @@ class ADP_single_index:
             self.weight_density_ = float(np.count_nonzero(weights) / weights.size)
             zero_weight_fractions.append(1 - self.weight_density_)
             started = perf_counter()
-            statistics = calculate_statistics(
-                X, Y, weights, directions, batch_size=self.batch_size
-            )
+            statistics = self._calculate_statistics(X, Y, weights, directions)
             self.timings_["statistics"] += perf_counter() - started
             beta, slopes, record = self._alternating(statistics, beta)
             record.update(
@@ -287,6 +285,15 @@ class ADP_single_index:
             projection2 = np.square((centers @ beta)[:, None] - (X @ beta)[None, :])
             argument = (rho**2 * distance2 + projection2) / h**2
         return self._kernel(argument)
+
+    def _calculate_statistics(self, X, Y, weights, directions):
+        return calculate_statistics(
+            X,
+            Y,
+            weights,
+            directions,
+            batch_size=self.batch_size,
+        )
 
     def _slopes(self, I, U, beta):
         projected = U @ beta

@@ -24,6 +24,7 @@ def parse_args(argv=None):
     parser.add_argument("--seed", type=int, default=random.randint(0, 1000))
     parser.add_argument("--threshold", type=float, default=0.90)
     parser.add_argument("--beta-init", choices=("local", "random"), default="local")
+    parser.add_argument("--lambda_penalty", type=float, default=1.0)
     args = parser.parse_args(argv)
     if args.n <= args.d + 1:
         parser.error("--n must exceed --d + 1")
@@ -51,7 +52,7 @@ def main(argv=None):
     Y = np.sin(X @ beta_true) + args.noise * rng.normal(size=args.n)
 
     model = ADP_single_index(
-        seed=args.seed + 1, beta_init=args.beta_init
+        seed=args.seed + 1, beta_init=args.beta_init, lambda_penalty=args.lambda_penalty
     ).fit(X, Y)
     initial_cosine = absolute_cosine(model.beta_init_, beta_true)
     final_cosine = absolute_cosine(model.beta_, beta_true)
@@ -87,21 +88,24 @@ def main(argv=None):
         )
     )
     print(
-        f"seed={args.seed} n={args.n} d={args.d} beta_init={args.beta_init} "
-        f"cosine_init={initial_cosine:.6f} cosine_final={final_cosine:.6f} "
-        f"threshold={args.threshold:.2f} outer_steps={len(model.trace_)} "
-        f"weight_density_final={model.weight_density_:.2%} "
-        f"weight_zero_mean={model.mean_zero_weight_fraction_:.2%} "
-        f"status={'PASS' if valid else 'FAIL'}"
+        f"seed={args.seed} n={args.n} d={args.d} beta_init={args.beta_init} \n"
+        f"cosine_init={initial_cosine:.6f} cosine_final={final_cosine:.6f}\n "
+        f"threshold={args.threshold:.2f} outer_steps={len(model.trace_)}\n "
+        f"weight_density_final={model.weight_density_:.2%}\n "
+        f"weight_zero_mean={model.mean_zero_weight_fraction_:.2%}\n "
+        f"lambda={model.lambda_penalty}\n"
+        f"status={'PASS' if valid else 'FAIL'}\n"
+        "----------------------"
     )
     print(
         "timings_sec "
-        + " ".join(f"{name}={model.timings_[name]:.6f}" for name in timing_names)
+        + " ".join(f"{name}={model.timings_[name]:.6f}\n" for name in timing_names)
     )
+    print("----------------")
     print(
         "timings_pct "
         + " ".join(
-            f"{name}={model.timings_[name] / model.timings_['total']:.2%}"
+            f"{name}={model.timings_[name] / model.timings_['total']:.2%}\n"
             for name in timing_names
         )
     )

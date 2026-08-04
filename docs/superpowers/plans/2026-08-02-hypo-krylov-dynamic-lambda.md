@@ -135,7 +135,7 @@ Add `_select_lambda(B, rho, lambda_prior)`. It must:
 3. evaluate
    `y = V @ ((s / (s**2 + lambda)) * (U.T @ rhs))`;
 4. evaluate
-   `||B @ y - rhs||**2 / (B.shape[0] - sum(s**2/(s**2+lambda)))**2`;
+   `||B @ y - rhs||**2 / (full_rows - sum(s**2/(s**2+lambda)))**2`;
 5. search a 21-point geometric grid over the spectral and continuation union;
 6. expand one boundary by one decade once;
 7. refine an interior minimum with bounded `minimize_scalar` in log-lambda;
@@ -144,7 +144,7 @@ Add `_select_lambda(B, rho, lambda_prior)`. It must:
 Use this exact search core:
 
 ```python
-    def _select_lambda(self, B, rho, lambda_prior):
+    def _select_lambda(self, B, rho, lambda_prior, full_rows=None):
         left, singular_values, right = np.linalg.svd(B, full_matrices=False)
         if (
             singular_values.size == 0
@@ -152,6 +152,8 @@ Use this exact search core:
             or singular_values[0] <= 0
         ):
             raise RuntimeError("Golub--Kahan projection is singular")
+        if full_rows is None:
+            full_rows = B.shape[0]
 
         rhs = np.zeros(B.shape[0])
         rhs[0] = rho
@@ -163,7 +165,7 @@ Use this exact search core:
                 singular_values / (squared + lambda_value) * projected_rhs
             )
             residual = B @ coordinates - rhs
-            denominator = B.shape[0] - np.sum(
+            denominator = full_rows - np.sum(
                 squared / (squared + lambda_value)
             )
             if denominator <= np.finfo(float).eps:
@@ -317,17 +319,14 @@ At each `must_check`, construct:
         basis_matrix = np.column_stack(basis)
 ```
 
-Select lambda using the preceding checkpoint lambda when available, falling
-back to `self.lambda_`, then normalize and sign-align the projected update:
+Freeze `self.lambda_` before entering the Krylov loop and use that same
+continuation value at every checkpoint, then normalize and sign-align the
+projected update:
 
 ```python
-        lambda_prior = (
-            self.lambda_
-            if previous is None
-            else previous["selected_lambda"]
-        )
+        lambda_prior = self.lambda_
         selected_lambda, selected_gcv, coordinates, boundary = (
-            self._select_lambda(B, rho, lambda_prior)
+            self._select_lambda(B, rho, lambda_prior, I.size)
         )
         beta = beta_prior + basis_matrix @ coordinates
         beta_norm = np.linalg.norm(beta)
@@ -611,3 +610,20 @@ rtk git status --short
 
 Expected: no whitespace errors; pre-existing unrelated dirty files remain
 untouched.
+
+### Task 5: Correct random-start over-regularization
+
+**Files:**
+- Modify: `hypo/single_index/ADP_single_index.py`
+- Modify: `hypo/Krylov/ADP_single_index.py`
+- Modify: `hypo/Krylov/tester.py`
+- Modify: `tex/hybrid_krylov_lambda.tex`
+
+- [x] Freeze the incoming lambda across checkpoints of one Krylov process.
+- [x] Use the full moment-row denominator, equivalent to weighted GCV with
+  \(\omega_k=(k+1)/(JP)\).
+- [x] Protect the strong local initialization from direction updates that
+  increase a fixed two-fold cross-fitted moment loss.
+- [x] Add deterministic weighted-GCV and continuation-scope checks.
+- [x] Re-run the reported seed 913 command and both deterministic benchmark
+  cells.
