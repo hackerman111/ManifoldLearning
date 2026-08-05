@@ -4,8 +4,9 @@ import math
 from time import perf_counter
 
 import numpy as np
-from ADP.ADP_statistic import calculate_statistics
 from scipy.sparse.linalg import LinearOperator, lsmr
+
+from ADP.ADP_Statistic import calculate_statistics
 
 
 class ADP_single_index:

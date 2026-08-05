@@ -1,85 +1,100 @@
+from collections.abc import Callable
+from dataclasses import dataclass
+
+import ADP.calculus
 import numpy as np
-
 from ADP import ADP_Config, ADP_Data
-from ADP.ADP_statistic import *
+from ADP.ADP_Solver import LSMR
+from ADP.ADP_Statistic import calculate_statistics
+from ADP.calculus import (
+    Calculate_h0,
+    Calculate_rho_k,
+    Calculate_weight,
+    Generate_proj,
+    T_k,
+)
 
-from . import calculus
-from .calculus import T_k
+
+@dataclass(slots=True)
+class Generation_param:
+    sigma_eps: float
+    mu_eps: float
+    sigma_x: float
+    mu_x: float
+    sigma_beta: float
+    mu_beta: float
+    sigma_beta_k: float
+    mu_beta_k: float
+
+
+def Generate_Data(
+    gen_par: Generation_param, rng: np.random.Generator, n: int, d: int, f: Callable
+) -> ADP_Data:
+
+    X = rng.normal(loc=gen_par.mu_x, scale=gen_par.sigma_x, size=(d, n))
+    beta = rng.normal(loc=gen_par.mu_beta, scale=gen_par.sigma_beta, size=d)
+    noise = rng.normal(loc=gen_par.mu_eps, scale=gen_par.sigma_eps, size=d)
+    Y = f(beta.T @ X) + noise
+
+    return ADP_Data(X, Y, noise, beta)
 
 
 class ADP_single_index:
-    Calculate_h0 = calculus.Calculate_h0
-    Calculate_rho_k = calculus.Calculate_rho_k
-    Calculate_weight = calculus.Calculate_weight
-    Calculate_Tk_x = staticmethod(calculus.Calculate_Tk_x)
-    Calculate_h_k = staticmethod(calculus.Calculate_h_k)
-    Generate_proj = staticmethod(calculus.Generate_proj)
+    config: ADP_Config
+    gen_param: Generation_param
+    n: int
+    d: int
+    f: Callable
 
-    def __init__(self, config: ADP_Config | None = None):
-        if config is None:
-            config = ADP_Config()
+    rng: np.random.Generator
+    data: ADP_Data
+    x_j: np.ndarray
+    type_beta: str
+    beta_k: np.ndarray
 
-        self.config = config
-        self.data = ADP_Data(config)
-        self.rng = self.data.rng
-        self.n = config.n
-        self.d = config.d
-        self.N_loc = config.N_loc
-        self.N_lin = config.N_lin
-        self.N_J = config.N_J
-        self.N_phi = config.N_phi
-        self.mu_phi = config.mu_phi
-        self.sigma_phi = config.sigma_phi
-        self.lam = config.lam
-        self.kernel = config.kernel
-        self.a = config.a
-        self.h_min = config.h_min
+    def __post_init__(self, config: ADP_Config, gen_param: Generation_param):
+        self.rng = np.random.default_rng(seed=config.seed)
+        self.data = Generate_Data(gen_param, self.rng, self.n, self.d, self.f)
 
-        self.h_k = None
-        self.rho_k = None
+        # Адаптировать под различные x_j
+        self.x_j = self.data.X
 
-        self.X, self.noise = self.data.Initialize_input_data()
-
-        self.beta = np.ndarray
-        self.beta_k = None
-        self.Y = np.ndarray
-        self.x_j = None
-        self.proj = None
-        self.T_k = T_k()
-        self.I = self.U = self.mass = self.mean = self.n_eff = self.eta = None
-
-    # После отработки реализовать новый вариант
-    def Initialize_beta(self) -> np.ndarray:
-        return self.rng.normal(
-            loc=self.config.mu_beta, scale=self.config.sigma_beta, size=self.d
+        self.beta_k = self.rng.normal(
+            loc=self.gen_param.mu_beta_k, scale=self.gen_param.sigma_beta_k, size=self.d
         )
-
-    def Generate_beta_0(self) -> np.ndarray:
-        return self.rng.normal(
-            loc=self.config.mu_beta, scale=self.config.sigma_beta, size=self.d
-        )
-
-    def Calculate_Y(self):
-        return self.config.f(self.beta.T @ self.X) + self.noise
-
-    def Initialize_x_j(self):
-        # модифицировать под не стандартный выбор
-        return self.X
-
-    def Initialize_model(self):
-        self.X, self.noise = self.data.Initialize_input_data()
-        # pyrefly: ignore [bad-assignment]
-        self.beta = self.Initialize_beta()
-        self.Y = self.Calculate_Y()
-        self.x_j = self.Initialize_x_j()
-        self.h_k = self.Calculate_h0()
-        self.beta_k = self.Generate_beta_0()
-        self.T_k = T_k(1 / self.h_k, 1, np.zeros(self.d))
 
     def step_k(self):
-        self.proj = self.Generate_proj(self.rng, self.N_phi, self.T_k)
-        Calculate_statistic(self, self.N_phi, batch_size=128)
-        # beta_k, l_k = solver.LSMR()
-
-    def Model_fit(self) -> None:
         pass
+
+    def fit(self):
+        h_k = Calculate_h0(
+            self.data.X,
+            self.x_j,
+            self.config.N_loc,
+            self.config.h_min,  # ty: ignore[invalid-argument-type]
+            self.config.kernel,
+        )
+        Tk = T_k(h_k, 0, np.zeros(self.d))
+        while True:
+            # pyrefly: ignore [bad-argument-type]
+            Phi = Generate_proj(self.rng, self.config.N_phi, Tk)
+            weight = Calculate_weight(self.data.X, self.x_j, self.beta_k, Tk)
+            stat = calculate_statistics(
+                self.data.X, self.data.Y, weight, Phi, batch_size=32
+            )
+            beta_k, lj_k = LSMR()
+
+            # pyrefly: ignore [unsupported-operation]
+            if h_k / self.config.a < self.config.h_min:
+                return beta_k
+            else:
+                h_k /= self.config.a
+                rho_k = Calculate_rho_k(
+                    self.data.X,
+                    self.x_j,
+                    beta_k,
+                    h_k,
+                    self.config.N_loc,
+                    kernel=self.config.kernel,
+                )
+                Tk = T_k(h_k, rho_k, beta_k)
