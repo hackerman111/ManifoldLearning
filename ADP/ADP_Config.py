@@ -59,27 +59,3 @@ class ADP_Config:
         if h_min is None:
             h_min = 10 * self.sigma_x / n
         self.h_min = h_min
-
-    def Get_config(self):
-        return (
-            self.seed,
-            self.sigma_x,
-            self.mu_x,
-            self.sigma_eps,
-            self.mu_eps,
-            self.f,
-            self.d,
-            self.n,
-            self.mu_beta,
-            self.sigma_beta,
-            self.mu_phi,
-            self.sigma_phi,
-            self.N_loc,
-            self.N_lin,
-            self.N_J,
-            self.N_phi,
-            self.lam,
-            self.kernel,
-            self.a,
-            self.h_min,
-        )

@@ -1,6 +1,6 @@
 import numpy as np
 
-from ADP_statistic import calculate_statistics
+from ADP_statistic import _weight_blocks_single, calculate_statistics
 
 
 def test_matrix_statistics_match_direct_sums_and_are_shift_invariant():
@@ -36,3 +36,41 @@ def test_matrix_statistics_match_direct_sums_and_are_shift_invariant():
     )
     np.testing.assert_allclose(shifted["I"], result["I"], rtol=1e-9, atol=1e-9)
     np.testing.assert_allclose(shifted["U"], result["U"], rtol=1e-9, atol=1e-9)
+
+
+def test_single_index_weights_are_consumed_by_center_blocks():
+    rng = np.random.default_rng(7)
+    n, d, J, P = 13, 3, 5, 2
+    X = rng.normal(size=(n, d))
+    Y = rng.normal(size=n)
+    centers = rng.normal(size=(J, d))
+    beta = rng.normal(size=d)
+    beta /= np.linalg.norm(beta)
+    directions = rng.normal(size=(J, P, d))
+    h, rho = 1.7, 0.4
+
+    D2 = (
+        np.square(centers).sum(axis=1)[:, None]
+        + np.square(X).sum(axis=1)[None, :]
+        - 2 * centers @ X.T
+    )
+    np.maximum(D2, 0.0, out=D2)
+    P2 = np.square((centers @ beta)[:, None] - (X @ beta)[None, :])
+    kernel = lambda q: np.exp(-q)
+    weights = kernel((rho**2 * D2 + P2) / h**2)
+    expected = calculate_statistics(X, Y, weights, directions, batch_size=2)
+
+    block_shapes = []
+
+    def recording_kernel(q):
+        block_shapes.append(q.shape)
+        return kernel(q)
+
+    blocks = _weight_blocks_single(
+        X, centers, beta, h, rho, recording_kernel, block_size=2
+    )
+    actual = calculate_statistics(X, Y, blocks, directions, batch_size=2)
+
+    assert block_shapes == [(2, n), (2, n), (1, n)]
+    for name in expected:
+        np.testing.assert_allclose(actual[name], expected[name], rtol=1e-12, atol=1e-12)
