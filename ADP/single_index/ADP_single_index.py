@@ -11,6 +11,7 @@ from ..calculus import (
     pairwise_distance2,
     search_bandwidth,
 )
+from ..logger import finish_tracking, start_tracking, track_stage
 from .solvers.LSMR import solve as solve_lsmr
 
 
@@ -28,105 +29,118 @@ class ADP_single_index:
         )
 
     def fit(self, X, Y):
-        X, Y = _prepare_inputs(X, Y)
-        config = self.config
-        n, d = X.shape
+        tracker = start_tracking()
+        try:
+            return self._fit(X, Y, tracker)
+        finally:
+            self.profile_ = finish_tracking(tracker)
 
-        # Локальные имена короче self.config.N_loc и не дублируют состояние модели.
-        N_loc = config.N_loc
-        N_lin = config.N_lin or 2 * d
-        N_J = config.N_J or n
-        N_phi = config.N_phi or min(N_loc, d)
-        kernel = config.kernel
-        a = config.a
-        batch_size = config.batch_size
-        lambda_penalty = config.lambda_penalty
-        local_ridge = config.local_ridge
-        outer_steps = config.outer_steps
-        index_init = config.index_init
-        seed = config.seed
-        configured_h_min = config.h_min
+    def _fit(self, X, Y, tracker):
+        with track_stage(tracker, "initialization"):
+            X, Y = _prepare_inputs(X, Y)
+            config = self.config
+            n, d = X.shape
 
-        if N_loc > n:
-            raise ValueError("N_loc cannot exceed n")
-        if N_lin > n:
-            raise ValueError("N_lin cannot exceed n")
-        if index_init == "local" and N_lin <= d + 1:
-            raise ValueError("N_lin must exceed d + 1 for local initialization")
-        if not np.ceil(n / N_loc) <= N_J <= n:
-            raise ValueError("N_J must lie between ceil(n / N_loc) and n")
+            # Локальные имена короче self.config.N_loc.
+            N_loc = config.N_loc
+            N_lin = config.N_lin or 2 * d
+            N_J = config.N_J or n
+            N_phi = config.N_phi or min(N_loc, d)
+            kernel = config.kernel
+            a = config.a
+            batch_size = config.batch_size
+            lambda_penalty = config.lambda_penalty
+            local_ridge = config.local_ridge
+            outer_steps = config.outer_steps
+            index_init = config.index_init
+            seed = config.seed
+            configured_h_min = config.h_min
 
-        scale = float(np.mean(np.std(X, axis=0)))
-        h_min = configured_h_min or max(
-            10.0 * scale / n,
-            np.finfo(float).eps,
-        )
+            if N_loc > n:
+                raise ValueError("N_loc cannot exceed n")
+            if N_lin > n:
+                raise ValueError("N_lin cannot exceed n")
+            if index_init == "local" and N_lin <= d + 1:
+                raise ValueError("N_lin must exceed d + 1 for local initialization")
+            if not np.ceil(n / N_loc) <= N_J <= n:
+                raise ValueError("N_J must lie between ceil(n / N_loc) and n")
 
-        rng = np.random.default_rng(seed)
-        if N_J == n:
-            centers = X.copy()
-        else:
-            centers = X[rng.choice(n, size=N_J, replace=False)]
-        distance2 = pairwise_distance2(X, centers)
-
-        if index_init == "random":
-            beta_init = rng.normal(size=d)
-            beta_init /= np.linalg.norm(beta_init)
-        else:
-            beta_init = initialize_beta_local(
-                X,
-                Y,
-                centers,
-                distance2,
-                N_lin,
-                kernel,
-                local_ridge,
+            scale = float(np.mean(np.std(X, axis=0)))
+            h_min = configured_h_min or max(
+                10.0 * scale / n,
+                np.finfo(float).eps,
             )
-        initial_beta = beta_init.copy()
 
-        h0 = search_bandwidth(distance2, N_loc, kernel, lower=h_min)
-        h = h0
-        rho = 1.0
-        localization_beta = np.zeros(d)
-        trace = []
-        solver_diagnostics = []
-        coefficients = None
-        stop_reason = None
-        k = 0
+            rng = np.random.default_rng(seed)
+            if N_J == n:
+                centers = X.copy()
+            else:
+                centers = X[rng.choice(n, size=N_J, replace=False)]
+            distance2 = pairwise_distance2(X, centers)
+
+            if index_init == "random":
+                beta_init = rng.normal(size=d)
+                beta_init /= np.linalg.norm(beta_init)
+            else:
+                beta_init = initialize_beta_local(
+                    X,
+                    Y,
+                    centers,
+                    distance2,
+                    N_lin,
+                    kernel,
+                    local_ridge,
+                )
+
+            initial_beta = beta_init.copy()
+
+            h0 = search_bandwidth(distance2, N_loc, kernel, lower=h_min)
+            h = h0
+            rho = 1.0
+            localization_beta = np.zeros(d)
+            trace = []
+            solver_diagnostics = []
+            coefficients = None
+            stop_reason = None
+            k = 0
 
         while True:
             if outer_steps is not None and k >= outer_steps:
                 raise RuntimeError("outer_steps exhausted before reaching h_min")
 
-            directions = generate_proj(
-                rng,
-                N_J,
-                N_phi,
-                localization_beta,
-                rho,
-            )
-            weights = calculate_weight(
-                X,
-                centers,
-                localization_beta,
-                h,
-                rho,
-                kernel,
-                block_size=batch_size,
-            )
-            statistics = calculate_statistics(
-                X,
-                Y,
-                weights,
-                directions,
-                batch_size=batch_size,
-            )
-            result = self.solver.fit(
-                statistics,
-                beta_init,
-                lambda_penalty=lambda_penalty,
-                local_ridge=local_ridge,
-            )
+            with track_stage(tracker, "directions"):
+                directions = generate_proj(
+                    rng,
+                    N_J,
+                    N_phi,
+                    localization_beta,
+                    rho,
+                )
+            with track_stage(tracker, "statistics"):
+                weights = calculate_weight(
+                    X,
+                    centers,
+                    localization_beta,
+                    h,
+                    rho,
+                    kernel,
+                    block_size=batch_size,
+                    distance2=distance2,
+                )
+                statistics = calculate_statistics(
+                    X,
+                    Y,
+                    weights,
+                    directions,
+                    batch_size=batch_size,
+                )
+            with track_stage(tracker, "solver"):
+                result = self.solver.fit(
+                    statistics,
+                    beta_init,
+                    lambda_penalty=lambda_penalty,
+                    local_ridge=local_ridge,
+                )
 
             beta = np.asarray(result.index, dtype=float)
             if beta.shape != (d,):
@@ -152,31 +166,32 @@ class ADP_single_index:
             )
             coefficients = result.coefficients
 
-            next_h = h / a
-            if next_h < h_min:
-                stop_reason = "h_min"
-                trace[-1]["stop_reason"] = stop_reason
-                break
+            with track_stage(tracker, "update"):
+                next_h = h / a
+                if next_h < h_min:
+                    stop_reason = "h_min"
+                    trace[-1]["stop_reason"] = stop_reason
+                    break
 
-            beta_init = beta
-            next_rho = calculate_rho_k(
-                X,
-                centers,
-                beta_init,
-                next_h,
-                N_loc,
-                kernel,
-                distance2=distance2,
-            )
-            if next_rho is None:
-                stop_reason = "local_mass_limit"
-                trace[-1]["stop_reason"] = stop_reason
-                break
+                beta_init = beta
+                next_rho = calculate_rho_k(
+                    X,
+                    centers,
+                    beta_init,
+                    next_h,
+                    N_loc,
+                    kernel,
+                    distance2=distance2,
+                )
+                if next_rho is None:
+                    stop_reason = "local_mass_limit"
+                    trace[-1]["stop_reason"] = stop_reason
+                    break
 
-            h = float(next_h)
-            rho = next_rho
-            localization_beta = beta_init
-            k += 1
+                h = float(next_h)
+                rho = next_rho
+                localization_beta = beta_init
+                k += 1
 
         self.beta_init_ = initial_beta
         self.beta_ = beta

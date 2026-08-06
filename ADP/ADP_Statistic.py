@@ -73,20 +73,16 @@ def calculate_statistics(X, Y, weights, directions, batch_size=32) -> ADP_Statis
         batch = slice(start, stop)
         A = W / mass_block[:, None]
         Phib = Phi[batch]
-        Mcb = A @ Xc
-        y_bar = A @ Y
-        Q = Phib @ Xc.T - Phib @ Mcb[..., None]
-        residual = (Q @ A[..., None]).squeeze(-1)
-        eta[batch] = _normalized_residual(A, Q, residual)
-        H = (Q - residual[..., None]) * A[:, None, :]
-        s = H.sum(axis=2)
-        I[batch] = mass_block[:, None] * (H @ Y - s * y_bar[:, None])
-        U[batch] = mass_block[:, None, None] * (
-            H @ Xc - s[..., None] * Mcb[:, None, :]
-        )
+        # ponytail: 25% is an empirical dense/local crossover; benchmark-based
+        # dispatch is only needed if substantially different kernels are added.
+        if 4 * int(np.count_nonzero(W, axis=1).max()) <= X.shape[0]:
+            block_values = _local_block(Xc, Y, W, Phib, mass_block)
+        else:
+            block_values = _dense_block(Xc, Y, A, Phib, mass_block)
+
+        I[batch], U[batch], Mcb, n_eff[batch], eta[batch] = block_values
         mass[batch] = mass_block
         mean[batch] = Mcb + x_bar
-        n_eff[batch] = 1.0 / np.square(A).sum(axis=1)
         expected_start = stop
 
     if expected_start != J:
@@ -100,6 +96,55 @@ def calculate_statistics(X, Y, weights, directions, batch_size=32) -> ADP_Statis
         n_eff=n_eff,
         eta=eta,
     )
+
+
+def _dense_block(Xc, Y, A, Phi, mass):
+    mean = A @ Xc
+    y_bar = A @ Y
+    Q = Phi @ Xc.T - Phi @ mean[..., None]
+    residual = (Q @ A[..., None]).squeeze(-1)
+    eta = _normalized_residual(A, Q, residual)
+    H = (Q - residual[..., None]) * A[:, None, :]
+    summed = H.sum(axis=2)
+    I = mass[:, None] * (H @ Y - summed * y_bar[:, None])
+    U = mass[:, None, None] * (
+        H @ Xc - summed[..., None] * mean[:, None, :]
+    )
+    n_eff = 1.0 / np.square(A).sum(axis=1)
+    return I, U, mean, n_eff, eta
+
+
+def _local_block(Xc, Y, W, Phi, mass):
+    rows, columns = np.nonzero(W)
+    counts = np.bincount(rows, minlength=len(W))
+    width = int(counts.max())
+    offsets = np.repeat(np.cumsum(counts) - counts, counts)
+    slots = np.arange(len(rows)) - offsets
+
+    indices = np.zeros((len(W), width), dtype=np.intp)
+    local_weights = np.zeros((len(W), width), dtype=W.dtype)
+    indices[rows, slots] = columns
+    local_weights[rows, slots] = W[rows, columns]
+
+    A = local_weights / mass[:, None]
+    local_X = Xc[indices]
+    local_Y = Y[indices]
+    mean = np.einsum("bm,bmd->bd", A, local_X, optimize=True)
+    y_bar = np.einsum("bm,bm->b", A, local_Y, optimize=True)
+    Q = Phi @ np.swapaxes(local_X - mean[:, None, :], 1, 2)
+    residual = (Q @ A[..., None]).squeeze(-1)
+    eta = _normalized_residual(A, Q, residual)
+    H = (Q - residual[..., None]) * A[:, None, :]
+    summed = H.sum(axis=2)
+    I = mass[:, None] * (
+        (H @ local_Y[..., None]).squeeze(-1) - summed * y_bar[:, None]
+    )
+    U = mass[:, None, None] * (
+        H @ local_X - summed[..., None] * mean[:, None, :]
+    )
+    n_eff = 1.0 / np.square(A).sum(axis=1)
+    return I, U, mean, n_eff, eta
+
 
 def _normalized_residual(A, Q, residual):
     denominator = (np.abs(Q) @ A[..., None]).squeeze(-1)

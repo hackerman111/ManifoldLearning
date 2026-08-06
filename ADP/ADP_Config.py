@@ -6,7 +6,10 @@ import numpy as np
 
 
 def epanechnikov(value: np.ndarray) -> np.ndarray:
-    return np.maximum(0.0, 1.0 - np.square(value))
+    result = np.square(value, dtype=float)
+    np.subtract(1.0, result, out=result)
+    np.maximum(result, 0.0, out=result)
+    return result
 
 
 @dataclass(frozen=True, slots=True)

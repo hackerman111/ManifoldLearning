@@ -151,10 +151,12 @@ def calculate_rho_k(
     if distance2 is None:
         distance2 = pairwise_distance2(X, centers)
     projected = (centers @ beta)[:, None] - (X @ beta)[None, :]
-    projection2 = np.square(projected)
+    inverse_h2 = 1.0 / h_k**2
+    projection2 = np.square(projected) * inverse_h2
+    scaled_distance2 = distance2 * inverse_h2
 
     def enough(rho: float) -> bool:
-        argument = (rho**2 * distance2 + projection2) / h_k**2
+        argument = rho**2 * scaled_distance2 + projection2
         mass = np.sum(kernel(argument), axis=1)
         return bool(np.mean(mass) >= N_loc)
 
@@ -164,7 +166,8 @@ def calculate_rho_k(
         return None
 
     low, high = 0.0, 1.0
-    for _ in range(60):
+    tolerance = np.sqrt(np.finfo(float).eps)
+    while high - low > tolerance:
         middle = (low + high) / 2.0
         if enough(middle):
             low = middle
@@ -209,20 +212,37 @@ def calculate_weight(
     rho: float,
     kernel: Callable,
     block_size: int = 128,
+    *,
+    distance2: np.ndarray | None = None,
 ) -> Iterator[tuple[int, np.ndarray]]:
     X = utils._finite_real_array(X, "X")
     centers = utils._finite_real_array(centers, "centers")
     beta = utils._finite_real_array(beta, "beta")
     utils.check_weight_block(X, centers, beta, h, rho, kernel, block_size)
 
-    x_norm2 = np.einsum("nd,nd->n", X, X)
+    if distance2 is not None:
+        distance2 = utils._finite_real_array(distance2, "distance2")
+        if distance2.shape != (len(centers), len(X)):
+            raise ValueError("distance2 must have shape (J, n)")
+        if np.any(distance2 < 0):
+            raise ValueError("distance2 must be nonnegative")
+
+    x_norm2 = None if distance2 is not None else np.einsum("nd,nd->n", X, X)
     x_proj = X @ beta
+    center_proj = centers @ beta
     for start in range(0, len(centers), block_size):
         C = centers[start : start + block_size]
-        c_norm2 = np.einsum("bd,bd->b", C, C)
-        distance2 = c_norm2[:, None] + x_norm2[None, :] - 2.0 * C @ X.T
-        np.maximum(distance2, 0.0, out=distance2)
+        if distance2 is None:
+            c_norm2 = np.einsum("bd,bd->b", C, C)
+            distance2_block = (
+                c_norm2[:, None] + x_norm2[None, :] - 2.0 * C @ X.T
+            )
+            np.maximum(distance2_block, 0.0, out=distance2_block)
+        else:
+            distance2_block = distance2[start : start + block_size]
 
-        projection_diff = (C @ beta)[:, None] - x_proj[None, :]
-        argument = (rho**2 * distance2 + projection_diff**2) / h**2
+        projection_diff = (
+            center_proj[start : start + block_size, None] - x_proj[None, :]
+        )
+        argument = (rho**2 * distance2_block + projection_diff**2) / h**2
         yield start, kernel(argument)
