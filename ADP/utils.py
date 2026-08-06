@@ -70,8 +70,8 @@ def check_weight_block(X, centers, beta, h, rho, kernel, block_size=128):
         raise ValueError("beta must have shape (d,)")
     if not np.isfinite(h) or h <= 0:
         raise ValueError("h must be finite and positive")
-    if not np.isfinite(rho) or rho < 0:
-        raise ValueError("rho must be finite and nonnegative")
+    if not np.isfinite(rho) or not 0 <= rho <= 1:
+        raise ValueError("rho must lie in [0, 1]")
     if not callable(kernel):
         raise TypeError("kernel must be callable")
     if (

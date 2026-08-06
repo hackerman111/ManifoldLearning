@@ -1,17 +1,37 @@
+from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import ClassVar
 
 import numpy as np
-from ADP import utils
+
+from . import utils
 
 
 @dataclass(frozen=True, slots=True)
 class ADP_Statistics:
+    _fields: ClassVar[tuple[str, ...]] = (
+        "I",
+        "U",
+        "mass",
+        "mean",
+        "n_eff",
+        "eta",
+    )
+
     I: np.ndarray
     U: np.ndarray
     mass: np.ndarray
     mean: np.ndarray
     n_eff: np.ndarray
     eta: np.ndarray
+
+    def __getitem__(self, name: str) -> np.ndarray:
+        if name not in self._fields:
+            raise KeyError(name)
+        return getattr(self, name)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._fields)
 
 
 def calculate_statistics(X, Y, weights, directions, batch_size=32) -> ADP_Statistics:
@@ -61,7 +81,9 @@ def calculate_statistics(X, Y, weights, directions, batch_size=32) -> ADP_Statis
         H = (Q - residual[..., None]) * A[:, None, :]
         s = H.sum(axis=2)
         I[batch] = mass_block[:, None] * (H @ Y - s * y_bar[:, None])
-        U[batch] = mass_block[:, None, None] * (H @ Xc - s[..., None] * Mcb[:, None, :])
+        U[batch] = mass_block[:, None, None] * (
+            H @ Xc - s[..., None] * Mcb[:, None, :]
+        )
         mass[batch] = mass_block
         mean[batch] = Mcb + x_bar
         n_eff[batch] = 1.0 / np.square(A).sum(axis=1)
@@ -78,31 +100,6 @@ def calculate_statistics(X, Y, weights, directions, batch_size=32) -> ADP_Statis
         n_eff=n_eff,
         eta=eta,
     )
-
-
-def Calculate_weight(X, centers, beta, h, rho, kernel, block_size=128):
-    X = utils._finite_real_array(X, "X")
-    centers = utils._finite_real_array(centers, "centers")
-    beta = utils._finite_real_array(beta, "beta")
-
-    utils.check_weight_block(X, centers, beta, h, rho, kernel, block_size)
-
-    x_norm2 = np.einsum("nd,nd->n", X, X)
-    x_proj = X @ beta
-    for start in range(0, len(centers), block_size):
-        C = centers[start : start + block_size]
-        c_norm2 = np.einsum("bd,bd->b", C, C)
-        D2 = c_norm2[:, None] + x_norm2[None, :] - 2.0 * C @ X.T
-        np.maximum(D2, 0.0, out=D2)
-
-        projection_diff = (C @ beta)[:, None] - x_proj[None, :]
-        Q = rho**2 * D2
-        Q += projection_diff**2
-        Q /= h**2
-        W = kernel(Q)
-        del D2, projection_diff, Q
-        yield start, W
-
 
 def _normalized_residual(A, Q, residual):
     denominator = (np.abs(Q) @ A[..., None]).squeeze(-1)

@@ -7,5 +7,4 @@ import numpy as np
 class ADP_Data:
     X: np.ndarray
     Y: np.ndarray
-    noise: np.ndarray
-    beta: np.ndarray
+    true_index: np.ndarray
