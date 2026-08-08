@@ -1,5 +1,11 @@
-import numpy as np
+
+from dataclasses import dataclass
+
+from ADP import ADP_Config, ADP_solver
 
 
-class ADP_multi_index:
-    pass
+@dataclass(slots=True)
+class ADP_single_index:
+    config: ADP_Config
+    solver: ADP_solver
+    
