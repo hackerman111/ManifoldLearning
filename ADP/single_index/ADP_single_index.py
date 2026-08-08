@@ -1,9 +1,12 @@
+from dataclasses import dataclass, field
+
 import numpy as np
 
 from ..ADP_Config import ADP_Config
 from ..ADP_Solver import ADP_solver
 from ..ADP_Statistic import calculate_statistics
-from ..calculus import (
+from ..engine import utils
+from ..engine.calculus import (
     calculate_rho_k,
     calculate_weight,
     generate_proj,
@@ -11,8 +14,38 @@ from ..calculus import (
     pairwise_distance2,
     search_bandwidth,
 )
-from ..logger import finish_tracking, start_tracking, track_stage
+from ..engine.logger import finish_tracking, start_tracking, track_stage
 from .solvers.LSMR import solve as solve_lsmr
+
+
+@dataclass(slots=True)
+class ADP_single_index_result:
+    beta_init: np.ndarray
+    beta_final: np.ndarray | None = None
+    beta_true: np.ndarray | None = None
+    trace: list[dict] = field(default_factory=list)
+    stop_reason: str | None = None
+
+    cosine_init: float | None = None
+    cosine_final: float | None = None
+
+    def Calculate_cosine(self):
+        if self.beta_true is None or self.beta_final is None:
+            raise RuntimeError("beta_true and beta_final are required")
+        self.cosine_init = float(abs(np.dot(self.beta_init, self.beta_true)))
+        self.cosine_final = float(abs(np.dot(self.beta_final, self.beta_true)))
+
+    def Set_beta_init(self, beta_init):
+        self.beta_init = beta_init
+
+    def Set_beta_true(self, beta_true):
+        self.beta_true = beta_true
+
+    def Set_beta_final(self, beta_final):
+        self.beta_final = beta_final
+
+    def Set_stop_reason(self, stop_reason):
+        self.stop_reason = stop_reason
 
 
 class ADP_single_index:
@@ -27,6 +60,7 @@ class ADP_single_index:
             max_steps=2,
             tol=1e-6,
         )
+        self.ADP_single_index_result = ADP_single_index_result
 
     def fit(self, X, Y):
         tracker = start_tracking()
@@ -37,7 +71,7 @@ class ADP_single_index:
 
     def _fit(self, X, Y, tracker):
         with track_stage(tracker, "initialization"):
-            X, Y = _prepare_inputs(X, Y)
+            X, Y = utils._prepare_xy(X, Y)
             config = self.config
             n, d = X.shape
 
@@ -56,14 +90,7 @@ class ADP_single_index:
             seed = config.seed
             configured_h_min = config.h_min
 
-            if N_loc > n:
-                raise ValueError("N_loc cannot exceed n")
-            if N_lin > n:
-                raise ValueError("N_lin cannot exceed n")
-            if index_init == "local" and N_lin <= d + 1:
-                raise ValueError("N_lin must exceed d + 1 for local initialization")
-            if not np.ceil(n / N_loc) <= N_J <= n:
-                raise ValueError("N_J must lie between ceil(n / N_loc) and n")
+            utils._check_model_sizes(n, d, N_loc, N_lin, N_J, index_init)
 
             scale = float(np.mean(np.std(X, axis=0)))
             h_min = configured_h_min or max(
@@ -94,14 +121,13 @@ class ADP_single_index:
 
             initial_beta = beta_init.copy()
 
+            result = self.ADP_single_index_result(beta_init=initial_beta)
+
             h0 = search_bandwidth(distance2, N_loc, kernel, lower=h_min)
             h = h0
             rho = 1.0
             localization_beta = np.zeros(d)
-            trace = []
             solver_diagnostics = []
-            coefficients = None
-            stop_reason = None
             k = 0
 
         while True:
@@ -135,14 +161,14 @@ class ADP_single_index:
                     batch_size=batch_size,
                 )
             with track_stage(tracker, "solver"):
-                result = self.solver.fit(
+                solver_result = self.solver.fit(
                     statistics,
                     beta_init,
                     lambda_penalty=lambda_penalty,
                     local_ridge=local_ridge,
                 )
 
-            beta = np.asarray(result.index, dtype=float)
+            beta = np.asarray(solver_result.index, dtype=float)
             if beta.shape != (d,):
                 raise RuntimeError("single-index solver must return shape (d,)")
             beta_norm = np.linalg.norm(beta)
@@ -152,9 +178,9 @@ class ADP_single_index:
             if np.dot(beta, beta_init) < 0:
                 beta = -beta
 
-            diagnostics = dict(result.diagnostics)
+            diagnostics = dict(solver_result.diagnostics)
             solver_diagnostics.append(diagnostics)
-            trace.append(
+            result.trace.append(
                 {
                     **diagnostics,
                     "k": k,
@@ -162,15 +188,15 @@ class ADP_single_index:
                     "rho": float(rho),
                     "mean_mass": float(np.mean(statistics.mass)),
                     "beta": beta.copy(),
+                    "cosine_initial": float(abs(np.dot(initial_beta, beta))),
                 }
             )
-            coefficients = result.coefficients
 
             with track_stage(tracker, "update"):
                 next_h = h / a
                 if next_h < h_min:
                     stop_reason = "h_min"
-                    trace[-1]["stop_reason"] = stop_reason
+                    result.trace[-1]["stop_reason"] = stop_reason
                     break
 
                 beta_init = beta
@@ -185,7 +211,7 @@ class ADP_single_index:
                 )
                 if next_rho is None:
                     stop_reason = "local_mass_limit"
-                    trace[-1]["stop_reason"] = stop_reason
+                    result.trace[-1]["stop_reason"] = stop_reason
                     break
 
                 h = float(next_h)
@@ -193,18 +219,10 @@ class ADP_single_index:
                 localization_beta = beta_init
                 k += 1
 
-        self.beta_init_ = initial_beta
-        self.beta_ = beta
-        self.projector_ = np.outer(beta, beta)
-        self.coefficients_ = coefficients
-        self.trace_ = trace
-        self.solver_diagnostics_ = solver_diagnostics
-        self.centers_ = centers
-        self.h0_ = float(h0)
-        self.h_k_ = float(h)
-        self.rho_k_ = float(rho)
-        self.stop_reason_ = stop_reason
-        self.n_features_in_ = d
+        result.Set_beta_final(beta)
+        result.Set_stop_reason(stop_reason)
+        self.result_ = result
+        self.beta_ = result.beta_final
         self.effective_parameters_ = {
             "N_loc": N_loc,
             "N_lin": N_lin,
@@ -214,46 +232,6 @@ class ADP_single_index:
         }
         return self
 
-    def transform(self, X) -> np.ndarray:
-        self._check_fitted()
-        X = np.asarray(X, dtype=float)
-        if X.ndim != 2 or X.shape[1] != self.n_features_in_:
-            raise ValueError("X must have shape (n, d) with the fitted d")
-        if not np.all(np.isfinite(X)):
-            raise ValueError("X must contain only finite values")
-        return X @ self.beta_
-
-    def score_direction(self, beta_true) -> float:
-        self._check_fitted()
-        beta_true = np.asarray(beta_true, dtype=float)
-        if beta_true.shape != self.beta_.shape:
-            raise ValueError("beta_true must have shape (d,)")
-        norm = np.linalg.norm(beta_true)
-        if not np.isfinite(norm) or norm == 0:
-            raise ValueError("beta_true must be finite and non-zero")
-        return float(abs(np.dot(self.beta_, beta_true / norm)))
-
     def _check_fitted(self) -> None:
         if not hasattr(self, "beta_"):
             raise RuntimeError("model is not fitted")
-
-
-def _prepare_inputs(X, Y) -> tuple[np.ndarray, np.ndarray]:
-    arrays = []
-    for value, name in ((X, "X"), (Y, "Y")):
-        array = np.asarray(value)
-        if not np.issubdtype(array.dtype, np.number) or np.iscomplexobj(array):
-            raise TypeError(f"{name} must have a real numeric dtype")
-        array = array.astype(float, copy=False)
-        if not np.all(np.isfinite(array)):
-            raise ValueError(f"{name} must contain only finite values")
-        arrays.append(array)
-
-    X, Y = arrays
-    if X.ndim != 2 or 0 in X.shape:
-        raise ValueError("X must have non-empty shape (n, d)")
-    if Y.shape != (X.shape[0],):
-        raise ValueError("Y must have shape (n,)")
-    if X.shape[0] <= X.shape[1] + 1:
-        raise ValueError("n must exceed d + 1")
-    return X, Y

@@ -1,6 +1,6 @@
 import numpy as np
 
-from ADP_statistic import _weight_blocks_single, calculate_statistics
+from ADP import _weight_blocks_single, calculate_statistics
 
 
 def test_matrix_statistics_match_direct_sums_and_are_shift_invariant():

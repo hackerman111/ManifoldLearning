@@ -20,6 +20,7 @@ class ADP_solver:
 
     def fit(self, statistics, initial_index, **problem_params) -> ADP_SolverResult:
         overlap = self.settings.keys() & problem_params.keys()
+
         if overlap:
             names = ", ".join(sorted(overlap))
             raise ValueError(f"duplicate solver settings: {names}")
@@ -30,11 +31,14 @@ class ADP_solver:
             **problem_params,
             **self.settings,
         )
+
         if not isinstance(result, ADP_SolverResult):
             raise TypeError("solver method must return ADP_SolverResult")
 
         index = np.asarray(result.index, dtype=float)
+
         if not np.all(np.isfinite(index)):
             raise RuntimeError("solver returned a non-finite index")
+
         result.index = index
         return result

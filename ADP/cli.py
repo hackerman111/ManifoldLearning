@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ADP import ADP_Config, ADP_single_index
 from ADP.ADP_Config import epanechnikov
-from ADP.logger import format_profile
+from ADP.engine.logger import format_profile
 
 
 def parse_kernel(value: str):
@@ -110,11 +110,15 @@ def main() -> None:
         parser.error(str(error))
 
     model = ADP_single_index(config).fit(X, Y)
+    result = model.result_
+    result.Set_beta_true(beta_true)
+    result.Calculate_cosine()
 
-    print(f"косинус: {model.score_direction(beta_true):.6f}")
+    print(f"косинус в начале: {result.cosine_init:.6f}")
+    print(f"косинус в конце: {result.cosine_final:.6f}")
     print(f"количество центров N_J: {model.effective_parameters_['N_J']}")
-    print(f"количество итераций: {len(model.trace_)}")
-    print(f"причина остановки: {model.stop_reason_}")
+    print(f"количество итераций: {len(result.trace)}")
+    print(f"причина остановки: {result.stop_reason}")
     print()
     print(format_profile(model.profile_))
 

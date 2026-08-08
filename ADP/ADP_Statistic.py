@@ -4,7 +4,7 @@ from typing import ClassVar
 
 import numpy as np
 
-from . import utils
+from .engine import utils
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,13 +36,7 @@ class ADP_Statistics:
 
 def calculate_statistics(X, Y, weights, directions, batch_size=32) -> ADP_Statistics:
     """Calculate stable ADP statistics from a matrix or iterator of weight blocks."""
-    if (
-        not isinstance(batch_size, (int, np.integer))
-        or isinstance(batch_size, bool)
-        or batch_size <= 0
-    ):
-        raise ValueError("batch_size must be a positive integer")
-
+    utils._check_batch_size(batch_size)
     X, Y, Phi = utils._prepare_data(X, Y, directions)
     J, P = Phi.shape[:2]
     x_bar = X.mean(axis=0)
@@ -57,18 +51,10 @@ def calculate_statistics(X, Y, weights, directions, batch_size=32) -> ADP_Statis
 
     expected_start = 0
     for start, W in utils._weight_blocks(weights, J, X.shape[0], batch_size):
-        if (
-            not isinstance(start, (int, np.integer))
-            or isinstance(start, bool)
-            or start != expected_start
-        ):
-            raise ValueError("weight blocks must cover centers in order")
+        utils._check_weight_block_order(start, expected_start, J)
 
         W, mass_block = utils._prepare_weight_block(W, X.shape[0])
         stop = start + W.shape[0]
-
-        if stop > J:
-            raise ValueError("weight blocks exceed the number of directions")
 
         batch = slice(start, stop)
         A = W / mass_block[:, None]

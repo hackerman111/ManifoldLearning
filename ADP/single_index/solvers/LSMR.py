@@ -16,6 +16,7 @@ def solve(
     max_steps: int = 2,
     tol: float = 1e-6,
 ) -> ADP_SolverResult:
+
     if isinstance(max_steps, bool) or not isinstance(max_steps, (int, np.integer)):
         raise TypeError("max_steps must be an integer")
     if max_steps < 1:

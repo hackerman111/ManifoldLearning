@@ -6,12 +6,7 @@ from . import utils
 
 
 def pairwise_distance2(X: np.ndarray, centers: np.ndarray) -> np.ndarray:
-    X = utils._finite_real_array(X, "X")
-    centers = utils._finite_real_array(centers, "centers")
-    if X.ndim != 2 or 0 in X.shape:
-        raise ValueError("X must have non-empty shape (n, d)")
-    if centers.ndim != 2 or centers.shape[1] != X.shape[1] or not len(centers):
-        raise ValueError("centers must have non-empty shape (J, d)")
+    X, centers = utils._prepare_pairwise(X, centers)
 
     distance2 = (
         np.square(centers).sum(axis=1)[:, None]
@@ -29,15 +24,7 @@ def search_bandwidth(
     *,
     lower: float,
 ) -> float:
-    distance2 = utils._finite_real_array(distance2, "distance2")
-    if distance2.ndim != 2 or 0 in distance2.shape:
-        raise ValueError("distance2 must have non-empty shape (J, n)")
-    if not np.isfinite(target) or target <= 0:
-        raise ValueError("target must be finite and positive")
-    if not np.isfinite(lower) or lower <= 0:
-        raise ValueError("lower must be finite and positive")
-    if not callable(kernel):
-        raise TypeError("kernel must be callable")
+    distance2 = utils._prepare_bandwidth(distance2, target, kernel, lower)
 
     def enough(h: float) -> bool:
         mass = np.sum(kernel(distance2 / h**2), axis=1)
@@ -137,16 +124,9 @@ def calculate_rho_k(
     *,
     distance2: np.ndarray | None = None,
 ) -> float | None:
-    if not np.isfinite(h_k) or h_k <= 0:
-        raise ValueError("h_k must be finite and positive")
-
-    beta = utils._finite_real_array(beta, "beta")
-    if beta.shape != (X.shape[1],):
-        raise ValueError("beta must have shape (d,)")
-    beta_norm = np.linalg.norm(beta)
-    if beta_norm == 0:
-        raise ValueError("beta must be non-zero")
-    beta = beta / beta_norm
+    X, centers, beta, distance2 = utils._prepare_rho(
+        X, centers, beta, h_k, distance2
+    )
 
     if distance2 is None:
         distance2 = pairwise_distance2(X, centers)
@@ -183,17 +163,7 @@ def generate_proj(
     beta: np.ndarray,
     rho: float,
 ) -> np.ndarray:
-    beta = utils._finite_real_array(beta, "beta")
-    if beta.ndim != 1 or not len(beta):
-        raise ValueError("beta must have shape (d,)")
-    if not np.isfinite(rho) or not 0 <= rho <= 1:
-        raise ValueError("rho must lie in [0, 1]")
-
-    beta_norm = np.linalg.norm(beta)
-    if beta_norm:
-        beta = beta / beta_norm
-    elif rho == 0:
-        raise ValueError("rho and beta cannot both be zero")
+    beta = utils._prepare_projection(beta, rho)
 
     z = rng.standard_normal((n_centers, n_directions, len(beta)))
     xi = rng.standard_normal((n_centers, n_directions, 1))
@@ -215,17 +185,12 @@ def calculate_weight(
     *,
     distance2: np.ndarray | None = None,
 ) -> Iterator[tuple[int, np.ndarray]]:
-    X = utils._finite_real_array(X, "X")
-    centers = utils._finite_real_array(centers, "centers")
-    beta = utils._finite_real_array(beta, "beta")
-    utils.check_weight_block(X, centers, beta, h, rho, kernel, block_size)
+    X, centers, beta = utils._prepare_weight_data(
+        X, centers, beta, h, rho, kernel, block_size
+    )
 
     if distance2 is not None:
-        distance2 = utils._finite_real_array(distance2, "distance2")
-        if distance2.shape != (len(centers), len(X)):
-            raise ValueError("distance2 must have shape (J, n)")
-        if np.any(distance2 < 0):
-            raise ValueError("distance2 must be nonnegative")
+        distance2 = utils._prepare_distance2(distance2, centers, len(X))
 
     x_norm2 = None if distance2 is not None else np.einsum("nd,nd->n", X, X)
     x_proj = X @ beta
