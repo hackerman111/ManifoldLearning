@@ -15,7 +15,7 @@ from ..engine.calculus import (
     search_bandwidth,
 )
 from ..engine.logger import finish_tracking, start_tracking, track_stage
-from .solvers.LSMR import solve as solve_lsmr
+from .solvers.VarPro import solve as solve_varpro
 
 
 @dataclass(slots=True)
@@ -56,9 +56,8 @@ class ADP_single_index:
     ):
         self.config = config or ADP_Config()
         self.solver = solver or ADP_solver(
-            solve_lsmr,
-            max_steps=2,
-            tol=1e-6,
+            solve_varpro,
+            tol=1e-7 / 2,
         )
         self.ADP_single_index_result = ADP_single_index_result
 

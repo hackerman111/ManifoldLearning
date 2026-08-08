@@ -26,6 +26,9 @@ def parse_kernel(value: str):
         raise argparse.ArgumentTypeError("kernel должен быть функцией")
     return kernel
 
+def parse_solver(value:str):
+    pass
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
