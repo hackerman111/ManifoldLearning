@@ -1,9 +1,11 @@
 from ADP.ADP_Statistic import ADP_Statistics, calculate_statistics
 from ADP.engine.calculus import calculate_weight as _weight_blocks_single
+from ADP.engine.calculus import calculate_multi_weight as _weight_blocks_multi
 
 from .ADP_Config import ADP_Config
 from .ADP_Data import ADP_Data
 from .ADP_Solver import ADP_solver, ADP_SolverResult
+from .multi_index.ADP_multi_index import ADP_multi_index
 from .single_index.ADP_single_index import ADP_single_index
 
 __all__ = [
@@ -11,8 +13,10 @@ __all__ = [
     "ADP_Data",
     "ADP_SolverResult",
     "ADP_Statistics",
+    "ADP_multi_index",
     "ADP_single_index",
     "ADP_solver",
+    "_weight_blocks_multi",
     "_weight_blocks_single",
     "calculate_statistics",
 ]

@@ -168,3 +168,10 @@ def test_multi_model_random_initialization_and_fit_contract():
     np.testing.assert_allclose(model.basis_.T @ model.basis_, np.eye(2), atol=1e-12)
     assert model.transform(X).shape == (48, 2)
     assert model.result_.stop_reason == "h_min"
+
+
+def test_multi_index_public_api():
+    from ADP import ADP_multi_index, _weight_blocks_multi
+
+    assert ADP_multi_index.__name__ == "ADP_multi_index"
+    assert callable(_weight_blocks_multi)
