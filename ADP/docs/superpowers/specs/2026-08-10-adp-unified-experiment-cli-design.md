@@ -160,9 +160,10 @@ experiment.seed, experiment.seed + 1, ..., experiment.seed + runs - 1
 имена с существующими функциями `LSMR.solve` и `VarPro.solve`, после чего
 создаёт существующий `ADP_solver(method, **solver_settings)`.
 
-- `auto` выбирает VarPro для single-index и LSMR для multi-index; без
-  дополнительных settings сохраняется текущий model default, а при наличии
-  settings создаётся явный `ADP_solver` с выбранным default method;
+- `auto` использует текущий default соответствующей модели; на момент
+  утверждения spec это LSMR и для single-index, и для multi-index;
+- `auto` без дополнительных settings передаёт модели `solver=None`, а при
+  наличии settings накладывает их поверх settings текущего model solver;
 - `lsmr` доступен в обоих режимах;
 - `varpro` доступен только в single-index;
 - explicit solver settings принадлежат варианту и одинаковы для всех точек и
