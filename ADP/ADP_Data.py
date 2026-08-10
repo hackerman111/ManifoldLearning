@@ -7,4 +7,4 @@ import numpy as np
 class ADP_Data:
     X: np.ndarray
     Y: np.ndarray
-    true_index: np.ndarray
+    true_index: np.ndarray | None
