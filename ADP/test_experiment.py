@@ -1,9 +1,15 @@
+import csv
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from ADP import ADP_Config, ADP_Data, ADP_SolverResult, ADP_solver
+
+
+def _read_csv(path: Path):
+    with path.open(newline="", encoding="utf-8") as stream:
+        return list(csv.DictReader(stream))
 
 
 def _unchanged_single(statistics, initial_index, **params):
@@ -436,6 +442,9 @@ def test_series_store_requires_matching_resume_spec(tmp_path: Path):
 
 
 def test_runner_pairs_inputs_saves_failures_and_resumes(tmp_path: Path, monkeypatch):
+    import json
+    from dataclasses import replace
+
     import ADP.experiment_runner as runner
 
     calls = []
@@ -486,7 +495,9 @@ def test_runner_pairs_inputs_saves_failures_and_resumes(tmp_path: Path, monkeypa
             self.profile_ = {
                 "total_time_seconds": 0.01,
                 "peak_memory_bytes": 32,
-                "stages": {},
+                "stages": {
+                    "solve": {"time_seconds": 0.004, "memory_bytes": 64}
+                },
             }
             return self
 
@@ -510,6 +521,61 @@ def test_runner_pairs_inputs_saves_failures_and_resumes(tmp_path: Path, monkeypa
         save_models=False,
         show_progress=False,
     )
+    runs = _read_csv(series_dir / "run_summary.csv")
+    outer_rows = _read_csv(series_dir / "outer_iterations.csv")
+    paired = _read_csv(series_dir / "paired_comparison.csv")
+    summary = _read_csv(series_dir / "comparison_summary.csv")
+    series = _read_csv(series_dir / "series.csv")
+
+    assert len(runs) == 8
+    assert len(outer_rows) == 8
+    assert len(paired) == 4
+    assert summary
+    assert series[0]["status"] == "complete"
+    assert {
+        "variant",
+        "cosine_abs",
+        "projector_error",
+        "fit_wall_time_sec",
+        "algorithm_rss_max_mib",
+        "stage_solve_time_sec",
+        "stage_solve_memory_mib",
+    } <= set(runs[0])
+    assert {
+        "A_variant",
+        "B_variant",
+        "A_seed",
+        "B_seed",
+        "A_data_artifact",
+        "B_data_artifact",
+        "delta_fit_wall_time_sec",
+        "delta_stage_solve_time_sec",
+    } <= set(paired[0])
+    assert "winner" not in paired[0]
+    for name in (
+        "run_summary.csv",
+        "outer_iterations.csv",
+        "paired_comparison.csv",
+        "comparison_summary.csv",
+    ):
+        text = (series_dir / name).read_text(encoding="utf-8").lower()
+        assert ",nan" not in text
+        assert ",inf" not in text
+        assert ",-inf" not in text
+
+    run_summary_path = series_dir / "run_summary.csv"
+    complete_summary = run_summary_path.read_bytes()
+    complete_tables = {
+        path.name: path.read_bytes() for path in series_dir.glob("*.csv")
+    }
+    store = runner._SeriesStore(series_dir)
+    first_job = runner._build_jobs(experiment)[0]
+    extraneous = json.loads(
+        store.commit_path(first_job).read_text(encoding="utf-8")
+    )
+    extraneous["run"]["status"] = "numerical_failure"
+    runner._atomic_json(store.commit_dir / "zz-extraneous.json", extraneous)
+
     first_call_count = len(calls)
     resumed_dir, resumed_failures = runner.run_experiment(
         experiment,
@@ -521,6 +587,10 @@ def test_runner_pairs_inputs_saves_failures_and_resumes(tmp_path: Path, monkeypa
 
     assert failures == resumed_failures == 0
     assert resumed_dir == series_dir
+    assert run_summary_path.read_bytes() == complete_summary
+    assert {
+        path.name: path.read_bytes() for path in series_dir.glob("*.csv")
+    } == complete_tables
     assert len(factory_calls) == 4
     assert len(calls) == first_call_count == 8
     for offset in range(0, len(calls), 2):
@@ -529,12 +599,30 @@ def test_runner_pairs_inputs_saves_failures_and_resumes(tmp_path: Path, monkeypa
         np.testing.assert_array_equal(calls[offset][3], calls[offset + 1][3])
     assert not list((series_dir / "models").glob("*.npz"))
 
-    store = runner._SeriesStore(series_dir)
+    changed_a = replace(
+        experiment.variants["A"],
+        config=replace(experiment.variants["A"].config, N_J=5),
+    )
+    changed = replace(
+        experiment,
+        variants={"A": changed_a, "B": experiment.variants["B"]},
+    )
+    with pytest.raises(ValueError, match="resume specification differs"):
+        runner.run_experiment(
+            changed,
+            tmp_path,
+            resume=series_dir,
+            save_models=False,
+            show_progress=False,
+        )
+    assert run_summary_path.read_bytes() == complete_summary
+
     pending_job = runner._build_jobs(experiment)[1]
     store.commit_path(pending_job).unlink()
     store.data_path(pending_job.point, pending_job.seed).unlink()
     calls_before_broken_resume = len(calls)
     factory_calls_before_broken_resume = len(factory_calls)
+    summary_before_broken_resume = run_summary_path.read_bytes()
 
     with pytest.raises(FileNotFoundError, match="referenced data artifact"):
         runner.run_experiment(
@@ -547,6 +635,78 @@ def test_runner_pairs_inputs_saves_failures_and_resumes(tmp_path: Path, monkeypa
 
     assert len(calls) == calls_before_broken_resume
     assert len(factory_calls) == factory_calls_before_broken_resume
+    assert run_summary_path.read_bytes() == summary_before_broken_resume
+
+
+def test_export_tables_keep_stable_empty_headers_and_reject_metadata_collisions(
+    tmp_path: Path,
+):
+    from dataclasses import replace
+
+    import ADP.experiment_runner as runner
+
+    base = _paired_experiment()
+    experiment = replace(
+        base,
+        runs=1,
+        points=(base.points[0],),
+        variants={"A": base.variants["A"]},
+    )
+    jobs = runner._build_jobs(experiment)
+    store = runner._SeriesStore.create(tmp_path, experiment)
+    run = runner._base_run(jobs[0], experiment, store.series_dir.name)
+    run["stage_solve_time_sec"] = 0.01
+    store.commit(jobs[0], experiment, {"run": run, "outer": []})
+
+    runner._export_tables(store, experiment, jobs, status="partial")
+
+    with (store.series_dir / "paired_comparison.csv").open(
+        newline="", encoding="utf-8"
+    ) as stream:
+        paired = csv.DictReader(stream)
+        assert list(paired) == []
+        assert paired.fieldnames == list(runner.PAIR_COLUMNS)
+        assert "winner" not in paired.fieldnames
+    for name, expected in runner.DETAIL_HEADERS.items():
+        with (store.series_dir / name).open(
+            newline="", encoding="utf-8"
+        ) as stream:
+            detail = csv.DictReader(stream)
+            assert list(detail) == []
+            assert detail.fieldnames == list(expected)
+
+    sanitized = store.series_dir / "sanitized.csv"
+    runner._atomic_csv(
+        sanitized,
+        ("metric", "payload", "callable"),
+        (
+            {
+                "metric": np.longdouble("nan"),
+                "payload": {"bad": np.inf},
+                "callable": _unchanged_single,
+            },
+        ),
+    )
+    row = _read_csv(sanitized)[0]
+    assert row == {
+        "metric": "",
+        "payload": '{"bad":""}',
+        "callable": (
+            f"{_unchanged_single.__module__}:"
+            f"{_unchanged_single.__qualname__}"
+        ),
+    }
+
+    colliding_point = replace(base.points[0], metadata={"variant": "bad"})
+    colliding = replace(experiment, points=(colliding_point,))
+    colliding_store = runner._SeriesStore.create(tmp_path, colliding)
+    with pytest.raises(ValueError, match="metadata.*variant.*collides"):
+        runner._export_tables(
+            colliding_store,
+            colliding,
+            runner._build_jobs(colliding),
+            status="partial",
+        )
 
 
 def test_runner_commits_fit_failures_and_continues(tmp_path: Path, monkeypatch):
@@ -609,6 +769,24 @@ def test_runner_commits_fit_failures_and_continues(tmp_path: Path, monkeypatch):
     assert len(calls) == 8
     assert failures == 4
     assert len(list((series_dir / "commits").glob("*.json"))) == 8
+    paired = _read_csv(series_dir / "paired_comparison.csv")
+    assert len(paired) == 4
+    assert {row["A_status"] for row in paired} == {"numerical_failure"}
+    assert {row["B_status"] for row in paired} == {"success"}
+    for row in paired:
+        assert row["delta_cosine_abs"] == ""
+        assert row["delta_projector_error"] == ""
+        assert row["delta_algorithm_time_sec"] == ""
+        assert row["A_outer_iterations"] == ""
+        assert row["B_outer_iterations"] == "1"
+        assert row["delta_outer_iterations"] == ""
+        for metric in (
+            "fit_wall_time_sec",
+            "algorithm_rss_peak_delta_mib",
+        ):
+            assert float(row[f"delta_{metric}"]) == pytest.approx(
+                float(row[f"B_{metric}"]) - float(row[f"A_{metric}"])
+            )
     failed_runs = [
         commit["run"]
         for commit in runner._SeriesStore(series_dir).read_commits()
@@ -645,6 +823,15 @@ def test_data_generation_failures_keep_provenance(tmp_path: Path):
 
     commits = runner._SeriesStore(series_dir).read_commits()
     assert failures == len(commits) == 2
+    paired = _read_csv(series_dir / "paired_comparison.csv")
+    assert len(paired) == 1
+    assert paired[0]["A_outer_iterations"] == ""
+    assert paired[0]["B_outer_iterations"] == ""
+    assert paired[0]["delta_outer_iterations"] == ""
+    assert not any(
+        row["metric"] == "outer_iterations"
+        for row in _read_csv(series_dir / "comparison_summary.csv")
+    )
     for commit in commits:
         run = commit["run"]
         assert run["series_id"] == series_dir.name
@@ -990,3 +1177,6 @@ def test_keyboard_interrupt_propagates_and_closes_contexts(
     assert all(bar.closed for bar in bars)
     series_dir = next((tmp_path / experiment.name).iterdir())
     assert not list((series_dir / "commits").glob("*.json"))
+    series = _read_csv(series_dir / "series.csv")
+    assert series[0]["status"] == "partial"
+    assert series[0]["completed_jobs"] == "0"

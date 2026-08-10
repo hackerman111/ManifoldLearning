@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import os
 import sys
@@ -29,6 +30,163 @@ from .experiment import (
 )
 from .multi_index.ADP_multi_index import ADP_multi_index
 from .single_index.ADP_single_index import ADP_single_index
+
+
+RUN_COLUMNS = (
+    "schema_version",
+    "series_id",
+    "run_id",
+    "experiment",
+    "point",
+    "variant",
+    "variant_index",
+    "mode",
+    "index_dim",
+    "seed",
+    "n",
+    "d",
+    "n_over_d",
+    "noise",
+    "requested_solver",
+    "requested_solver_settings",
+    "local_solver",
+    "effective_solver_settings",
+    "h_initial",
+    "h_final",
+    "rho_final",
+    "alpha_final",
+    "outer_iterations",
+    "cosine_abs",
+    "projector_error",
+    "fit_wall_time_sec",
+    "algorithm_time_sec",
+    "algorithm_rss_start_mib",
+    "algorithm_rss_min_mib",
+    "algorithm_rss_mean_mib",
+    "algorithm_rss_max_mib",
+    "algorithm_rss_peak_delta_mib",
+    "algorithm_memory_samples",
+    "algorithm_memory_source",
+    "tracemalloc_peak_mib",
+    "stop_reason",
+    "status",
+    "error_type",
+    "error_message",
+    "error_traceback",
+    "data_artifact",
+    "model_artifact",
+    "outer_row_count",
+    "inner_row_count",
+    "local_row_count",
+    "solver_row_count",
+)
+
+OUTER_COLUMNS = (
+    "schema_version",
+    "series_id",
+    "run_id",
+    "experiment",
+    "point",
+    "variant",
+    "seed",
+    "local_solver",
+    "mode",
+    "outer_k",
+    "h_k",
+    "rho_k",
+    "alpha_k",
+    "beta_k",
+    "basis_k",
+    "eigenvalues",
+    "cosine_abs",
+    "projector_error",
+    "beta_delta",
+    "objective_after",
+    "inner_iterations",
+    "linear_solver_iterations",
+    "solver_diagnostics",
+    "local_mass_mean",
+    "stop_reason",
+)
+
+DETAIL_HEADERS = {
+    "inner_iterations.csv": (
+        "schema_version",
+        "series_id",
+        "run_id",
+        "outer_k",
+        "inner_k",
+        "objective",
+        "beta_delta",
+    ),
+    "local_diagnostics.csv": (
+        "schema_version",
+        "series_id",
+        "run_id",
+        "outer_k",
+        "center_j",
+        "local_mass",
+        "ess",
+        "condition",
+    ),
+    "solver_iterations.csv": (
+        "schema_version",
+        "series_id",
+        "run_id",
+        "outer_k",
+        "inner_k",
+        "solver_k",
+        "relative_residual",
+    ),
+}
+
+PAIR_METRICS = (
+    "cosine_abs",
+    "projector_error",
+    "fit_wall_time_sec",
+    "algorithm_time_sec",
+    "algorithm_rss_peak_delta_mib",
+    "outer_iterations",
+)
+
+PAIR_PREFIX_COLUMNS = (
+    "point",
+    "A_variant",
+    "B_variant",
+    "A_seed",
+    "B_seed",
+    "A_status",
+    "B_status",
+    "A_data_artifact",
+    "B_data_artifact",
+)
+
+
+def _pair_columns(metrics):
+    return PAIR_PREFIX_COLUMNS + tuple(
+        column
+        for metric in metrics
+        for column in (f"A_{metric}", f"B_{metric}", f"delta_{metric}")
+    )
+
+
+PAIR_COLUMNS = _pair_columns(PAIR_METRICS)
+SUMMARY_COLUMNS = ("point", "metric", "count", "q05", "median", "q95")
+SERIES_COLUMNS = (
+    "schema_version",
+    "series_id",
+    "name",
+    "mode",
+    "index_dim",
+    "runs",
+    "seed",
+    "total_jobs",
+    "completed_jobs",
+    "success_jobs",
+    "nonconverged_jobs",
+    "numerical_failure_jobs",
+    "status",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,9 +389,9 @@ class _SeriesStore:
             for path in sorted(self.commit_dir.glob("*.json"))
         ]
 
-    def validate_data_artifacts(self) -> None:
+    def validate_data_artifacts(self, commits) -> None:
         series_dir = self.series_dir.resolve()
-        for commit in self.read_commits():
+        for commit in commits:
             artifact = commit.get("run", {}).get("data_artifact", "")
             if not artifact:
                 continue
@@ -396,6 +554,40 @@ def _compact_json(value) -> str:
     )
 
 
+def _csv_value(value):
+    if isinstance(value, (float, np.floating)) and not np.isfinite(value):
+        return ""
+    value = _json_safe(value)
+    if value == "" or value is None:
+        return ""
+    if isinstance(value, str):
+        return (
+            ""
+            if value.strip().lower() in {"nan", "inf", "+inf", "-inf"}
+            else value
+        )
+    if isinstance(value, (dict, list, tuple)):
+        return _compact_json(value)
+    if isinstance(value, float) and not np.isfinite(value):
+        return ""
+    return value
+
+
+def _atomic_csv(path: Path, fieldnames, rows) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    with temporary.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(
+            stream, fieldnames=fieldnames, lineterminator="\n"
+        )
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(
+                {name: _csv_value(row.get(name, "")) for name in fieldnames}
+            )
+    os.replace(temporary, path)
+
+
 def _json_array(value) -> str:
     return _compact_json(np.asarray(value).tolist())
 
@@ -525,7 +717,7 @@ def _base_run(
         "h_final": "",
         "rho_final": "",
         "alpha_final": "",
-        "outer_iterations": 0,
+        "outer_iterations": "",
         "cosine_abs": "",
         "projector_error": "",
         "fit_wall_time_sec": "",
@@ -763,6 +955,217 @@ def _failure_outcome(store, experiment, job, error):
     return {"run": _json_safe(run), "outer": []}
 
 
+def _planned_commits(store, jobs, experiment):
+    commits = []
+    for job in jobs:
+        path = store.commit_path(job)
+        if not path.exists():
+            continue
+        commit = json.loads(path.read_text(encoding="utf-8"))
+        if commit.get("spec") != _job_spec(job, experiment):
+            raise ValueError(f"resume specification differs for {job.run_id}")
+        commits.append(commit)
+    return commits
+
+
+def _finite_number(value):
+    if (
+        isinstance(value, (bool, np.bool_))
+        or value is None
+        or isinstance(value, str)
+        and not value
+    ):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if np.isfinite(number) else None
+
+
+def _export_tables(store, experiment, jobs, status):
+    if status not in {"partial", "complete"}:
+        raise ValueError("series status must be 'partial' or 'complete'")
+
+    commits = _planned_commits(store, jobs, experiment)
+    config_names = tuple(item.name for item in fields(ADP_Config))
+    effective_names = config_names + tuple(
+        sorted(
+            {
+                str(name)
+                for commit in commits
+                for name in commit.get("run", {})
+                .get("effective_config", {})
+                .keys()
+            }
+            - set(config_names)
+        )
+    )
+    stage_columns = tuple(
+        sorted(
+            {
+                name
+                for commit in commits
+                for name in commit.get("run", {})
+                if name.startswith("stage_")
+                and name.endswith(("_time_sec", "_memory_mib"))
+            }
+        )
+    )
+    metadata_names = tuple(
+        sorted(
+            {
+                str(name)
+                for point in experiment.points
+                for name in point.metadata
+            }
+        )
+    )
+    dynamic_columns = (
+        tuple(f"adp_{name}" for name in config_names)
+        + tuple(f"effective_{name}" for name in effective_names)
+        + stage_columns
+    )
+    reserved = set(RUN_COLUMNS) | set(dynamic_columns)
+    for name in metadata_names:
+        if name in reserved:
+            raise ValueError(f"metadata key {name!r} collides with CSV column")
+    run_columns = RUN_COLUMNS + dynamic_columns + metadata_names
+
+    run_rows = []
+    outer_rows = []
+    for commit in commits:
+        spec = commit["spec"]
+        row = dict(commit.get("run", {}))
+        requested = spec.get("requested_config", {})
+        effective = row.get("effective_config", spec.get("effective_config", {}))
+        row.update(
+            {
+                f"adp_{name}": requested.get(name, "")
+                for name in config_names
+            }
+        )
+        row.update(
+            {
+                f"effective_{name}": effective.get(name, "")
+                for name in effective_names
+            }
+        )
+        row.update(spec.get("point", {}).get("metadata", {}))
+        row["requested_solver"] = spec.get("solver", "")
+        row["requested_solver_settings"] = _compact_json(
+            spec.get("solver_settings", {})
+        )
+        run_rows.append(row)
+        outer_rows.extend(commit.get("outer", []))
+
+    stage_metrics = (
+        tuple(name for name in stage_columns if name.endswith("_time_sec"))
+        if len(experiment.variants) == 2
+        else ()
+    )
+    pair_metrics = PAIR_METRICS + tuple(
+        name for name in stage_metrics if name not in PAIR_METRICS
+    )
+    pair_columns = _pair_columns(pair_metrics)
+    pair_rows = []
+    if len(experiment.variants) == 2:
+        indexed = {}
+        for row in run_rows:
+            indexed.setdefault((row["point"], row["seed"]), {})[
+                row["variant_index"]
+            ] = row
+        keys = tuple(
+            dict.fromkeys((job.point.name, job.seed) for job in jobs)
+        )
+        for key in keys:
+            variants = indexed.get(key, {})
+            if 0 not in variants or 1 not in variants:
+                continue
+            left, right = variants[0], variants[1]
+            pair = {
+                "point": key[0],
+                "A_variant": left.get("variant", ""),
+                "B_variant": right.get("variant", ""),
+                "A_seed": left.get("seed", ""),
+                "B_seed": right.get("seed", ""),
+                "A_status": left.get("status", ""),
+                "B_status": right.get("status", ""),
+                "A_data_artifact": left.get("data_artifact", ""),
+                "B_data_artifact": right.get("data_artifact", ""),
+            }
+            for metric in pair_metrics:
+                left_raw = left.get(metric)
+                right_raw = right.get(metric)
+                left_value = _finite_number(left_raw)
+                right_value = _finite_number(right_raw)
+                pair[f"A_{metric}"] = "" if left_value is None else left_raw
+                pair[f"B_{metric}"] = "" if right_value is None else right_raw
+                pair[f"delta_{metric}"] = (
+                    right_value - left_value
+                    if left_value is not None and right_value is not None
+                    else ""
+                )
+            pair_rows.append(pair)
+
+    summary_rows = []
+    for point in (item.name for item in experiment.points):
+        for metric in pair_metrics:
+            values = [
+                value
+                for row in pair_rows
+                if row["point"] == point
+                and (value := _finite_number(row.get(f"delta_{metric}")))
+                is not None
+            ]
+            if not values:
+                continue
+            q05, median, q95 = np.quantile(values, (0.05, 0.5, 0.95))
+            summary_rows.append(
+                {
+                    "point": point,
+                    "metric": metric,
+                    "count": len(values),
+                    "q05": float(q05),
+                    "median": float(median),
+                    "q95": float(q95),
+                }
+            )
+
+    statuses = [commit.get("run", {}).get("status") for commit in commits]
+    series_row = {
+        "schema_version": 1,
+        "series_id": store.series_dir.name,
+        "name": experiment.name,
+        "mode": experiment.mode,
+        "index_dim": experiment.index_dim,
+        "runs": experiment.runs,
+        "seed": experiment.seed,
+        "total_jobs": len(jobs),
+        "completed_jobs": len(commits),
+        "success_jobs": statuses.count("success"),
+        "nonconverged_jobs": statuses.count("nonconverged"),
+        "numerical_failure_jobs": statuses.count("numerical_failure"),
+        "status": status,
+    }
+
+    _atomic_csv(store.series_dir / "run_summary.csv", run_columns, run_rows)
+    _atomic_csv(
+        store.series_dir / "outer_iterations.csv", OUTER_COLUMNS, outer_rows
+    )
+    for filename, header in DETAIL_HEADERS.items():
+        _atomic_csv(store.series_dir / filename, header, ())
+    _atomic_csv(
+        store.series_dir / "paired_comparison.csv", pair_columns, pair_rows
+    )
+    _atomic_csv(
+        store.series_dir / "comparison_summary.csv",
+        SUMMARY_COLUMNS,
+        summary_rows,
+    )
+    _atomic_csv(store.series_dir / "series.csv", SERIES_COLUMNS, (series_row,))
+
+
 def run_experiment(
     experiment: ADP_Experiment,
     output_dir: str | Path,
@@ -777,19 +1180,24 @@ def run_experiment(
         store = _SeriesStore.create(Path(output_dir), experiment)
     else:
         store = _SeriesStore.resume(Path(resume))
-        store.validate_data_artifacts()
-    pending = [job for job in jobs if not store.is_complete(job, experiment)]
     data_cache = {}
     progress_disabled = not show_progress or not sys.stderr.isatty()
-    outer = tqdm(
-        total=len(jobs),
-        initial=len(jobs) - len(pending),
-        desc=experiment.name,
-        unit="fit",
-        dynamic_ncols=True,
-        disable=progress_disabled,
-    )
+    outer = None
+    export_ready = False
     try:
+        commits = _planned_commits(store, jobs, experiment)
+        if resume is not None:
+            store.validate_data_artifacts(commits)
+        pending = [job for job in jobs if not store.commit_path(job).exists()]
+        export_ready = True
+        outer = tqdm(
+            total=len(jobs),
+            initial=len(jobs) - len(pending),
+            desc=experiment.name,
+            unit="fit",
+            dynamic_ncols=True,
+            disable=progress_disabled,
+        )
         for job in pending:
             key = (job.point.name, job.seed)
             if key not in data_cache:
@@ -836,6 +1244,7 @@ def run_experiment(
                 finally:
                     inner.close()
             store.commit(job, experiment, outcome)
+            _export_tables(store, experiment, jobs, status="partial")
             outer.set_postfix(
                 point=job.point.name,
                 variant=job.variant_name,
@@ -845,9 +1254,20 @@ def run_experiment(
             if show_progress and not sys.stderr.isatty():
                 print(f"{job.run_id}: {outcome['run']['status']}")
     finally:
-        outer.close()
+        if outer is not None:
+            outer.close()
+        if export_ready:
+            commits = _planned_commits(store, jobs, experiment)
+            _export_tables(
+                store,
+                experiment,
+                jobs,
+                status=(
+                    "complete" if len(commits) == len(jobs) else "partial"
+                ),
+            )
+    commits = _planned_commits(store, jobs, experiment)
     failures = sum(
-        commit["run"]["status"] != "success"
-        for commit in store.read_commits()
+        commit["run"]["status"] != "success" for commit in commits
     )
     return store.series_dir, failures
