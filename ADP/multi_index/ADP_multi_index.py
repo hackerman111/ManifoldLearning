@@ -76,14 +76,14 @@ class ADP_multi_index:
         self.solver = solver or ADP_solver(solve_lsmr, tol=1e-7 / 2)
         self.ADP_multi_index_result = ADP_multi_index_result
 
-    def fit(self, X, Y):
+    def fit(self, X, Y, *, progress=None):
         tracker = start_tracking()
         try:
-            return self._fit(X, Y, tracker)
+            return self._fit(X, Y, tracker, progress)
         finally:
             self.profile_ = finish_tracking(tracker)
 
-    def _fit(self, X, Y, tracker):
+    def _fit(self, X, Y, tracker, progress):
         with track_stage(tracker, "initialization"):
             X, Y = utils._prepare_xy(X, Y)
             config = self.config
@@ -207,6 +207,8 @@ class ADP_multi_index:
                     "distance_initial": _subspace_distance(initial_basis, basis),
                 }
             )
+            if progress is not None:
+                progress(dict(result.trace[-1]))
 
             with track_stage(tracker, "update"):
                 next_h = h / a
