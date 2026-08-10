@@ -1180,3 +1180,232 @@ def test_keyboard_interrupt_propagates_and_closes_contexts(
     series = _read_csv(series_dir / "series.csv")
     assert series[0]["status"] == "partial"
     assert series[0]["completed_jobs"] == "0"
+
+
+def test_report_aggregates_match_main_conventions(tmp_path):
+    import pandas as pd
+
+    from ADP.experiment_reports import _quantiles, _render_quantile, _wilson
+
+    frame = pd.DataFrame(
+        {
+            "variant": ["A", "A", "A", "B", "B", "B"],
+            "outer_k": [0, 0, 1, 0, 0, 1],
+            "cosine_abs": [0.7, 0.9, 0.95, 0.6, 0.8, 0.85],
+        }
+    )
+
+    summary = _quantiles(
+        frame,
+        "outer_k",
+        "cosine_abs",
+        groups=("variant",),
+    )
+
+    assert {"variant", "outer_k", "q05", "median", "q95"} <= set(summary)
+    assert summary.loc[
+        (summary["variant"] == "A") & (summary["outer_k"] == 0),
+        "median",
+    ].item() == pytest.approx(0.8)
+    low, center, high = _wilson(8, 10)
+    assert 0 <= low < center < high <= 1
+
+    path = tmp_path / "quality.png"
+    assert _render_quantile(
+        frame,
+        path,
+        x="outer_k",
+        y="cosine_abs",
+        groups=("variant",),
+        title="Качество по внешней итерации",
+        xlabel="Внешняя итерация",
+        ylabel="Абсолютный косинус",
+    ) == path
+    assert path.stat().st_size > 0
+
+
+def test_report_renderer_closes_figure_on_invalid_scale(tmp_path):
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    from ADP.experiment_reports import _render_quantile
+
+    frame = pd.DataFrame({"x": [1.0], "y": [1.0]})
+    before = set(plt.get_fignums())
+    try:
+        with pytest.raises(ValueError, match="scale"):
+            _render_quantile(
+                frame,
+                tmp_path / "invalid.png",
+                x="x",
+                y="y",
+                title="t",
+                xlabel="x",
+                ylabel="y",
+                xscale="invalid",
+            )
+        assert set(plt.get_fignums()) == before
+    finally:
+        for number in set(plt.get_fignums()) - before:
+            plt.close(number)
+
+
+def test_report_log_domain_skips_nonpositive_and_rejects_categories(tmp_path):
+    import pandas as pd
+
+    from ADP.experiment_reports import _render_quantile
+
+    path = tmp_path / "nonpositive.png"
+    assert _render_quantile(
+        pd.DataFrame({"x": [-1.0, 0.0], "y": [1.0, 2.0]}),
+        path,
+        x="x",
+        y="y",
+        title="t",
+        xlabel="x",
+        ylabel="y",
+        xscale="log",
+    ) is False
+    assert not path.exists()
+
+    with pytest.raises(ValueError, match="numeric"):
+        _render_quantile(
+            pd.DataFrame({"x": ["left", "right"], "y": [1.0, 2.0]}),
+            tmp_path / "categorical-log.png",
+            x="x",
+            y="y",
+            title="t",
+            xlabel="x",
+            ylabel="y",
+            xscale="log2",
+        )
+
+
+def test_report_categorical_groups_ignore_unused_levels():
+    import pandas as pd
+
+    from ADP.experiment_reports import _quantiles
+
+    frame = pd.DataFrame(
+        {
+            "variant": pd.Categorical(["A"], categories=["A", "B"]),
+            "outer_k": pd.Categorical([0], categories=[0, 1]),
+            "cosine_abs": [0.8],
+        }
+    )
+
+    summary = _quantiles(frame, "outer_k", "cosine_abs", ("variant",))
+
+    assert len(summary) == 1
+    assert summary["variant"].astype(str).tolist() == ["A"]
+    assert summary["outer_k"].astype(int).tolist() == [0]
+
+
+def test_report_heatmap_limits_follow_displayed_aggregates(tmp_path, monkeypatch):
+    import matplotlib.axes
+    import pandas as pd
+
+    from ADP.experiment_reports import _render_heatmap
+
+    limits = []
+    original = matplotlib.axes.Axes.imshow
+
+    def capture_limits(axis, *args, **kwargs):
+        limits.append((kwargs.get("vmin"), kwargs.get("vmax")))
+        return original(axis, *args, **kwargs)
+
+    monkeypatch.setattr(matplotlib.axes.Axes, "imshow", capture_limits)
+    assert _render_heatmap(
+        pd.DataFrame(
+            {
+                "x": [1, 1, 1, 2],
+                "row": [1, 1, 1, 1],
+                "value": [1.0, 1.0, 100.0, 2.0],
+            }
+        ),
+        tmp_path / "heatmap.png",
+        x="x",
+        y="row",
+        value="value",
+        title="t",
+        xlabel="x",
+        ylabel="row",
+    )
+
+    assert limits == [(1.0, 2.0)]
+
+
+@pytest.mark.parametrize(
+    ("name", "extra"),
+    [
+        ("_render_quantile", {}),
+        ("_render_median_line", {}),
+        ("_render_proportion", {"y": "success"}),
+        ("_render_box", {}),
+        ("_render_scatter", {}),
+        ("_render_heatmap", {"y": "row", "value": "value"}),
+        ("_render_stacked", {"y": "", "components": ("a", "b")}),
+    ],
+)
+def test_report_renderers_smoke_and_close(tmp_path, name, extra):
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    import ADP.experiment_reports as reports
+
+    frame = pd.DataFrame(
+        {
+            "variant": ["A", "A", "B", "B"],
+            "x": [1, 2, 1, 2],
+            "y": [0.2, 0.8, 0.4, 0.9],
+            "success": [True, False, True, True],
+            "row": [1, 1, 2, 2],
+            "value": [0.2, 0.8, 0.4, 0.9],
+            "a": [1.0, 2.0, 3.0, 4.0],
+            "b": [2.0, 2.0, 1.0, 1.0],
+        }
+    )
+    renderer = getattr(reports, name)
+    options = {
+        "x": "x",
+        "y": "y",
+        "groups": ("variant",),
+        "title": "t",
+        "xlabel": "x",
+        "ylabel": "y",
+        **extra,
+    }
+    before = set(plt.get_fignums())
+    path = tmp_path / f"{name}.png"
+
+    assert renderer(frame, path, **options) == path
+    assert path.stat().st_size > 0
+    empty_path = tmp_path / f"{name}-empty.png"
+    assert renderer(frame.iloc[:0], empty_path, **options) is False
+    assert not empty_path.exists()
+    assert set(plt.get_fignums()) == before
+
+
+@pytest.mark.parametrize(
+    ("name", "extra"),
+    [
+        ("_render_heatmap", {"y": "row", "value": "value"}),
+        ("_render_stacked", {"y": "", "components": ("a",)}),
+    ],
+)
+def test_report_aggregate_token_is_validated(tmp_path, name, extra):
+    import pandas as pd
+
+    import ADP.experiment_reports as reports
+
+    with pytest.raises(ValueError, match="aggregate"):
+        getattr(reports, name)(
+            pd.DataFrame({"x": [1], "row": [1], "value": [1.0], "a": [1.0]}),
+            tmp_path / f"{name}.png",
+            x="x",
+            title="t",
+            xlabel="x",
+            ylabel="y",
+            aggregate="invalid",
+            **extra,
+        )
