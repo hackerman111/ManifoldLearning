@@ -7,9 +7,17 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ADP import ADP_Config, ADP_single_index
+from ADP import (
+    ADP_Config,
+    ADP_Experiment,
+    ADP_ExperimentPoint,
+    ADP_ExperimentVariant,
+    load_experiment,
+    run_experiment,
+)
 from ADP.ADP_Config import epanechnikov
-from ADP.engine.logger import format_profile
+from ADP.experiment import validate_experiment
+from ADP.experiment_runner import _build_jobs
 
 
 def parse_kernel(value: str):
@@ -26,73 +34,78 @@ def parse_kernel(value: str):
         raise argparse.ArgumentTypeError("kernel должен быть функцией")
     return kernel
 
-def parse_solver(value:str):
-    pass
 
-
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Консольная проверка ADP single-index",
+        description="ADP single/multi-index experiments",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    data = parser.add_argument_group("тестовые данные")
-    data.add_argument("--n", type=int, default=240)
-    data.add_argument("--d", type=int, default=3)
-    data.add_argument("--noise", type=float, default=0.05)
-
-    adp = parser.add_argument_group("ADP_Config")
-    adp.add_argument("--seed", type=int, default=7)
-    adp.add_argument("--N_loc", "--n-loc", dest="N_loc", type=int, default=10)
-    adp.add_argument("--N_lin", "--n-lin", dest="N_lin", type=int)
-    adp.add_argument("--N_J", "--J", dest="N_J", type=int, default=64)
-    adp.add_argument("--N_phi", "--n-phi", dest="N_phi", type=int)
-    adp.add_argument("--outer_steps", "--outer-steps", dest="outer_steps", type=int)
-    adp.add_argument(
+    parser.add_argument("--mode", choices=("single", "multi"), default="single")
+    parser.add_argument("--index-dim", type=int, default=1)
+    parser.add_argument(
+        "--solver", choices=("auto", "lsmr", "varpro"), default="auto"
+    )
+    parser.add_argument("--solver-tol", type=float)
+    parser.add_argument("--solver-max-steps", type=int)
+    parser.add_argument("--runs", type=int, default=1)
+    parser.add_argument("--experiment-file", type=Path)
+    parser.add_argument(
+        "--output-dir", type=Path, default=Path("ADP/experiment_outputs")
+    )
+    parser.add_argument("--resume", type=Path)
+    parser.add_argument("--reports-only", type=Path)
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--no-save-models", action="store_true")
+    parser.add_argument("--no-progress", action="store_true")
+    parser.add_argument("--n", type=int, default=240)
+    parser.add_argument("--d", type=int, default=3)
+    parser.add_argument("--noise", type=float, default=0.05)
+    parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--N_loc", "--n-loc", dest="N_loc", type=int, default=10)
+    parser.add_argument("--N_lin", "--n-lin", dest="N_lin", type=int)
+    parser.add_argument("--N_J", "--J", dest="N_J", type=int, default=64)
+    parser.add_argument("--N_phi", "--n-phi", dest="N_phi", type=int)
+    parser.add_argument(
+        "--outer_steps", "--outer-steps", dest="outer_steps", type=int
+    )
+    parser.add_argument(
         "--lambda_penalty",
         "--lambda-penalty",
         dest="lambda_penalty",
         type=float,
         default=100.0,
     )
-    adp.add_argument(
+    parser.add_argument(
         "--local_ridge",
         "--local-ridge",
         dest="local_ridge",
         type=float,
         default=1e-8,
     )
-    adp.add_argument("--kernel", type=parse_kernel, default="epanechnikov")
-    adp.add_argument("--a", type=float, default=np.sqrt(2))
-    adp.add_argument("--h_min", "--h-min", dest="h_min", type=float)
-    adp.add_argument(
-        "--batch_size",
-        "--batch-size",
-        dest="batch_size",
-        type=int,
-        default=32,
+    parser.add_argument("--kernel", type=parse_kernel, default="epanechnikov")
+    parser.add_argument("--a", type=float, default=np.sqrt(2))
+    parser.add_argument("--h_min", "--h-min", dest="h_min", type=float)
+    parser.add_argument(
+        "--batch_size", "--batch-size", dest="batch_size", type=int, default=32
     )
-    adp.add_argument(
+    parser.add_argument(
         "--index_init",
         "--index-init",
         dest="index_init",
         choices=("local", "random"),
         default="local",
     )
-    args = parser.parse_args()
+    return parser
 
-    if args.d < 1 or args.n <= args.d + 1:
-        parser.error("требуется d >= 1 и n > d + 1")
-    if not np.isfinite(args.noise) or args.noise < 0:
-        parser.error("noise должен быть конечным и неотрицательным")
-    if args.seed < 0:
-        parser.error("seed не может быть отрицательным")
 
-    rng = np.random.default_rng(args.seed)
-    X = rng.normal(size=(args.n, args.d))
-    beta_true = rng.normal(size=args.d)
-    beta_true /= np.linalg.norm(beta_true)
-    Y = np.sin(X @ beta_true) + args.noise * rng.normal(size=args.n)
-
+def experiment_from_args(
+    args: argparse.Namespace, parser: argparse.ArgumentParser
+) -> ADP_Experiment:
+    settings = {}
+    if args.solver_tol is not None:
+        settings["tol"] = args.solver_tol
+    if args.solver_max_steps is not None:
+        settings["max_steps"] = args.solver_max_steps
     try:
         config = ADP_Config(
             seed=args.seed,
@@ -109,22 +122,70 @@ def main() -> None:
             batch_size=args.batch_size,
             index_init=args.index_init,
         )
+        return validate_experiment(
+            ADP_Experiment(
+                name="manual",
+                mode=args.mode,
+                index_dim=args.index_dim,
+                runs=args.runs,
+                seed=args.seed,
+                points=(ADP_ExperimentPoint("manual", args.n, args.d, args.noise),),
+                variants={
+                    "default": ADP_ExperimentVariant(config, args.solver, settings)
+                },
+            )
+        )
     except (TypeError, ValueError) as error:
         parser.error(str(error))
 
-    model = ADP_single_index(config).fit(X, Y)
-    result = model.result_
-    result.Set_beta_true(beta_true)
-    result.Calculate_cosine()
 
-    print(f"косинус в начале: {result.cosine_init:.6f}")
-    print(f"косинус в конце: {result.cosine_final:.6f}")
-    print(f"количество центров N_J: {model.effective_parameters_['N_J']}")
-    print(f"количество итераций: {len(result.trace)}")
-    print(f"причина остановки: {result.stop_reason}")
-    print()
-    print(format_profile(model.profile_))
+def main(argv=None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.reports_only is not None and any(
+        (args.experiment_file is not None, args.resume is not None, args.dry_run)
+    ):
+        parser.error(
+            "--reports-only нельзя сочетать с --experiment-file, --resume или --dry-run"
+        )
+
+    try:
+        if args.reports_only is not None:
+            from ADP.experiment_reports import write_reports
+
+            artifacts = write_reports(args.reports_only)
+            print(f"отчёты обновлены: {artifacts}")
+            return 0
+
+        experiment = (
+            load_experiment(args.experiment_file)
+            if args.experiment_file is not None
+            else experiment_from_args(args, parser)
+        )
+        jobs = _build_jobs(experiment)
+        if args.dry_run:
+            for point in experiment.points:
+                print(f"point={point.name} runs={experiment.runs}")
+            print(f"variants: {', '.join(experiment.variants)}")
+            print(f"total jobs: {len(jobs)}")
+            return 0
+
+        series_dir, failures = run_experiment(
+            experiment,
+            args.output_dir,
+            resume=args.resume,
+            save_models=not args.no_save_models,
+            show_progress=not args.no_progress,
+        )
+    except KeyboardInterrupt:
+        return 130
+    except (ImportError, OSError, TypeError, ValueError) as error:
+        parser.error(str(error))
+
+    print(f"серия сохранена: {series_dir}")
+    print(f"ошибок: {failures}")
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

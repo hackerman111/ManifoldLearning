@@ -12,6 +12,160 @@ def _read_csv(path: Path):
         return list(csv.DictReader(stream))
 
 
+def test_cli_builds_multi_manual_experiment():
+    from ADP.cli import build_parser, experiment_from_args
+
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "--mode",
+            "multi",
+            "--index-dim",
+            "2",
+            "--solver",
+            "lsmr",
+            "--runs",
+            "3",
+        ]
+    )
+
+    experiment = experiment_from_args(args, parser)
+
+    assert experiment.mode == "multi"
+    assert experiment.index_dim == 2
+    assert experiment.runs == 3
+    assert experiment.variants["default"].solver == "lsmr"
+
+
+def test_cli_dry_run_creates_nothing(tmp_path: Path, capsys):
+    from ADP.cli import main
+
+    source = tmp_path / "exp.py"
+    source.write_text(
+        """
+from ADP import ADP_Config, ADP_Experiment, ADP_ExperimentPoint, ADP_ExperimentVariant
+
+experiment = ADP_Experiment(
+    name="dry",
+    mode="single",
+    runs=2,
+    points=(ADP_ExperimentPoint("p", 24, 3),),
+    variants={
+        "A": ADP_ExperimentVariant(ADP_Config()),
+        "B": ADP_ExperimentVariant(ADP_Config()),
+    },
+)
+""",
+        encoding="utf-8",
+    )
+
+    assert main(
+        [
+            "--experiment-file",
+            str(source),
+            "--output-dir",
+            str(tmp_path),
+            "--dry-run",
+        ]
+    ) == 0
+    output = capsys.readouterr().out
+    assert "variants: A, B" in output
+    assert "total jobs: 4" in output
+    assert not (tmp_path / "dry").exists()
+
+
+def test_cli_reports_only_uses_archive_without_experiment(
+    tmp_path: Path, monkeypatch, capsys
+):
+    from ADP.cli import main
+    import ADP.experiment_reports as reports
+
+    calls = []
+    monkeypatch.setattr(
+        reports,
+        "write_reports",
+        lambda path: calls.append(Path(path)) or Path(path) / "artifacts.csv",
+    )
+
+    assert main(["--reports-only", str(tmp_path)]) == 0
+    assert calls == [tmp_path]
+    assert f"отчёты обновлены: {tmp_path / 'artifacts.csv'}" in capsys.readouterr().out
+
+
+def test_cli_experiment_file_ignores_manual_flags(tmp_path: Path, capsys):
+    from ADP.cli import main
+
+    source = tmp_path / "exp.py"
+    source.write_text(
+        """
+from ADP import ADP_Config, ADP_Experiment, ADP_ExperimentPoint, ADP_ExperimentVariant
+experiment = ADP_Experiment(
+    name="file",
+    mode="single",
+    points=(ADP_ExperimentPoint("p", 24, 3),),
+    variants={"v": ADP_ExperimentVariant(ADP_Config())},
+)
+""",
+        encoding="utf-8",
+    )
+
+    assert main(
+        [
+            "--experiment-file",
+            str(source),
+            "--mode",
+            "multi",
+            "--index-dim",
+            "99",
+            "--solver",
+            "varpro",
+            "--runs",
+            "0",
+            "--n",
+            "1",
+            "--d",
+            "0",
+            "--dry-run",
+        ]
+    ) == 0
+    assert "total jobs: 1" in capsys.readouterr().out
+
+
+def test_cli_reports_only_rejects_conflicting_modes(tmp_path: Path):
+    from ADP.cli import main
+
+    with pytest.raises(SystemExit) as error:
+        main(["--reports-only", str(tmp_path), "--dry-run"])
+
+    assert error.value.code == 2
+
+
+def test_cli_keyboard_interrupt_returns_130(monkeypatch):
+    import ADP.cli as cli
+
+    monkeypatch.setattr(
+        cli,
+        "run_experiment",
+        lambda *args, **kwargs: (_ for _ in ()).throw(KeyboardInterrupt),
+    )
+
+    assert cli.main([]) == 130
+
+
+def test_cli_failures_return_one(tmp_path: Path, monkeypatch, capsys):
+    import ADP.cli as cli
+
+    series_dir = tmp_path / "series"
+    monkeypatch.setattr(
+        cli, "run_experiment", lambda *args, **kwargs: (series_dir, 2)
+    )
+
+    assert cli.main([]) == 1
+    output = capsys.readouterr().out
+    assert f"серия сохранена: {series_dir}" in output
+    assert "ошибок: 2" in output
+
+
 def _unchanged_single(statistics, initial_index, **params):
     return ADP_SolverResult(
         index=np.asarray(initial_index),
