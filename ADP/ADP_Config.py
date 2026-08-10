@@ -61,5 +61,5 @@ class ADP_Config:
             raise ValueError("h_min must be finite and positive")
         if not callable(self.kernel):
             raise TypeError("kernel must be callable")
-        if self.index_init not in {"local", "random"}:
-            raise ValueError("index_init must be 'local' or 'random'")
+        if self.index_init not in {"local", "pilot", "random"}:
+            raise ValueError("index_init must be 'local', 'pilot', or 'random'")

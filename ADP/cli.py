@@ -79,7 +79,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--lambda-penalty",
         dest="lambda_penalty",
         type=float,
-        default=100.0,
+        default=argparse.SUPPRESS,
+        help="штраф LSMR (по умолчанию 10000 для multi, 100 для single)",
     )
     parser.add_argument(
         "--local_ridge",
@@ -98,8 +99,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--index_init",
         "--index-init",
         dest="index_init",
-        choices=("local", "random"),
-        default="local",
+        choices=("local", "pilot", "random"),
+        default=argparse.SUPPRESS,
+        help="инициализация индекса (по умолчанию pilot для multi, local для single)",
     )
     return parser
 
@@ -112,6 +114,8 @@ def experiment_from_args(
         settings["tol"] = args.solver_tol
     if args.solver_max_steps is not None:
         settings["max_steps"] = args.solver_max_steps
+    lambda_penalty = getattr(args, "lambda_penalty", None)
+    index_init = getattr(args, "index_init", None)
     try:
         config = ADP_Config(
             seed=args.seed,
@@ -120,13 +124,17 @@ def experiment_from_args(
             N_J=args.N_J,
             N_phi=args.N_phi,
             outer_steps=args.outer_steps,
-            lambda_penalty=args.lambda_penalty,
+            lambda_penalty=(
+                lambda_penalty
+                if lambda_penalty is not None
+                else (10000.0 if args.mode == "multi" else 100.0)
+            ),
             local_ridge=args.local_ridge,
             kernel=args.kernel,
             a=args.a,
             h_min=args.h_min,
             batch_size=args.batch_size,
-            index_init=args.index_init,
+            index_init=index_init or ("pilot" if args.mode == "multi" else "local"),
         )
         return validate_experiment(
             ADP_Experiment(
@@ -235,6 +243,10 @@ def _print_terminal_summary(experiment, runs):
                 f"nonconverged={statuses.count('nonconverged')}; "
                 f"numerical_failure={statuses.count('numerical_failure')}"
             )
+            print(
+                "инициализация индекса: "
+                f"{experiment.variants[variant].config.index_init}"
+            )
             if experiment.mode == "single":
                 print(
                     "косинус в начале, медиана: "
@@ -286,7 +298,9 @@ def _print_terminal_summary(experiment, runs):
             if issues:
                 print("неуспешные запуски:")
                 for (status, error_type, message), count in issues.items():
-                    detail = ": ".join(value for value in (error_type, message) if value)
+                    detail = ": ".join(
+                        value for value in (error_type, message) if value
+                    )
                     suffix = f": {detail}" if detail else ""
                     print(f"  {status} ({count}){suffix}")
             profile = _aggregate_profile(rows)

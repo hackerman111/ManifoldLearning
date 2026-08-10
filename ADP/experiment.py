@@ -160,6 +160,8 @@ def validate_experiment(experiment: ADP_Experiment) -> ADP_Experiment:
             raise TypeError("variant values must be ADP_ExperimentVariant")
         if not isinstance(variant.config, ADP_Config):
             raise TypeError("variant.config must be ADP_Config")
+        if experiment.mode == "single" and variant.config.index_init == "pilot":
+            raise ValueError("pilot initialization is multi-index only")
         _validate_solver_settings(experiment.mode, variant)
     if len(variant_names) != len(set(variant_names)):
         raise ValueError("variant names must be unique")

@@ -28,8 +28,12 @@ python ADP/cli.py \
   --terminal-only --no-progress \
   --mode multi --index-dim 2 --solver lsmr --runs 2 \
   --n 48 --d 4 --N_loc 6 --N_lin 10 --N_J 8 --N_phi 3 \
-  --h_min 1000000 --index-init random
+  --h_min 1000000 --index-init pilot
 ```
+
+Для ручного multi-index запуска по умолчанию используются
+`--index-init pilot` и `--lambda-penalty 10000`. Режимы `local` и `random`
+можно выбрать явно.
 
 ### Single-index с VarPro
 

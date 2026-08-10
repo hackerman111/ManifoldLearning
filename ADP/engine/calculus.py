@@ -142,6 +142,49 @@ def initialize_basis_local(
     return _orient_basis(right_vectors[:index_dim].T.copy())
 
 
+def initialize_basis_pilot(
+    X: np.ndarray,
+    Y: np.ndarray,
+    index_dim: int,
+    *,
+    seed: int,
+) -> np.ndarray:
+    try:
+        from sklearn.neural_network import MLPRegressor
+    except ImportError as error:
+        raise ImportError(
+            "pilot initialization requires scikit-learn"
+        ) from error
+
+    X, Y = utils._prepare_xy(X, Y)
+    if isinstance(index_dim, bool) or not isinstance(index_dim, (int, np.integer)):
+        raise TypeError("index_dim must be an integer")
+    if not 1 <= index_dim <= X.shape[1]:
+        raise ValueError("index_dim must lie between 1 and d")
+    if isinstance(seed, bool) or not isinstance(seed, (int, np.integer)):
+        raise TypeError("seed must be an integer")
+    if seed < 0:
+        raise ValueError("seed must be nonnegative")
+
+    pilot = MLPRegressor(
+        hidden_layer_sizes=(int(index_dim),),
+        activation="tanh",
+        solver="lbfgs",
+        alpha=0.1,
+        max_iter=1000,
+        random_state=int(seed),
+    ).fit(X, Y)
+    weights = np.asarray(pilot.coefs_[0], dtype=float)
+    if weights.shape != (X.shape[1], index_dim) or not np.all(
+        np.isfinite(weights)
+    ):
+        raise RuntimeError("pilot initializer returned invalid weights")
+    if np.linalg.matrix_rank(weights) != index_dim:
+        raise RuntimeError("pilot initializer returned a rank-deficient basis")
+    basis, _ = np.linalg.qr(weights, mode="reduced")
+    return _orient_basis(basis)
+
+
 def initialize_basis_random(
     rng: np.random.Generator,
     n_features: int,

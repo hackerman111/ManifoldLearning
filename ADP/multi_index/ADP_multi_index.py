@@ -12,6 +12,7 @@ from ..engine.calculus import (
     calculate_multi_weight,
     generate_multi_proj,
     initialize_basis_local,
+    initialize_basis_pilot,
     initialize_basis_random,
     pairwise_distance2,
     search_bandwidth,
@@ -121,6 +122,8 @@ class ADP_multi_index:
 
             if config.index_init == "random":
                 basis_init = initialize_basis_random(rng, d, m)
+            elif config.index_init == "pilot":
+                basis_init = initialize_basis_pilot(X, Y, m, seed=seed)
             else:
                 basis_init = initialize_basis_local(
                     X,

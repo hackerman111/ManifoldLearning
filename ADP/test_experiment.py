@@ -35,6 +35,36 @@ def test_cli_builds_multi_manual_experiment():
     assert experiment.index_dim == 2
     assert experiment.runs == 3
     assert experiment.variants["default"].solver == "lsmr"
+    assert experiment.variants["default"].config.index_init == "pilot"
+    assert experiment.variants["default"].config.lambda_penalty == 10000.0
+
+
+def test_single_experiment_rejects_pilot_initialization():
+    from ADP import ADP_Experiment, ADP_ExperimentPoint, ADP_ExperimentVariant
+    from ADP.experiment import validate_experiment
+
+    experiment = ADP_Experiment(
+        name="single-pilot",
+        mode="single",
+        points=(ADP_ExperimentPoint("p", 24, 3),),
+        variants={
+            "v": ADP_ExperimentVariant(ADP_Config(index_init="pilot")),
+        },
+    )
+
+    with pytest.raises(ValueError, match="pilot initialization is multi-index only"):
+        validate_experiment(experiment)
+
+
+def test_single_model_rejects_pilot_initialization():
+    from ADP import ADP_single_index
+
+    X = np.ones((24, 3))
+    Y = np.zeros(24)
+    model = ADP_single_index(config=ADP_Config(index_init="pilot"))
+
+    with pytest.raises(ValueError, match="pilot initialization is multi-index only"):
+        model.fit(X, Y)
 
 
 def test_cli_dry_run_creates_nothing(tmp_path: Path, capsys):
@@ -244,6 +274,7 @@ def test_cli_terminal_only_prints_readable_summary_and_creates_nothing(
     assert "=== manual / default ===" in output
     assert "запусков: 2" in output
     assert "статусы: success=1; nonconverged=1; numerical_failure=0" in output
+    assert "инициализация индекса: local" in output
     assert "косинус в начале, медиана: 0.800000" in output
     assert "косинус в конце, медиана: 0.850000" in output
     assert "количество центров N_J: 8" in output

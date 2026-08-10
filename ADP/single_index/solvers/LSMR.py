@@ -206,7 +206,9 @@ def _canonical_basis(raw_basis, coefficients):
     basis, singular_values, _ = np.linalg.svd(factor, full_matrices=False)
     if singular_values[0] <= np.finfo(float).eps:
         raise RuntimeError("LSMR coefficients do not identify a multi-index basis")
-    return _orient_columns(basis), np.square(singular_values)
+    eigenvalues = np.square(singular_values)
+    eigenvalues /= eigenvalues.max()
+    return _orient_columns(basis), eigenvalues
 
 
 def _orient_columns(basis):

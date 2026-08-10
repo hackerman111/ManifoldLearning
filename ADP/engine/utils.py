@@ -27,10 +27,11 @@ def _prepare_xy(X, Y):
 def _check_model_sizes(n, d, N_loc, N_lin, N_J, index_init):
     if N_loc > n:
         raise ValueError("N_loc cannot exceed n")
-    if N_lin > n:
-        raise ValueError("N_lin cannot exceed n")
-    if index_init == "local" and N_lin <= d + 1:
-        raise ValueError("N_lin must exceed d + 1 for local initialization")
+    if index_init == "local":
+        if N_lin > n:
+            raise ValueError("N_lin cannot exceed n")
+        if N_lin <= d + 1:
+            raise ValueError("N_lin must exceed d + 1 for local initialization")
     if not np.ceil(n / N_loc) <= N_J <= n:
         raise ValueError("N_J must lie between ceil(n / N_loc) and n")
 

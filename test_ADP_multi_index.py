@@ -52,6 +52,23 @@ def test_multi_initializers_are_orthonormal():
     np.testing.assert_allclose(random.T @ random, np.eye(2), atol=1e-12)
 
 
+def test_pilot_initializer_recovers_high_dimensional_subspace():
+    from ADP.engine.calculus import initialize_basis_pilot
+
+    rng = np.random.default_rng(7)
+    X = rng.normal(size=(1000, 100))
+    true_basis, _ = np.linalg.qr(rng.normal(size=(100, 2)))
+    Y = np.sin(X @ true_basis).sum(axis=1) + 0.05 * rng.normal(size=len(X))
+
+    basis = initialize_basis_pilot(X, Y, 2, seed=7)
+    error = np.linalg.norm(
+        basis @ basis.T - true_basis @ true_basis.T,
+        ord="fro",
+    ) / 2.0
+
+    assert error < 0.2
+
+
 def test_multi_weight_matches_explicit_low_rank_tensor():
     rng = np.random.default_rng(4)
     X = rng.normal(size=(9, 5))
@@ -117,7 +134,9 @@ def test_lsmr_accepts_vector_and_matrix_indices():
     assert multi.index.shape == (d, m)
     assert multi.coefficients.shape == (J, m)
     np.testing.assert_allclose(multi.index.T @ multi.index, np.eye(m), atol=1e-10)
-    assert np.asarray(multi.diagnostics["eigenvalues"]).shape == (m,)
+    eigenvalues = np.asarray(multi.diagnostics["eigenvalues"])
+    assert eigenvalues.shape == (m,)
+    np.testing.assert_allclose(eigenvalues.max(), 1.0, atol=1e-12)
 
 
 def test_multi_result_uses_projector_distance():
@@ -168,6 +187,32 @@ def test_multi_model_random_initialization_and_fit_contract():
     np.testing.assert_allclose(model.basis_.T @ model.basis_, np.eye(2), atol=1e-12)
     assert model.transform(X).shape == (48, 2)
     assert model.result_.stop_reason == "h_min"
+
+
+def test_multi_model_pilot_recovers_high_dimensional_subspace():
+    from ADP.multi_index.ADP_multi_index import ADP_multi_index
+
+    rng = np.random.default_rng(7)
+    X = rng.normal(size=(1000, 100))
+    true_basis, _ = np.linalg.qr(rng.normal(size=(100, 2)))
+    Y = np.sin(X @ true_basis).sum(axis=1) + 0.05 * rng.normal(size=len(X))
+    config = ADP_Config(
+        seed=7,
+        N_loc=5,
+        N_J=200,
+        N_phi=3,
+        lambda_penalty=10000.0,
+        index_init="pilot",
+    )
+
+    model = ADP_multi_index(2, config=config).fit(X, Y)
+    error = np.linalg.norm(
+        model.basis_ @ model.basis_.T - true_basis @ true_basis.T,
+        ord="fro",
+    ) / 2.0
+
+    assert error < 0.2
+    assert len(model.result_.trace) > 1
 
 
 def test_multi_index_public_api():

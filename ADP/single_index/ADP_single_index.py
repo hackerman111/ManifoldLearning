@@ -89,6 +89,9 @@ class ADP_single_index:
             seed = config.seed
             configured_h_min = config.h_min
 
+            if index_init == "pilot":
+                raise ValueError("pilot initialization is multi-index only")
+
             utils._check_model_sizes(n, d, N_loc, N_lin, N_J, index_init)
 
             scale = float(np.mean(np.std(X, axis=0)))
