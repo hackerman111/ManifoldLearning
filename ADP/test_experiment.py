@@ -433,3 +433,560 @@ def test_series_store_requires_matching_resume_spec(tmp_path: Path):
         store.is_complete(job, changed)
     with pytest.raises(ValueError, match="resume specification differs"):
         store.commit(job, changed, {"status": "success"})
+
+
+def test_runner_pairs_inputs_saves_failures_and_resumes(tmp_path: Path, monkeypatch):
+    import ADP.experiment_runner as runner
+
+    calls = []
+    factory_calls = []
+
+    def data_factory(point, rng):
+        factory_calls.append(point.name)
+        X = rng.normal(size=(point.n, point.d))
+        truth = np.eye(point.d)[0]
+        return ADP_Data(X, X @ truth, truth)
+
+    class FakeResult:
+        def __init__(self, beta):
+            self.beta_init = beta.copy()
+            self.beta_final = beta.copy()
+            self.trace = [
+                {
+                    "k": 0,
+                    "h": 1.0,
+                    "rho": 1.0,
+                    "mean_mass": 5.0,
+                    "beta": beta.copy(),
+                }
+            ]
+            self.stop_reason = "h_min"
+
+    class FakeModel:
+        def __init__(self, seed, variant):
+            self.config = ADP_Config(seed=seed)
+            self.variant = variant
+            self.solver = ADP_solver(_unchanged_single)
+
+        def fit(self, X, Y, *, progress=None):
+            calls.append((self.variant, self.config.seed, X.copy(), Y.copy()))
+            if progress is not None:
+                progress({"k": 0, "h": 1.0, "rho": 1.0})
+            beta = np.eye(X.shape[1])[0]
+            self.result_ = FakeResult(beta)
+            self.beta_ = beta
+            self.coefficients_ = np.ones(len(X))
+            self.effective_parameters_ = {
+                "N_J": 4,
+                "N_phi": 3,
+                "N_loc": 5,
+                "N_lin": 6,
+                "h_min": 1.0,
+            }
+            self.profile_ = {
+                "total_time_seconds": 0.01,
+                "peak_memory_bytes": 32,
+                "stages": {},
+            }
+            return self
+
+    experiment = _paired_experiment(data_factory)
+    monkeypatch.setattr(
+        runner,
+        "_build_model",
+        lambda experiment, variant, seed: FakeModel(
+            seed,
+            next(
+                name
+                for name, value in experiment.variants.items()
+                if value is variant
+            ),
+        ),
+    )
+
+    series_dir, failures = runner.run_experiment(
+        experiment,
+        tmp_path,
+        save_models=False,
+        show_progress=False,
+    )
+    first_call_count = len(calls)
+    resumed_dir, resumed_failures = runner.run_experiment(
+        experiment,
+        tmp_path,
+        resume=series_dir,
+        save_models=False,
+        show_progress=False,
+    )
+
+    assert failures == resumed_failures == 0
+    assert resumed_dir == series_dir
+    assert len(factory_calls) == 4
+    assert len(calls) == first_call_count == 8
+    for offset in range(0, len(calls), 2):
+        assert calls[offset][1] == calls[offset + 1][1]
+        np.testing.assert_array_equal(calls[offset][2], calls[offset + 1][2])
+        np.testing.assert_array_equal(calls[offset][3], calls[offset + 1][3])
+    assert not list((series_dir / "models").glob("*.npz"))
+
+    store = runner._SeriesStore(series_dir)
+    pending_job = runner._build_jobs(experiment)[1]
+    store.commit_path(pending_job).unlink()
+    store.data_path(pending_job.point, pending_job.seed).unlink()
+    calls_before_broken_resume = len(calls)
+    factory_calls_before_broken_resume = len(factory_calls)
+
+    with pytest.raises(FileNotFoundError, match="referenced data artifact"):
+        runner.run_experiment(
+            experiment,
+            tmp_path,
+            resume=series_dir,
+            save_models=False,
+            show_progress=False,
+        )
+
+    assert len(calls) == calls_before_broken_resume
+    assert len(factory_calls) == factory_calls_before_broken_resume
+
+
+def test_runner_commits_fit_failures_and_continues(tmp_path: Path, monkeypatch):
+    import ADP.experiment_runner as runner
+
+    calls = []
+
+    class SometimesFails:
+        def __init__(self, seed, variant):
+            self.config = ADP_Config(seed=seed)
+            self.variant = variant
+            self.solver = ADP_solver(_unchanged_single)
+
+        def fit(self, X, Y, *, progress=None):
+            calls.append((self.variant, self.config.seed))
+            if self.variant == "A":
+                raise FloatingPointError("synthetic failure")
+            beta = np.eye(X.shape[1])[0]
+            self.result_ = type(
+                "Result",
+                (),
+                {
+                    "trace": [
+                        {"k": 0, "h": 1.0, "rho": 1.0, "beta": beta}
+                    ],
+                    "stop_reason": "h_min",
+                },
+            )()
+            self.beta_ = beta
+            self.coefficients_ = np.ones(len(X))
+            self.effective_parameters_ = {}
+            self.profile_ = {
+                "total_time_seconds": 0.01,
+                "peak_memory_bytes": 32,
+                "stages": {},
+            }
+            return self
+
+    experiment = _paired_experiment()
+    monkeypatch.setattr(
+        runner,
+        "_build_model",
+        lambda experiment, variant, seed: SometimesFails(
+            seed,
+            next(
+                name
+                for name, value in experiment.variants.items()
+                if value is variant
+            ),
+        ),
+    )
+
+    series_dir, failures = runner.run_experiment(
+        experiment,
+        tmp_path,
+        save_models=False,
+        show_progress=False,
+    )
+
+    assert len(calls) == 8
+    assert failures == 4
+    assert len(list((series_dir / "commits").glob("*.json"))) == 8
+    failed_runs = [
+        commit["run"]
+        for commit in runner._SeriesStore(series_dir).read_commits()
+        if commit["run"]["status"] == "numerical_failure"
+    ]
+    for run in failed_runs:
+        assert run["series_id"] == series_dir.name
+        assert run["experiment"] == experiment.name
+        assert run["mode"] == experiment.mode
+        assert run["index_dim"] == experiment.index_dim
+        assert run["effective_config"]["seed"] == run["seed"]
+        assert run["effective_seed"] == run["seed"]
+        assert run["effective_N_J"] == 4
+        assert run["error_traceback"]
+
+
+def test_data_generation_failures_keep_provenance(tmp_path: Path):
+    from dataclasses import replace
+
+    import ADP.experiment_runner as runner
+
+    def fail_factory(point, rng):
+        raise ValueError("synthetic data failure")
+
+    base = _paired_experiment(fail_factory)
+    experiment = replace(base, runs=1, points=(base.points[0],))
+
+    series_dir, failures = runner.run_experiment(
+        experiment,
+        tmp_path,
+        save_models=False,
+        show_progress=False,
+    )
+
+    commits = runner._SeriesStore(series_dir).read_commits()
+    assert failures == len(commits) == 2
+    for commit in commits:
+        run = commit["run"]
+        assert run["series_id"] == series_dir.name
+        assert run["experiment"] == experiment.name
+        assert run["mode"] == experiment.mode
+        assert run["index_dim"] == experiment.index_dim
+        assert run["effective_config"]["seed"] == run["seed"]
+        assert run["effective_seed"] == run["seed"]
+        assert run["data_artifact"] == ""
+        assert run["model_artifact"] == ""
+        assert run["error_type"] == "ValueError"
+        assert "synthetic data failure" in run["error_traceback"]
+
+
+@pytest.mark.parametrize("missing", ["basis_", "eigenvalues_"])
+def test_multi_result_requires_fitted_basis_and_eigenvalues(
+    tmp_path: Path,
+    monkeypatch,
+    missing,
+):
+    import ADP.experiment_runner as runner
+    from ADP.experiment import (
+        ADP_Experiment,
+        ADP_ExperimentPoint,
+        ADP_ExperimentVariant,
+    )
+
+    point = ADP_ExperimentPoint("p", 12, 3, 0.0)
+    experiment = ADP_Experiment(
+        name="strict_multi",
+        mode="multi",
+        index_dim=2,
+        points=(point,),
+        variants={"v": ADP_ExperimentVariant(ADP_Config())},
+    )
+    job = runner._build_jobs(experiment)[0]
+    store = runner._SeriesStore.create(tmp_path, experiment)
+    basis = np.eye(point.d, experiment.index_dim)
+    data = ADP_Data(np.ones((point.n, point.d)), np.zeros(point.n), basis)
+    store.save_data(point, job.seed, data)
+
+    class MalformedMulti:
+        config = ADP_Config(seed=job.seed)
+        solver = ADP_solver(_unchanged_multi)
+
+        def fit(self, X, Y, *, progress=None):
+            self.beta_ = basis
+            if missing != "basis_":
+                self.basis_ = basis
+            if missing != "eigenvalues_":
+                self.eigenvalues_ = np.ones(experiment.index_dim)
+            self.coefficients_ = np.ones((len(X), experiment.index_dim))
+            self.effective_parameters_ = {}
+            self.profile_ = {
+                "total_time_seconds": 0.01,
+                "peak_memory_bytes": 32,
+                "stages": {},
+            }
+            self.result_ = type(
+                "Result",
+                (),
+                {
+                    "trace": [
+                        {
+                            "k": 0,
+                            "h": 1.0,
+                            "alpha": 1.0,
+                            "basis": basis,
+                            "eigenvalues": np.ones(experiment.index_dim),
+                        }
+                    ],
+                    "stop_reason": "h_min",
+                },
+            )()
+            return self
+
+    monkeypatch.setattr(
+        runner,
+        "_build_model",
+        lambda experiment, variant, seed: MalformedMulti(),
+    )
+
+    outcome = runner._execute_job(
+        store,
+        experiment,
+        job,
+        data,
+        False,
+        None,
+    )
+
+    assert outcome["run"]["status"] == "numerical_failure"
+    assert missing in outcome["run"]["error_message"]
+    assert outcome["run"]["model_artifact"] == ""
+
+
+@pytest.mark.parametrize(
+    ("error", "status"),
+    [
+        (
+            RuntimeError("outer_steps exhausted before reaching h_min"),
+            "nonconverged",
+        ),
+        (FloatingPointError("synthetic numerical failure"), "numerical_failure"),
+    ],
+)
+def test_execute_job_classifies_fit_exceptions(
+    tmp_path: Path,
+    monkeypatch,
+    error,
+    status,
+):
+    from dataclasses import replace
+
+    import ADP.experiment_runner as runner
+
+    base = _paired_experiment()
+    experiment = replace(
+        base,
+        runs=1,
+        points=(base.points[0],),
+        variants={"A": base.variants["A"]},
+    )
+    job = runner._build_jobs(experiment)[0]
+    store = runner._SeriesStore.create(tmp_path, experiment)
+    truth = np.eye(job.point.d)[0]
+    data = ADP_Data(
+        np.ones((job.point.n, job.point.d)),
+        np.zeros(job.point.n),
+        truth,
+    )
+    store.save_data(job.point, job.seed, data)
+
+    class Raises:
+        config = replace(job.variant.config, seed=job.seed)
+        solver = ADP_solver(_unchanged_single)
+
+        def fit(self, X, Y, *, progress=None):
+            self.profile_ = {
+                "total_time_seconds": 0.01,
+                "peak_memory_bytes": 32,
+                "stages": {},
+            }
+            raise error
+
+    monkeypatch.setattr(
+        runner,
+        "_build_model",
+        lambda experiment, variant, seed: Raises(),
+    )
+
+    outcome = runner._execute_job(
+        store,
+        experiment,
+        job,
+        data,
+        False,
+        None,
+    )
+    run = outcome["run"]
+
+    assert run["status"] == status
+    assert run["error_type"] == type(error).__name__
+    assert run["error_message"] == str(error)
+    assert type(error).__name__ in run["error_traceback"]
+    assert str(error) in run["error_traceback"]
+    assert run["algorithm_memory_samples"] >= 2
+
+
+@pytest.mark.parametrize("mode", ["single", "multi"])
+def test_successful_job_saves_required_model_arrays(tmp_path: Path, monkeypatch, mode):
+    from ADP.experiment import (
+        ADP_Experiment,
+        ADP_ExperimentPoint,
+        ADP_ExperimentVariant,
+    )
+    import ADP.experiment_runner as runner
+
+    point = ADP_ExperimentPoint("p", 12, 3, 0.0)
+    index_dim = 1 if mode == "single" else 2
+    experiment = ADP_Experiment(
+        name=f"snapshot_{mode}",
+        mode=mode,
+        index_dim=index_dim,
+        points=(point,),
+        variants={"v": ADP_ExperimentVariant(ADP_Config())},
+    )
+    job = runner._build_jobs(experiment)[0]
+    store = runner._SeriesStore.create(tmp_path, experiment)
+    index = (
+        np.eye(point.d)[0]
+        if mode == "single"
+        else np.eye(point.d, index_dim)
+    )
+    data = ADP_Data(
+        np.ones((point.n, point.d)),
+        np.zeros(point.n),
+        index,
+    )
+    store.save_data(point, job.seed, data)
+
+    class Successful:
+        config = ADP_Config(seed=job.seed)
+        solver = ADP_solver(
+            _unchanged_single if mode == "single" else _unchanged_multi
+        )
+
+        def fit(self, X, Y, *, progress=None):
+            self.beta_ = index
+            if mode == "multi":
+                self.basis_ = index
+                self.eigenvalues_ = np.ones(index_dim)
+            self.coefficients_ = np.ones(len(X))
+            self.effective_parameters_ = {}
+            trace = {
+                "k": 0,
+                "h": 1.0,
+                "rho" if mode == "single" else "alpha": 1.0,
+                "beta" if mode == "single" else "basis": index,
+            }
+            if mode == "multi":
+                trace["eigenvalues"] = self.eigenvalues_
+            self.result_ = type(
+                "Result",
+                (),
+                {"trace": [trace], "stop_reason": "h_min"},
+            )()
+            self.profile_ = {
+                "total_time_seconds": 0.01,
+                "peak_memory_bytes": 32,
+                "stages": {},
+            }
+            return self
+
+    monkeypatch.setattr(
+        runner,
+        "_build_model",
+        lambda experiment, variant, seed: Successful(),
+    )
+
+    outcome = runner._execute_job(
+        store,
+        experiment,
+        job,
+        data,
+        True,
+        None,
+    )
+
+    assert outcome["run"]["status"] == "success"
+    path = store.series_dir / outcome["run"]["model_artifact"]
+    with np.load(path, allow_pickle=False) as archive:
+        expected = {"index", "coefficients"}
+        if mode == "multi":
+            expected.add("eigenvalues")
+        assert set(archive.files) == expected
+        np.testing.assert_array_equal(archive["index"], index)
+
+
+def test_keyboard_interrupt_propagates_and_closes_contexts(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from dataclasses import replace
+
+    import ADP.experiment_runner as runner
+
+    base = _paired_experiment()
+    experiment = replace(
+        base,
+        runs=1,
+        points=(base.points[0],),
+        variants={"A": base.variants["A"]},
+    )
+    events = []
+    bars = []
+
+    class Bar:
+        disable = True
+
+        def __init__(self, **kwargs):
+            self.closed = False
+            bars.append(self)
+
+        def set_postfix(self, **kwargs):
+            pass
+
+        def update(self, amount):
+            pass
+
+        def close(self):
+            self.closed = True
+
+    class ThreadContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append("threadpool_exit")
+
+    class Sampler:
+        def __init__(self):
+            self.samples = []
+
+        def __enter__(self):
+            self.samples.append(1.0)
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            self.samples.append(1.0)
+            events.append("rss_exit")
+
+    class Interrupted:
+        config = ADP_Config(seed=experiment.seed)
+        solver = ADP_solver(_unchanged_single)
+
+        def fit(self, X, Y, *, progress=None):
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner, "tqdm", Bar)
+    monkeypatch.setattr(
+        runner,
+        "threadpool_limits",
+        lambda **kwargs: ThreadContext(),
+    )
+    monkeypatch.setattr(runner, "_RSSSampler", Sampler)
+    monkeypatch.setattr(
+        runner,
+        "_build_model",
+        lambda experiment, variant, seed: Interrupted(),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        runner.run_experiment(
+            experiment,
+            tmp_path,
+            save_models=False,
+            show_progress=False,
+        )
+
+    assert events == ["rss_exit", "threadpool_exit"]
+    assert len(bars) == 2
+    assert all(bar.closed for bar in bars)
+    series_dir = next((tmp_path / experiment.name).iterdir())
+    assert not list((series_dir / "commits").glob("*.json"))

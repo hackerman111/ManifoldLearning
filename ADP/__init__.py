@@ -12,6 +12,7 @@ from .experiment import (
     load_experiment,
 )
 from .multi_index.ADP_multi_index import ADP_multi_index
+from .experiment_runner import run_experiment
 from .single_index.ADP_single_index import ADP_single_index
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     "_weight_blocks_single",
     "calculate_statistics",
     "load_experiment",
+    "run_experiment",
 ]
