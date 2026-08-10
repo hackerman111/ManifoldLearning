@@ -846,6 +846,42 @@ def test_data_generation_failures_keep_provenance(tmp_path: Path):
         assert "synthetic data failure" in run["error_traceback"]
 
 
+def test_report_failure_surfaces_after_normal_runner_completion(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from dataclasses import replace
+
+    import ADP.experiment_reports as reports
+    import ADP.experiment_runner as runner
+
+    def fail_factory(point, rng):
+        raise ValueError("synthetic data failure")
+
+    def fail_reports(_series_dir):
+        raise RuntimeError("report failure")
+
+    base = _paired_experiment(fail_factory)
+    experiment = replace(
+        base,
+        runs=1,
+        points=(base.points[0],),
+        variants={"A": base.variants["A"]},
+    )
+    monkeypatch.setattr(reports, "write_reports", fail_reports)
+
+    with pytest.raises(RuntimeError, match="report failure"):
+        runner.run_experiment(
+            experiment,
+            tmp_path,
+            save_models=False,
+            show_progress=False,
+        )
+
+    series_dir = next((tmp_path / experiment.name).iterdir())
+    assert (series_dir / "run_summary.csv").is_file()
+
+
 @pytest.mark.parametrize("missing", ["basis_", "eigenvalues_"])
 def test_multi_result_requires_fitted_basis_and_eigenvalues(
     tmp_path: Path,
@@ -1098,6 +1134,7 @@ def test_keyboard_interrupt_propagates_and_closes_contexts(
     from dataclasses import replace
 
     import ADP.experiment_runner as runner
+    import ADP.experiment_reports as reports
 
     base = _paired_experiment()
     experiment = replace(
@@ -1163,6 +1200,11 @@ def test_keyboard_interrupt_propagates_and_closes_contexts(
         "_build_model",
         lambda experiment, variant, seed: Interrupted(),
     )
+
+    def fail_reports(_series_dir):
+        raise RuntimeError("report failure")
+
+    monkeypatch.setattr(reports, "write_reports", fail_reports)
 
     with pytest.raises(KeyboardInterrupt):
         runner.run_experiment(
@@ -1409,3 +1451,699 @@ def test_report_aggregate_token_is_validated(tmp_path, name, extra):
             aggregate="invalid",
             **extra,
         )
+
+
+def test_reports_create_single_and_multi_specific_plots(tmp_path: Path):
+    import pandas as pd
+
+    from ADP.experiment_reports import write_reports
+
+    single = tmp_path / "single"
+    single.mkdir()
+    pd.DataFrame(
+        [
+            {
+                "series_id": "s",
+                "run_id": "r",
+                "experiment": "p",
+                "point": "p",
+                "variant": "A",
+                "mode": "single",
+                "seed": 1,
+                "d": 3,
+                "n_over_d": 10,
+                "sigma_eps": 0.1,
+                "link": "sin",
+                "status": "success",
+                "cosine_abs": 0.9,
+                "projector_error": 0.2,
+                "algorithm_time_sec": 1.0,
+                "algorithm_rss_max_mib": 20.0,
+                "stage_initialization_time_sec": 0.1,
+                "stage_directions_time_sec": 0.1,
+                "stage_statistics_time_sec": 0.3,
+                "stage_solver_time_sec": 0.4,
+                "stage_update_time_sec": 0.1,
+                "outer_iterations": 1,
+            }
+        ]
+    ).to_csv(single / "run_summary.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "series_id": "s",
+                "run_id": "r",
+                "experiment": "p",
+                "point": "p",
+                "variant": "A",
+                "mode": "single",
+                "seed": 1,
+                "outer_k": 0,
+                "h_k": 1.0,
+                "rho_k": 0.8,
+                "alpha_k": np.nan,
+                "cosine_abs": 0.9,
+                "projector_error": 0.2,
+            }
+        ]
+    ).to_csv(single / "outer_iterations.csv", index=False)
+
+    write_reports(single)
+
+    assert (single / "plots/points/p/quality_vs_outer_iteration.png").is_file()
+    assert (single / "plots/points/p/rho_vs_outer_iteration.png").is_file()
+    assert (single / "plots/summary/quality_heatmap_d_nd_ratio.png").is_file()
+    assert (single / "plots/summary/success_rate_vs_sigma_eps.png").is_file()
+    assert (single / "plots/summary/quality_by_link_function.png").is_file()
+    assert (single / "plots/summary/runtime_vs_dimension.png").is_file()
+    assert (single / "plots/summary/runtime_breakdown.png").is_file()
+    assert (single / "plots/summary/status_breakdown.png").is_file()
+
+    multi = tmp_path / "multi"
+    multi.mkdir()
+    runs = pd.read_csv(single / "run_summary.csv").assign(
+        mode="multi", cosine_abs=np.nan
+    )
+    outer = pd.read_csv(single / "outer_iterations.csv").assign(
+        mode="multi", cosine_abs=np.nan, rho_k=np.nan, alpha_k=0.7
+    )
+    runs.to_csv(multi / "run_summary.csv", index=False)
+    outer.to_csv(multi / "outer_iterations.csv", index=False)
+
+    write_reports(multi)
+
+    assert (
+        multi / "plots/points/p/projector_error_vs_outer_iteration.png"
+    ).is_file()
+    assert (multi / "plots/points/p/alpha_vs_outer_iteration.png").is_file()
+    assert not (multi / "plots/points/p/quality_vs_outer_iteration.png").exists()
+    artifacts = pd.read_csv(multi / "artifacts.csv")
+    assert {"created", "skipped"} <= set(artifacts["status"])
+
+    truthless = tmp_path / "truthless"
+    truthless.mkdir()
+    runs.assign(cosine_abs=np.nan, projector_error=np.nan).to_csv(
+        truthless / "run_summary.csv", index=False
+    )
+    outer.assign(cosine_abs=np.nan, projector_error=np.nan).to_csv(
+        truthless / "outer_iterations.csv", index=False
+    )
+
+    write_reports(truthless)
+
+    assert not (
+        truthless / "plots/points/p/quality_vs_outer_iteration.png"
+    ).exists()
+    assert not (
+        truthless / "plots/points/p/projector_error_vs_outer_iteration.png"
+    ).exists()
+
+
+def test_plot_manifest_covers_approved_main_families():
+    from ADP.experiment_reports import PLOT_MANIFEST, _for_mode
+
+    diagnostic = {
+        "quality_vs_outer_iteration.png",
+        "projector_error_vs_outer_iteration.png",
+        "bandwidth_vs_outer_iteration.png",
+        "rho_vs_outer_iteration.png",
+        "beta_step_vs_outer_iteration.png",
+        "objective_vs_outer_iteration.png",
+        "objective_vs_inner_iteration.png",
+        "beta_step_vs_inner_iteration.png",
+        "solver_residual_vs_iteration.png",
+        "local_mass_by_outer_iteration.png",
+        "effective_neighbors_by_outer_iteration.png",
+        "local_condition_by_outer_iteration.png",
+        "mass_vs_condition.png",
+        "local_slopes_by_outer_iteration.png",
+        "runtime_breakdown.png",
+        "runtime_share_breakdown.png",
+        "status_breakdown.png",
+    }
+    families = {
+        ("quality_heatmap_d_nd_ratio.png", ("d", "n_over_d")),
+        ("success_rate_heatmap.png", ("d", "n_over_d")),
+        ("runtime_vs_dimension.png", ("d", "n_over_d")),
+        ("memory_vs_dimension.png", ("d", "n_over_d")),
+        ("iterations_heatmap_d_nd_ratio.png", ("d", "n_over_d")),
+        ("quality_vs_sigma_eps.png", ("sigma_eps",)),
+        ("success_rate_vs_sigma_eps.png", ("sigma_eps",)),
+        ("runtime_vs_sigma_eps.png", ("sigma_eps",)),
+        ("outer_iterations_vs_sigma_eps.png", ("sigma_eps",)),
+        ("final_objective_vs_sigma_eps.png", ("sigma_eps",)),
+        ("quality_vs_correlation.png", ("rho_corr",)),
+        ("success_rate_vs_correlation.png", ("rho_corr",)),
+        ("local_condition_vs_correlation.png", ("rho_corr",)),
+        ("solver_iterations_vs_correlation.png", ("rho_corr",)),
+        ("runtime_vs_correlation.png", ("rho_corr",)),
+        ("singular_fraction_vs_correlation.png", ("rho_corr",)),
+        ("quality_vs_sigma_x.png", ("sigma_x",)),
+        ("h0_vs_sigma_x.png", ("sigma_x",)),
+        ("final_bandwidth_vs_sigma_x.png", ("sigma_x",)),
+        ("local_mass_vs_sigma_x.png", ("sigma_x",)),
+        ("runtime_vs_sigma_x.png", ("sigma_x",)),
+        ("bandwidth_ratio_vs_sigma_x.png", ("sigma_x",)),
+        ("quality_by_link_function.png", ("link",)),
+        ("success_rate_by_link_function.png", ("link",)),
+        ("outer_iterations_by_link_function.png", ("link",)),
+        ("objective_by_link_function.png", ("link",)),
+        ("local_slopes_by_link_function.png", ("link",)),
+        ("quality_by_x_distribution.png", ("x_distribution",)),
+        ("quality_by_noise_distribution.png", ("noise_distribution",)),
+        ("quality_by_heteroscedasticity.png", ("heteroscedastic",)),
+        ("quality_vs_outlier_fraction.png", ("effective_outlier_fraction",)),
+        ("failure_rate_vs_outliers.png", ("effective_outlier_fraction",)),
+        ("quality_vs_model_misspecification.png", ("delta",)),
+        ("objective_vs_model_misspecification.png", ("delta",)),
+    }
+
+    assert diagnostic == {
+        spec.filename for spec in PLOT_MANIFEST if not spec.required_metadata
+        and not spec.required_any_metadata
+    }
+    assert families <= {
+        (spec.filename, spec.required_metadata) for spec in PLOT_MANIFEST
+    }
+    shared_distributions = {
+        spec.filename: spec.required_any_metadata
+        for spec in PLOT_MANIFEST
+        if spec.filename
+        in {"failure_rate_by_distribution.png", "runtime_by_distribution.png"}
+    }
+    assert shared_distributions == {
+        "failure_rate_by_distribution.png": (
+            "x_distribution",
+            "noise_distribution",
+        ),
+        "runtime_by_distribution.png": (
+            "x_distribution",
+            "noise_distribution",
+        ),
+    }
+    assert all("variant" in spec.groups for spec in PLOT_MANIFEST)
+    assert next(
+        spec.groups
+        for spec in PLOT_MANIFEST
+        if spec.filename == "bandwidth_vs_outer_iteration.png"
+    ) == ("variant", "d", "n_over_d")
+    multi_quality = _for_mode(
+        next(
+            spec
+            for spec in PLOT_MANIFEST
+            if spec.filename == "quality_vs_outer_iteration.png"
+        ),
+        "multi",
+    )
+    assert "Ошибка проектора" in multi_quality.title
+    assert "Качество" not in multi_quality.title
+    assert "correctness_rate.png" not in {
+        spec.filename for spec in PLOT_MANIFEST
+    }
+
+
+def test_reports_document_missing_optional_tables(tmp_path, monkeypatch):
+    import pandas as pd
+
+    import ADP.experiment_reports as reports
+
+    pd.DataFrame(
+        [
+            {
+                "run_id": "r",
+                "experiment": "p",
+                "point": "p",
+                "variant": "A",
+                "mode": "single",
+                "status": "success",
+            }
+        ]
+    ).to_csv(tmp_path / "run_summary.csv", index=False)
+    monkeypatch.setattr(
+        reports,
+        "PLOT_MANIFEST",
+        (
+            reports.PlotSpec(
+                "missing.png",
+                "outer",
+                "quantile",
+                "outer_k",
+                "cosine_abs",
+                "t",
+                "x",
+                "y",
+                scope="point",
+            ),
+        ),
+    )
+
+    reports.write_reports(tmp_path)
+
+    artifacts = pd.read_csv(tmp_path / "artifacts.csv")
+    assert artifacts[["filename", "status"]].to_dict("records") == [
+        {"filename": "missing.png", "status": "skipped"}
+    ]
+
+
+def test_reports_remove_stale_plots_and_isolate_errors(tmp_path, monkeypatch):
+    import pandas as pd
+
+    import ADP.experiment_reports as reports
+
+    runs = pd.DataFrame(
+        [
+            {
+                "run_id": "r",
+                "experiment": "p",
+                "point": "p",
+                "variant": "A",
+                "mode": "single",
+                "status": "success",
+                "d": 3,
+                "cosine_abs": 0.9,
+                "algorithm_time_sec": 1.0,
+            }
+        ]
+    )
+    runs.to_csv(tmp_path / "run_summary.csv", index=False)
+    quality = reports.PlotSpec(
+        "quality.png", "runs", "quantile", "d", "cosine_abs", "t", "x", "y"
+    )
+    monkeypatch.setattr(reports, "PLOT_MANIFEST", (quality,))
+    reports.write_reports(tmp_path)
+    target = tmp_path / "plots/summary/quality.png"
+    assert target.is_file()
+
+    runs.assign(cosine_abs=np.nan).to_csv(
+        tmp_path / "run_summary.csv", index=False
+    )
+    reports.write_reports(tmp_path)
+    assert not target.exists()
+
+    runs.assign(mode="multi", projector_error=0.2).to_csv(
+        tmp_path / "run_summary.csv", index=False
+    )
+    pd.DataFrame(
+        [
+            {
+                "run_id": "r",
+                "outer_k": 0,
+                "projector_error": 0.2,
+            }
+        ]
+    ).to_csv(tmp_path / "outer_iterations.csv", index=False)
+    native = reports.PlotSpec(
+        "projector_error_vs_outer_iteration.png",
+        "outer",
+        "quantile",
+        "outer_k",
+        "projector_error",
+        "t",
+        "x",
+        "y",
+        scope="point",
+    )
+    adapted = reports.PlotSpec(
+        "quality_vs_outer_iteration.png",
+        "outer",
+        "quantile",
+        "outer_k",
+        "cosine_abs",
+        "t",
+        "x",
+        "y",
+        scope="point",
+    )
+    runtime = reports.PlotSpec(
+        "runtime.png",
+        "runs",
+        "median_line",
+        "d",
+        "algorithm_time_sec",
+        "t",
+        "x",
+        "y",
+    )
+    monkeypatch.setattr(reports, "PLOT_MANIFEST", (native, adapted, runtime))
+    calls = []
+
+    def fail(frame, path, **kwargs):
+        calls.append(1)
+        path.mkdir(parents=True)
+        raise RuntimeError("broken plot")
+
+    monkeypatch.setattr(reports, "_render_quantile", fail)
+
+    reports.write_reports(tmp_path)
+
+    artifacts = pd.read_csv(tmp_path / "artifacts.csv")
+    assert artifacts["status"].tolist() == ["error", "skipped", "created"]
+    assert "RuntimeError: broken plot" in artifacts["error"].iloc[0]
+    assert "cleanup" in artifacts["error"].iloc[0]
+    assert len(calls) == 1
+
+
+def test_reports_reject_point_path_traversal_without_touching_sentinel(
+    tmp_path,
+    monkeypatch,
+):
+    import pandas as pd
+
+    import ADP.experiment_reports as reports
+
+    series = tmp_path / "series"
+    series.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "quality.png"
+    sentinel.write_bytes(b"untouched")
+    point = "../../../outside"
+    pd.DataFrame(
+        [
+            {
+                "run_id": "r",
+                "experiment": "p",
+                "point": point,
+                "variant": "A",
+                "mode": "single",
+                "status": "success",
+            }
+        ]
+    ).to_csv(series / "run_summary.csv", index=False)
+    pd.DataFrame(
+        [{"run_id": "r", "outer_k": 0, "cosine_abs": 0.9}]
+    ).to_csv(series / "outer_iterations.csv", index=False)
+    monkeypatch.setattr(
+        reports,
+        "PLOT_MANIFEST",
+        (
+            reports.PlotSpec(
+                "quality.png",
+                "outer",
+                "quantile",
+                "outer_k",
+                "cosine_abs",
+                "t",
+                "x",
+                "y",
+                scope="point",
+            ),
+        ),
+    )
+
+    reports.write_reports(series)
+
+    assert sentinel.read_bytes() == b"untouched"
+    artifacts = pd.read_csv(series / "artifacts.csv")
+    assert artifacts["status"].tolist() == ["error"]
+    assert "path" in artifacts["error"].item().lower()
+
+    symlinked = tmp_path / "symlinked"
+    symlinked.mkdir()
+    pd.DataFrame(
+        [
+            {
+                "run_id": "r",
+                "experiment": "p",
+                "point": "p",
+                "variant": "A",
+                "mode": "single",
+                "status": "success",
+            }
+        ]
+    ).to_csv(symlinked / "run_summary.csv", index=False)
+    pd.DataFrame(
+        [{"run_id": "r", "outer_k": 0, "cosine_abs": 0.9}]
+    ).to_csv(symlinked / "outer_iterations.csv", index=False)
+    symlink_target = outside / "points" / "p"
+    symlink_target.mkdir(parents=True)
+    symlink_sentinel = symlink_target / "quality.png"
+    symlink_sentinel.write_bytes(b"also untouched")
+    (symlinked / "plots").symlink_to(outside, target_is_directory=True)
+
+    reports.write_reports(symlinked)
+
+    assert symlink_sentinel.read_bytes() == b"also untouched"
+    assert pd.read_csv(symlinked / "artifacts.csv")["status"].tolist() == [
+        "error"
+    ]
+
+
+def test_report_artifacts_include_derived_source_tables(tmp_path, monkeypatch):
+    import pandas as pd
+
+    import ADP.experiment_reports as reports
+
+    pd.DataFrame(
+        [
+            {
+                "run_id": "r",
+                "experiment": "p",
+                "point": "p",
+                "variant": "A",
+                "mode": "single",
+                "status": "success",
+                "d": 3,
+                "rho_corr": 0.5,
+                "sigma_x": 2.0,
+            }
+        ]
+    ).to_csv(tmp_path / "run_summary.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "run_id": "r",
+                "outer_k": 0,
+                "objective_after": 2.0,
+                "h_k": 4.0,
+            }
+        ]
+    ).to_csv(tmp_path / "outer_iterations.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "run_id": "r",
+                "outer_k": 0,
+                "condition": 4.0,
+                "local_mass": 3.0,
+                "is_singular": 0.0,
+            }
+        ]
+    ).to_csv(tmp_path / "local_diagnostics.csv", index=False)
+    monkeypatch.setattr(
+        reports,
+        "PLOT_MANIFEST",
+        (
+            reports.PlotSpec(
+                "objective.png",
+                "runs",
+                "quantile",
+                "d",
+                "objective",
+                "t",
+                "x",
+                "y",
+            ),
+            reports.PlotSpec(
+                "condition.png",
+                "outer",
+                "quantile",
+                "rho_corr",
+                "condition_median",
+                "t",
+                "x",
+                "y",
+            ),
+            reports.PlotSpec(
+                "h-initial.png",
+                "runs",
+                "quantile",
+                "d",
+                "h_initial",
+                "t",
+                "x",
+                "y",
+            ),
+            reports.PlotSpec(
+                "h-final.png",
+                "runs",
+                "quantile",
+                "d",
+                "h_final",
+                "t",
+                "x",
+                "y",
+            ),
+            reports.PlotSpec(
+                "bandwidth-ratio.png",
+                "runs",
+                "quantile",
+                "d",
+                "bandwidth_ratio",
+                "t",
+                "x",
+                "y",
+            ),
+            reports.PlotSpec(
+                "local-mass.png",
+                "outer",
+                "quantile",
+                "rho_corr",
+                "local_mass_mean",
+                "t",
+                "x",
+                "y",
+            ),
+            reports.PlotSpec(
+                "singular.png",
+                "outer",
+                "quantile",
+                "rho_corr",
+                "singular_fraction",
+                "t",
+                "x",
+                "y",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        reports,
+        "_render_quantile",
+        lambda frame, path, **options: path,
+    )
+
+    reports.write_reports(tmp_path)
+
+    sources = {
+        row.filename: set(row.source_tables.split(","))
+        for row in pd.read_csv(tmp_path / "artifacts.csv").itertuples()
+    }
+    assert sources == {
+        "objective.png": {"run_summary.csv", "outer_iterations.csv"},
+        "h-initial.png": {"run_summary.csv", "outer_iterations.csv"},
+        "h-final.png": {"run_summary.csv", "outer_iterations.csv"},
+        "bandwidth-ratio.png": {
+            "run_summary.csv",
+            "outer_iterations.csv",
+        },
+        "condition.png": {
+            "outer_iterations.csv",
+            "run_summary.csv",
+            "local_diagnostics.csv",
+        },
+        "local-mass.png": {
+            "outer_iterations.csv",
+            "run_summary.csv",
+            "local_diagnostics.csv",
+        },
+        "singular.png": {
+            "outer_iterations.csv",
+            "run_summary.csv",
+            "local_diagnostics.csv",
+        },
+    }
+
+
+def test_runtime_stack_skips_rows_with_partial_stage_timings(
+    tmp_path,
+    monkeypatch,
+):
+    import pandas as pd
+
+    import ADP.experiment_reports as reports
+
+    pd.DataFrame(
+        [
+            {
+                "run_id": "r",
+                "experiment": "p",
+                "point": "p",
+                "variant": "A",
+                "mode": "single",
+                "status": "success",
+                "algorithm_time_sec": 1.0,
+                "stage_a": 1.0,
+                "stage_b": np.nan,
+            }
+        ]
+    ).to_csv(tmp_path / "run_summary.csv", index=False)
+    monkeypatch.setattr(
+        reports,
+        "PLOT_MANIFEST",
+        (
+            reports.PlotSpec(
+                "runtime.png",
+                "runs",
+                "stacked",
+                "experiment",
+                "algorithm_time_sec",
+                "t",
+                "x",
+                "y",
+                components=("stage_a", "stage_b"),
+            ),
+        ),
+    )
+
+    reports.write_reports(tmp_path)
+
+    artifacts = pd.read_csv(tmp_path / "artifacts.csv")
+    assert artifacts["status"].tolist() == ["skipped"]
+    assert not (tmp_path / "plots/summary/runtime.png").exists()
+
+
+def test_stale_cleanup_error_is_isolated_from_later_plots(tmp_path, monkeypatch):
+    import pandas as pd
+
+    import ADP.experiment_reports as reports
+
+    pd.DataFrame(
+        [
+            {
+                "run_id": "r",
+                "experiment": "p",
+                "point": "p",
+                "variant": "A",
+                "mode": "single",
+                "status": "success",
+                "d": 3,
+                "cosine_abs": np.nan,
+                "algorithm_time_sec": 1.0,
+            }
+        ]
+    ).to_csv(tmp_path / "run_summary.csv", index=False)
+    monkeypatch.setattr(
+        reports,
+        "PLOT_MANIFEST",
+        (
+            reports.PlotSpec(
+                "blocked.png",
+                "runs",
+                "quantile",
+                "d",
+                "cosine_abs",
+                "t",
+                "x",
+                "y",
+            ),
+            reports.PlotSpec(
+                "later.png",
+                "runs",
+                "median_line",
+                "d",
+                "algorithm_time_sec",
+                "t",
+                "x",
+                "y",
+            ),
+        ),
+    )
+    blocked = tmp_path / "plots/summary/blocked.png"
+    blocked.mkdir(parents=True)
+
+    reports.write_reports(tmp_path)
+
+    artifacts = pd.read_csv(tmp_path / "artifacts.csv")
+    assert artifacts["status"].tolist() == ["error", "created"]
+    assert "cleanup" in artifacts["error"].iloc[0]
+    assert (tmp_path / "plots/summary/later.png").is_file()

@@ -1254,18 +1254,26 @@ def run_experiment(
             if show_progress and not sys.stderr.isatty():
                 print(f"{job.run_id}: {outcome['run']['status']}")
     finally:
-        if outer is not None:
-            outer.close()
-        if export_ready:
-            commits = _planned_commits(store, jobs, experiment)
-            _export_tables(
-                store,
-                experiment,
-                jobs,
-                status=(
-                    "complete" if len(commits) == len(jobs) else "partial"
-                ),
-            )
+        primary_error = sys.exc_info()[1]
+        try:
+            if outer is not None:
+                outer.close()
+            if export_ready:
+                commits = _planned_commits(store, jobs, experiment)
+                _export_tables(
+                    store,
+                    experiment,
+                    jobs,
+                    status=(
+                        "complete" if len(commits) == len(jobs) else "partial"
+                    ),
+                )
+                from .experiment_reports import write_reports
+
+                write_reports(store.series_dir)
+        except BaseException:
+            if primary_error is None:
+                raise
     commits = _planned_commits(store, jobs, experiment)
     failures = sum(
         commit["run"]["status"] != "success" for commit in commits

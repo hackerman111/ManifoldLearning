@@ -15,6 +15,391 @@ import numpy as np
 import pandas as pd
 
 
+@dataclass(frozen=True, slots=True)
+class PlotSpec:
+    filename: str
+    table: str
+    kind: str
+    x: str
+    y: str
+    title: str
+    xlabel: str
+    ylabel: str
+    scope: str = "summary"
+    groups: tuple[str, ...] = ("variant",)
+    required_metadata: tuple[str, ...] = ()
+    required_any_metadata: tuple[str, ...] = ()
+    value: str | None = None
+    components: tuple[str, ...] = ()
+    xscale: str = "linear"
+    yscale: str = "linear"
+    ylim: tuple[float, float] | None = None
+    value_limits: tuple[float, float] | None = None
+    normalize: bool = False
+    aggregate: str = "median"
+
+
+_RUNTIME_COMPONENTS = (
+    "stage_initialization_time_sec",
+    "stage_directions_time_sec",
+    "stage_statistics_time_sec",
+    "stage_solver_time_sec",
+    "stage_update_time_sec",
+)
+
+
+PLOT_MANIFEST = (
+    PlotSpec(
+        "projector_error_vs_outer_iteration.png", "outer", "quantile",
+        "outer_k", "projector_error", "Ошибка проектора по внешним итерациям",
+        "Внешняя итерация", "Ошибка проектора", scope="point", ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "quality_vs_outer_iteration.png", "outer", "quantile", "outer_k",
+        "cosine_abs", "Качество направления по внешним итерациям",
+        "Внешняя итерация", "Абсолютный косинус направления", scope="point",
+        ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "bandwidth_vs_outer_iteration.png", "outer", "quantile", "outer_k",
+        "h_k", "Ширина окна по внешним итерациям", "Внешняя итерация",
+        "Ширина окна h", scope="point", groups=("variant", "d", "n_over_d"),
+        yscale="log",
+    ),
+    PlotSpec(
+        "rho_vs_outer_iteration.png", "outer", "quantile", "outer_k", "rho_k",
+        "Анизотропия по внешним итерациям", "Внешняя итерация",
+        "Параметр анизотропии rho", scope="point", ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "beta_step_vs_outer_iteration.png", "outer", "quantile", "outer_k",
+        "beta_delta", "Изменение направления по внешним итерациям",
+        "Внешняя итерация", "Шаг направления", scope="point", yscale="symlog",
+    ),
+    PlotSpec(
+        "objective_vs_outer_iteration.png", "outer", "quantile", "outer_k",
+        "objective_after", "Целевая функция по внешним итерациям",
+        "Внешняя итерация", "Значение целевой функции", scope="point",
+        yscale="symlog",
+    ),
+    PlotSpec(
+        "objective_vs_inner_iteration.png", "inner", "quantile", "inner_k",
+        "objective", "Целевая функция по внутренним итерациям",
+        "Внутренняя итерация", "Значение целевой функции", scope="point",
+        groups=("variant", "outer_k"), yscale="symlog",
+    ),
+    PlotSpec(
+        "beta_step_vs_inner_iteration.png", "inner", "quantile", "inner_k",
+        "beta_delta", "Изменение направления по внутренним итерациям",
+        "Внутренняя итерация", "Шаг направления", scope="point",
+        groups=("variant", "outer_k"), yscale="symlog",
+    ),
+    PlotSpec(
+        "solver_residual_vs_iteration.png", "solver", "quantile", "solver_k",
+        "relative_residual", "Невязка линейного решателя",
+        "Итерация линейного решателя", "Относительная невязка", scope="point",
+        groups=("variant", "outer_k", "inner_k"), yscale="symlog",
+    ),
+    PlotSpec(
+        "local_mass_by_outer_iteration.png", "local", "box", "outer_k",
+        "local_mass", "Локальная масса по внешним итерациям",
+        "Внешняя итерация", "Локальная масса", scope="point",
+    ),
+    PlotSpec(
+        "effective_neighbors_by_outer_iteration.png", "local", "box", "outer_k",
+        "ess", "Эффективное число соседей по внешним итерациям",
+        "Внешняя итерация", "Эффективное число соседей", scope="point",
+    ),
+    PlotSpec(
+        "local_condition_by_outer_iteration.png", "local", "box", "outer_k",
+        "condition", "Обусловленность локальных систем",
+        "Внешняя итерация", "Число обусловленности", scope="point", yscale="log",
+    ),
+    PlotSpec(
+        "mass_vs_condition.png", "local", "scatter", "local_mass", "condition",
+        "Связь локальной массы и обусловленности", "Локальная масса",
+        "Число обусловленности", scope="point", groups=("variant", "outer_k"),
+        yscale="log",
+    ),
+    PlotSpec(
+        "local_slopes_by_outer_iteration.png", "local", "box", "outer_k", "slope",
+        "Локальные наклоны по внешним итерациям", "Внешняя итерация",
+        "Локальный наклон", scope="point", yscale="symlog",
+    ),
+    PlotSpec(
+        "quality_heatmap_d_nd_ratio.png", "runs", "heatmap", "n_over_d", "d",
+        "Качество по размерности и объёму выборки", "Отношение n/d", "Размерность d",
+        required_metadata=("d", "n_over_d"), value="cosine_abs",
+        value_limits=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "success_rate_heatmap.png", "runs", "heatmap", "n_over_d", "d",
+        "Доля успешных запусков", "Отношение n/d", "Размерность d",
+        required_metadata=("d", "n_over_d"), value="success_value",
+        value_limits=(0.0, 1.0), aggregate="mean",
+    ),
+    PlotSpec(
+        "runtime_vs_dimension.png", "runs", "median_line", "d",
+        "algorithm_time_sec", "Время работы в зависимости от размерности",
+        "Размерность d", "Время алгоритма, с", groups=("variant", "n_over_d"),
+        required_metadata=("d", "n_over_d"), xscale="log", yscale="log",
+    ),
+    PlotSpec(
+        "memory_vs_dimension.png", "runs", "median_line", "d",
+        "algorithm_rss_max_mib", "Пиковая память в зависимости от размерности",
+        "Размерность d", "Максимальный RSS процесса, МиБ",
+        groups=("variant", "n_over_d"), required_metadata=("d", "n_over_d"),
+        xscale="log",
+    ),
+    PlotSpec(
+        "iterations_heatmap_d_nd_ratio.png", "runs", "heatmap", "n_over_d", "d",
+        "Число внешних итераций", "Отношение n/d", "Размерность d",
+        required_metadata=("d", "n_over_d"), value="outer_iterations",
+    ),
+    PlotSpec(
+        "quality_vs_sigma_eps.png", "runs", "quantile", "sigma_eps", "cosine_abs",
+        "Качество направления в зависимости от шума", "Стандартное отклонение шума",
+        "Абсолютный косинус направления", groups=("variant", "d", "n_over_d"),
+        required_metadata=("sigma_eps",), ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "success_rate_vs_sigma_eps.png", "runs", "proportion", "sigma_eps",
+        "success_value", "Доля успешных запусков в зависимости от шума",
+        "Стандартное отклонение шума", "Доля успешных запусков",
+        groups=("variant", "d", "n_over_d"), required_metadata=("sigma_eps",),
+        ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "runtime_vs_sigma_eps.png", "runs", "quantile", "sigma_eps",
+        "algorithm_time_sec", "Время работы в зависимости от шума",
+        "Стандартное отклонение шума", "Время алгоритма, с",
+        groups=("variant", "d", "n_over_d"), required_metadata=("sigma_eps",),
+    ),
+    PlotSpec(
+        "outer_iterations_vs_sigma_eps.png", "runs", "quantile", "sigma_eps",
+        "outer_iterations", "Число внешних итераций в зависимости от шума",
+        "Стандартное отклонение шума", "Число внешних итераций",
+        groups=("variant", "d", "n_over_d"), required_metadata=("sigma_eps",),
+    ),
+    PlotSpec(
+        "final_objective_vs_sigma_eps.png", "runs", "quantile", "sigma_eps",
+        "objective", "Финальная целевая функция в зависимости от шума",
+        "Стандартное отклонение шума", "Финальная целевая функция",
+        groups=("variant", "d", "n_over_d"), required_metadata=("sigma_eps",),
+        yscale="symlog",
+    ),
+    PlotSpec(
+        "quality_vs_correlation.png", "runs", "quantile", "rho_corr", "cosine_abs",
+        "Качество направления в зависимости от корреляции", "Корреляция AR(1)",
+        "Абсолютный косинус направления", groups=("variant", "d", "n_over_d"),
+        required_metadata=("rho_corr",), ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "success_rate_vs_correlation.png", "runs", "proportion", "rho_corr",
+        "success_value", "Доля успешных запусков в зависимости от корреляции",
+        "Корреляция AR(1)", "Доля успешных запусков",
+        groups=("variant", "d", "n_over_d"), required_metadata=("rho_corr",),
+        ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "local_condition_vs_correlation.png", "outer", "quantile", "rho_corr",
+        "condition_median", "Локальная обусловленность в зависимости от корреляции",
+        "Корреляция AR(1)", "Медианное число обусловленности",
+        groups=("variant", "d", "n_over_d"), required_metadata=("rho_corr",),
+        yscale="log",
+    ),
+    PlotSpec(
+        "solver_iterations_vs_correlation.png", "outer", "quantile", "rho_corr",
+        "linear_solver_iterations", "Итерации решателя в зависимости от корреляции",
+        "Корреляция AR(1)", "Число итераций линейного решателя",
+        groups=("variant", "d", "n_over_d"), required_metadata=("rho_corr",),
+    ),
+    PlotSpec(
+        "runtime_vs_correlation.png", "runs", "quantile", "rho_corr",
+        "algorithm_time_sec", "Время работы в зависимости от корреляции",
+        "Корреляция AR(1)", "Время алгоритма, с",
+        groups=("variant", "d", "n_over_d"), required_metadata=("rho_corr",),
+    ),
+    PlotSpec(
+        "singular_fraction_vs_correlation.png", "outer", "quantile", "rho_corr",
+        "singular_fraction", "Доля вырожденных локальных систем",
+        "Корреляция AR(1)", "Доля вырожденных систем",
+        groups=("variant", "d", "n_over_d"), required_metadata=("rho_corr",),
+        ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "quality_vs_sigma_x.png", "runs", "quantile", "sigma_x", "cosine_abs",
+        "Качество при изменении масштаба признаков", "Масштаб признаков",
+        "Абсолютный косинус направления", groups=("variant", "d", "n_over_d"),
+        required_metadata=("sigma_x",), xscale="log2", ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "h0_vs_sigma_x.png", "runs", "quantile", "sigma_x", "h_initial",
+        "Начальная ширина окна", "Масштаб признаков", "Начальная ширина окна",
+        groups=("variant", "d", "n_over_d"), required_metadata=("sigma_x",),
+        xscale="log2", yscale="log",
+    ),
+    PlotSpec(
+        "final_bandwidth_vs_sigma_x.png", "runs", "quantile", "sigma_x", "h_final",
+        "Финальная ширина окна", "Масштаб признаков", "Финальная ширина окна",
+        groups=("variant", "d", "n_over_d"), required_metadata=("sigma_x",),
+        xscale="log2", yscale="log",
+    ),
+    PlotSpec(
+        "local_mass_vs_sigma_x.png", "outer", "quantile", "sigma_x",
+        "local_mass_mean", "Локальная масса при изменении масштаба признаков",
+        "Масштаб признаков", "Средняя локальная масса",
+        groups=("variant", "d", "n_over_d"), required_metadata=("sigma_x",),
+        xscale="log2",
+    ),
+    PlotSpec(
+        "runtime_vs_sigma_x.png", "runs", "quantile", "sigma_x",
+        "algorithm_time_sec", "Время работы при изменении масштаба признаков",
+        "Масштаб признаков", "Время алгоритма, с",
+        groups=("variant", "d", "n_over_d"), required_metadata=("sigma_x",),
+        xscale="log2", yscale="log",
+    ),
+    PlotSpec(
+        "bandwidth_ratio_vs_sigma_x.png", "runs", "quantile", "sigma_x",
+        "bandwidth_ratio", "Масштабная эквивариантность ширины окна",
+        "Масштаб признаков", "Отношение финальной ширины окна к масштабу",
+        groups=("variant", "d", "n_over_d"), required_metadata=("sigma_x",),
+        xscale="log2",
+    ),
+    PlotSpec(
+        "quality_by_link_function.png", "runs", "box", "link", "cosine_abs",
+        "Качество для разных функций связи", "Функция связи",
+        "Абсолютный косинус направления", required_metadata=("link",),
+        ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "success_rate_by_link_function.png", "runs", "proportion", "link",
+        "success_value", "Доля успешных запусков для функций связи",
+        "Функция связи", "Доля успешных запусков", required_metadata=("link",),
+        ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "outer_iterations_by_link_function.png", "runs", "box", "link",
+        "outer_iterations", "Число внешних итераций для функций связи",
+        "Функция связи", "Число внешних итераций", required_metadata=("link",),
+    ),
+    PlotSpec(
+        "objective_by_link_function.png", "runs", "box", "link", "objective",
+        "Целевая функция для функций связи", "Функция связи",
+        "Финальная целевая функция", required_metadata=("link",), yscale="symlog",
+    ),
+    PlotSpec(
+        "local_slopes_by_link_function.png", "local", "box", "link", "slope",
+        "Локальные наклоны для функций связи", "Функция связи", "Локальный наклон",
+        required_metadata=("link",), yscale="symlog",
+    ),
+    PlotSpec(
+        "quality_by_x_distribution.png", "runs", "box", "x_distribution",
+        "cosine_abs", "Качество для распределений признаков",
+        "Распределение признаков", "Абсолютный косинус направления",
+        required_metadata=("x_distribution",), ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "quality_by_noise_distribution.png", "runs", "box", "noise_distribution",
+        "cosine_abs", "Качество для распределений шума", "Распределение шума",
+        "Абсолютный косинус направления", required_metadata=("noise_distribution",),
+        ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "failure_rate_by_distribution.png", "runs", "proportion", "distribution",
+        "failure_value", "Доля численных сбоев для распределений", "Распределение",
+        "Доля численных сбоев", groups=("variant", "experiment"),
+        required_any_metadata=("x_distribution", "noise_distribution"),
+        ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "runtime_by_distribution.png", "runs", "median_line", "distribution",
+        "algorithm_time_sec", "Время работы для распределений", "Распределение",
+        "Время алгоритма, с", groups=("variant", "experiment"),
+        required_any_metadata=("x_distribution", "noise_distribution"),
+    ),
+    PlotSpec(
+        "quality_by_heteroscedasticity.png", "runs", "box", "heteroscedastic",
+        "cosine_abs", "Влияние гетероскедастичности на качество",
+        "Гетероскедастичность", "Абсолютный косинус направления",
+        required_metadata=("heteroscedastic",), ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "quality_vs_outlier_fraction.png", "runs", "quantile",
+        "effective_outlier_fraction", "cosine_abs",
+        "Качество в зависимости от доли выбросов", "Фактическая доля выбросов",
+        "Абсолютный косинус направления", groups=("variant", "outlier_scale"),
+        required_metadata=("effective_outlier_fraction",), ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "failure_rate_vs_outliers.png", "runs", "proportion",
+        "effective_outlier_fraction", "failure_value",
+        "Доля численных сбоев в зависимости от выбросов",
+        "Фактическая доля выбросов", "Доля численных сбоев",
+        groups=("variant", "outlier_scale"),
+        required_metadata=("effective_outlier_fraction",), ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "quality_vs_model_misspecification.png", "runs", "quantile", "delta",
+        "cosine_abs", "Качество при нарушении модели", "Сила нарушения модели",
+        "Абсолютный косинус направления", required_metadata=("delta",),
+        ylim=(0.0, 1.0),
+    ),
+    PlotSpec(
+        "objective_vs_model_misspecification.png", "runs", "quantile", "delta",
+        "objective", "Целевая функция при нарушении модели", "Сила нарушения модели",
+        "Финальная целевая функция", required_metadata=("delta",), yscale="symlog",
+    ),
+    PlotSpec(
+        "runtime_breakdown.png", "runs", "stacked", "experiment",
+        "algorithm_time_sec", "Абсолютное время по этапам алгоритма", "Эксперимент",
+        "Медианное время, с", components=_RUNTIME_COMPONENTS,
+    ),
+    PlotSpec(
+        "runtime_share_breakdown.png", "runs", "stacked", "experiment",
+        "algorithm_time_sec", "Доли времени по этапам алгоритма", "Эксперимент",
+        "Доля времени", components=_RUNTIME_COMPONENTS, normalize=True,
+    ),
+    PlotSpec(
+        "status_breakdown.png", "runs", "stacked", "experiment", "status",
+        "Технические статусы запусков", "Эксперимент", "Доля запусков",
+        components=("success", "nonconverged", "numerical_failure"),
+        normalize=True, aggregate="mean",
+    ),
+)
+
+
+def _for_mode(spec: PlotSpec, mode: str) -> PlotSpec | None:
+    if mode == "single":
+        return spec
+    if spec.filename == "rho_vs_outer_iteration.png":
+        return replace(
+            spec,
+            filename="alpha_vs_outer_iteration.png",
+            y="alpha_k",
+            ylabel="Параметр локализации alpha",
+        )
+    if "quality" in spec.filename:
+        heatmap = spec.kind == "heatmap"
+        return replace(
+            spec,
+            filename=spec.filename.replace("quality", "projector_error"),
+            title=spec.title.replace("Качество", "Ошибка проектора").replace(
+                "качество", "ошибку проектора"
+            ),
+            y=spec.y if heatmap else "projector_error",
+            value="projector_error" if heatmap else spec.value,
+            ylabel="Ошибка проектора",
+            ylim=spec.ylim if heatmap else (0.0, 1.0),
+            value_limits=(0.0, 1.0) if heatmap else spec.value_limits,
+        )
+    if "beta_step" in spec.filename:
+        return replace(spec, ylabel="Шаг базиса")
+    if spec.y in {"rho_k", "slope"}:
+        return None
+    return spec
+
+
 ADP_COLORS = (
     "#2563eb",
     "#dc2626",
@@ -672,7 +1057,8 @@ def _render_stacked(
     )
     source = source.loc[source[x].notna()]
     finite = np.isfinite(source[list(components)].to_numpy(dtype=float))
-    if source.empty or not finite.any():
+    source = source.loc[finite.all(axis=1)]
+    if source.empty:
         return False
     methods = {
         component: "mean"
@@ -747,3 +1133,370 @@ def _render_stacked(
         return _save(fig, path)
     finally:
         plt.close(fig)
+
+
+_TABLE_FILES = {
+    "runs": "run_summary.csv",
+    "outer": "outer_iterations.csv",
+    "inner": "inner_iterations.csv",
+    "local": "local_diagnostics.csv",
+    "solver": "solver_iterations.csv",
+}
+_TABLE_SOURCES = {
+    "runs": ("run_summary.csv",),
+    "outer": ("outer_iterations.csv", "run_summary.csv"),
+    "inner": ("inner_iterations.csv", "run_summary.csv"),
+    "local": ("local_diagnostics.csv", "run_summary.csv"),
+    "solver": ("solver_iterations.csv", "run_summary.csv"),
+}
+_DERIVED_SOURCE_TABLES = {
+    "objective": ("outer_iterations.csv",),
+    "h_initial": ("outer_iterations.csv",),
+    "h_final": ("outer_iterations.csv",),
+    "bandwidth_ratio": ("outer_iterations.csv",),
+    "local_mass_mean": ("local_diagnostics.csv",),
+    "condition_median": ("local_diagnostics.csv",),
+    "singular_fraction": ("local_diagnostics.csv",),
+}
+_RENDERERS = {
+    "quantile": "_render_quantile",
+    "median_line": "_render_median_line",
+    "proportion": "_render_proportion",
+    "box": "_render_box",
+    "scatter": "_render_scatter",
+    "heatmap": "_render_heatmap",
+    "stacked": "_render_stacked",
+}
+
+
+def _read_report_table(path: Path, *, required: bool = False) -> pd.DataFrame:
+    if not path.exists():
+        if required:
+            raise FileNotFoundError(path)
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame()
+
+
+def _fill_column(
+    frame: pd.DataFrame,
+    name: str,
+    values: pd.Series,
+) -> None:
+    mapped = frame["run_id"].map(values)
+    frame[name] = frame[name].combine_first(mapped) if name in frame else mapped
+
+
+def _ordered_run_values(
+    outer: pd.DataFrame,
+    column: str,
+    *,
+    first: bool = False,
+) -> pd.Series | None:
+    if not {"run_id", "outer_k", column} <= set(outer):
+        return None
+    ordered = outer.assign(
+        _outer_order=pd.to_numeric(outer["outer_k"], errors="coerce")
+    ).sort_values(["run_id", "_outer_order"], kind="stable")
+    grouped = ordered.groupby("run_id", sort=False, dropna=False)[column]
+    return grouped.first() if first else grouped.last()
+
+
+def _prepare_runs(runs: pd.DataFrame, outer: pd.DataFrame) -> pd.DataFrame:
+    runs = runs.copy()
+    status = runs.get("status", pd.Series(index=runs.index, dtype="object"))
+    for name in ("success", "nonconverged", "numerical_failure"):
+        runs[name] = status.eq(name).fillna(False).astype(float)
+    runs["success_value"] = runs["success"]
+    runs["failure_value"] = runs["numerical_failure"]
+
+    if "run_id" in runs:
+        for name, source, first in (
+            ("objective", "objective_after", False),
+            ("h_initial", "h_k", True),
+            ("h_final", "h_k", False),
+        ):
+            values = _ordered_run_values(outer, source, first=first)
+            if values is not None:
+                _fill_column(runs, name, values)
+
+    if {"h_final", "sigma_x"} <= set(runs):
+        h_final = pd.to_numeric(runs["h_final"], errors="coerce")
+        sigma_x = pd.to_numeric(runs["sigma_x"], errors="coerce")
+        ratio = h_final.div(sigma_x).replace([np.inf, -np.inf], np.nan)
+        runs["bandwidth_ratio"] = (
+            runs["bandwidth_ratio"].combine_first(ratio)
+            if "bandwidth_ratio" in runs
+            else ratio
+        )
+
+    distributions = [
+        runs[name]
+        for name in ("x_distribution", "noise_distribution")
+        if name in runs
+    ]
+    if distributions:
+        distribution = distributions[0]
+        for values in distributions[1:]:
+            distribution = distribution.combine_first(values)
+        runs["distribution"] = distribution
+    return runs
+
+
+def _prepare_outer(outer: pd.DataFrame, local: pd.DataFrame) -> pd.DataFrame:
+    if outer.empty or local.empty or not {"run_id", "outer_k"} <= set(local):
+        return outer.copy()
+    prepared = outer.copy()
+    keys = ["run_id", "outer_k"]
+    aggregations = {}
+    if "local_mass" in local:
+        aggregations["local_mass_mean"] = ("local_mass", "mean")
+    if "condition" in local:
+        aggregations["condition_median"] = ("condition", "median")
+    singular = next(
+        (name for name in ("singular", "is_singular") if name in local),
+        None,
+    )
+    if singular is not None:
+        aggregations["singular_fraction"] = (singular, "mean")
+    if not aggregations:
+        return prepared
+    sources = tuple(dict.fromkeys(source for source, _ in aggregations.values()))
+    numeric = local[[*keys, *sources]].copy()
+    for source, _ in aggregations.values():
+        numeric[source] = pd.to_numeric(numeric[source], errors="coerce")
+    derived = numeric.groupby(keys, as_index=False, dropna=False).agg(**aggregations)
+    prepared = prepared.merge(derived, on=keys, how="left", suffixes=("", "_derived"))
+    for name in aggregations:
+        derived_name = f"{name}_derived"
+        if derived_name in prepared:
+            prepared[name] = prepared[name].combine_first(prepared.pop(derived_name))
+    return prepared
+
+
+def _join_run_metadata(detail: pd.DataFrame, runs: pd.DataFrame) -> pd.DataFrame:
+    if "run_id" not in detail or "run_id" not in runs:
+        return detail.copy()
+    additions = [name for name in runs if name == "run_id" or name not in detail]
+    metadata = runs[additions].drop_duplicates("run_id", keep="last")
+    return detail.merge(metadata, on="run_id", how="left")
+
+
+def _report_mode(series_dir: Path, runs: pd.DataFrame) -> str:
+    values = (
+        runs["mode"].dropna().astype(str).unique().tolist()
+        if "mode" in runs
+        else []
+    )
+    if not values:
+        series = _read_report_table(series_dir / "series.csv")
+        if "mode" in series:
+            values = series["mode"].dropna().astype(str).unique().tolist()
+    if len(values) > 1:
+        raise ValueError("run_summary.csv contains multiple modes")
+    return values[0] if values else "single"
+
+
+def _not_applicable(frame: pd.DataFrame, spec: PlotSpec) -> str | None:
+    if frame.empty:
+        return "source table is empty"
+    missing_metadata = [name for name in spec.required_metadata if name not in frame]
+    if missing_metadata:
+        return f"missing metadata: {', '.join(missing_metadata)}"
+    if spec.required_any_metadata and not any(
+        name in frame for name in spec.required_any_metadata
+    ):
+        return "missing any metadata: " + ", ".join(spec.required_any_metadata)
+    required = {spec.x, spec.y, *spec.groups, *spec.components}
+    if spec.value is not None:
+        required.add(spec.value)
+    missing = sorted(name for name in required if name and name not in frame)
+    if missing:
+        return f"missing columns: {', '.join(missing)}"
+    if not frame[spec.x].notna().any():
+        return f"no observations for {spec.x}"
+    if spec.kind == "heatmap" and not frame[spec.y].notna().any():
+        return f"no observations for {spec.y}"
+    metrics = spec.components or ((spec.value or spec.y),)
+    values = frame[list(metrics)].apply(pd.to_numeric, errors="coerce")
+    if not np.isfinite(values.to_numpy(dtype=float)).any():
+        return "no finite metric observations"
+    return None
+
+
+def _source_tables(spec: PlotSpec) -> str:
+    tables = list(_TABLE_SOURCES[spec.table])
+    fields = (spec.x, spec.y, *spec.groups, *spec.components)
+    if spec.value is not None:
+        fields = (*fields, spec.value)
+    for field in fields:
+        tables.extend(_DERIVED_SOURCE_TABLES.get(field, ()))
+    return ",".join(dict.fromkeys(tables))
+
+
+def _plot_target(
+    series_dir: Path,
+    point: str | None,
+    filename: str,
+) -> tuple[Path, Path]:
+    components = (
+        ("points", str(point), filename)
+        if point is not None
+        else ("summary", filename)
+    )
+    for component in components:
+        if (
+            not component
+            or component in {".", ".."}
+            or Path(component).parts != (component,)
+            or Path(component).name != component
+        ):
+            raise ValueError(f"unsafe plot path component: {component!r}")
+    root = series_dir.resolve()
+    plots = (root / "plots").resolve(strict=False)
+    target = plots.joinpath(*components).resolve(strict=False)
+    try:
+        plots.relative_to(root)
+        target.relative_to(root)
+        relative = target.relative_to(plots)
+    except ValueError as error:
+        raise ValueError("plot path escapes the series directory") from error
+    return target, Path("plots") / relative
+
+
+def _atomic_artifacts(path: Path, rows: list[dict[str, str]]) -> None:
+    fields = ("filename", "path", "status", "source_tables", "error")
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    with temporary.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    os.replace(temporary, path)
+
+
+def _remove_stale_plot(path: Path) -> str:
+    try:
+        path.unlink(missing_ok=True)
+    except Exception as error:
+        return f"cleanup failed: {type(error).__name__}: {error}"
+    return ""
+
+
+def write_reports(series_dir: str | Path) -> Path:
+    series_dir = Path(series_dir)
+    raw = {
+        name: _read_report_table(
+            series_dir / filename,
+            required=name == "runs",
+        )
+        for name, filename in _TABLE_FILES.items()
+    }
+    mode = _report_mode(series_dir, raw["runs"])
+    runs = _prepare_runs(raw["runs"], raw["outer"])
+    outer = _prepare_outer(raw["outer"], raw["local"])
+    tables = {
+        "runs": runs,
+        "outer": _join_run_metadata(outer, runs),
+        "inner": _join_run_metadata(raw["inner"], runs),
+        "local": _join_run_metadata(raw["local"], runs),
+        "solver": _join_run_metadata(raw["solver"], runs),
+    }
+    points = (
+        tuple(dict.fromkeys(runs["point"].dropna().astype(str)))
+        if "point" in runs
+        else ()
+    )
+    artifacts: list[dict[str, str]] = []
+    seen: set[tuple[Path, str]] = set()
+
+    for base in PLOT_MANIFEST:
+        scopes = points if base.scope == "point" else (None,)
+        for point in scopes:
+            spec = _for_mode(base, mode)
+            filename = spec.filename if spec is not None else base.filename
+            source = _source_tables(spec or base)
+            try:
+                target, relative = _plot_target(series_dir, point, filename)
+            except (OSError, ValueError) as error:
+                artifacts.append(
+                    {
+                        "filename": filename,
+                        "path": "",
+                        "status": "error",
+                        "source_tables": source,
+                        "error": f"{type(error).__name__}: {error}",
+                    }
+                )
+                continue
+
+            def record(status: str, error: str = "") -> None:
+                artifacts.append(
+                    {
+                        "filename": filename,
+                        "path": str(relative),
+                        "status": status,
+                        "source_tables": source,
+                        "error": error,
+                    }
+                )
+
+            def record_noncreated(status: str, error: str) -> None:
+                cleanup = _remove_stale_plot(target)
+                record(
+                    "error" if cleanup else status,
+                    f"{error}; {cleanup}" if cleanup else error,
+                )
+
+            if spec is None:
+                record_noncreated("skipped", f"not applicable to mode {mode}")
+                continue
+            key = (target, spec.table)
+            if key in seen:
+                record("skipped", "duplicate adapted plot")
+                continue
+            seen.add(key)
+            frame = tables[spec.table]
+            if point is not None:
+                if "point" not in frame:
+                    frame = frame.iloc[:0]
+                else:
+                    frame = frame.loc[frame["point"].astype(str).eq(str(point))]
+            reason = _not_applicable(frame, spec)
+            if reason is not None:
+                record_noncreated("skipped", reason)
+                continue
+            try:
+                rendered = globals()[_RENDERERS[spec.kind]](
+                    frame,
+                    target,
+                    x=spec.x,
+                    y=spec.y,
+                    title=spec.title,
+                    xlabel=spec.xlabel,
+                    ylabel=spec.ylabel,
+                    groups=spec.groups,
+                    value=spec.value,
+                    components=spec.components,
+                    xscale=spec.xscale,
+                    yscale=spec.yscale,
+                    ylim=spec.ylim,
+                    value_limits=spec.value_limits,
+                    normalize=spec.normalize,
+                    aggregate=spec.aggregate,
+                )
+                if rendered is False:
+                    record_noncreated(
+                        "skipped", "renderer found no plottable observations"
+                    )
+                else:
+                    record("created")
+            except Exception as error:
+                record_noncreated(
+                    "error", f"{type(error).__name__}: {error}"
+                )
+
+    artifacts_path = series_dir / "artifacts.csv"
+    _atomic_artifacts(artifacts_path, artifacts)
+    return artifacts_path
