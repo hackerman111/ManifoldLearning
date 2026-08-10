@@ -719,7 +719,9 @@ def _base_run(
         "rho_final": "",
         "alpha_final": "",
         "outer_iterations": "",
+        "cosine_initial": "",
         "cosine_abs": "",
+        "projector_error_initial": "",
         "projector_error": "",
         "fit_wall_time_sec": "",
         "algorithm_time_sec": "",
@@ -862,6 +864,7 @@ def _execute_job(
         trace = list(result.trace)
         stop_reason = getattr(result, "stop_reason", None) or ""
         index = _final_index(model, experiment, job.point.d)
+        initial_index = getattr(result, "beta_init", None)
         if stop_reason not in {"h_min", "local_mass_limit"}:
             raise RuntimeError(f"invalid stop reason: {stop_reason or 'missing'}")
 
@@ -888,9 +891,21 @@ def _execute_job(
                 "rho_final": _metric(trace[-1].get("rho")) if trace else "",
                 "alpha_final": _metric(trace[-1].get("alpha")) if trace else "",
                 "outer_iterations": len(trace),
+                "projector_error_initial": (
+                    _projector_error(initial_index, data.true_index)
+                    if data.true_index is not None and initial_index is not None
+                    else ""
+                ),
                 "projector_error": (
                     _projector_error(index, data.true_index)
                     if data.true_index is not None
+                    else ""
+                ),
+                "cosine_initial": (
+                    _normalized_cosine(initial_index, data.true_index)
+                    if experiment.mode == "single"
+                    and data.true_index is not None
+                    and initial_index is not None
                     else ""
                 ),
                 "cosine_abs": (

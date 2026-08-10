@@ -177,19 +177,47 @@ def test_cli_terminal_only_prints_readable_summary_and_creates_nothing(
             "point": "manual",
             "variant": "default",
             "status": "success",
+            "cosine_initial": 0.7,
             "cosine_abs": 0.9,
-            "fit_wall_time_sec": 1.0,
+            "effective_N_J": 8,
+            "algorithm_time_sec": 0.5,
             "algorithm_rss_max_mib": 20.0,
+            "tracemalloc_peak_mib": 5.0,
             "outer_iterations": 2,
+            "stop_reason": "h_min",
+            "profile_stages": {
+                "initialization": {
+                    "time_seconds": 0.1,
+                    "memory_bytes": 1 * 2**20,
+                },
+                "solver": {
+                    "time_seconds": 0.3,
+                    "memory_bytes": 3 * 2**20,
+                },
+            },
         },
         {
             "point": "manual",
             "variant": "default",
             "status": "nonconverged",
+            "cosine_initial": 0.9,
             "cosine_abs": 0.8,
-            "fit_wall_time_sec": 2.0,
+            "effective_N_J": 8,
+            "algorithm_time_sec": 0.7,
             "algorithm_rss_max_mib": 22.0,
+            "tracemalloc_peak_mib": 7.0,
             "outer_iterations": 4,
+            "stop_reason": "outer_steps",
+            "profile_stages": {
+                "initialization": {
+                    "time_seconds": 0.2,
+                    "memory_bytes": 2 * 2**20,
+                },
+                "solver": {
+                    "time_seconds": 0.4,
+                    "memory_bytes": 4 * 2**20,
+                },
+            },
         },
     ]
     calls = []
@@ -213,14 +241,22 @@ def test_cli_terminal_only_prints_readable_summary_and_creates_nothing(
 
     output = capsys.readouterr().out
     assert "Эксперимент: manual | режим: single | jobs: 2" in output
-    assert "Статусы" in output
-    assert "Точка   Вариант" in output
-    assert "manual  default" in output
-    assert "Характеристики" in output
-    assert "Медиана cosine" in output
-    assert "0.850" in output
-    assert "1.500" in output
-    assert "22.0" in output
+    assert "=== manual / default ===" in output
+    assert "запусков: 2" in output
+    assert "статусы: success=1; nonconverged=1; numerical_failure=0" in output
+    assert "косинус в начале, медиана: 0.800000" in output
+    assert "косинус в конце, медиана: 0.850000" in output
+    assert "количество центров N_J: 8" in output
+    assert "количество итераций, медиана: 3" in output
+    assert "причины остановки: h_min=1; outer_steps=1" in output
+    assert "этап             время, с  доля времени  память, MiB  доля памяти" in output
+    assert "инициализация" in output
+    assert "солвер" in output
+    assert output.index("инициализация") < output.index("солвер")
+    assert (
+        "итого, медиана: 0.600000 с; пик fit: 6.0000 MiB; "
+        "RSS max: 22.0 MiB"
+    ) in output
     assert calls == [("manual", False, True)]
     assert not output_dir.exists()
 
@@ -312,16 +348,23 @@ def test_terminal_summary_uses_projector_error_for_multi(capsys):
                 "point": "manual",
                 "variant": "default",
                 "status": "numerical_failure",
+                "projector_error_initial": "",
                 "projector_error": "",
-                "fit_wall_time_sec": "",
+                "effective_N_J": "",
+                "algorithm_time_sec": "",
                 "algorithm_rss_max_mib": "",
+                "tracemalloc_peak_mib": "",
                 "outer_iterations": "",
+                "stop_reason": "",
+                "profile_stages": {},
             }
         ],
     )
 
     output = capsys.readouterr().out
-    assert "Медиана ошибки проектора" in output
+    assert "ошибка проектора в начале, медиана: —" in output
+    assert "ошибка проектора в конце, медиана: —" in output
+    assert "профиль: —" in output
     assert "—" in output
 
 
@@ -1441,6 +1484,7 @@ def test_successful_job_saves_required_model_arrays(tmp_path: Path, monkeypatch,
         if mode == "single"
         else np.eye(point.d, index_dim)
     )
+    initial_index = np.roll(index, 1, axis=0)
     data = ADP_Data(
         np.ones((point.n, point.d)),
         np.zeros(point.n),
@@ -1472,7 +1516,11 @@ def test_successful_job_saves_required_model_arrays(tmp_path: Path, monkeypatch,
             self.result_ = type(
                 "Result",
                 (),
-                {"trace": [trace], "stop_reason": "h_min"},
+                {
+                    "beta_init": initial_index,
+                    "trace": [trace],
+                    "stop_reason": "h_min",
+                },
             )()
             self.profile_ = {
                 "total_time_seconds": 0.01,
@@ -1497,6 +1545,12 @@ def test_successful_job_saves_required_model_arrays(tmp_path: Path, monkeypatch,
     )
 
     assert outcome["run"]["status"] == "success"
+    if mode == "single":
+        assert outcome["run"]["cosine_initial"] == 0.0
+        assert outcome["run"]["cosine_abs"] == 1.0
+    else:
+        assert outcome["run"]["projector_error_initial"] > 0.0
+        assert outcome["run"]["projector_error"] == 0.0
     path = store.series_dir / outcome["run"]["model_artifact"]
     with np.load(path, allow_pickle=False) as archive:
         expected = {"index", "coefficients"}

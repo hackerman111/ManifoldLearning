@@ -1,6 +1,7 @@
 import argparse
 import importlib
 import sys
+from collections import Counter
 from pathlib import Path
 from statistics import median
 
@@ -18,6 +19,7 @@ from ADP import (
     run_experiment_terminal,
 )
 from ADP.ADP_Config import epanechnikov
+from ADP.engine.logger import format_profile
 from ADP.experiment import validate_experiment
 from ADP.experiment_runner import _build_jobs
 
@@ -158,24 +160,58 @@ def _finite_values(rows, name):
     return values
 
 
-def _print_table(headers, rows, right_aligned):
-    widths = [
-        max(len(header), *(len(row[index]) for row in rows))
-        for index, header in enumerate(headers)
+def _median_text(rows, name, spec):
+    values = _finite_values(rows, name)
+    return format(median(values), spec) if values else "—"
+
+
+def _aggregate_profile(rows):
+    profiles = [
+        row.get("profile_stages", {})
+        for row in rows
+        if isinstance(row.get("profile_stages"), dict)
     ]
-
-    def line(values):
-        return "  ".join(
-            value.rjust(widths[index])
-            if index in right_aligned
-            else value.ljust(widths[index])
-            for index, value in enumerate(values)
+    available = list(
+        dict.fromkeys(name for profile in profiles for name in profile)
+    )
+    preferred = ("initialization", "directions", "statistics", "solver", "update")
+    names = [name for name in preferred if name in available]
+    names.extend(name for name in available if name not in preferred)
+    stages = {}
+    for name in names:
+        values = [
+            profile[name]
+            for profile in profiles
+            if isinstance(profile.get(name), dict)
+        ]
+        times = _finite_values(values, "time_seconds")
+        memories = _finite_values(values, "memory_bytes")
+        if times or memories:
+            stages[name] = {
+                "time_seconds": median(times) if times else 0.0,
+                "memory_bytes": median(memories) if memories else 0.0,
+            }
+    if not stages:
+        return None
+    total_stage_time = sum(stage["time_seconds"] for stage in stages.values())
+    total_stage_memory = sum(stage["memory_bytes"] for stage in stages.values())
+    for stage in stages.values():
+        stage["time_fraction"] = (
+            stage["time_seconds"] / total_stage_time if total_stage_time else 0.0
         )
-
-    print(line(headers))
-    print("  ".join("-" * width for width in widths))
-    for row in rows:
-        print(line(row))
+        stage["memory_fraction"] = (
+            stage["memory_bytes"] / total_stage_memory
+            if total_stage_memory
+            else 0.0
+        )
+    totals = _finite_values(rows, "algorithm_time_sec")
+    peaks = _finite_values(rows, "tracemalloc_peak_mib")
+    return {
+        "stages": stages,
+        "total_time_seconds": median(totals) if totals else total_stage_time,
+        "max_memory": max(stage["memory_bytes"] for stage in stages.values()),
+        "peak_memory_bytes": median(peaks) * 2**20 if peaks else 0.0,
+    }
 
 
 def _print_terminal_summary(experiment, runs):
@@ -187,61 +223,71 @@ def _print_terminal_summary(experiment, runs):
         f"Эксперимент: {experiment.name} | "
         f"режим: {experiment.mode} | jobs: {len(runs)}"
     )
-    print("\nСтатусы")
-    status_rows = []
-    metric_rows = []
-    quality_name = "cosine_abs" if experiment.mode == "single" else "projector_error"
-    quality_header = (
-        "Медиана cosine"
-        if experiment.mode == "single"
-        else "Медиана ошибки проектора"
-    )
     for point in experiment.points:
         for variant in experiment.variants:
             rows = grouped.get((point.name, variant), [])
             statuses = [row.get("status") for row in rows]
-            status_rows.append(
-                (
-                    point.name,
-                    variant,
-                    str(len(rows)),
-                    str(statuses.count("success")),
-                    str(statuses.count("nonconverged")),
-                    str(statuses.count("numerical_failure")),
+            print(f"\n=== {point.name} / {variant} ===")
+            print(f"запусков: {len(rows)}")
+            print(
+                "статусы: "
+                f"success={statuses.count('success')}; "
+                f"nonconverged={statuses.count('nonconverged')}; "
+                f"numerical_failure={statuses.count('numerical_failure')}"
+            )
+            if experiment.mode == "single":
+                print(
+                    "косинус в начале, медиана: "
+                    f"{_median_text(rows, 'cosine_initial', '.6f')}"
+                )
+                print(
+                    "косинус в конце, медиана: "
+                    f"{_median_text(rows, 'cosine_abs', '.6f')}"
+                )
+            else:
+                print(
+                    "ошибка проектора в начале, медиана: "
+                    f"{_median_text(rows, 'projector_error_initial', '.6f')}"
+                )
+                print(
+                    "ошибка проектора в конце, медиана: "
+                    f"{_median_text(rows, 'projector_error', '.6f')}"
+                )
+            print(
+                "количество центров N_J: "
+                f"{_median_text(rows, 'effective_N_J', 'g')}"
+            )
+            print(
+                "количество итераций, медиана: "
+                f"{_median_text(rows, 'outer_iterations', 'g')}"
+            )
+            reasons = Counter(
+                str(row["stop_reason"])
+                for row in rows
+                if row.get("stop_reason")
+            )
+            print(
+                "причины остановки: "
+                + (
+                    "; ".join(f"{reason}={count}" for reason, count in reasons.items())
+                    if reasons
+                    else "—"
                 )
             )
-            quality = _finite_values(rows, quality_name)
-            wall_time = _finite_values(rows, "fit_wall_time_sec")
+            profile = _aggregate_profile(rows)
+            if profile is None:
+                print("\nпрофиль: —")
+                continue
+            print()
+            print("\n".join(format_profile(profile).splitlines()[:-1]))
+            total = _median_text(rows, "algorithm_time_sec", ".6f")
+            peak = _median_text(rows, "tracemalloc_peak_mib", ".4f")
             rss = _finite_values(rows, "algorithm_rss_max_mib")
-            iterations = _finite_values(rows, "outer_iterations")
-            metric_rows.append(
-                (
-                    point.name,
-                    variant,
-                    f"{median(quality):.3f}" if quality else "—",
-                    f"{median(wall_time):.3f}" if wall_time else "—",
-                    f"{max(rss):.1f}" if rss else "—",
-                    f"{median(iterations):g}" if iterations else "—",
-                )
+            rss_text = f"{max(rss):.1f}" if rss else "—"
+            print(
+                f"итого, медиана: {total} с; пик fit: {peak} MiB; "
+                f"RSS max: {rss_text} MiB"
             )
-    _print_table(
-        ("Точка", "Вариант", "Jobs", "Успех", "NC", "Ошибки"),
-        status_rows,
-        {2, 3, 4, 5},
-    )
-    print("\nХарактеристики")
-    _print_table(
-        (
-            "Точка",
-            "Вариант",
-            quality_header,
-            "Время med, с",
-            "RSS max, MiB",
-            "Итер. med",
-        ),
-        metric_rows,
-        {2, 3, 4, 5},
-    )
 
 
 def main(argv=None) -> int:
