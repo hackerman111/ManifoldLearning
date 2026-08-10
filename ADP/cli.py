@@ -274,6 +274,21 @@ def _print_terminal_summary(experiment, runs):
                     else "—"
                 )
             )
+            issues = Counter(
+                (
+                    str(row.get("status") or "unknown"),
+                    str(row.get("error_type") or ""),
+                    str(row.get("error_message") or ""),
+                )
+                for row in rows
+                if row.get("status") != "success"
+            )
+            if issues:
+                print("неуспешные запуски:")
+                for (status, error_type, message), count in issues.items():
+                    detail = ": ".join(value for value in (error_type, message) if value)
+                    suffix = f": {detail}" if detail else ""
+                    print(f"  {status} ({count}){suffix}")
             profile = _aggregate_profile(rows)
             if profile is None:
                 print("\nпрофиль: —")

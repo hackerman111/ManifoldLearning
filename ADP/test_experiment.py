@@ -348,6 +348,8 @@ def test_terminal_summary_uses_projector_error_for_multi(capsys):
                 "point": "manual",
                 "variant": "default",
                 "status": "numerical_failure",
+                "error_type": "ValueError",
+                "error_message": "N_J must lie between ceil(n / N_loc) and n",
                 "projector_error_initial": "",
                 "projector_error": "",
                 "effective_N_J": "",
@@ -364,6 +366,11 @@ def test_terminal_summary_uses_projector_error_for_multi(capsys):
     output = capsys.readouterr().out
     assert "ошибка проектора в начале, медиана: —" in output
     assert "ошибка проектора в конце, медиана: —" in output
+    assert "неуспешные запуски:" in output
+    assert (
+        "numerical_failure (1): ValueError: "
+        "N_J must lie between ceil(n / N_loc) and n"
+    ) in output
     assert "профиль: —" in output
     assert "—" in output
 
