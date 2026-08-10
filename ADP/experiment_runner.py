@@ -200,10 +200,11 @@ class _Job:
 
     @property
     def run_id(self) -> str:
-        return (
-            f"{len(self.point.name)}-{self.point.name}__seed-{self.seed}__"
-            f"{len(self.variant_name)}-{self.variant_name}"
-        )
+        return _run_id(self.point.name, self.seed, self.variant_name)
+
+
+def _run_id(point: str, seed: int, variant: str) -> str:
+    return f"{len(point)}-{point}__seed-{seed}__{len(variant)}-{variant}"
 
 
 def _build_jobs(experiment: ADP_Experiment) -> tuple[_Job, ...]:
@@ -957,6 +958,7 @@ def _failure_outcome(store, experiment, job, error):
 
 def _planned_commits(store, jobs, experiment):
     commits = []
+    planned_ids = {job.run_id for job in jobs}
     for job in jobs:
         path = store.commit_path(job)
         if not path.exists():
@@ -965,6 +967,24 @@ def _planned_commits(store, jobs, experiment):
         if commit.get("spec") != _job_spec(job, experiment):
             raise ValueError(f"resume specification differs for {job.run_id}")
         commits.append(commit)
+    for path in store.commit_dir.glob("*.json"):
+        if path.stem in planned_ids:
+            continue
+        try:
+            spec = json.loads(path.read_text(encoding="utf-8")).get("spec", {})
+            point = spec.get("point", {}).get("name")
+            seed = spec.get("seed")
+            variant = spec.get("variant")
+        except (AttributeError, json.JSONDecodeError):
+            continue
+        if (
+            spec.get("schema_version") == 1
+            and isinstance(point, str)
+            and type(seed) is int
+            and isinstance(variant, str)
+            and path.stem == _run_id(point, seed, variant)
+        ):
+            raise ValueError(f"resume specification differs for {path.stem}")
     return commits
 
 

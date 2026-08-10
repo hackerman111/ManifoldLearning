@@ -753,6 +753,19 @@ def test_runner_pairs_inputs_saves_failures_and_resumes(tmp_path: Path, monkeypa
         np.testing.assert_array_equal(calls[offset][3], calls[offset + 1][3])
     assert not list((series_dir / "models").glob("*.npz"))
 
+    reduced = replace(experiment, runs=1)
+    with pytest.raises(ValueError, match="resume specification differs"):
+        runner.run_experiment(
+            reduced,
+            tmp_path,
+            resume=series_dir,
+            save_models=False,
+            show_progress=False,
+        )
+    assert {
+        path.name: path.read_bytes() for path in series_dir.glob("*.csv")
+    } == complete_tables
+
     changed_a = replace(
         experiment.variants["A"],
         config=replace(experiment.variants["A"].config, N_J=5),
