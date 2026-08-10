@@ -12,7 +12,7 @@ from .experiment import (
     load_experiment,
 )
 from .multi_index.ADP_multi_index import ADP_multi_index
-from .experiment_runner import run_experiment
+from .experiment_runner import run_experiment, run_experiment_terminal
 from .single_index.ADP_single_index import ADP_single_index
 
 __all__ = [
@@ -31,4 +31,5 @@ __all__ = [
     "calculate_statistics",
     "load_experiment",
     "run_experiment",
+    "run_experiment_terminal",
 ]

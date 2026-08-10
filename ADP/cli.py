@@ -2,6 +2,7 @@ import argparse
 import importlib
 import sys
 from pathlib import Path
+from statistics import median
 
 import numpy as np
 
@@ -14,6 +15,7 @@ from ADP import (
     ADP_ExperimentVariant,
     load_experiment,
     run_experiment,
+    run_experiment_terminal,
 )
 from ADP.ADP_Config import epanechnikov
 from ADP.experiment import validate_experiment
@@ -39,6 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="ADP single/multi-index experiments",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        allow_abbrev=False,
     )
     parser.add_argument("--mode", choices=("single", "multi"), default="single")
     parser.add_argument("--index-dim", type=int, default=1)
@@ -57,6 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--no-save-models", action="store_true")
     parser.add_argument("--no-progress", action="store_true")
+    parser.add_argument("--terminal-only", action="store_true")
     parser.add_argument("--n", type=int, default=240)
     parser.add_argument("--d", type=int, default=3)
     parser.add_argument("--noise", type=float, default=0.05)
@@ -139,15 +143,134 @@ def experiment_from_args(
         parser.error(str(error))
 
 
+def _finite_values(rows, name):
+    values = []
+    for row in rows:
+        value = row.get(name)
+        if isinstance(value, (bool, np.bool_)):
+            continue
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(number):
+            values.append(number)
+    return values
+
+
+def _print_table(headers, rows, right_aligned):
+    widths = [
+        max(len(header), *(len(row[index]) for row in rows))
+        for index, header in enumerate(headers)
+    ]
+
+    def line(values):
+        return "  ".join(
+            value.rjust(widths[index])
+            if index in right_aligned
+            else value.ljust(widths[index])
+            for index, value in enumerate(values)
+        )
+
+    print(line(headers))
+    print("  ".join("-" * width for width in widths))
+    for row in rows:
+        print(line(row))
+
+
+def _print_terminal_summary(experiment, runs):
+    grouped = {}
+    for run in runs:
+        grouped.setdefault((run["point"], run["variant"]), []).append(run)
+
+    print(
+        f"Эксперимент: {experiment.name} | "
+        f"режим: {experiment.mode} | jobs: {len(runs)}"
+    )
+    print("\nСтатусы")
+    status_rows = []
+    metric_rows = []
+    quality_name = "cosine_abs" if experiment.mode == "single" else "projector_error"
+    quality_header = (
+        "Медиана cosine"
+        if experiment.mode == "single"
+        else "Медиана ошибки проектора"
+    )
+    for point in experiment.points:
+        for variant in experiment.variants:
+            rows = grouped.get((point.name, variant), [])
+            statuses = [row.get("status") for row in rows]
+            status_rows.append(
+                (
+                    point.name,
+                    variant,
+                    str(len(rows)),
+                    str(statuses.count("success")),
+                    str(statuses.count("nonconverged")),
+                    str(statuses.count("numerical_failure")),
+                )
+            )
+            quality = _finite_values(rows, quality_name)
+            wall_time = _finite_values(rows, "fit_wall_time_sec")
+            rss = _finite_values(rows, "algorithm_rss_max_mib")
+            iterations = _finite_values(rows, "outer_iterations")
+            metric_rows.append(
+                (
+                    point.name,
+                    variant,
+                    f"{median(quality):.3f}" if quality else "—",
+                    f"{median(wall_time):.3f}" if wall_time else "—",
+                    f"{max(rss):.1f}" if rss else "—",
+                    f"{median(iterations):g}" if iterations else "—",
+                )
+            )
+    _print_table(
+        ("Точка", "Вариант", "Jobs", "Успех", "NC", "Ошибки"),
+        status_rows,
+        {2, 3, 4, 5},
+    )
+    print("\nХарактеристики")
+    _print_table(
+        (
+            "Точка",
+            "Вариант",
+            quality_header,
+            "Время med, с",
+            "RSS max, MiB",
+            "Итер. med",
+        ),
+        metric_rows,
+        {2, 3, 4, 5},
+    )
+
+
 def main(argv=None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    arguments = sys.argv[1:] if argv is None else list(argv)
+    dont_write_bytecode = sys.dont_write_bytecode
+    try:
+        if "--terminal-only" in arguments:
+            sys.dont_write_bytecode = True
+        return _main(parser, parser.parse_args(arguments))
+    finally:
+        sys.dont_write_bytecode = dont_write_bytecode
+
+
+def _main(parser, args) -> int:
     if args.reports_only is not None and any(
-        (args.experiment_file is not None, args.resume is not None, args.dry_run)
+        (
+            args.experiment_file is not None,
+            args.resume is not None,
+            args.dry_run,
+            args.terminal_only,
+        )
     ):
         parser.error(
-            "--reports-only нельзя сочетать с --experiment-file, --resume или --dry-run"
+            "--reports-only нельзя сочетать с --experiment-file, --resume, "
+            "--dry-run или --terminal-only"
         )
+    if args.terminal_only and args.resume is not None:
+        parser.error("--terminal-only нельзя сочетать с --resume")
 
     try:
         if args.reports_only is not None:
@@ -157,11 +280,10 @@ def main(argv=None) -> int:
             print(f"отчёты обновлены: {artifacts}")
             return 0
 
-        experiment = (
-            load_experiment(args.experiment_file)
-            if args.experiment_file is not None
-            else experiment_from_args(args, parser)
-        )
+        if args.experiment_file is None:
+            experiment = experiment_from_args(args, parser)
+        else:
+            experiment = load_experiment(args.experiment_file)
         jobs = _build_jobs(experiment)
         if args.dry_run:
             for point in experiment.points:
@@ -169,6 +291,14 @@ def main(argv=None) -> int:
             print(f"variants: {', '.join(experiment.variants)}")
             print(f"total jobs: {len(jobs)}")
             return 0
+
+        if args.terminal_only:
+            runs, failures = run_experiment_terminal(
+                experiment,
+                show_progress=not args.no_progress,
+            )
+            _print_terminal_summary(experiment, runs)
+            return 1 if failures else 0
 
         series_dir, failures = run_experiment(
             experiment,

@@ -166,6 +166,165 @@ def test_cli_failures_return_one(tmp_path: Path, monkeypatch, capsys):
     assert "ошибок: 2" in output
 
 
+def test_cli_terminal_only_prints_readable_summary_and_creates_nothing(
+    tmp_path: Path, monkeypatch, capsys
+):
+    import ADP.cli as cli
+
+    output_dir = tmp_path / "must-not-exist"
+    runs = [
+        {
+            "point": "manual",
+            "variant": "default",
+            "status": "success",
+            "cosine_abs": 0.9,
+            "fit_wall_time_sec": 1.0,
+            "algorithm_rss_max_mib": 20.0,
+            "outer_iterations": 2,
+        },
+        {
+            "point": "manual",
+            "variant": "default",
+            "status": "nonconverged",
+            "cosine_abs": 0.8,
+            "fit_wall_time_sec": 2.0,
+            "algorithm_rss_max_mib": 22.0,
+            "outer_iterations": 4,
+        },
+    ]
+    calls = []
+    monkeypatch.setattr(
+        cli,
+        "run_experiment_terminal",
+        lambda experiment, *, show_progress: calls.append(
+            (experiment.name, show_progress, cli.sys.dont_write_bytecode)
+        )
+        or (runs, 1),
+    )
+
+    assert cli.main(
+        [
+            "--terminal-only",
+            "--output-dir",
+            str(output_dir),
+            "--no-progress",
+        ]
+    ) == 1
+
+    output = capsys.readouterr().out
+    assert "Эксперимент: manual | режим: single | jobs: 2" in output
+    assert "Статусы" in output
+    assert "Точка   Вариант" in output
+    assert "manual  default" in output
+    assert "Характеристики" in output
+    assert "Медиана cosine" in output
+    assert "0.850" in output
+    assert "1.500" in output
+    assert "22.0" in output
+    assert calls == [("manual", False, True)]
+    assert not output_dir.exists()
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    (
+        ("--terminal-only", "--resume", "series"),
+        ("--terminal-only", "--reports-only", "series"),
+    ),
+)
+def test_cli_terminal_only_rejects_archive_modes(arguments):
+    from ADP.cli import main
+
+    with pytest.raises(SystemExit) as error:
+        main(list(arguments))
+
+    assert error.value.code == 2
+
+
+def test_cli_terminal_only_experiment_file_writes_no_bytecode(
+    tmp_path: Path, monkeypatch
+):
+    import ADP.cli as cli
+
+    source = tmp_path / "experiment.py"
+    source.write_text(
+        """
+from ADP import ADP_Config, ADP_Experiment, ADP_ExperimentPoint, ADP_ExperimentVariant
+experiment = ADP_Experiment(
+    name="memory",
+    mode="single",
+    points=(ADP_ExperimentPoint("p", 24, 3),),
+    variants={"v": ADP_ExperimentVariant(ADP_Config())},
+)
+""",
+        encoding="utf-8",
+    )
+    before = {path.relative_to(tmp_path) for path in tmp_path.rglob("*")}
+    monkeypatch.setattr(
+        cli,
+        "run_experiment_terminal",
+        lambda *args, **kwargs: ([], 0),
+    )
+
+    assert cli.main(
+        ["--terminal-only", "--experiment-file", str(source), "--no-progress"]
+    ) == 0
+
+    assert {path.relative_to(tmp_path) for path in tmp_path.rglob("*")} == before
+
+
+def test_cli_terminal_only_kernel_import_writes_no_bytecode(tmp_path, monkeypatch):
+    import ADP.cli as cli
+
+    source = tmp_path / "terminal_only_kernel.py"
+    source.write_text("def kernel(value):\n    return value\n", encoding="utf-8")
+    before = {path.relative_to(tmp_path) for path in tmp_path.rglob("*")}
+    monkeypatch.syspath_prepend(tmp_path)
+    monkeypatch.setattr(
+        cli,
+        "run_experiment_terminal",
+        lambda *args, **kwargs: ([], 0),
+    )
+
+    assert cli.main(
+        [
+            "--terminal-only",
+            "--kernel",
+            "terminal_only_kernel:kernel",
+            "--no-progress",
+        ]
+    ) == 0
+
+    assert {path.relative_to(tmp_path) for path in tmp_path.rglob("*")} == before
+
+
+def test_terminal_summary_uses_projector_error_for_multi(capsys):
+    from ADP.cli import _print_terminal_summary, build_parser, experiment_from_args
+
+    parser = build_parser()
+    experiment = experiment_from_args(
+        parser.parse_args(["--mode", "multi", "--index-dim", "2"]), parser
+    )
+    _print_terminal_summary(
+        experiment,
+        [
+            {
+                "point": "manual",
+                "variant": "default",
+                "status": "numerical_failure",
+                "projector_error": "",
+                "fit_wall_time_sec": "",
+                "algorithm_rss_max_mib": "",
+                "outer_iterations": "",
+            }
+        ],
+    )
+
+    output = capsys.readouterr().out
+    assert "Медиана ошибки проектора" in output
+    assert "—" in output
+
+
 def _unchanged_single(statistics, initial_index, **params):
     return ADP_SolverResult(
         index=np.asarray(initial_index),
@@ -445,6 +604,59 @@ def test_jobs_share_seed_sequence_and_alternate_variants():
         ("p2", 21, "B"),
         ("p2", 21, "A"),
     ]
+
+
+def test_terminal_runner_reuses_paired_data_without_store(monkeypatch):
+    import ADP.experiment_runner as runner
+
+    factory_calls = []
+    data_ids = {}
+
+    def data_factory(point, rng):
+        factory_calls.append(point.name)
+        X = rng.normal(size=(point.n, point.d))
+        truth = np.eye(point.d)[0]
+        return ADP_Data(X, X @ truth, truth)
+
+    def execute(store, experiment, job, data, save_models, progress_callback):
+        assert store is None
+        assert not save_models
+        data_ids.setdefault((job.point.name, job.seed), []).append(id(data))
+        run = runner._base_run(job, experiment, "terminal")
+        run.update(
+            {
+                "status": "success",
+                "cosine_abs": 1.0,
+                "fit_wall_time_sec": 0.01,
+                "algorithm_rss_max_mib": 10.0,
+                "outer_iterations": 1,
+            }
+        )
+        return {"run": run, "outer": []}
+
+    monkeypatch.setattr(
+        runner._SeriesStore,
+        "create",
+        lambda *args, **kwargs: pytest.fail("terminal mode created a store"),
+    )
+    for name in ("_atomic_json", "_atomic_npz", "_atomic_csv"):
+        monkeypatch.setattr(
+            runner,
+            name,
+            lambda *args, _name=name, **kwargs: pytest.fail(
+                f"terminal mode called {_name}"
+            ),
+        )
+    monkeypatch.setattr(runner, "_execute_job", execute)
+
+    runs, failures = runner.run_experiment_terminal(
+        _paired_experiment(data_factory), show_progress=False
+    )
+
+    assert failures == 0
+    assert len(runs) == 8
+    assert len(factory_calls) == 4
+    assert all(len(ids) == 2 and ids[0] == ids[1] for ids in data_ids.values())
 
 
 def test_job_ids_encode_names_without_delimiter_collisions(tmp_path: Path):

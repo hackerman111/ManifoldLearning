@@ -833,10 +833,12 @@ def _execute_job(
     save_models,
     progress_callback,
 ):
-    run = _base_run(job, experiment, store.series_dir.name)
-    run["data_artifact"] = str(
-        store.data_path(job.point, job.seed).relative_to(store.series_dir)
-    )
+    series_id = "terminal" if store is None else store.series_dir.name
+    run = _base_run(job, experiment, series_id)
+    if store is not None:
+        run["data_artifact"] = str(
+            store.data_path(job.point, job.seed).relative_to(store.series_dir)
+        )
     model = None
     sampler = None
     fit_wall = ""
@@ -905,7 +907,7 @@ def _execute_job(
             experiment,
             data,
             model,
-            store.series_dir.name,
+            series_id,
         )
         run["outer_row_count"] = len(outer)
         if save_models:
@@ -938,7 +940,11 @@ def _execute_job(
 
 
 def _failure_outcome(store, experiment, job, error):
-    run = _base_run(job, experiment, store.series_dir.name)
+    run = _base_run(
+        job,
+        experiment,
+        "terminal" if store is None else store.series_dir.name,
+    )
     run.update(
         {
             "status": "numerical_failure",
@@ -1184,6 +1190,77 @@ def _export_tables(store, experiment, jobs, status):
         summary_rows,
     )
     _atomic_csv(store.series_dir / "series.csv", SERIES_COLUMNS, (series_row,))
+
+
+def run_experiment_terminal(
+    experiment: ADP_Experiment,
+    *,
+    show_progress: bool = True,
+) -> tuple[list[dict], int]:
+    experiment = validate_experiment(experiment)
+    jobs = _build_jobs(experiment)
+    data_cache = {}
+    runs = []
+    progress_disabled = not show_progress or not sys.stderr.isatty()
+    outer = tqdm(
+        total=len(jobs),
+        desc=experiment.name,
+        unit="fit",
+        dynamic_ncols=True,
+        disable=progress_disabled,
+    )
+    try:
+        for job in jobs:
+            key = (job.point.name, job.seed)
+            if key not in data_cache:
+                try:
+                    data_cache[key] = make_data(experiment, job.point, job.seed)
+                except Exception as error:
+                    data_cache[key] = error
+            data = data_cache[key]
+            if isinstance(data, Exception):
+                outcome = _failure_outcome(None, experiment, job, data)
+            else:
+                inner = tqdm(
+                    desc=f"{job.point.name}/{job.variant_name}",
+                    unit="outer",
+                    leave=False,
+                    position=1,
+                    disable=progress_disabled,
+                )
+
+                def advance(item):
+                    inner.set_postfix(
+                        h=item.get("h"),
+                        localization=item.get("rho", item.get("alpha")),
+                        refresh=False,
+                    )
+                    inner.update(1)
+
+                try:
+                    outcome = _execute_job(
+                        None,
+                        experiment,
+                        job,
+                        data,
+                        False,
+                        advance,
+                    )
+                finally:
+                    inner.close()
+            runs.append(outcome["run"])
+            outer.set_postfix(
+                point=job.point.name,
+                variant=job.variant_name,
+                status=outcome["run"]["status"],
+            )
+            outer.update(1)
+            if show_progress and not sys.stderr.isatty():
+                print(f"{job.run_id}: {outcome['run']['status']}")
+    finally:
+        outer.close()
+    failures = sum(run["status"] != "success" for run in runs)
+    return runs, failures
 
 
 def run_experiment(
