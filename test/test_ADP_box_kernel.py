@@ -3,8 +3,10 @@ from functools import partial
 import numpy as np
 import pytest
 
+from ADP.ADP_Statistic import calculate_statistics, calculate_statistics_gpu
 from ADP.engine.box_kernel import (
     NeighborhoodEngine,
+    SparseStatisticsCache,
     box_kernel,
     initialize_basis_local_sparse,
     make_plateau_kernel,
@@ -206,3 +208,102 @@ def test_sparse_local_initialization_matches_dense_reference():
         rtol=1e-9,
         atol=1e-10,
     )
+
+
+@pytest.mark.parametrize(
+    "kernel",
+    [box_kernel, make_plateau_kernel(0.5)],
+    ids=["box", "plateau"],
+)
+def test_sparse_statistics_match_dense_weights(kernel):
+    rng = np.random.default_rng(19)
+    n, d, J, P = 25, 4, 5, 3
+    X = rng.normal(size=(n, d))
+    Y = rng.normal(size=n)
+    centers = X[[0, 4, 9, 15, 21]]
+    directions = rng.normal(size=(J, P, d))
+    beta = rng.normal(size=d)
+    beta /= np.linalg.norm(beta)
+    engine = NeighborhoodEngine(X, centers, block_size=2)
+    blocks = list(engine.single_blocks(beta, 1.7, 0.35, kernel))
+    dense = _dense_blocks(blocks, J, n)
+
+    expected = calculate_statistics(X, Y, dense, directions, batch_size=2)
+    actual = calculate_statistics(
+        X,
+        Y,
+        iter(blocks),
+        directions,
+        batch_size=2,
+        sparse_cache=SparseStatisticsCache(),
+    )
+
+    for name in actual:
+        np.testing.assert_allclose(
+            actual[name],
+            expected[name],
+            rtol=1e-11,
+            atol=1e-11,
+        )
+
+
+def test_sparse_statistics_cache_reuses_only_exact_weighted_support():
+    X = np.array([[0.0], [0.75], [2.0]])
+    Y = np.array([0.0, 1.0, -1.0])
+    centers = X[[0]]
+    directions = np.ones((1, 1, 1))
+    kernel = make_plateau_kernel(0.5)
+    engine = NeighborhoodEngine(X, centers, block_size=1)
+    cache = SparseStatisticsCache()
+
+    first = list(engine.isotropic_blocks(1.0, kernel))
+    calculate_statistics(
+        X, Y, iter(first), directions, sparse_cache=cache
+    )
+    calculate_statistics(
+        X, Y, iter(first), directions, sparse_cache=cache
+    )
+    assert cache.last_hits == 1
+
+    changed_weights = list(engine.isotropic_blocks(1.1, kernel))
+    assert first[0].indices.tolist() == changed_weights[0].indices.tolist()
+    calculate_statistics(
+        X,
+        Y,
+        iter(changed_weights),
+        directions,
+        sparse_cache=cache,
+    )
+    assert cache.last_hits == 0
+
+
+def _cuda_available():
+    try:
+        import cupy as cp
+
+        return cp.cuda.runtime.getDeviceCount() > 0
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(not _cuda_available(), reason="CUDA device is unavailable")
+def test_sparse_gpu_statistics_match_cpu():
+    import cupy as cp
+
+    rng = np.random.default_rng(29)
+    X = rng.normal(size=(18, 3))
+    Y = rng.normal(size=len(X))
+    centers = X[[0, 5, 11, 16]]
+    directions = rng.normal(size=(len(centers), 2, X.shape[1]))
+    engine = NeighborhoodEngine(X, centers, block_size=2)
+    blocks = list(
+        engine.isotropic_blocks(1.8, make_plateau_kernel(0.5))
+    )
+
+    cpu = calculate_statistics(X, Y, iter(blocks), directions)
+    gpu = calculate_statistics_gpu(X, Y, iter(blocks), directions)
+
+    np.testing.assert_allclose(cp.asnumpy(gpu.I), cpu.I, rtol=1e-11, atol=1e-11)
+    np.testing.assert_allclose(cp.asnumpy(gpu.U), cpu.U, rtol=1e-11, atol=1e-11)
+    for name in ("mass", "mean", "n_eff", "eta"):
+        np.testing.assert_allclose(gpu[name], cpu[name], rtol=1e-11, atol=1e-11)

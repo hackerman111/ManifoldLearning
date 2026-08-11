@@ -181,6 +181,128 @@ class SparseNeighborhoodBlock:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class _SparseCacheEntry:
+    mean: np.ndarray
+    y_bar: float
+    n_eff: float
+    mass: float
+
+
+class SparseStatisticsCache:
+    def __init__(self):
+        self._entries = {}
+        self._active = set()
+        self._call_hits = 0
+        self.last_hits = 0
+        self.total_hits = 0
+
+    def begin_call(self):
+        self._active = set()
+        self._call_hits = 0
+
+    def finish_call(self):
+        self._entries = {
+            key: self._entries[key]
+            for key in self._active
+        }
+        self.last_hits = self._call_hits
+        self.total_hits += self._call_hits
+
+    def prepare(self, Xc, Y, block: SparseNeighborhoodBlock, row: int):
+        key = block.cache_key(row)
+        self._active.add(key)
+        entry = self._entries.get(key)
+        if entry is not None:
+            self._call_hits += 1
+            return key, entry
+
+        indices, weights = block.row(row)
+        mass = float(weights.sum())
+        A = weights / mass
+        local_X = Xc[indices]
+        mean = A @ local_X
+        entry = _SparseCacheEntry(
+            mean=np.asarray(mean),
+            y_bar=float(A @ Y[indices]),
+            n_eff=float(1.0 / np.square(A).sum()),
+            mass=mass,
+        )
+        self._entries[key] = entry
+        return key, entry
+
+
+def sparse_statistics_block(
+    Xc,
+    Y,
+    block: SparseNeighborhoodBlock,
+    Phi,
+    cache: SparseStatisticsCache,
+    *,
+    xp=np,
+):
+    Xc = np.asarray(Xc, dtype=float)
+    Y = np.asarray(Y, dtype=float)
+    if Xc.shape != (block.n_observations, Phi.shape[2]):
+        raise ValueError("sparse block and X dimensions do not match")
+    if Y.shape != (block.n_observations,):
+        raise ValueError("sparse block and Y dimensions do not match")
+    if Phi.ndim != 3 or Phi.shape[0] != block.rows:
+        raise ValueError("Phi must have shape (B, P, d)")
+
+    groups = {}
+    entries = {}
+    representatives = {}
+    for row in range(block.rows):
+        key, entry = cache.prepare(Xc, Y, block, row)
+        groups.setdefault(key, []).append(row)
+        entries[key] = entry
+        representatives.setdefault(key, row)
+
+    P, d = Phi.shape[1:]
+    I = xp.empty((block.rows, P))
+    U = xp.empty((block.rows, P, d))
+    mean = xp.empty((block.rows, d))
+    n_eff = xp.empty(block.rows)
+    eta = xp.empty((block.rows, P))
+
+    for key, rows in groups.items():
+        entry = entries[key]
+        indices, weights = block.row(representatives[key])
+        A = xp.asarray(weights / entry.mass)
+        local_X = xp.asarray(Xc[indices])
+        local_Y = xp.asarray(Y[indices])
+        local_mean = xp.asarray(entry.mean)
+        centered_X = local_X - local_mean
+        row_indices = xp.asarray(rows, dtype=xp.intp)
+        Q = Phi[row_indices] @ xp.swapaxes(centered_X, 0, 1)
+        residual = xp.einsum("gps,s->gp", Q, A, optimize=True)
+        denominator = xp.einsum("gps,s->gp", xp.abs(Q), A, optimize=True)
+        nonzero = denominator != 0
+        eta_group = xp.where(
+            nonzero,
+            xp.abs(residual) / xp.where(nonzero, denominator, 1.0),
+            0.0,
+        )
+        H = (Q - residual[..., None]) * A
+        summed = H.sum(axis=2)
+        I_group = entry.mass * (
+            xp.einsum("gps,s->gp", H, local_Y, optimize=True)
+            - summed * entry.y_bar
+        )
+        U_group = entry.mass * (
+            xp.einsum("gps,sd->gpd", H, local_X, optimize=True)
+            - summed[..., None] * local_mean
+        )
+        I[row_indices] = I_group
+        U[row_indices] = U_group
+        mean[row_indices] = local_mean
+        n_eff[row_indices] = entry.n_eff
+        eta[row_indices] = eta_group
+
+    return I, U, mean, n_eff, eta
+
+
 class NeighborhoodEngine:
     def __init__(self, X, centers, block_size=128):
         X = np.asarray(X, dtype=float)

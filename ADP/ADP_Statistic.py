@@ -5,6 +5,11 @@ from typing import Any, ClassVar
 import numpy as np
 
 from .engine import utils
+from .engine.box_kernel import (
+    SparseNeighborhoodBlock,
+    SparseStatisticsCache,
+    sparse_statistics_block,
+)
 from .gpu import require_cupy
 
 
@@ -35,7 +40,34 @@ class ADP_Statistics:
         return iter(self._fields)
 
 
-def calculate_statistics(X, Y, weights, directions, batch_size=32) -> ADP_Statistics:
+def _weight_blocks(weights, J, n, batch_size):
+    if isinstance(weights, Iterator):
+        for value in weights:
+            if isinstance(value, SparseNeighborhoodBlock):
+                yield value.start, value
+            else:
+                yield value
+        return
+    yield from utils._weight_blocks(weights, J, n, batch_size)
+
+
+def _statistics_cache(value):
+    if value is None:
+        return SparseStatisticsCache()
+    if not isinstance(value, SparseStatisticsCache):
+        raise TypeError("sparse_cache must be SparseStatisticsCache")
+    return value
+
+
+def calculate_statistics(
+    X,
+    Y,
+    weights,
+    directions,
+    batch_size=32,
+    *,
+    sparse_cache=None,
+) -> ADP_Statistics:
     """Calculate stable ADP statistics from a matrix or iterator of weight blocks."""
     utils._check_batch_size(batch_size)
     X, Y, Phi = utils._prepare_data(X, Y, directions)
@@ -50,35 +82,50 @@ def calculate_statistics(X, Y, weights, directions, batch_size=32) -> ADP_Statis
     n_eff = np.empty(J)
     eta = np.empty((J, P))
 
+    cache = _statistics_cache(sparse_cache)
+    cache.begin_call()
     expected_start = 0
-    for start, W in utils._weight_blocks(weights, J, X.shape[0], batch_size):
+    for start, W in _weight_blocks(weights, J, X.shape[0], batch_size):
         utils._check_weight_block_order(start, expected_start, J)
-
-        W, mass_block = utils._prepare_weight_block(W, X.shape[0])
-        stop = start + W.shape[0]
-
+        if isinstance(W, SparseNeighborhoodBlock):
+            stop = start + W.rows
+        else:
+            W, mass_block = utils._prepare_weight_block(W, X.shape[0])
+            stop = start + W.shape[0]
         batch = slice(start, stop)
         Phib = Phi[batch]
-        max_nonzero = int(np.count_nonzero(W, axis=1).max())
-        # ponytail: 25% is an empirical dense/local crossover; benchmark-based
-        # dispatch is only needed if substantially different kernels are added.
-        if 4 * max_nonzero <= X.shape[0]:
-            block_values = _local_block(
+        if isinstance(W, SparseNeighborhoodBlock):
+            mass_block = W.mass
+            block_values = sparse_statistics_block(
                 Xc,
                 Y,
                 W,
                 Phib,
-                mass_block,
-                max_nonzero,
+                cache,
             )
         else:
-            A = W / mass_block[:, None]
-            block_values = _dense_block(Xc, Y, A, Phib, mass_block)
+            max_nonzero = int(np.count_nonzero(W, axis=1).max())
+            # ponytail: 25% is an empirical dense/local crossover; benchmark-based
+            # dispatch is only needed if substantially different kernels are added.
+            if 4 * max_nonzero <= X.shape[0]:
+                block_values = _local_block(
+                    Xc,
+                    Y,
+                    W,
+                    Phib,
+                    mass_block,
+                    max_nonzero,
+                )
+            else:
+                A = W / mass_block[:, None]
+                block_values = _dense_block(Xc, Y, A, Phib, mass_block)
 
         I[batch], U[batch], Mcb, n_eff[batch], eta[batch] = block_values
         mass[batch] = mass_block
         mean[batch] = Mcb + x_bar
         expected_start = stop
+
+    cache.finish_call()
 
     if expected_start != J:
         raise ValueError("weight blocks do not cover all directions")
@@ -99,6 +146,8 @@ def calculate_statistics_gpu(
     weights,
     directions,
     batch_size=32,
+    *,
+    sparse_cache=None,
 ) -> ADP_Statistics:
     """Calculate ADP statistics on the requested CUDA device via CuPy."""
     cp = require_cupy()
@@ -108,6 +157,7 @@ def calculate_statistics_gpu(
     X_gpu = cp.asarray(X)
     Y_gpu = cp.asarray(Y)
     Phi_gpu = cp.asarray(Phi)
+    Xc_cpu = X - X.mean(axis=0)
     x_bar = X_gpu.mean(axis=0)
     Xc = X_gpu - x_bar
 
@@ -118,42 +168,59 @@ def calculate_statistics_gpu(
     n_eff = cp.empty(J)
     eta = cp.empty((J, P))
 
+    cache = _statistics_cache(sparse_cache)
+    cache.begin_call()
     expected_start = 0
-    for start, W in utils._weight_blocks(weights, J, X.shape[0], batch_size):
+    for start, W in _weight_blocks(weights, J, X.shape[0], batch_size):
         utils._check_weight_block_order(start, expected_start, J)
-        W, mass_block = utils._prepare_weight_block(W, X.shape[0])
-        stop = start + W.shape[0]
+        if isinstance(W, SparseNeighborhoodBlock):
+            mass_block = W.mass
+            stop = start + W.rows
+        else:
+            W, mass_block = utils._prepare_weight_block(W, X.shape[0])
+            stop = start + W.shape[0]
         batch = slice(start, stop)
-
-        W_gpu = cp.asarray(W)
-        mass_gpu = cp.asarray(mass_block)
         Phib = Phi_gpu[batch]
-        max_nonzero = int(np.count_nonzero(W, axis=1).max())
-        if 4 * max_nonzero <= X.shape[0]:
-            block_values = _local_block(
-                Xc,
-                Y_gpu,
-                W_gpu,
+        if isinstance(W, SparseNeighborhoodBlock):
+            block_values = sparse_statistics_block(
+                Xc_cpu,
+                Y,
+                W,
                 Phib,
-                mass_gpu,
-                max_nonzero,
+                cache,
                 xp=cp,
             )
         else:
-            A = W_gpu / mass_gpu[:, None]
-            block_values = _dense_block(
-                Xc,
-                Y_gpu,
-                A,
-                Phib,
-                mass_gpu,
-                xp=cp,
-            )
+            W_gpu = cp.asarray(W)
+            mass_gpu = cp.asarray(mass_block)
+            max_nonzero = int(np.count_nonzero(W, axis=1).max())
+            if 4 * max_nonzero <= X.shape[0]:
+                block_values = _local_block(
+                    Xc,
+                    Y_gpu,
+                    W_gpu,
+                    Phib,
+                    mass_gpu,
+                    max_nonzero,
+                    xp=cp,
+                )
+            else:
+                A = W_gpu / mass_gpu[:, None]
+                block_values = _dense_block(
+                    Xc,
+                    Y_gpu,
+                    A,
+                    Phib,
+                    mass_gpu,
+                    xp=cp,
+                )
 
         I[batch], U[batch], Mcb, n_eff[batch], eta[batch] = block_values
         mass[batch] = mass_block
         mean[batch] = Mcb + x_bar
         expected_start = stop
+
+    cache.finish_call()
 
     if expected_start != J:
         raise ValueError("weight blocks do not cover all directions")
