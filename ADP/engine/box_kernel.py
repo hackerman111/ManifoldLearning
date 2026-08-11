@@ -430,3 +430,160 @@ class NeighborhoodEngine:
             supports.append(indices[active])
             q_values.append(q[active])
         return self._encode(supports, q_values, kernel, record)
+
+
+def _mean_sparse_mass(blocks) -> float:
+    total = 0.0
+    rows = 0
+    for block in blocks:
+        mass = block.mass
+        total += float(mass.sum())
+        rows += len(mass)
+    if rows == 0:
+        raise ValueError("sparse blocks must contain at least one row")
+    return total / rows
+
+
+def search_sparse_bandwidth(
+    engine: NeighborhoodEngine,
+    target: float,
+    kernel,
+    *,
+    lower: float,
+) -> float:
+    target = float(target)
+    if not np.isfinite(target) or target <= 0:
+        raise ValueError("target must be finite and positive")
+    lower = engine._positive(lower, "lower")
+    if sparse_kernel_parameters(kernel) is None:
+        raise ValueError("sparse bandwidth requires box or plateau kernel")
+
+    def enough(h):
+        return _mean_sparse_mass(
+            engine.isotropic_blocks(h, kernel, record=False)
+        ) >= target
+
+    low = lower
+    if enough(low):
+        return low
+    minimum = np.minimum(engine.X.min(axis=0), engine.centers.min(axis=0))
+    maximum = np.maximum(engine.X.max(axis=0), engine.centers.max(axis=0))
+    diagonal = float(np.linalg.norm(maximum - minimum))
+    high = max(2.0 * low, diagonal, 1.0)
+    for _ in range(100):
+        if enough(high):
+            break
+        high *= 2.0
+    else:
+        raise RuntimeError("could not bracket a feasible bandwidth")
+
+    for _ in range(60):
+        middle = (low + high) / 2.0
+        if enough(middle):
+            high = middle
+        else:
+            low = middle
+    return float(high)
+
+
+def search_sparse_scale(build_blocks, target_mass: float) -> float | None:
+    target_mass = float(target_mass)
+    if not np.isfinite(target_mass) or target_mass <= 0:
+        raise ValueError("target_mass must be finite and positive")
+
+    def enough(scale):
+        return _mean_sparse_mass(build_blocks(scale)) >= target_mass
+
+    if enough(1.0):
+        return 1.0
+    if not enough(0.0):
+        return None
+    low, high = 0.0, 1.0
+    tolerance = np.sqrt(np.finfo(float).eps)
+    while high - low > tolerance:
+        middle = (low + high) / 2.0
+        if enough(middle):
+            low = middle
+        else:
+            high = middle
+    return float(low)
+
+
+def _orient_basis(basis):
+    columns = np.arange(basis.shape[1])
+    signs = np.sign(basis[np.argmax(np.abs(basis), axis=0), columns])
+    basis *= np.where(signs == 0, 1.0, signs)
+    return basis
+
+
+def initialize_basis_local_sparse(
+    X,
+    Y,
+    engine: NeighborhoodEngine,
+    N_lin: int,
+    kernel,
+    local_ridge: float,
+    index_dim: int,
+) -> np.ndarray:
+    X = np.asarray(X, dtype=float)
+    Y = np.asarray(Y, dtype=float)
+    if X.shape != engine.X.shape or not np.array_equal(X, engine.X):
+        raise ValueError("X must match the neighborhood engine data")
+    if Y.shape != (len(X),) or not np.all(np.isfinite(Y)):
+        raise ValueError("Y must have finite shape (n,)")
+    if isinstance(N_lin, bool) or not isinstance(N_lin, (int, np.integer)):
+        raise TypeError("N_lin must be an integer")
+    if N_lin < 1:
+        raise ValueError("N_lin must be positive")
+    if isinstance(index_dim, bool) or not isinstance(index_dim, (int, np.integer)):
+        raise TypeError("index_dim must be an integer")
+    if not 1 <= index_dim <= X.shape[1]:
+        raise ValueError("index_dim must lie between 1 and d")
+    local_ridge = float(local_ridge)
+    if not np.isfinite(local_ridge) or local_ridge <= 0:
+        raise ValueError("local_ridge must be finite and positive")
+
+    h_lin = search_sparse_bandwidth(
+        engine,
+        N_lin,
+        kernel,
+        lower=np.finfo(float).eps,
+    )
+    blocks = engine.isotropic_blocks(h_lin, kernel, record=False)
+    d = X.shape[1]
+    ridge_rows = np.zeros((d, d + 1))
+    ridge_rows[:, 1:] = np.sqrt(local_ridge) * np.eye(d)
+    gradients = np.empty((len(engine.centers), d))
+
+    for block in blocks:
+        for local_row in range(block.rows):
+            row = block.start + local_row
+            indices, weights = block.row(local_row)
+            design = np.column_stack(
+                (np.ones(len(indices)), X[indices] - engine.centers[row])
+            )
+            root_weight = np.sqrt(weights)
+            augmented_design = np.vstack(
+                (design * root_weight[:, None], ridge_rows)
+            )
+            augmented_Y = np.concatenate(
+                (Y[indices] * root_weight, np.zeros(d))
+            )
+            gradients[row] = np.linalg.lstsq(
+                augmented_design,
+                augmented_Y,
+                rcond=None,
+            )[0][1:]
+
+    _, singular_values, right_vectors = np.linalg.svd(
+        gradients,
+        full_matrices=False,
+    )
+    threshold = (
+        np.finfo(float).eps
+        * max(gradients.shape)
+        * (singular_values[0] if len(singular_values) else 0.0)
+    )
+    if len(singular_values) < index_dim or singular_values[index_dim - 1] <= threshold:
+        raise RuntimeError("local gradients do not identify the requested index")
+    return _orient_basis(right_vectors[:index_dim].T.copy())
