@@ -49,6 +49,20 @@ def test_plateau_tau_and_kernel_identity_are_validated():
         plateau_kernel(np.array([np.nan]))
 
 
+def test_plateau_is_c2_at_tau_and_support_boundary():
+    tau = 0.5
+    step = 1e-5
+    for point in (tau, 1.0):
+        left, center, right = plateau_kernel(
+            np.array([point - step, point, point + step]),
+            tau=tau,
+        )
+        first = (right - left) / (2.0 * step)
+        second = (right - 2.0 * center + left) / step**2
+        assert abs(first) < 1e-6
+        assert abs(second) < 1e-3
+
+
 def _dense_blocks(blocks, rows, columns):
     result = np.zeros((rows, columns))
     for block in blocks:
