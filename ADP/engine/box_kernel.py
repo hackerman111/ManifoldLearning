@@ -415,7 +415,8 @@ class NeighborhoodEngine:
                 tau=tau,
             )
             blocks.append(block)
-            keys.extend(block.cache_key(row) for row in range(block.rows))
+            if record:
+                keys.extend(block.cache_key(row) for row in range(block.rows))
 
         if record:
             previous = self._previous_keys
@@ -527,7 +528,12 @@ class NeighborhoodEngine:
                 return_sorted=True,
             )
         ]
-        euclidean = self._euclidean_candidates(h / alpha) if alpha > 0 else None
+        minimum_coefficient = min(alpha**2, float(eigenvalues.min()))
+        euclidean = (
+            self._euclidean_candidates(h / np.sqrt(minimum_coefficient))
+            if minimum_coefficient > 0
+            else None
+        )
 
         supports = []
         q_values = []

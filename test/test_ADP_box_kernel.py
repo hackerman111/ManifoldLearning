@@ -129,6 +129,26 @@ def test_multi_neighborhood_matches_dense_plateau_reference():
     )
 
 
+def test_multi_screen_uses_smallest_localization_eigenvalue():
+    X = np.array([[0.0, 0.0], [5.0, 0.0], [0.0, 2.0]])
+    centers = X[[0]]
+    basis = np.array([[1.0], [0.0]])
+    eigenvalues = np.array([0.01])
+    engine = NeighborhoodEngine(X, centers, block_size=1)
+
+    block = next(
+        engine.multi_blocks(
+            basis,
+            eigenvalues,
+            h=1.0,
+            alpha=1.0,
+            kernel=box_kernel,
+        )
+    )
+
+    assert block.indices.tolist() == [0, 1]
+
+
 def _mean_mass(blocks):
     masses = [block.mass for block in blocks]
     return float(np.concatenate(masses).mean())
