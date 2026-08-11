@@ -19,6 +19,11 @@ from ADP import (
     run_experiment_terminal,
 )
 from ADP.ADP_Config import epanechnikov
+from ADP.engine.box_kernel import (
+    box_kernel,
+    make_plateau_kernel,
+    plateau_kernel,
+)
 from ADP.engine.logger import format_profile
 from ADP.experiment import validate_experiment
 from ADP.experiment_runner import _build_jobs
@@ -27,12 +32,17 @@ from ADP.experiment_runner import _build_jobs
 def parse_kernel(value: str):
     if value == "epanechnikov":
         return epanechnikov
+    if value == "box":
+        return box_kernel
+    if value == "plateau":
+        return plateau_kernel
     try:
         module_name, function_name = value.rsplit(":", 1)
         kernel = getattr(importlib.import_module(module_name), function_name)
     except (AttributeError, ImportError, ValueError) as error:
         raise argparse.ArgumentTypeError(
-            "kernel должен быть 'epanechnikov' или 'module:function'"
+            "kernel должен быть 'epanechnikov', 'box', 'plateau' или "
+            "'module:function'"
         ) from error
     if not callable(kernel):
         raise argparse.ArgumentTypeError("kernel должен быть функцией")
@@ -90,6 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=1e-8,
     )
     parser.add_argument("--kernel", type=parse_kernel, default="epanechnikov")
+    parser.add_argument("--kernel-tau", type=float)
     parser.add_argument("--a", type=float, default=np.sqrt(2))
     parser.add_argument("--h_min", "--h-min", dest="h_min", type=float)
     parser.add_argument(
@@ -128,6 +139,14 @@ def experiment_from_args(
     lambda_penalty = getattr(args, "lambda_penalty", None)
     index_init = getattr(args, "index_init", None)
     try:
+        if args.kernel is plateau_kernel:
+            kernel = make_plateau_kernel(
+                0.5 if args.kernel_tau is None else args.kernel_tau
+            )
+        else:
+            if args.kernel_tau is not None:
+                raise ValueError("--kernel-tau requires --kernel plateau")
+            kernel = args.kernel
         config = ADP_Config(
             seed=args.seed,
             N_loc=args.N_loc,
@@ -141,7 +160,7 @@ def experiment_from_args(
                 else (10000.0 if args.mode == "multi" else 100.0)
             ),
             local_ridge=args.local_ridge,
-            kernel=args.kernel,
+            kernel=kernel,
             a=args.a,
             h_min=args.h_min,
             batch_size=args.batch_size,

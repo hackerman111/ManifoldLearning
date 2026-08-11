@@ -3,6 +3,7 @@ from functools import partial
 import numpy as np
 import pytest
 
+from ADP import ADP_Config
 from ADP.ADP_Statistic import calculate_statistics, calculate_statistics_gpu
 from ADP.engine.box_kernel import (
     NeighborhoodEngine,
@@ -307,3 +308,45 @@ def test_sparse_gpu_statistics_match_cpu():
     np.testing.assert_allclose(cp.asnumpy(gpu.U), cpu.U, rtol=1e-11, atol=1e-11)
     for name in ("mass", "mean", "n_eff", "eta"):
         np.testing.assert_allclose(gpu[name], cpu[name], rtol=1e-11, atol=1e-11)
+
+
+def test_sparse_kernel_cli_and_config():
+    from ADP.cli import build_parser, experiment_from_args, parse_kernel
+
+    assert parse_kernel("box") is box_kernel
+    assert parse_kernel("plateau") is plateau_kernel
+    parser = build_parser()
+    experiment = experiment_from_args(
+        parser.parse_args(
+            ["--kernel", "plateau", "--kernel-tau", "0.3"]
+        ),
+        parser,
+    )
+    kernel = experiment.variants["default"].config.kernel
+    assert sparse_kernel_parameters(kernel) == ("plateau", 0.3)
+    assert ADP_Config(kernel=box_kernel).kernel is box_kernel
+    with pytest.raises(ValueError, match="smart_weights"):
+        ADP_Config(kernel=box_kernel, smart_weights=True)
+
+
+def test_kernel_tau_is_not_silently_ignored():
+    from ADP.cli import build_parser, experiment_from_args
+
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        experiment_from_args(
+            parser.parse_args(
+                ["--kernel", "epanechnikov", "--kernel-tau", "0.3"]
+            ),
+            parser,
+        )
+
+
+def test_plateau_kernel_has_stable_experiment_serialization():
+    from ADP.experiment_runner import _spec_value
+
+    assert _spec_value(make_plateau_kernel(0.3)) == {
+        "function": "ADP.engine.box_kernel:plateau_kernel",
+        "args": [],
+        "keywords": {"tau": 0.3},
+    }

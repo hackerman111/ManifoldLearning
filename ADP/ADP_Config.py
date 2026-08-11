@@ -4,6 +4,8 @@ from math import sqrt
 
 import numpy as np
 
+from .engine.box_kernel import sparse_kernel_parameters
+
 
 def epanechnikov(value: np.ndarray) -> np.ndarray:
     result = np.square(value, dtype=float)
@@ -63,11 +65,14 @@ class ADP_Config:
             raise ValueError("h_min must be finite and positive")
         if not callable(self.kernel):
             raise TypeError("kernel must be callable")
+        sparse_kernel = sparse_kernel_parameters(self.kernel)
         if self.index_init not in {"local", "pilot", "random"}:
             raise ValueError("index_init must be 'local', 'pilot', or 'random'")
         if not isinstance(self.smart_weights, (bool, np.bool_)):
             raise TypeError("smart_weights must be boolean")
         if not isinstance(self.gpu, (bool, np.bool_)):
             raise TypeError("gpu must be boolean")
+        if self.smart_weights and sparse_kernel is not None:
+            raise ValueError("smart_weights is not used with sparse kernels")
         if self.smart_weights and self.kernel is not epanechnikov:
             raise ValueError("smart_weights requires the epanechnikov kernel")

@@ -51,6 +51,21 @@ python ADP/cli.py \
 расчёт; `--no-smart-weights` отключает его явно. Параметр `--a` по-прежнему
 задаёт геометрическое уменьшение bandwidth и не является `alpha`.
 
+### Sparse box и plateau ядра
+
+Оба режима используют общий exact neighborhood backend без плотных матриц
+расстояний и весов `J×n`:
+
+```bash
+python ADP/cli.py --terminal-only --mode single --kernel box
+python ADP/cli.py --terminal-only --mode multi --index-dim 2 \
+  --kernel plateau --kernel-tau 0.5
+```
+
+Для plateau по умолчанию `tau=0.5`, допустимо только `0 < tau < 1`.
+Автоматического переключения `box → plateau` нет. Эти режимы уже выполняют
+exact screening и поэтому не сочетаются с `--smart-weights`.
+
 ### Статистики и LSMR на GPU
 
 `--gpu` переносит статистики и встроенный LSMR на CUDA через CuPy:

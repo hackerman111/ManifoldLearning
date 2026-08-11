@@ -5,6 +5,11 @@ from ADP.ADP_Statistic import (
 )
 from ADP.engine.calculus import calculate_weight as _weight_blocks_single
 from ADP.engine.calculus import calculate_multi_weight as _weight_blocks_multi
+from ADP.engine.box_kernel import (
+    box_kernel,
+    make_plateau_kernel,
+    plateau_kernel,
+)
 
 from .ADP_Config import ADP_Config
 from .ADP_Data import ADP_Data
@@ -32,9 +37,12 @@ __all__ = [
     "ADP_solver",
     "_weight_blocks_multi",
     "_weight_blocks_single",
+    "box_kernel",
     "calculate_statistics",
     "calculate_statistics_gpu",
     "load_experiment",
+    "make_plateau_kernel",
+    "plateau_kernel",
     "run_experiment",
     "run_experiment_terminal",
 ]
