@@ -35,6 +35,22 @@ python ADP/cli.py \
 `--index-init pilot` и `--lambda-penalty 10000`. Режимы `local` и `random`
 можно выбрать явно.
 
+### Точный screening и умный выбор локализации
+
+`--smart-weights` включает exact screening заведомо нулевых весов и выбирает
+максимальный допустимый `rho` (single) или `alpha` (multi) по breakpoint-ам:
+
+```bash
+python ADP/cli.py \
+  --terminal-only --no-progress --smart-weights \
+  --mode multi --index-dim 2 --solver lsmr \
+  --n 1000 --d 100 --N_loc 5 --N_J 200 --N_phi 3
+```
+
+Режим работает с `--kernel epanechnikov`. Без флага используется прежний
+расчёт; `--no-smart-weights` отключает его явно. Параметр `--a` по-прежнему
+задаёт геометрическое уменьшение bandwidth и не является `alpha`.
+
 ### Single-index с VarPro
 
 ```bash
@@ -131,6 +147,7 @@ python ADP/cli.py \
   --lambda_penalty 100 \
   --local_ridge 1e-8 \
   --kernel epanechnikov \
+  --smart-weights \
   --a 1.4142135623730951 \
   --h_min 1000000 \
   --batch_size 16 \

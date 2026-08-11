@@ -2,6 +2,7 @@ from collections.abc import Callable, Iterator
 
 import numpy as np
 
+from ..ADP_Config import epanechnikov
 from . import utils
 
 
@@ -64,6 +65,103 @@ def calculate_h0(
         kernel,
         lower=h_min,
     )
+
+
+def select_optimal_alpha(
+    orthogonal2: np.ndarray,
+    principal2: np.ndarray,
+    h: float,
+    target_mass: float,
+) -> float | None:
+    """Largest alpha in [0, 1] meeting Epanechnikov total mass."""
+    orthogonal2 = utils._finite_real_array(orthogonal2, "orthogonal2")
+    principal2 = utils._finite_real_array(principal2, "principal2")
+    if orthogonal2.shape != principal2.shape or orthogonal2.ndim != 2:
+        raise ValueError("orthogonal2 and principal2 must have equal shape (J, n)")
+    if np.any(orthogonal2 < 0) or np.any(principal2 < 0):
+        raise ValueError("localization components must be nonnegative")
+    if not np.isfinite(h) or h <= 0:
+        raise ValueError("h must be finite and positive")
+    if not np.isfinite(target_mass) or target_mass <= 0:
+        raise ValueError("target_mass must be finite and positive")
+
+    h2 = h**2
+    h4 = h2**2
+
+    def mass(z: float) -> float:
+        argument = (orthogonal2 * z + principal2) / h2
+        return float(epanechnikov(argument).sum())
+
+    if mass(1.0) >= target_mass:
+        return 1.0
+    if mass(0.0) < target_mass:
+        return None
+
+    active = principal2 < h2
+    a = orthogonal2[active]
+    b = principal2[active]
+    del active
+    tau = np.divide(
+        h2 - b,
+        a,
+        out=np.full_like(a, np.inf),
+        where=a > 0,
+    )
+    order = np.argsort(tau)
+    tau = tau[order]
+    a = a[order]
+    b = b[order]
+    del order
+    count = len(a)
+    suffix_ab = a * b
+    np.square(a, out=a)
+    np.square(b, out=b)
+    np.cumsum(a[::-1], out=a[::-1])
+    np.cumsum(suffix_ab[::-1], out=suffix_ab[::-1])
+    np.cumsum(b[::-1], out=b[::-1])
+    suffix_a2 = a
+    suffix_b2 = b
+    stop = int(np.searchsorted(tau, 1.0, side="right"))
+    mass_tolerance = 64.0 * np.finfo(float).eps * max(target_mass, 1.0)
+    low, high = 0, stop
+    while low < high:
+        middle = (low + high) // 2
+        z = tau[middle]
+        breakpoint_mass = count - middle - (
+            suffix_a2[middle] * z**2
+            + 2.0 * suffix_ab[middle] * z
+            + suffix_b2[middle]
+        ) / h4
+        if breakpoint_mass <= target_mass + mass_tolerance:
+            high = middle
+        else:
+            low = middle + 1
+    if low < stop:
+        right = float(tau[low])
+        index = int(np.searchsorted(tau, right, side="left"))
+    else:
+        right = 1.0
+        index = stop
+
+    active_count = count - index
+    a2 = float(suffix_a2[index]) if active_count else 0.0
+    ab = float(suffix_ab[index]) if active_count else 0.0
+    b2 = float(suffix_b2[index]) if active_count else 0.0
+    constant = b2 - h4 * (active_count - target_mass)
+    if constant == 0.0:
+        root = 0.0
+    elif a2:
+        root = -constant / (
+            ab + np.sqrt(max(ab**2 - a2 * constant, 0.0))
+        )
+    elif ab:
+        root = -constant / (2.0 * ab)
+    else:
+        raise RuntimeError("could not locate the optimal alpha breakpoint")
+    tolerance = 64.0 * np.finfo(float).eps * max(1.0, abs(right))
+    if not -tolerance <= root <= right + tolerance:
+        raise RuntimeError("could not locate the optimal alpha breakpoint")
+    return float(np.sqrt(np.clip(root, 0.0, 1.0)))
 
 
 def initialize_beta_local(
@@ -219,7 +317,9 @@ def calculate_rho_k(
     kernel: Callable,
     *,
     distance2: np.ndarray | None = None,
+    smart: bool = False,
 ) -> float | None:
+    _check_smart(smart, kernel)
     X, centers, beta, distance2 = utils._prepare_rho(
         X, centers, beta, h_k, distance2
     )
@@ -227,8 +327,16 @@ def calculate_rho_k(
     if distance2 is None:
         distance2 = pairwise_distance2(X, centers)
     projected = (centers @ beta)[:, None] - (X @ beta)[None, :]
+    projection2 = np.square(projected)
+    if smart:
+        return select_optimal_alpha(
+            distance2,
+            projection2,
+            h_k,
+            N_loc * len(centers),
+        )
     inverse_h2 = 1.0 / h_k**2
-    projection2 = np.square(projected) * inverse_h2
+    projection2 *= inverse_h2
     scaled_distance2 = distance2 * inverse_h2
 
     def enough(rho: float) -> bool:
@@ -270,6 +378,21 @@ def generate_proj(
     return values / norms
 
 
+def single_nonzero_weight_mask(
+    projection2: np.ndarray,
+    h: float,
+    rho: float,
+) -> np.ndarray:
+    projection2 = utils._finite_real_array(projection2, "projection2")
+    if np.any(projection2 < 0):
+        raise ValueError("projection2 must be nonnegative")
+    if not np.isfinite(h) or h <= 0:
+        raise ValueError("h must be finite and positive")
+    if not np.isfinite(rho) or not 0 <= rho <= 1:
+        raise ValueError("rho must lie in [0, 1]")
+    return (1.0 + rho**2) * projection2 < h**2
+
+
 def calculate_weight(
     X: np.ndarray,
     centers: np.ndarray,
@@ -280,7 +403,9 @@ def calculate_weight(
     block_size: int = 128,
     *,
     distance2: np.ndarray | None = None,
+    smart: bool = False,
 ) -> Iterator[tuple[int, np.ndarray]]:
+    _check_smart(smart, kernel)
     X, centers, beta = utils._prepare_weight_data(
         X, centers, beta, h, rho, kernel, block_size
     )
@@ -305,8 +430,27 @@ def calculate_weight(
         projection_diff = (
             center_proj[start : start + block_size, None] - x_proj[None, :]
         )
-        argument = (rho**2 * distance2_block + projection_diff**2) / h**2
-        yield start, kernel(argument)
+        projection2 = projection_diff
+        np.square(projection2, out=projection2)
+        if smart:
+            candidates = (1.0 + rho**2) * projection2 < h**2
+            # Gram distances can undershoot their projection through cancellation.
+            candidates |= distance2_block < projection2
+            # Boolean gathers only beat dense ufuncs for very sparse support.
+            if np.count_nonzero(candidates) * 64 >= candidates.size:
+                projection2 += rho**2 * distance2_block
+                projection2 /= h**2
+                yield start, kernel(projection2)
+                continue
+            weights = np.zeros_like(projection2)
+            argument = (
+                rho**2 * distance2_block[candidates] + projection2[candidates]
+            ) / h**2
+            weights[candidates] = kernel(argument)
+            yield start, weights
+        else:
+            argument = (rho**2 * distance2_block + projection2) / h**2
+            yield start, kernel(argument)
 
 
 def calculate_alpha_k(
@@ -319,7 +463,9 @@ def calculate_alpha_k(
     kernel: Callable,
     *,
     distance2: np.ndarray | None = None,
+    smart: bool = False,
 ) -> float | None:
+    _check_smart(smart, kernel)
     X, centers, basis, eigenvalues = _prepare_multi_localization(
         X,
         centers,
@@ -343,6 +489,13 @@ def calculate_alpha_k(
         eigenvalues,
         distance2,
     )
+    if smart:
+        return select_optimal_alpha(
+            orthogonal2,
+            principal2,
+            h_k,
+            N_loc * len(centers),
+        )
     inverse_h2 = 1.0 / h_k**2
 
     def enough(alpha: float) -> bool:
@@ -392,6 +545,15 @@ def generate_multi_proj(
     return values / norms
 
 
+def multi_nonzero_weight_mask(principal2: np.ndarray, h: float) -> np.ndarray:
+    principal2 = utils._finite_real_array(principal2, "principal2")
+    if np.any(principal2 < 0):
+        raise ValueError("principal2 must be nonnegative")
+    if not np.isfinite(h) or h <= 0:
+        raise ValueError("h must be finite and positive")
+    return principal2 < h**2
+
+
 def calculate_multi_weight(
     X: np.ndarray,
     centers: np.ndarray,
@@ -403,7 +565,9 @@ def calculate_multi_weight(
     block_size: int = 128,
     *,
     distance2: np.ndarray | None = None,
+    smart: bool = False,
 ) -> Iterator[tuple[int, np.ndarray]]:
+    _check_smart(smart, kernel)
     X, centers, basis, eigenvalues = _prepare_multi_localization(
         X,
         centers,
@@ -429,27 +593,75 @@ def calculate_multi_weight(
         else:
             distance2_block = distance2[start : start + block_size]
 
-        orthogonal2, principal2 = _multi_components(
-            X,
-            C,
-            basis,
-            eigenvalues,
-            distance2_block,
-        )
-        argument = (alpha**2 * orthogonal2 + principal2) / h**2
-        yield start, kernel(argument)
+        if smart:
+            projected2, principal2 = _multi_projected_components(
+                X,
+                C,
+                basis,
+                eigenvalues,
+                distance2_block.shape,
+            )
+            candidates = principal2 < h**2
+            # Boolean gathers only beat dense ufuncs for very sparse support.
+            if np.count_nonzero(candidates) * 64 >= candidates.size:
+                np.subtract(distance2_block, projected2, out=projected2)
+                np.maximum(projected2, 0.0, out=projected2)
+                projected2 *= alpha**2
+                projected2 += principal2
+                projected2 /= h**2
+                yield start, kernel(projected2)
+                continue
+            weights = np.zeros_like(principal2)
+            orthogonal2 = np.maximum(
+                distance2_block[candidates] - projected2[candidates],
+                0.0,
+            )
+            argument = (
+                alpha**2 * orthogonal2 + principal2[candidates]
+            ) / h**2
+            weights[candidates] = kernel(argument)
+            yield start, weights
+        else:
+            orthogonal2, principal2 = _multi_components(
+                X,
+                C,
+                basis,
+                eigenvalues,
+                distance2_block,
+            )
+            argument = (alpha**2 * orthogonal2 + principal2) / h**2
+            yield start, kernel(argument)
+
+
+def _check_smart(smart, kernel):
+    if not isinstance(smart, (bool, np.bool_)):
+        raise TypeError("smart must be boolean")
+    if smart and kernel is not epanechnikov:
+        raise ValueError("smart weights require the epanechnikov kernel")
 
 
 def _multi_components(X, centers, basis, eigenvalues, distance2):
-    orthogonal2 = distance2.copy()
-    principal2 = np.zeros_like(distance2)
-    for vector, eigenvalue in zip(basis.T, eigenvalues):
-        difference = (centers @ vector)[:, None] - (X @ vector)[None, :]
-        component2 = np.square(difference)
-        orthogonal2 -= component2
-        principal2 += eigenvalue * component2
+    projected2, principal2 = _multi_projected_components(
+        X,
+        centers,
+        basis,
+        eigenvalues,
+        distance2.shape,
+    )
+    orthogonal2 = distance2 - projected2
     np.maximum(orthogonal2, 0.0, out=orthogonal2)
     return orthogonal2, principal2
+
+
+def _multi_projected_components(X, centers, basis, eigenvalues, shape):
+    projected2 = np.zeros(shape)
+    principal2 = np.zeros(shape)
+    for vector, eigenvalue in zip(basis.T, eigenvalues):
+        component2 = (centers @ vector)[:, None] - (X @ vector)[None, :]
+        np.square(component2, out=component2)
+        projected2 += component2
+        principal2 += eigenvalue * component2
+    return projected2, principal2
 
 
 def _prepare_multi_localization(

@@ -104,6 +104,7 @@ class ADP_multi_index:
             local_ridge = config.local_ridge
             outer_steps = config.outer_steps
             seed = config.seed
+            smart_weights = config.smart_weights
 
             utils._check_model_sizes(n, d, N_loc, N_lin, N_J, config.index_init)
 
@@ -169,6 +170,7 @@ class ADP_multi_index:
                     kernel,
                     block_size=batch_size,
                     distance2=distance2,
+                    smart=smart_weights,
                 )
                 statistics = calculate_statistics(
                     X,
@@ -230,6 +232,7 @@ class ADP_multi_index:
                     N_loc,
                     kernel,
                     distance2=distance2,
+                    smart=smart_weights,
                 )
                 if next_alpha is None:
                     stop_reason = "local_mass_limit"
@@ -258,6 +261,7 @@ class ADP_multi_index:
             "N_phi": N_phi,
             "h_min": float(h_min),
             "index_dim": m,
+            "smart_weights": smart_weights,
         }
         self.n_features_in_ = d
         return self

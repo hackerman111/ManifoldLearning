@@ -103,6 +103,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=argparse.SUPPRESS,
         help="инициализация индекса (по умолчанию pilot для multi, local для single)",
     )
+    parser.add_argument(
+        "--smart-weights",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="точный screening весов и оптимальный подбор alpha/rho",
+    )
     return parser
 
 
@@ -135,6 +141,7 @@ def experiment_from_args(
             h_min=args.h_min,
             batch_size=args.batch_size,
             index_init=index_init or ("pilot" if args.mode == "multi" else "local"),
+            smart_weights=args.smart_weights,
         )
         return validate_experiment(
             ADP_Experiment(
@@ -246,6 +253,14 @@ def _print_terminal_summary(experiment, runs):
             print(
                 "инициализация индекса: "
                 f"{experiment.variants[variant].config.index_init}"
+            )
+            print(
+                "умные веса: "
+                + (
+                    "да"
+                    if experiment.variants[variant].config.smart_weights
+                    else "нет"
+                )
             )
             if experiment.mode == "single":
                 print(

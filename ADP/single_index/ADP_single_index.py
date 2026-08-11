@@ -15,7 +15,7 @@ from ..engine.calculus import (
     search_bandwidth,
 )
 from ..engine.logger import finish_tracking, start_tracking, track_stage
-from .solvers.VarPro import solve as solve_varpro
+from .solvers.LSMR import solve as solve_lsmr
 
 
 @dataclass(slots=True)
@@ -56,8 +56,8 @@ class ADP_single_index:
     ):
         self.config = config or ADP_Config()
         self.solver = solver or ADP_solver(
-            solve_varpro,
-            tol=1e-7 / 2,
+            solve_lsmr,
+            tol=1e-8 ,
         )
         self.ADP_single_index_result = ADP_single_index_result
 
@@ -88,6 +88,7 @@ class ADP_single_index:
             index_init = config.index_init
             seed = config.seed
             configured_h_min = config.h_min
+            smart_weights = config.smart_weights
 
             if index_init == "pilot":
                 raise ValueError("pilot initialization is multi-index only")
@@ -154,6 +155,7 @@ class ADP_single_index:
                     kernel,
                     block_size=batch_size,
                     distance2=distance2,
+                    smart=smart_weights,
                 )
                 statistics = calculate_statistics(
                     X,
@@ -212,6 +214,7 @@ class ADP_single_index:
                     N_loc,
                     kernel,
                     distance2=distance2,
+                    smart=smart_weights,
                 )
                 if next_rho is None:
                     stop_reason = "local_mass_limit"
@@ -234,6 +237,7 @@ class ADP_single_index:
             "N_J": N_J,
             "N_phi": N_phi,
             "h_min": float(h_min),
+            "smart_weights": smart_weights,
         }
         return self
 

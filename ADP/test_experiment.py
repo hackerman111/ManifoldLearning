@@ -39,6 +39,21 @@ def test_cli_builds_multi_manual_experiment():
     assert experiment.variants["default"].config.lambda_penalty == 10000.0
 
 
+def test_cli_enables_smart_weights_explicitly():
+    from ADP.cli import build_parser, experiment_from_args
+
+    parser = build_parser()
+
+    legacy = experiment_from_args(parser.parse_args([]), parser)
+    smart = experiment_from_args(
+        parser.parse_args(["--smart-weights"]),
+        parser,
+    )
+
+    assert legacy.variants["default"].config.smart_weights is False
+    assert smart.variants["default"].config.smart_weights is True
+
+
 def test_single_experiment_rejects_pilot_initialization():
     from ADP import ADP_Experiment, ADP_ExperimentPoint, ADP_ExperimentVariant
     from ADP.experiment import validate_experiment
