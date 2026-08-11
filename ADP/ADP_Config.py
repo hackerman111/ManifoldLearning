@@ -28,6 +28,7 @@ class ADP_Config:
     batch_size: int = 32
     index_init: str = "local"
     smart_weights: bool = False
+    gpu: bool = False
 
     def __post_init__(self) -> None:
         integer_fields = (
@@ -66,5 +67,7 @@ class ADP_Config:
             raise ValueError("index_init must be 'local', 'pilot', or 'random'")
         if not isinstance(self.smart_weights, (bool, np.bool_)):
             raise TypeError("smart_weights must be boolean")
+        if not isinstance(self.gpu, (bool, np.bool_)):
+            raise TypeError("gpu must be boolean")
         if self.smart_weights and self.kernel is not epanechnikov:
             raise ValueError("smart_weights requires the epanechnikov kernel")

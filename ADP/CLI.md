@@ -51,6 +51,20 @@ python ADP/cli.py \
 расчёт; `--no-smart-weights` отключает его явно. Параметр `--a` по-прежнему
 задаёт геометрическое уменьшение bandwidth и не является `alpha`.
 
+### Статистики и LSMR на GPU
+
+`--gpu` переносит статистики и встроенный LSMR на CUDA через CuPy:
+
+```bash
+python ADP/cli.py \
+  --terminal-only --no-progress --gpu --smart-weights \
+  --mode multi --index-dim 2 --solver lsmr \
+  --n 10000 --d 1000 --N_loc 20 --N_J 10000 --N_phi 3
+```
+
+CuPy и доступная NVIDIA GPU обязательны: CPU fallback отсутствует. Генерация
+данных, направлений и весов остаётся на CPU. `--gpu` несовместим с VarPro.
+
 ### Single-index с VarPro
 
 ```bash
@@ -148,6 +162,7 @@ python ADP/cli.py \
   --local_ridge 1e-8 \
   --kernel epanechnikov \
   --smart-weights \
+  --gpu \
   --a 1.4142135623730951 \
   --h_min 1000000 \
   --batch_size 16 \

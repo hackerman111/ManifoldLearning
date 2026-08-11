@@ -162,6 +162,8 @@ def validate_experiment(experiment: ADP_Experiment) -> ADP_Experiment:
             raise TypeError("variant.config must be ADP_Config")
         if experiment.mode == "single" and variant.config.index_init == "pilot":
             raise ValueError("pilot initialization is multi-index only")
+        if variant.config.gpu and variant.solver == "varpro":
+            raise ValueError("GPU mode requires the built-in LSMR solver")
         _validate_solver_settings(experiment.mode, variant)
     if len(variant_names) != len(set(variant_names)):
         raise ValueError("variant names must be unique")

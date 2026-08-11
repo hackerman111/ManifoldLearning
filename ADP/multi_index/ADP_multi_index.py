@@ -5,7 +5,7 @@ import numpy as np
 
 from ..ADP_Config import ADP_Config
 from ..ADP_Solver import ADP_solver
-from ..ADP_Statistic import calculate_statistics
+from ..ADP_Statistic import calculate_statistics, calculate_statistics_gpu
 from ..engine import utils
 from ..engine.calculus import (
     calculate_alpha_k,
@@ -18,6 +18,7 @@ from ..engine.calculus import (
     search_bandwidth,
 )
 from ..engine.logger import finish_tracking, start_tracking, track_stage
+from ..gpu import require_cupy
 from ..single_index.solvers.LSMR import solve as solve_lsmr
 
 
@@ -86,8 +87,15 @@ class ADP_multi_index:
 
     def _fit(self, X, Y, tracker, progress):
         with track_stage(tracker, "initialization"):
-            X, Y = utils._prepare_xy(X, Y)
             config = self.config
+            statistics_function = calculate_statistics
+            if config.gpu:
+                if self.solver.method is not solve_lsmr:
+                    raise ValueError("GPU mode requires the built-in LSMR solver")
+                require_cupy()
+                statistics_function = calculate_statistics_gpu
+
+            X, Y = utils._prepare_xy(X, Y)
             n, d = X.shape
             m = self.index_dim
             if m >= d:
@@ -172,7 +180,7 @@ class ADP_multi_index:
                     distance2=distance2,
                     smart=smart_weights,
                 )
-                statistics = calculate_statistics(
+                statistics = statistics_function(
                     X,
                     Y,
                     weights,
@@ -262,6 +270,7 @@ class ADP_multi_index:
             "h_min": float(h_min),
             "index_dim": m,
             "smart_weights": smart_weights,
+            "gpu": config.gpu,
         }
         self.n_features_in_ = d
         return self

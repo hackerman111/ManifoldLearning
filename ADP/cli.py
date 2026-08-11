@@ -109,6 +109,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help="точный screening весов и оптимальный подбор alpha/rho",
     )
+    parser.add_argument(
+        "--gpu",
+        action="store_true",
+        help="считать статистики и встроенный LSMR через CuPy",
+    )
     return parser
 
 
@@ -142,6 +147,7 @@ def experiment_from_args(
             batch_size=args.batch_size,
             index_init=index_init or ("pilot" if args.mode == "multi" else "local"),
             smart_weights=args.smart_weights,
+            gpu=args.gpu,
         )
         return validate_experiment(
             ADP_Experiment(
@@ -261,6 +267,10 @@ def _print_terminal_summary(experiment, runs):
                     if experiment.variants[variant].config.smart_weights
                     else "нет"
                 )
+            )
+            print(
+                "GPU (статистики + LSMR): "
+                + ("да" if experiment.variants[variant].config.gpu else "нет")
             )
             if experiment.mode == "single":
                 print(

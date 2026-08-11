@@ -1,4 +1,8 @@
-from ADP.ADP_Statistic import ADP_Statistics, calculate_statistics
+from ADP.ADP_Statistic import (
+    ADP_Statistics,
+    calculate_statistics,
+    calculate_statistics_gpu,
+)
 from ADP.engine.calculus import calculate_weight as _weight_blocks_single
 from ADP.engine.calculus import calculate_multi_weight as _weight_blocks_multi
 
@@ -29,6 +33,7 @@ __all__ = [
     "_weight_blocks_multi",
     "_weight_blocks_single",
     "calculate_statistics",
+    "calculate_statistics_gpu",
     "load_experiment",
     "run_experiment",
     "run_experiment_terminal",

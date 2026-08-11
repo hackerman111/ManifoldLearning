@@ -4,7 +4,7 @@ import numpy as np
 
 from ..ADP_Config import ADP_Config
 from ..ADP_Solver import ADP_solver
-from ..ADP_Statistic import calculate_statistics
+from ..ADP_Statistic import calculate_statistics, calculate_statistics_gpu
 from ..engine import utils
 from ..engine.calculus import (
     calculate_rho_k,
@@ -15,6 +15,7 @@ from ..engine.calculus import (
     search_bandwidth,
 )
 from ..engine.logger import finish_tracking, start_tracking, track_stage
+from ..gpu import require_cupy
 from .solvers.LSMR import solve as solve_lsmr
 
 
@@ -70,8 +71,15 @@ class ADP_single_index:
 
     def _fit(self, X, Y, tracker, progress):
         with track_stage(tracker, "initialization"):
-            X, Y = utils._prepare_xy(X, Y)
             config = self.config
+            statistics_function = calculate_statistics
+            if config.gpu:
+                if self.solver.method is not solve_lsmr:
+                    raise ValueError("GPU mode requires the built-in LSMR solver")
+                require_cupy()
+                statistics_function = calculate_statistics_gpu
+
+            X, Y = utils._prepare_xy(X, Y)
             n, d = X.shape
 
             # Локальные имена короче self.config.N_loc.
@@ -157,7 +165,7 @@ class ADP_single_index:
                     distance2=distance2,
                     smart=smart_weights,
                 )
-                statistics = calculate_statistics(
+                statistics = statistics_function(
                     X,
                     Y,
                     weights,
@@ -238,6 +246,7 @@ class ADP_single_index:
             "N_phi": N_phi,
             "h_min": float(h_min),
             "smart_weights": smart_weights,
+            "gpu": config.gpu,
         }
         return self
 
