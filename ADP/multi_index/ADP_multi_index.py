@@ -17,6 +17,14 @@ from ..engine.calculus import (
     pairwise_distance2,
     search_bandwidth,
 )
+from ..engine.box_kernel import (
+    NeighborhoodEngine,
+    SparseStatisticsCache,
+    initialize_basis_local_sparse,
+    search_sparse_bandwidth,
+    search_sparse_scale,
+    sparse_kernel_parameters,
+)
 from ..engine.logger import finish_tracking, start_tracking, track_stage
 from ..gpu import require_cupy
 from ..single_index.solvers.LSMR import solve as solve_lsmr
@@ -113,6 +121,7 @@ class ADP_multi_index:
             outer_steps = config.outer_steps
             seed = config.seed
             smart_weights = config.smart_weights
+            sparse_kernel = sparse_kernel_parameters(kernel)
 
             utils._check_model_sizes(n, d, N_loc, N_lin, N_J, config.index_init)
 
@@ -127,12 +136,32 @@ class ADP_multi_index:
                 centers = X.copy()
             else:
                 centers = X[rng.choice(n, size=N_J, replace=False)]
-            distance2 = pairwise_distance2(X, centers)
+            if sparse_kernel is None:
+                distance2 = pairwise_distance2(X, centers)
+                neighborhood_engine = statistics_cache = None
+            else:
+                distance2 = None
+                neighborhood_engine = NeighborhoodEngine(
+                    X,
+                    centers,
+                    block_size=batch_size,
+                )
+                statistics_cache = SparseStatisticsCache()
 
             if config.index_init == "random":
                 basis_init = initialize_basis_random(rng, d, m)
             elif config.index_init == "pilot":
                 basis_init = initialize_basis_pilot(X, Y, m, seed=seed)
+            elif sparse_kernel is not None:
+                basis_init = initialize_basis_local_sparse(
+                    X,
+                    Y,
+                    neighborhood_engine,
+                    N_lin,
+                    kernel,
+                    local_ridge,
+                    m,
+                )
             else:
                 basis_init = initialize_basis_local(
                     X,
@@ -147,7 +176,16 @@ class ADP_multi_index:
 
             initial_basis = basis_init.copy()
             result = self.ADP_multi_index_result(beta_init=initial_basis)
-            h = search_bandwidth(distance2, N_loc, kernel, lower=h_min)
+            h = (
+                search_bandwidth(distance2, N_loc, kernel, lower=h_min)
+                if sparse_kernel is None
+                else search_sparse_bandwidth(
+                    neighborhood_engine,
+                    N_loc,
+                    kernel,
+                    lower=h_min,
+                )
+            )
             alpha = 1.0
             localization_basis = basis_init
             localization_eigenvalues = np.ones(m)
@@ -168,25 +206,42 @@ class ADP_multi_index:
                     alpha,
                 )
             with track_stage(tracker, "statistics"):
-                weights = calculate_multi_weight(
-                    X,
-                    centers,
-                    localization_basis,
-                    localization_eigenvalues,
-                    h,
-                    alpha,
-                    kernel,
-                    block_size=batch_size,
-                    distance2=distance2,
-                    smart=smart_weights,
-                )
-                statistics = statistics_function(
-                    X,
-                    Y,
-                    weights,
-                    directions,
-                    batch_size=batch_size,
-                )
+                if sparse_kernel is None:
+                    weights = calculate_multi_weight(
+                        X,
+                        centers,
+                        localization_basis,
+                        localization_eigenvalues,
+                        h,
+                        alpha,
+                        kernel,
+                        block_size=batch_size,
+                        distance2=distance2,
+                        smart=smart_weights,
+                    )
+                    statistics = statistics_function(
+                        X,
+                        Y,
+                        weights,
+                        directions,
+                        batch_size=batch_size,
+                    )
+                else:
+                    weights = neighborhood_engine.multi_blocks(
+                        localization_basis,
+                        localization_eigenvalues,
+                        h,
+                        alpha,
+                        kernel,
+                    )
+                    statistics = statistics_function(
+                        X,
+                        Y,
+                        weights,
+                        directions,
+                        batch_size=batch_size,
+                        sparse_cache=statistics_cache,
+                    )
             with track_stage(tracker, "solver"):
                 solver_result = self.solver.fit(
                     statistics,
@@ -208,9 +263,19 @@ class ADP_multi_index:
                 raise RuntimeError("multi-index solver returned invalid eigenvalues")
 
             solver_diagnostics.append(diagnostics)
+            neighborhood_diagnostics = (
+                {}
+                if sparse_kernel is None
+                else {
+                    "support_edges": neighborhood_engine.last_support_edges,
+                    "boundary_edges": neighborhood_engine.last_boundary_edges,
+                    "support_reuse_hits": statistics_cache.last_hits,
+                }
+            )
             result.trace.append(
                 {
                     **diagnostics,
+                    **neighborhood_diagnostics,
                     "k": k,
                     "h": float(h),
                     "alpha": float(alpha),
@@ -231,17 +296,30 @@ class ADP_multi_index:
                     break
 
                 basis_init = basis
-                next_alpha = calculate_alpha_k(
-                    X,
-                    centers,
-                    basis,
-                    eigenvalues,
-                    next_h,
-                    N_loc,
-                    kernel,
-                    distance2=distance2,
-                    smart=smart_weights,
-                )
+                if sparse_kernel is None:
+                    next_alpha = calculate_alpha_k(
+                        X,
+                        centers,
+                        basis,
+                        eigenvalues,
+                        next_h,
+                        N_loc,
+                        kernel,
+                        distance2=distance2,
+                        smart=smart_weights,
+                    )
+                else:
+                    next_alpha = search_sparse_scale(
+                        lambda value: neighborhood_engine.multi_blocks(
+                            basis,
+                            eigenvalues,
+                            next_h,
+                            value,
+                            kernel,
+                            record=False,
+                        ),
+                        N_loc,
+                    )
                 if next_alpha is None:
                     stop_reason = "local_mass_limit"
                     result.trace[-1]["stop_reason"] = stop_reason
@@ -271,6 +349,12 @@ class ADP_multi_index:
             "index_dim": m,
             "smart_weights": smart_weights,
             "gpu": config.gpu,
+            "kernel_mode": (
+                sparse_kernel[0] if sparse_kernel is not None else "callable"
+            ),
+            "kernel_tau": (
+                sparse_kernel[1] if sparse_kernel is not None else None
+            ),
         }
         self.n_features_in_ = d
         return self

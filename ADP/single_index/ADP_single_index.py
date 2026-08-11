@@ -14,6 +14,14 @@ from ..engine.calculus import (
     pairwise_distance2,
     search_bandwidth,
 )
+from ..engine.box_kernel import (
+    NeighborhoodEngine,
+    SparseStatisticsCache,
+    initialize_basis_local_sparse,
+    search_sparse_bandwidth,
+    search_sparse_scale,
+    sparse_kernel_parameters,
+)
 from ..engine.logger import finish_tracking, start_tracking, track_stage
 from ..gpu import require_cupy
 from .solvers.LSMR import solve as solve_lsmr
@@ -97,6 +105,7 @@ class ADP_single_index:
             seed = config.seed
             configured_h_min = config.h_min
             smart_weights = config.smart_weights
+            sparse_kernel = sparse_kernel_parameters(kernel)
 
             if index_init == "pilot":
                 raise ValueError("pilot initialization is multi-index only")
@@ -114,11 +123,31 @@ class ADP_single_index:
                 centers = X.copy()
             else:
                 centers = X[rng.choice(n, size=N_J, replace=False)]
-            distance2 = pairwise_distance2(X, centers)
+            if sparse_kernel is None:
+                distance2 = pairwise_distance2(X, centers)
+                neighborhood_engine = statistics_cache = None
+            else:
+                distance2 = None
+                neighborhood_engine = NeighborhoodEngine(
+                    X,
+                    centers,
+                    block_size=batch_size,
+                )
+                statistics_cache = SparseStatisticsCache()
 
             if index_init == "random":
                 beta_init = rng.normal(size=d)
                 beta_init /= np.linalg.norm(beta_init)
+            elif sparse_kernel is not None:
+                beta_init = initialize_basis_local_sparse(
+                    X,
+                    Y,
+                    neighborhood_engine,
+                    N_lin,
+                    kernel,
+                    local_ridge,
+                    1,
+                )[:, 0]
             else:
                 beta_init = initialize_beta_local(
                     X,
@@ -134,7 +163,16 @@ class ADP_single_index:
 
             result = self.ADP_single_index_result(beta_init=initial_beta)
 
-            h0 = search_bandwidth(distance2, N_loc, kernel, lower=h_min)
+            h0 = (
+                search_bandwidth(distance2, N_loc, kernel, lower=h_min)
+                if sparse_kernel is None
+                else search_sparse_bandwidth(
+                    neighborhood_engine,
+                    N_loc,
+                    kernel,
+                    lower=h_min,
+                )
+            )
             h = h0
             rho = 1.0
             localization_beta = np.zeros(d)
@@ -154,24 +192,40 @@ class ADP_single_index:
                     rho,
                 )
             with track_stage(tracker, "statistics"):
-                weights = calculate_weight(
-                    X,
-                    centers,
-                    localization_beta,
-                    h,
-                    rho,
-                    kernel,
-                    block_size=batch_size,
-                    distance2=distance2,
-                    smart=smart_weights,
-                )
-                statistics = statistics_function(
-                    X,
-                    Y,
-                    weights,
-                    directions,
-                    batch_size=batch_size,
-                )
+                if sparse_kernel is None:
+                    weights = calculate_weight(
+                        X,
+                        centers,
+                        localization_beta,
+                        h,
+                        rho,
+                        kernel,
+                        block_size=batch_size,
+                        distance2=distance2,
+                        smart=smart_weights,
+                    )
+                    statistics = statistics_function(
+                        X,
+                        Y,
+                        weights,
+                        directions,
+                        batch_size=batch_size,
+                    )
+                else:
+                    weights = neighborhood_engine.single_blocks(
+                        localization_beta,
+                        h,
+                        rho,
+                        kernel,
+                    )
+                    statistics = statistics_function(
+                        X,
+                        Y,
+                        weights,
+                        directions,
+                        batch_size=batch_size,
+                        sparse_cache=statistics_cache,
+                    )
             with track_stage(tracker, "solver"):
                 solver_result = self.solver.fit(
                     statistics,
@@ -192,9 +246,19 @@ class ADP_single_index:
 
             diagnostics = dict(solver_result.diagnostics)
             solver_diagnostics.append(diagnostics)
+            neighborhood_diagnostics = (
+                {}
+                if sparse_kernel is None
+                else {
+                    "support_edges": neighborhood_engine.last_support_edges,
+                    "boundary_edges": neighborhood_engine.last_boundary_edges,
+                    "support_reuse_hits": statistics_cache.last_hits,
+                }
+            )
             result.trace.append(
                 {
                     **diagnostics,
+                    **neighborhood_diagnostics,
                     "k": k,
                     "h": float(h),
                     "rho": float(rho),
@@ -214,16 +278,28 @@ class ADP_single_index:
                     break
 
                 beta_init = beta
-                next_rho = calculate_rho_k(
-                    X,
-                    centers,
-                    beta_init,
-                    next_h,
-                    N_loc,
-                    kernel,
-                    distance2=distance2,
-                    smart=smart_weights,
-                )
+                if sparse_kernel is None:
+                    next_rho = calculate_rho_k(
+                        X,
+                        centers,
+                        beta_init,
+                        next_h,
+                        N_loc,
+                        kernel,
+                        distance2=distance2,
+                        smart=smart_weights,
+                    )
+                else:
+                    next_rho = search_sparse_scale(
+                        lambda value: neighborhood_engine.single_blocks(
+                            beta_init,
+                            next_h,
+                            value,
+                            kernel,
+                            record=False,
+                        ),
+                        N_loc,
+                    )
                 if next_rho is None:
                     stop_reason = "local_mass_limit"
                     result.trace[-1]["stop_reason"] = stop_reason
@@ -247,6 +323,12 @@ class ADP_single_index:
             "h_min": float(h_min),
             "smart_weights": smart_weights,
             "gpu": config.gpu,
+            "kernel_mode": (
+                sparse_kernel[0] if sparse_kernel is not None else "callable"
+            ),
+            "kernel_tau": (
+                sparse_kernel[1] if sparse_kernel is not None else None
+            ),
         }
         return self
 

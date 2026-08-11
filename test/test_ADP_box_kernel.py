@@ -3,7 +3,13 @@ from functools import partial
 import numpy as np
 import pytest
 
-from ADP import ADP_Config
+from ADP import (
+    ADP_Config,
+    ADP_SolverResult,
+    ADP_multi_index,
+    ADP_single_index,
+    ADP_solver,
+)
 from ADP.ADP_Statistic import calculate_statistics, calculate_statistics_gpu
 from ADP.engine.box_kernel import (
     NeighborhoodEngine,
@@ -350,3 +356,91 @@ def test_plateau_kernel_has_stable_experiment_serialization():
         "args": [],
         "keywords": {"tau": 0.3},
     }
+
+
+def _unchanged_index(statistics, index, **_parameters):
+    index = np.asarray(index)
+    diagnostics = (
+        {}
+        if index.ndim == 1
+        else {"eigenvalues": np.ones(index.shape[1])}
+    )
+    coefficients = np.ones(
+        len(statistics.I)
+        if index.ndim == 1
+        else (len(statistics.I), index.shape[1])
+    )
+    return ADP_SolverResult(index.copy(), coefficients, diagnostics)
+
+
+def _forbid_dense_path(*_args, **_kwargs):
+    raise AssertionError("dense J x n path was called")
+
+
+def test_single_fit_uses_sparse_backend_without_dense_path(monkeypatch):
+    import importlib
+
+    module = importlib.import_module("ADP.single_index.ADP_single_index")
+    monkeypatch.setattr(module, "pairwise_distance2", _forbid_dense_path)
+    monkeypatch.setattr(module, "calculate_weight", _forbid_dense_path)
+    rng = np.random.default_rng(31)
+    X = rng.normal(size=(30, 3))
+    Y = X[:, 0] - 0.3 * X[:, 1]
+    config = ADP_Config(
+        seed=2,
+        N_loc=4,
+        N_lin=6,
+        N_J=8,
+        N_phi=2,
+        outer_steps=1,
+        h_min=1e6,
+        kernel=box_kernel,
+        index_init="local",
+    )
+
+    model = ADP_single_index(config, ADP_solver(_unchanged_index)).fit(X, Y)
+
+    np.testing.assert_allclose(np.linalg.norm(model.beta_), 1.0, atol=1e-12)
+    assert model.effective_parameters_["kernel_mode"] == "box"
+    assert model.effective_parameters_["kernel_tau"] is None
+    assert {
+        "support_edges",
+        "boundary_edges",
+        "support_reuse_hits",
+    } <= model.result_.trace[0].keys()
+
+
+def test_multi_fit_uses_sparse_backend_without_dense_path(monkeypatch):
+    import importlib
+
+    module = importlib.import_module("ADP.multi_index.ADP_multi_index")
+    monkeypatch.setattr(module, "pairwise_distance2", _forbid_dense_path)
+    monkeypatch.setattr(module, "calculate_multi_weight", _forbid_dense_path)
+    rng = np.random.default_rng(37)
+    X = rng.normal(size=(36, 4))
+    Y = np.sin(X[:, 0]) + X[:, 1]
+    config = ADP_Config(
+        seed=3,
+        N_loc=4,
+        N_J=9,
+        N_phi=2,
+        outer_steps=1,
+        h_min=1e6,
+        kernel=make_plateau_kernel(0.4),
+        index_init="pilot",
+    )
+
+    model = ADP_multi_index(
+        2,
+        config,
+        ADP_solver(_unchanged_index),
+    ).fit(X, Y)
+
+    np.testing.assert_allclose(model.basis_.T @ model.basis_, np.eye(2), atol=1e-12)
+    assert model.effective_parameters_["kernel_mode"] == "plateau"
+    assert model.effective_parameters_["kernel_tau"] == 0.4
+    assert {
+        "support_edges",
+        "boundary_edges",
+        "support_reuse_hits",
+    } <= model.result_.trace[0].keys()
