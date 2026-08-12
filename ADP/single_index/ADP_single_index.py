@@ -290,16 +290,26 @@ class ADP_single_index:
                         smart=smart_weights,
                     )
                 else:
-                    next_rho = search_sparse_scale(
-                        lambda value: neighborhood_engine.single_blocks(
+                    next_rho = (
+                        neighborhood_engine.select_single_box_scale(
                             beta_init,
                             next_h,
-                            value,
-                            kernel,
-                            record=False,
-                        ),
-                        N_loc,
+                            N_loc,
+                        )
+                        if sparse_kernel == ("box", None)
+                        else NotImplemented
                     )
+                    if next_rho is NotImplemented:
+                        next_rho = search_sparse_scale(
+                            lambda value: neighborhood_engine.single_blocks(
+                                beta_init,
+                                next_h,
+                                value,
+                                kernel,
+                                record=False,
+                            ),
+                            N_loc,
+                        )
                 if next_rho is None:
                     stop_reason = "local_mass_limit"
                     result.trace[-1]["stop_reason"] = stop_reason

@@ -5,6 +5,9 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 
+_BOX_DISTANCE_CACHE_MAX_BYTES = 64 * 1024**2
+
+
 def _validated_tau(tau: float) -> float:
     tau = float(tau)
     if not np.isfinite(tau) or not 0.0 < tau < 1.0:
@@ -324,10 +327,30 @@ class NeighborhoodEngine:
         self.centers = centers
         self.block_size = int(block_size)
         self.tree = cKDTree(X)
+        self._box_distance2_cache = None
         self._previous_keys = None
         self.last_support_edges = 0
         self.last_boundary_edges = 0
         self.last_support_reuse_hits = 0
+
+    def _box_distance2(self):
+        required_bytes = (
+            len(self.X) * len(self.centers) * np.dtype(float).itemsize
+        )
+        if required_bytes > _BOX_DISTANCE_CACHE_MAX_BYTES:
+            return None
+        if self._box_distance2_cache is None:
+            distance2 = (
+                np.square(self.centers).sum(axis=1)[:, None]
+                + np.square(self.X).sum(axis=1)[None, :]
+                - 2.0 * self.centers @ self.X.T
+            )
+            np.maximum(distance2, 0.0, out=distance2)
+            if not np.all(np.isfinite(distance2)):
+                return None
+            distance2.setflags(write=False)
+            self._box_distance2_cache = distance2
+        return self._box_distance2_cache
 
     @staticmethod
     def _positive(value, name):
@@ -342,6 +365,104 @@ class NeighborhoodEngine:
         if not np.isfinite(value) or not 0 <= value <= 1:
             raise ValueError(f"{name} must lie in [0, 1]")
         return value
+
+    def _beta(self, beta):
+        beta = np.asarray(beta, dtype=float)
+        if beta.shape != (self.X.shape[1],) or not np.all(np.isfinite(beta)):
+            raise ValueError("beta must have finite shape (d,)")
+        norm = np.linalg.norm(beta)
+        if norm != 0 and not np.isclose(norm, 1.0, rtol=1e-8, atol=1e-10):
+            raise ValueError("beta must be zero or unit length")
+        return beta
+
+    def _target_edges(self, target):
+        target = float(target)
+        if not np.isfinite(target) or target <= 0:
+            raise ValueError("target mass must be finite and positive")
+        return int(np.ceil(len(self.centers) * target))
+
+    def _single_box_edge_count(self, beta, h, rho, distance2):
+        x_projection = self.X @ beta
+        center_projection = self.centers @ beta
+        h2 = h**2
+        rho2 = rho**2
+        return sum(
+            np.count_nonzero(
+                rho2 * distance2[row]
+                + np.square(x_projection - center_projection[row])
+                < h2
+            )
+            for row in range(len(self.centers))
+        )
+
+    def _single_box_supports(self, beta, h, rho, distance2):
+        x_projection = self.X @ beta
+        center_projection = self.centers @ beta
+        h2 = h**2
+        rho2 = rho**2
+        return [
+            np.flatnonzero(
+                rho2 * distance2[row]
+                + np.square(x_projection - center_projection[row])
+                < h2
+            )
+            for row in range(len(self.centers))
+        ]
+
+    def select_single_box_scale(self, beta, h, target):
+        beta = self._beta(beta)
+        h = self._positive(h, "h")
+        required = self._target_edges(target)
+        distance2 = self._box_distance2()
+        if distance2 is None:
+            return NotImplemented
+
+        x_projection = self.X @ beta
+        center_projection = self.centers @ beta
+        projection2 = np.square(
+            center_projection[:, None] - x_projection[None, :]
+        )
+        h2 = h**2
+        mass_one = sum(
+            np.count_nonzero(distance2[row] + projection2[row] < h2)
+            for row in range(len(self.centers))
+        )
+        if mass_one >= required:
+            return 1.0
+        if np.count_nonzero(projection2 < h2) < required:
+            return None
+
+        np.subtract(h2, projection2, out=projection2)
+        for row in range(len(self.centers)):
+            positive = distance2[row] > 0
+            numerator = projection2[row]
+            np.divide(
+                numerator,
+                distance2[row],
+                out=numerator,
+                where=positive,
+            )
+            zero = ~positive
+            numerator[zero] = np.where(
+                numerator[zero] > 0,
+                np.inf,
+                -np.inf,
+            )
+
+        breakpoints = projection2.reshape(-1)
+        kth = len(breakpoints) - required
+        breakpoints.partition(kth)
+        breakpoint = float(breakpoints[kth])
+        rho = min(
+            float(np.nextafter(np.sqrt(breakpoint), 0.0)),
+            1.0,
+        )
+        while self._single_box_edge_count(beta, h, rho, distance2) < required:
+            next_rho = float(np.nextafter(rho, 0.0))
+            if next_rho == rho:
+                raise RuntimeError("could not represent a feasible box scale")
+            rho = next_rho
+        return rho
 
     @staticmethod
     def _candidate_array(value):
@@ -434,6 +555,21 @@ class NeighborhoodEngine:
 
     def isotropic_blocks(self, h, kernel, *, record=False):
         h = self._positive(h, "h")
+        parameters = sparse_kernel_parameters(kernel)
+        distance2 = (
+            self._box_distance2()
+            if parameters == ("box", None)
+            else None
+        )
+        if distance2 is not None:
+            supports = [np.flatnonzero(row < h**2) for row in distance2]
+            empty = np.empty(0)
+            return self._encode(
+                supports,
+                [empty] * len(supports),
+                kernel,
+                record,
+            )
         candidates = self._euclidean_candidates(h)
         supports = []
         q_values = []
@@ -446,14 +582,24 @@ class NeighborhoodEngine:
         return self._encode(supports, q_values, kernel, record)
 
     def single_blocks(self, beta, h, rho, kernel, *, record=True):
-        beta = np.asarray(beta, dtype=float)
-        if beta.shape != (self.X.shape[1],) or not np.all(np.isfinite(beta)):
-            raise ValueError("beta must have finite shape (d,)")
-        norm = np.linalg.norm(beta)
-        if norm != 0 and not np.isclose(norm, 1.0, rtol=1e-8, atol=1e-10):
-            raise ValueError("beta must be zero or unit length")
+        beta = self._beta(beta)
         h = self._positive(h, "h")
         rho = self._scale(rho, "rho")
+        parameters = sparse_kernel_parameters(kernel)
+        distance2 = (
+            self._box_distance2()
+            if parameters == ("box", None)
+            else None
+        )
+        if distance2 is not None:
+            supports = self._single_box_supports(beta, h, rho, distance2)
+            empty = np.empty(0)
+            return self._encode(
+                supports,
+                [empty] * len(supports),
+                kernel,
+                record,
+            )
 
         x_projection = self.X @ beta
         center_projection = self.centers @ beta
@@ -583,8 +729,24 @@ def search_sparse_bandwidth(
     if not np.isfinite(target) or target <= 0:
         raise ValueError("target must be finite and positive")
     lower = engine._positive(lower, "lower")
-    if sparse_kernel_parameters(kernel) is None:
+    parameters = sparse_kernel_parameters(kernel)
+    if parameters is None:
         raise ValueError("sparse bandwidth requires box or plateau kernel")
+    if parameters == ("box", None):
+        distance2 = engine._box_distance2()
+        if distance2 is not None:
+            required = engine._target_edges(target)
+            if required > distance2.size:
+                raise RuntimeError("could not bracket a feasible bandwidth")
+            if np.count_nonzero(distance2 < lower**2) >= required:
+                return lower
+            selection = distance2.reshape(-1).copy()
+            selection.partition(required - 1)
+            threshold = float(selection[required - 1])
+            h = float(np.nextafter(np.sqrt(threshold), np.inf))
+            while np.count_nonzero(distance2 < h**2) < required:
+                h = float(np.nextafter(h, np.inf))
+            return h
 
     def enough(h):
         return _mean_sparse_mass(

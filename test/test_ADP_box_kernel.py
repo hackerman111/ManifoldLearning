@@ -154,16 +154,83 @@ def _mean_mass(blocks):
     return float(np.concatenate(masses).mean())
 
 
-def test_sparse_bandwidth_returns_smallest_feasible_box_radius():
+def test_sparse_bandwidth_returns_exact_box_order_statistic():
+    X = np.array([[0.0], [-1.0], [1.0], [3.0]])
+    engine = NeighborhoodEngine(X, X[[0]], block_size=1)
+
+    h = search_sparse_bandwidth(engine, 2.0, box_kernel, lower=0.1)
+
+    assert h == np.nextafter(1.0, np.inf)
+    assert _mean_mass(engine.isotropic_blocks(h, box_kernel)) == 3.0
+    assert _mean_mass(
+        engine.isotropic_blocks(np.nextafter(h, 0.0), box_kernel)
+    ) == 1.0
+    assert engine._box_distance2_cache.dtype == np.float64
+
+
+def test_box_distance_cache_limit_keeps_sparse_fallback(monkeypatch):
+    import ADP.engine.box_kernel as module
+
+    monkeypatch.setattr(module, "_BOX_DISTANCE_CACHE_MAX_BYTES", 0)
     X = np.array([[0.0], [1.0], [3.0]])
     engine = NeighborhoodEngine(X, X[[0]], block_size=1)
 
     h = search_sparse_bandwidth(engine, 2.0, box_kernel, lower=0.1)
 
+    assert engine._box_distance2() is None
+    assert engine._box_distance2_cache is None
+    assert engine.select_single_box_scale(np.ones(1), h, 2.0) is NotImplemented
     assert _mean_mass(engine.isotropic_blocks(h, box_kernel)) >= 2.0
-    assert _mean_mass(
-        engine.isotropic_blocks(np.nextafter(h, 0.0), box_kernel)
-    ) < 2.0
+
+
+def test_box_scale_order_statistic_counts_permanent_zero_distance_edges():
+    X = np.array([[0.0], [1.0], [2.0]])
+    engine = NeighborhoodEngine(X, X, block_size=2)
+    h = 1.4
+
+    rho = engine.select_single_box_scale(np.ones(1), h, 2.0)
+
+    expected = np.nextafter(np.sqrt(h**2 - 1.0), 0.0)
+    assert rho == expected
+    assert _mean_mass(engine.single_blocks(np.ones(1), h, rho, box_kernel)) >= 2.0
+    assert _mean_mass(engine.single_blocks(np.ones(1), h, 1.0, box_kernel)) < 2.0
+
+
+def test_box_scale_returns_none_when_rho_zero_is_infeasible():
+    X = np.array([[0.0], [1.0], [2.0]])
+    engine = NeighborhoodEngine(X, X, block_size=2)
+
+    assert engine.select_single_box_scale(np.ones(1), 0.1, 2.0) is None
+
+
+def test_box_scale_order_statistic_matches_dense_bisection():
+    rng = np.random.default_rng(47)
+    X = rng.normal(size=(24, 3))
+    centers = X[[0, 7, 15, 20]]
+    beta = rng.normal(size=3)
+    beta /= np.linalg.norm(beta)
+    h = 1.5
+    target = 3.0
+    engine = NeighborhoodEngine(X, centers, block_size=2)
+
+    actual = engine.select_single_box_scale(beta, h, target)
+    expected = search_sparse_scale(
+        lambda scale: engine.single_blocks(
+            beta,
+            h,
+            scale,
+            box_kernel,
+            record=False,
+        ),
+        target,
+    )
+
+    np.testing.assert_allclose(
+        actual,
+        expected,
+        rtol=0,
+        atol=np.sqrt(np.finfo(float).eps),
+    )
 
 
 @pytest.mark.parametrize(
@@ -442,6 +509,43 @@ def test_single_fit_uses_sparse_backend_without_dense_path(monkeypatch):
         "boundary_edges",
         "support_reuse_hits",
     } <= model.result_.trace[0].keys()
+
+
+def test_single_fit_routes_box_scale_without_sparse_bisection(monkeypatch):
+    import importlib
+
+    module = importlib.import_module("ADP.single_index.ADP_single_index")
+    calls = []
+
+    def stop_after_exact_scale(self, beta, h, target):
+        calls.append((beta.copy(), h, target))
+        return None
+
+    monkeypatch.setattr(
+        NeighborhoodEngine,
+        "select_single_box_scale",
+        stop_after_exact_scale,
+        raising=False,
+    )
+    monkeypatch.setattr(module, "search_sparse_scale", _forbid_dense_path)
+    rng = np.random.default_rng(43)
+    X = rng.normal(size=(30, 3))
+    Y = X[:, 0] - 0.3 * X[:, 1]
+    config = ADP_Config(
+        seed=4,
+        N_loc=4,
+        N_J=8,
+        N_phi=2,
+        outer_steps=1,
+        h_min=1e-12,
+        kernel=box_kernel,
+        index_init="random",
+    )
+
+    model = ADP_single_index(config, ADP_solver(_unchanged_index)).fit(X, Y)
+
+    assert len(calls) == 1
+    assert model.result_.stop_reason == "local_mass_limit"
 
 
 def test_multi_fit_uses_sparse_backend_without_dense_path(monkeypatch):
