@@ -13,6 +13,7 @@ from ADP import (
 from ADP.ADP_Statistic import calculate_statistics, calculate_statistics_gpu
 from ADP.engine.box_kernel import (
     NeighborhoodEngine,
+    SparseNeighborhoodBlock,
     SparseStatisticsCache,
     box_kernel,
     initialize_basis_local_sparse,
@@ -168,6 +169,34 @@ def test_sparse_bandwidth_returns_exact_box_order_statistic():
     assert engine._box_distance2_cache.dtype == np.float64
 
 
+def test_box_bandwidth_covers_ninety_percent_of_centers():
+    X = np.concatenate(
+        (
+            np.arange(11)[:, None] / 100.0,
+            np.arange(10, 100, 10)[:, None],
+        )
+    )
+    centers = np.arange(0, 100, 10)[:, None]
+    engine = NeighborhoodEngine(X, centers, block_size=4)
+
+    h = search_sparse_bandwidth(engine, 2.0, box_kernel, lower=0.001)
+
+    mass = np.concatenate(
+        [block.mass for block in engine.isotropic_blocks(h, box_kernel)]
+    )
+    previous_mass = np.concatenate(
+        [
+            block.mass
+            for block in engine.isotropic_blocks(
+                np.nextafter(h, 0.0), box_kernel
+            )
+        ]
+    )
+    assert h == np.nextafter(10.0, np.inf)
+    assert np.count_nonzero(mass >= 2.0) >= 9
+    assert np.count_nonzero(previous_mass >= 2.0) < 9
+
+
 def test_box_distance_cache_limit_keeps_sparse_fallback(monkeypatch):
     import ADP.engine.box_kernel as module
 
@@ -180,6 +209,9 @@ def test_box_distance_cache_limit_keeps_sparse_fallback(monkeypatch):
     assert engine._box_distance2() is None
     assert engine._box_distance2_cache is None
     assert engine.select_single_box_scale(np.ones(1), h, 2.0) is NotImplemented
+    assert engine.select_multi_box_scale(
+        np.ones((1, 1)), np.ones(1), h, 2.0
+    ) is NotImplemented
     assert _mean_mass(engine.isotropic_blocks(h, box_kernel)) >= 2.0
 
 
@@ -203,6 +235,41 @@ def test_box_scale_returns_none_when_rho_zero_is_infeasible():
     assert engine.select_single_box_scale(np.ones(1), 0.1, 2.0) is None
 
 
+def test_box_scale_covers_ninety_percent_of_centers():
+    X = np.concatenate(
+        (
+            np.arange(11)[:, None] / 100.0,
+            np.arange(10, 100, 10)[:, None],
+        )
+    )
+    centers = np.arange(0, 100, 10)[:, None]
+    engine = NeighborhoodEngine(X, centers, block_size=4)
+
+    rho = engine.select_single_box_scale(np.ones(1), 12.0, 2.0)
+
+    mass = np.concatenate(
+        [
+            block.mass
+            for block in engine.single_blocks(
+                np.ones(1), 12.0, rho, box_kernel
+            )
+        ]
+    )
+    next_mass = np.concatenate(
+        [
+            block.mass
+            for block in engine.single_blocks(
+                np.ones(1),
+                12.0,
+                np.nextafter(rho, 1.0),
+                box_kernel,
+            )
+        ]
+    )
+    assert np.count_nonzero(mass >= 2.0) >= 9
+    assert np.count_nonzero(next_mass >= 2.0) < 9
+
+
 def test_box_scale_order_statistic_matches_dense_bisection():
     rng = np.random.default_rng(47)
     X = rng.normal(size=(24, 3))
@@ -223,6 +290,104 @@ def test_box_scale_order_statistic_matches_dense_bisection():
             record=False,
         ),
         target,
+        rowwise=True,
+    )
+
+    np.testing.assert_allclose(
+        actual,
+        expected,
+        rtol=0,
+        atol=np.sqrt(np.finfo(float).eps),
+    )
+
+
+def test_multi_box_scale_covers_ninety_percent_and_reuses_support(monkeypatch):
+    values = np.concatenate((np.arange(11) / 100.0, np.arange(10, 100, 10)))
+    X = np.column_stack((values, np.zeros_like(values)))
+    center_values = np.arange(0, 100, 10)
+    centers = np.column_stack((center_values, np.zeros_like(center_values)))
+    basis = np.array([[0.0], [1.0]])
+    eigenvalues = np.ones(1)
+    engine = NeighborhoodEngine(X, centers, block_size=4)
+
+    alpha = engine.select_multi_box_scale(
+        basis,
+        eigenvalues,
+        8.0,
+        2.0,
+    )
+
+    monkeypatch.setattr(engine, "_multi_box_components", _forbid_dense_path)
+    mass = np.concatenate(
+        [
+            block.mass
+            for block in engine.multi_blocks(
+                basis,
+                eigenvalues,
+                8.0,
+                alpha,
+                box_kernel,
+            )
+        ]
+    )
+    next_alpha = np.nextafter(alpha, 1.0)
+    distance2 = np.square(center_values[:, None] - values[None, :])
+    next_mass = np.count_nonzero(next_alpha**2 * distance2 < 8.0**2, axis=1)
+    assert alpha == np.nextafter(0.8, 0.0)
+    assert np.count_nonzero(mass >= 2.0) >= 9
+    assert np.count_nonzero(next_mass >= 2.0) < 9
+
+
+def test_multi_box_scale_order_statistic_matches_rowwise_bisection():
+    rng = np.random.default_rng(48)
+    X = rng.normal(size=(30, 4))
+    centers = X[:10]
+    basis, _ = np.linalg.qr(rng.normal(size=(4, 2)))
+    eigenvalues = np.array([1.0, 0.35])
+    target = 3.0
+    differences = centers[:, None, :] - X[None, :, :]
+    distance2 = np.einsum("jnd,jnd->jn", differences, differences)
+    coordinates = differences @ basis
+    projected2 = np.einsum("jnm,jnm->jn", coordinates, coordinates)
+    principal2 = np.einsum(
+        "jnm,m,jnm->jn",
+        coordinates,
+        eigenvalues,
+        coordinates,
+    )
+    required = int(target)
+    covered = 9
+    principal_limit = np.partition(principal2, required - 1, axis=1)[
+        :, required - 1
+    ]
+    full_limit = np.partition(
+        distance2 - projected2 + principal2,
+        required - 1,
+        axis=1,
+    )[:, required - 1]
+    h2 = (
+        np.partition(principal_limit, covered - 1)[covered - 1]
+        + np.partition(full_limit, covered - 1)[covered - 1]
+    ) / 2.0
+    engine = NeighborhoodEngine(X, centers, block_size=4)
+
+    actual = engine.select_multi_box_scale(
+        basis,
+        eigenvalues,
+        np.sqrt(h2),
+        target,
+    )
+    expected = search_sparse_scale(
+        lambda scale: engine.multi_blocks(
+            basis,
+            eigenvalues,
+            np.sqrt(h2),
+            scale,
+            box_kernel,
+            record=False,
+        ),
+        target,
+        rowwise=True,
     )
 
     np.testing.assert_allclose(
@@ -279,7 +444,9 @@ def test_sparse_scale_matches_dense_bisection(kernel):
     np.testing.assert_allclose(actual, low, rtol=0, atol=1e-14)
 
 
-def test_sparse_local_initialization_matches_dense_reference():
+def test_sparse_local_initialization_matches_dense_reference(monkeypatch):
+    import ADP.engine.calculus as calculus
+
     rng = np.random.default_rng(11)
     X = rng.normal(size=(30, 3))
     true_beta = np.array([0.8, -0.5, 0.3])
@@ -297,6 +464,17 @@ def test_sparse_local_initialization_matches_dense_reference():
         box_kernel,
         ridge,
         1,
+    )
+    h = search_sparse_bandwidth(
+        engine,
+        6,
+        box_kernel,
+        lower=np.finfo(float).eps,
+    )
+    monkeypatch.setattr(
+        calculus,
+        "search_bandwidth",
+        lambda *_args, **_kwargs: h,
     )
     expected = initialize_basis_local(
         X,
@@ -323,7 +501,7 @@ def test_sparse_local_initialization_matches_dense_reference():
     [box_kernel, make_plateau_kernel(0.5)],
     ids=["box", "plateau"],
 )
-def test_sparse_statistics_match_dense_weights(kernel):
+def test_sparse_statistics_match_dense_weights(kernel, monkeypatch):
     rng = np.random.default_rng(19)
     n, d, J, P = 25, 4, 5, 3
     X = rng.normal(size=(n, d))
@@ -337,6 +515,7 @@ def test_sparse_statistics_match_dense_weights(kernel):
     dense = _dense_blocks(blocks, J, n)
 
     expected = calculate_statistics(X, Y, dense, directions, batch_size=2)
+    monkeypatch.setattr(SparseNeighborhoodBlock, "row", _forbid_dense_path)
     actual = calculate_statistics(
         X,
         Y,
@@ -543,6 +722,47 @@ def test_single_fit_routes_box_scale_without_sparse_bisection(monkeypatch):
     )
 
     model = ADP_single_index(config, ADP_solver(_unchanged_index)).fit(X, Y)
+
+    assert len(calls) == 1
+    assert model.result_.stop_reason == "local_mass_limit"
+
+
+def test_multi_fit_routes_box_scale_without_sparse_bisection(monkeypatch):
+    import importlib
+
+    module = importlib.import_module("ADP.multi_index.ADP_multi_index")
+    calls = []
+
+    def stop_after_exact_scale(self, basis, eigenvalues, h, target):
+        calls.append((basis.copy(), eigenvalues.copy(), h, target))
+        return None
+
+    monkeypatch.setattr(
+        NeighborhoodEngine,
+        "select_multi_box_scale",
+        stop_after_exact_scale,
+        raising=False,
+    )
+    monkeypatch.setattr(module, "search_sparse_scale", _forbid_dense_path)
+    rng = np.random.default_rng(44)
+    X = rng.normal(size=(30, 4))
+    Y = X[:, 0] - 0.3 * X[:, 1]
+    config = ADP_Config(
+        seed=4,
+        N_loc=4,
+        N_J=8,
+        N_phi=3,
+        outer_steps=1,
+        h_min=1e-12,
+        kernel=box_kernel,
+        index_init="random",
+    )
+
+    model = ADP_multi_index(
+        2,
+        config,
+        ADP_solver(_unchanged_index),
+    ).fit(X, Y)
 
     assert len(calls) == 1
     assert model.result_.stop_reason == "local_mass_limit"

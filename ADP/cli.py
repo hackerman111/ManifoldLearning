@@ -19,11 +19,7 @@ from ADP import (
     run_experiment_terminal,
 )
 from ADP.ADP_Config import epanechnikov
-from ADP.engine.box_kernel import (
-    box_kernel,
-    make_plateau_kernel,
-    plateau_kernel,
-)
+from ADP.engine.box_kernel import box_kernel, make_plateau_kernel, plateau_kernel
 from ADP.engine.logger import format_profile
 from ADP.experiment import validate_experiment
 from ADP.experiment_runner import _build_jobs

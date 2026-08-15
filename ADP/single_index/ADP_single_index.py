@@ -309,6 +309,7 @@ class ADP_single_index:
                                 record=False,
                             ),
                             N_loc,
+                            rowwise=sparse_kernel == ("box", None),
                         )
                 if next_rho is None:
                     stop_reason = "local_mass_limit"

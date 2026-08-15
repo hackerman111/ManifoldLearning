@@ -211,6 +211,49 @@ def test_cli_failures_return_one(tmp_path: Path, monkeypatch, capsys):
     assert "ошибок: 2" in output
 
 
+@pytest.mark.parametrize(
+    ("mode", "m", "point_count"),
+    (
+        ("single", 1, 9),
+        ("multi", 2, 9),
+        ("multi", 5, 9),
+        ("multi", 10, 6),
+    ),
+)
+def test_smart_weights_grid_is_paired(mode, m, point_count):
+    from ADP.examples.smart_weights_grid import make_experiment
+    from ADP.engine.utils import _check_model_sizes
+    from ADP.experiment import validate_experiment
+    from ADP.experiment_runner import _build_jobs
+
+    experiment = validate_experiment(make_experiment(mode, m))
+    jobs = _build_jobs(experiment)
+    pairs = {}
+    for job in jobs:
+        pairs.setdefault((job.point.name, job.seed), set()).add(job.variant_name)
+
+    assert experiment.runs == 25
+    assert len(experiment.points) == point_count
+    assert len(jobs) == point_count * 25 * 2
+    assert set(job.seed for job in jobs) == set(range(7, 32))
+    assert all(
+        names == {"ordinary", "smart_weights"} for names in pairs.values()
+    )
+    assert all(point.metadata["m"] == m for point in experiment.points)
+    for variant in experiment.variants.values():
+        config = variant.config
+        assert config.N_phi > m
+        for point in experiment.points:
+            _check_model_sizes(
+                point.n,
+                point.d,
+                config.N_loc,
+                config.N_lin,
+                config.N_J,
+                config.index_init,
+            )
+
+
 def test_cli_terminal_only_prints_readable_summary_and_creates_nothing(
     tmp_path: Path, monkeypatch, capsys
 ):

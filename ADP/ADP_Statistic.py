@@ -8,7 +8,6 @@ from .engine import utils
 from .engine.box_kernel import (
     SparseNeighborhoodBlock,
     SparseStatisticsCache,
-    sparse_statistics_block,
 )
 from .gpu import require_cupy
 
@@ -96,11 +95,12 @@ def calculate_statistics(
         Phib = Phi[batch]
         if isinstance(W, SparseNeighborhoodBlock):
             mass_block = W.mass
-            block_values = sparse_statistics_block(
+            block_values = _sparse_block(
                 Xc,
                 Y,
                 W,
                 Phib,
+                mass_block,
                 cache,
             )
         else:
@@ -157,7 +157,6 @@ def calculate_statistics_gpu(
     X_gpu = cp.asarray(X)
     Y_gpu = cp.asarray(Y)
     Phi_gpu = cp.asarray(Phi)
-    Xc_cpu = X - X.mean(axis=0)
     x_bar = X_gpu.mean(axis=0)
     Xc = X_gpu - x_bar
 
@@ -182,11 +181,12 @@ def calculate_statistics_gpu(
         batch = slice(start, stop)
         Phib = Phi_gpu[batch]
         if isinstance(W, SparseNeighborhoodBlock):
-            block_values = sparse_statistics_block(
-                Xc_cpu,
-                Y,
+            block_values = _sparse_block(
+                Xc,
+                Y_gpu,
                 W,
                 Phib,
+                mass_block,
                 cache,
                 xp=cp,
             )
@@ -262,6 +262,26 @@ def _local_block(Xc, Y, W, Phi, mass, width, *, xp=np):
     indices[rows, slots] = columns
     local_weights[rows, slots] = W[rows, columns]
 
+    return _local_values(Xc, Y, indices, local_weights, Phi, mass, xp=xp)
+
+
+def _sparse_block(Xc, Y, block, Phi, mass, cache, *, xp=np):
+    if block.n_observations != len(Xc):
+        raise ValueError("sparse block and X dimensions do not match")
+    cache.observe(block)
+    indices, local_weights = block.padded()
+    return _local_values(
+        Xc,
+        Y,
+        xp.asarray(indices),
+        xp.asarray(local_weights),
+        Phi,
+        xp.asarray(mass),
+        xp=xp,
+    )
+
+
+def _local_values(Xc, Y, indices, local_weights, Phi, mass, *, xp=np):
     A = local_weights / mass[:, None]
     local_X = Xc[indices]
     local_Y = Y[indices]

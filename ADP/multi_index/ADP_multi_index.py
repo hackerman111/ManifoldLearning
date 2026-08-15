@@ -309,17 +309,29 @@ class ADP_multi_index:
                         smart=smart_weights,
                     )
                 else:
-                    next_alpha = search_sparse_scale(
-                        lambda value: neighborhood_engine.multi_blocks(
+                    next_alpha = (
+                        neighborhood_engine.select_multi_box_scale(
                             basis,
                             eigenvalues,
                             next_h,
-                            value,
-                            kernel,
-                            record=False,
-                        ),
-                        N_loc,
+                            N_loc,
+                        )
+                        if sparse_kernel == ("box", None)
+                        else NotImplemented
                     )
+                    if next_alpha is NotImplemented:
+                        next_alpha = search_sparse_scale(
+                            lambda value: neighborhood_engine.multi_blocks(
+                                basis,
+                                eigenvalues,
+                                next_h,
+                                value,
+                                kernel,
+                                record=False,
+                            ),
+                            N_loc,
+                            rowwise=sparse_kernel == ("box", None),
+                        )
                 if next_alpha is None:
                     stop_reason = "local_mass_limit"
                     result.trace[-1]["stop_reason"] = stop_reason

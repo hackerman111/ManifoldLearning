@@ -4,8 +4,8 @@ from functools import partial
 import numpy as np
 from scipy.spatial import cKDTree
 
-
 _BOX_DISTANCE_CACHE_MAX_BYTES = 64 * 1024**2
+_BOX_ROW_COVERAGE = 0.9
 
 
 def _validated_tau(tau: float) -> float:
@@ -168,6 +168,22 @@ class SparseNeighborhoodBlock:
             )
         return indices, weights
 
+    def padded(self) -> tuple[np.ndarray, np.ndarray]:
+        counts = np.diff(self.indptr)
+        width = int(counts.max())
+        rows = np.repeat(np.arange(self.rows, dtype=np.intp), counts)
+        slots = np.arange(self.edge_count, dtype=np.intp) - np.repeat(
+            self.indptr[:-1], counts
+        )
+        indices = np.zeros((self.rows, width), dtype=np.intp)
+        weights = np.zeros((self.rows, width))
+        indices[rows, slots] = self.indices
+        weights[rows, slots] = 1.0
+        if self.boundary_count:
+            positions = self.boundary_positions
+            weights[rows[positions], slots[positions]] = self.boundary_weights
+        return indices, weights
+
     def cache_key(self, row: int):
         first, last = self.indptr[row : row + 2]
         indices = self.indices[first:last]
@@ -184,17 +200,9 @@ class SparseNeighborhoodBlock:
         )
 
 
-@dataclass(frozen=True, slots=True)
-class _SparseCacheEntry:
-    mean: np.ndarray
-    y_bar: float
-    n_eff: float
-    mass: float
-
-
 class SparseStatisticsCache:
     def __init__(self):
-        self._entries = {}
+        self._entries = set()
         self._active = set()
         self._call_hits = 0
         self.last_hits = 0
@@ -205,105 +213,18 @@ class SparseStatisticsCache:
         self._call_hits = 0
 
     def finish_call(self):
-        self._entries = {
-            key: self._entries[key]
-            for key in self._active
-        }
+        self._entries = self._active
         self.last_hits = self._call_hits
         self.total_hits += self._call_hits
 
-    def prepare(self, Xc, Y, block: SparseNeighborhoodBlock, row: int):
-        key = block.cache_key(row)
-        self._active.add(key)
-        entry = self._entries.get(key)
-        if entry is not None:
-            self._call_hits += 1
-            return key, entry
-
-        indices, weights = block.row(row)
-        mass = float(weights.sum())
-        A = weights / mass
-        local_X = Xc[indices]
-        mean = A @ local_X
-        entry = _SparseCacheEntry(
-            mean=np.asarray(mean),
-            y_bar=float(A @ Y[indices]),
-            n_eff=float(1.0 / np.square(A).sum()),
-            mass=mass,
-        )
-        self._entries[key] = entry
-        return key, entry
-
-
-def sparse_statistics_block(
-    Xc,
-    Y,
-    block: SparseNeighborhoodBlock,
-    Phi,
-    cache: SparseStatisticsCache,
-    *,
-    xp=np,
-):
-    Xc = np.asarray(Xc, dtype=float)
-    Y = np.asarray(Y, dtype=float)
-    if Xc.shape != (block.n_observations, Phi.shape[2]):
-        raise ValueError("sparse block and X dimensions do not match")
-    if Y.shape != (block.n_observations,):
-        raise ValueError("sparse block and Y dimensions do not match")
-    if Phi.ndim != 3 or Phi.shape[0] != block.rows:
-        raise ValueError("Phi must have shape (B, P, d)")
-
-    groups = {}
-    entries = {}
-    representatives = {}
-    for row in range(block.rows):
-        key, entry = cache.prepare(Xc, Y, block, row)
-        groups.setdefault(key, []).append(row)
-        entries[key] = entry
-        representatives.setdefault(key, row)
-
-    P, d = Phi.shape[1:]
-    I = xp.empty((block.rows, P))
-    U = xp.empty((block.rows, P, d))
-    mean = xp.empty((block.rows, d))
-    n_eff = xp.empty(block.rows)
-    eta = xp.empty((block.rows, P))
-
-    for key, rows in groups.items():
-        entry = entries[key]
-        indices, weights = block.row(representatives[key])
-        A = xp.asarray(weights / entry.mass)
-        local_X = xp.asarray(Xc[indices])
-        local_Y = xp.asarray(Y[indices])
-        local_mean = xp.asarray(entry.mean)
-        centered_X = local_X - local_mean
-        row_indices = xp.asarray(rows, dtype=xp.intp)
-        Q = Phi[row_indices] @ xp.swapaxes(centered_X, 0, 1)
-        residual = xp.einsum("gps,s->gp", Q, A, optimize=True)
-        denominator = xp.einsum("gps,s->gp", xp.abs(Q), A, optimize=True)
-        nonzero = denominator != 0
-        eta_group = xp.where(
-            nonzero,
-            xp.abs(residual) / xp.where(nonzero, denominator, 1.0),
-            0.0,
-        )
-        H = (Q - residual[..., None]) * A
-        summed = H.sum(axis=2)
-        I_group = entry.mass * (
-            xp.einsum("gps,s->gp", H, local_Y, optimize=True)
-            - summed * entry.y_bar
-        )
-        U_group = entry.mass * (
-            xp.einsum("gps,sd->gpd", H, local_X, optimize=True)
-            - summed[..., None] * local_mean
-        )
-        I[row_indices] = I_group
-        U[row_indices] = U_group
-        mean[row_indices] = local_mean
-        n_eff[row_indices] = entry.n_eff
-        eta[row_indices] = eta_group
-
-    return I, U, mean, n_eff, eta
+    def observe(self, block: SparseNeighborhoodBlock):
+        for row in range(block.rows):
+            key = block.cache_key(row)
+            if key in self._entries:
+                self._call_hits += 1
+            else:
+                self._entries.add(key)
+            self._active.add(key)
 
 
 class NeighborhoodEngine:
@@ -328,6 +249,7 @@ class NeighborhoodEngine:
         self.block_size = int(block_size)
         self.tree = cKDTree(X)
         self._box_distance2_cache = None
+        self._multi_box_support_cache = None
         self._previous_keys = None
         self.last_support_edges = 0
         self.last_boundary_edges = 0
@@ -375,24 +297,54 @@ class NeighborhoodEngine:
             raise ValueError("beta must be zero or unit length")
         return beta
 
-    def _target_edges(self, target):
+    def _multi_basis(self, basis, eigenvalues):
+        basis = np.asarray(basis, dtype=float)
+        eigenvalues = np.asarray(eigenvalues, dtype=float)
+        if (
+            basis.ndim != 2
+            or basis.shape[0] != self.X.shape[1]
+            or not basis.shape[1]
+            or not np.all(np.isfinite(basis))
+        ):
+            raise ValueError("basis must have finite shape (d, m)")
+        if eigenvalues.shape != (basis.shape[1],) or not np.all(
+            np.isfinite(eigenvalues)
+        ) or np.any(eigenvalues < 0):
+            raise ValueError("eigenvalues must have finite nonnegative shape (m,)")
+        if not np.allclose(
+            basis.T @ basis,
+            np.eye(basis.shape[1]),
+            rtol=1e-8,
+            atol=1e-10,
+        ):
+            raise ValueError("basis columns must be orthonormal")
+        return basis, eigenvalues
+
+    def _box_requirements(self, target):
         target = float(target)
         if not np.isfinite(target) or target <= 0:
             raise ValueError("target mass must be finite and positive")
-        return int(np.ceil(len(self.centers) * target))
+        return (
+            int(np.ceil(target)),
+            int(np.ceil(_BOX_ROW_COVERAGE * len(self.centers))),
+        )
 
-    def _single_box_edge_count(self, beta, h, rho, distance2):
+    def _single_box_row_counts(self, beta, h, rho, distance2):
         x_projection = self.X @ beta
         center_projection = self.centers @ beta
         h2 = h**2
         rho2 = rho**2
-        return sum(
-            np.count_nonzero(
-                rho2 * distance2[row]
-                + np.square(x_projection - center_projection[row])
-                < h2
-            )
-            for row in range(len(self.centers))
+        return np.fromiter(
+            (
+                np.count_nonzero(
+                    rho2 * distance2[row]
+                    + np.square(x_projection - center_projection[row])
+                    < h2
+                )
+                for row in range(len(self.centers))
+            ),
+            dtype=np.intp,
+            count=len(self.centers),
         )
 
     def _single_box_supports(self, beta, h, rho, distance2):
@@ -409,13 +361,46 @@ class NeighborhoodEngine:
             for row in range(len(self.centers))
         ]
 
+    def _multi_box_components(self, basis, eigenvalues, distance2):
+        projected_X = self.X @ basis
+        projected_centers = self.centers @ basis
+        projected2 = np.zeros_like(distance2)
+        principal2 = np.zeros_like(distance2)
+        for column, eigenvalue in enumerate(eigenvalues):
+            delta2 = (
+                projected_centers[:, column, None]
+                - projected_X[None, :, column]
+            )
+            np.square(delta2, out=delta2)
+            projected2 += delta2
+            delta2 *= eigenvalue
+            principal2 += delta2
+        np.subtract(distance2, projected2, out=projected2)
+        np.maximum(projected2, 0.0, out=projected2)
+        return projected2, principal2
+
+    @staticmethod
+    def _multi_box_key(basis, eigenvalues, h, alpha):
+        return basis.tobytes(), eigenvalues.tobytes(), float(h), float(alpha)
+
+    def _multi_box_supports(self, orthogonal2, principal2, h, alpha):
+        h2 = h**2
+        alpha2 = alpha**2
+        return [
+            np.flatnonzero(alpha2 * orthogonal2[row] + principal2[row] < h2)
+            for row in range(len(self.centers))
+        ]
+
     def select_single_box_scale(self, beta, h, target):
         beta = self._beta(beta)
         h = self._positive(h, "h")
-        required = self._target_edges(target)
+        required, covered = self._box_requirements(target)
         distance2 = self._box_distance2()
         if distance2 is None:
             return NotImplemented
+
+        def enough(counts):
+            return np.count_nonzero(counts >= required) >= covered
 
         x_projection = self.X @ beta
         center_projection = self.centers @ beta
@@ -423,13 +408,17 @@ class NeighborhoodEngine:
             center_projection[:, None] - x_projection[None, :]
         )
         h2 = h**2
-        mass_one = sum(
-            np.count_nonzero(distance2[row] + projection2[row] < h2)
-            for row in range(len(self.centers))
+        mass_one = np.fromiter(
+            (
+                np.count_nonzero(distance2[row] + projection2[row] < h2)
+                for row in range(len(self.centers))
+            ),
+            dtype=np.intp,
+            count=len(self.centers),
         )
-        if mass_one >= required:
+        if enough(mass_one):
             return 1.0
-        if np.count_nonzero(projection2 < h2) < required:
+        if not enough(np.count_nonzero(projection2 < h2, axis=1)):
             return None
 
         np.subtract(h2, projection2, out=projection2)
@@ -449,20 +438,99 @@ class NeighborhoodEngine:
                 -np.inf,
             )
 
-        breakpoints = projection2.reshape(-1)
-        kth = len(breakpoints) - required
+        kth = len(self.X) - required
+        projection2.partition(kth, axis=1)
+        breakpoints = projection2[:, kth].copy()
+        kth = len(breakpoints) - covered
         breakpoints.partition(kth)
         breakpoint = float(breakpoints[kth])
         rho = min(
             float(np.nextafter(np.sqrt(breakpoint), 0.0)),
             1.0,
         )
-        while self._single_box_edge_count(beta, h, rho, distance2) < required:
+        while not enough(self._single_box_row_counts(beta, h, rho, distance2)):
             next_rho = float(np.nextafter(rho, 0.0))
             if next_rho == rho:
                 raise RuntimeError("could not represent a feasible box scale")
             rho = next_rho
         return rho
+
+    def select_multi_box_scale(self, basis, eigenvalues, h, target):
+        basis, eigenvalues = self._multi_basis(basis, eigenvalues)
+        h = self._positive(h, "h")
+        required, covered = self._box_requirements(target)
+        distance2 = self._box_distance2()
+        if distance2 is None:
+            return NotImplemented
+
+        def enough(counts):
+            return np.count_nonzero(counts >= required) >= covered
+
+        orthogonal2, principal2 = self._multi_box_components(
+            basis,
+            eigenvalues,
+            distance2,
+        )
+        h2 = h**2
+        mass_one = np.count_nonzero(orthogonal2 + principal2 < h2, axis=1)
+        if enough(mass_one):
+            alpha = 1.0
+            supports = self._multi_box_supports(
+                orthogonal2, principal2, h, alpha
+            )
+            self._multi_box_support_cache = (
+                self._multi_box_key(basis, eigenvalues, h, alpha),
+                supports,
+            )
+            return alpha
+        if not enough(np.count_nonzero(principal2 < h2, axis=1)):
+            return None
+
+        np.subtract(h2, principal2, out=principal2)
+        for row in range(len(self.centers)):
+            positive = orthogonal2[row] > 0
+            numerator = principal2[row]
+            np.divide(
+                numerator,
+                orthogonal2[row],
+                out=numerator,
+                where=positive,
+            )
+            zero = ~positive
+            numerator[zero] = np.where(
+                numerator[zero] > 0,
+                np.inf,
+                -np.inf,
+            )
+
+        kth = len(self.X) - required
+        breakpoints = np.empty(len(self.centers))
+        for row in range(len(self.centers)):
+            selection = principal2[row].copy()
+            selection.partition(kth)
+            breakpoints[row] = selection[kth]
+        kth = len(breakpoints) - covered
+        breakpoints.partition(kth)
+        breakpoint = float(breakpoints[kth])
+        alpha = min(
+            float(np.nextafter(np.sqrt(breakpoint), 0.0)),
+            1.0,
+        )
+        while not enough(np.count_nonzero(principal2 > alpha**2, axis=1)):
+            next_alpha = float(np.nextafter(alpha, 0.0))
+            if next_alpha == alpha:
+                raise RuntimeError("could not represent a feasible box scale")
+            alpha = next_alpha
+
+        supports = [
+            np.flatnonzero(row > alpha**2)
+            for row in principal2
+        ]
+        self._multi_box_support_cache = (
+            self._multi_box_key(basis, eigenvalues, h, alpha),
+            supports,
+        )
+        return alpha
 
     @staticmethod
     def _candidate_array(value):
@@ -639,28 +707,41 @@ class NeighborhoodEngine:
         *,
         record=True,
     ):
-        basis = np.asarray(basis, dtype=float)
-        eigenvalues = np.asarray(eigenvalues, dtype=float)
-        if (
-            basis.ndim != 2
-            or basis.shape[0] != self.X.shape[1]
-            or not basis.shape[1]
-            or not np.all(np.isfinite(basis))
-        ):
-            raise ValueError("basis must have finite shape (d, m)")
-        if eigenvalues.shape != (basis.shape[1],) or not np.all(
-            np.isfinite(eigenvalues)
-        ) or np.any(eigenvalues < 0):
-            raise ValueError("eigenvalues must have finite nonnegative shape (m,)")
-        if not np.allclose(
-            basis.T @ basis,
-            np.eye(basis.shape[1]),
-            rtol=1e-8,
-            atol=1e-10,
-        ):
-            raise ValueError("basis columns must be orthonormal")
+        basis, eigenvalues = self._multi_basis(basis, eigenvalues)
         h = self._positive(h, "h")
         alpha = self._scale(alpha, "alpha")
+
+        parameters = sparse_kernel_parameters(kernel)
+        distance2 = (
+            self._box_distance2()
+            if parameters == ("box", None)
+            else None
+        )
+        if distance2 is not None:
+            key = self._multi_box_key(basis, eigenvalues, h, alpha)
+            cached = self._multi_box_support_cache
+            if cached is not None and cached[0] == key:
+                supports = cached[1]
+            else:
+                orthogonal2, principal2 = self._multi_box_components(
+                    basis,
+                    eigenvalues,
+                    distance2,
+                )
+                supports = self._multi_box_supports(
+                    orthogonal2,
+                    principal2,
+                    h,
+                    alpha,
+                )
+                self._multi_box_support_cache = key, supports
+            empty = np.empty(0)
+            return self._encode(
+                supports,
+                [empty] * len(supports),
+                kernel,
+                record,
+            )
 
         root_eigenvalues = np.sqrt(eigenvalues)
         projected_X = (self.X @ basis) * root_eigenvalues
@@ -718,6 +799,19 @@ def _mean_sparse_mass(blocks) -> float:
     return total / rows
 
 
+def _box_sparse_mass_enough(blocks, target) -> bool:
+    required = int(np.ceil(target))
+    qualified = 0
+    rows = 0
+    for block in blocks:
+        mass = block.mass
+        qualified += int(np.count_nonzero(mass >= required))
+        rows += len(mass)
+    if rows == 0:
+        raise ValueError("sparse blocks must contain at least one row")
+    return qualified >= int(np.ceil(_BOX_ROW_COVERAGE * rows))
+
+
 def search_sparse_bandwidth(
     engine: NeighborhoodEngine,
     target: float,
@@ -735,23 +829,30 @@ def search_sparse_bandwidth(
     if parameters == ("box", None):
         distance2 = engine._box_distance2()
         if distance2 is not None:
-            required = engine._target_edges(target)
-            if required > distance2.size:
+            required, covered = engine._box_requirements(target)
+            if required > distance2.shape[1]:
                 raise RuntimeError("could not bracket a feasible bandwidth")
-            if np.count_nonzero(distance2 < lower**2) >= required:
+            if np.count_nonzero(
+                np.count_nonzero(distance2 < lower**2, axis=1) >= required
+            ) >= covered:
                 return lower
-            selection = distance2.reshape(-1).copy()
-            selection.partition(required - 1)
-            threshold = float(selection[required - 1])
+            selection = distance2.copy()
+            selection.partition(required - 1, axis=1)
+            thresholds = selection[:, required - 1].copy()
+            thresholds.partition(covered - 1)
+            threshold = float(thresholds[covered - 1])
             h = float(np.nextafter(np.sqrt(threshold), np.inf))
-            while np.count_nonzero(distance2 < h**2) < required:
+            while np.count_nonzero(
+                np.count_nonzero(distance2 < h**2, axis=1) >= required
+            ) < covered:
                 h = float(np.nextafter(h, np.inf))
             return h
 
     def enough(h):
-        return _mean_sparse_mass(
-            engine.isotropic_blocks(h, kernel, record=False)
-        ) >= target
+        blocks = engine.isotropic_blocks(h, kernel, record=False)
+        if parameters == ("box", None):
+            return _box_sparse_mass_enough(blocks, target)
+        return _mean_sparse_mass(blocks) >= target
 
     low = lower
     if enough(low):
@@ -776,13 +877,21 @@ def search_sparse_bandwidth(
     return float(high)
 
 
-def search_sparse_scale(build_blocks, target_mass: float) -> float | None:
+def search_sparse_scale(
+    build_blocks,
+    target_mass: float,
+    *,
+    rowwise: bool = False,
+) -> float | None:
     target_mass = float(target_mass)
     if not np.isfinite(target_mass) or target_mass <= 0:
         raise ValueError("target_mass must be finite and positive")
 
     def enough(scale):
-        return _mean_sparse_mass(build_blocks(scale)) >= target_mass
+        blocks = build_blocks(scale)
+        if rowwise:
+            return _box_sparse_mass_enough(blocks, target_mass)
+        return _mean_sparse_mass(blocks) >= target_mass
 
     if enough(1.0):
         return 1.0
