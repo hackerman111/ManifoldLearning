@@ -1,0 +1,362 @@
+% Раздел для включения через \input{adp_matrix_statistics.tex}
+% Требуемые пакеты: amsmath, amssymb
+
+\section{Матричное вычисление статистик Average Derivative Procedure}
+\label{sec:adp-matrix-statistics}
+
+Рассматриваются наблюдения
+\[
+X_i\in\mathbb R^d,\qquad Y_i\in\mathbb R,
+\qquad i=1,\ldots,n,
+\]
+и набор локальных центров с индексами $j=1,\ldots,J$. Для каждого центра заданы веса
+\[
+w_{ji}=K\!\left(\left\|T(X_i-x_j)\right\|_2^2\right)\geq 0
+\]
+и $P=n_{\Phi}$ единичных направлений
+$\phi_{jr}\in\mathbb R^d$, $r=1,\ldots,P$.
+В ADP центрирование выполняется относительно локального взвешенного среднего
+\begin{equation}
+M_j=
+\frac{\sum_{i=1}^n w_{ji}X_i}
+     {\sum_{i=1}^n w_{ji}}.
+\label{eq:adp-local-mean}
+\end{equation}
+Поэтому первый взвешенный момент равен нулю:
+\begin{equation}
+\sum_{i=1}^n w_{ji}(X_i-M_j)=0.
+\label{eq:adp-zero-first-moment}
+\end{equation}
+Для каждого направления вычисляются статистики
+\begin{align}
+I_{jr}
+&=
+\sum_{i=1}^n
+Y_i\,\phi_{jr}^{\mathsf T}(X_i-M_j)\,w_{ji},
+\label{eq:adp-I-direct}
+\\
+U_{jr}
+&=
+\sum_{i=1}^n
+(X_i-M_j)\,\phi_{jr}^{\mathsf T}(X_i-M_j)\,w_{ji}
+\in\mathbb R^d.
+\label{eq:adp-U-direct}
+\end{align}
+Строки $U_{jr}^{\mathsf T}$ образуют матрицу
+$U_j\in\mathbb R^{P\times d}$, а значения $I_{jr}$ образуют
+$I_j\in\mathbb R^P$. Локальная линейная модель приводит к приближению
+\[
+I_j\approx f'_jU_j\beta,
+\qquad \|\beta\|_2=1.
+\]
+Свободный локальный коэффициент отсутствует именно благодаря
+\eqref{eq:adp-zero-first-moment}.
+
+\subsection{Плотная матричная факторизация}
+
+Матрицу наблюдений будем хранить строками:
+\[
+X=
+\begin{pmatrix}
+X_1^{\mathsf T}\\[-1mm]
+\vdots\\[-1mm]
+X_n^{\mathsf T}
+\end{pmatrix}
+\in\mathbb R^{n\times d},
+\qquad
+y=(Y_1,\ldots,Y_n)^{\mathsf T}.
+\]
+Для батча из $B$ центров введём матрицу весов
+$W\in\mathbb R^{B\times n}$ и вектор локальных масс
+\begin{equation}
+m=W\mathbf 1_n,
+\qquad m_j=\sum_iw_{ji}.
+\label{eq:adp-mass}
+\end{equation}
+Строки с $m_j\leq m_{\min}$ должны исключаться либо пересчитываться с большим bandwidth.
+Нормированные веса задаются матрицей
+\begin{equation}
+A=\operatorname{diag}(m)^{-1}W,
+\qquad A\mathbf 1_n=\mathbf 1_B.
+\label{eq:adp-normalized-weights}
+\end{equation}
+Матрица локальных средних получается одним матричным умножением:
+\begin{equation}
+\mathcal M=AX\in\mathbb R^{B\times d},
+\qquad \mathcal M_{j:}=M_j^{\mathsf T}.
+\label{eq:adp-means-matmul}
+\end{equation}
+
+Направления для батча хранятся в тензоре
+$\Phi\in\mathbb R^{B\times P\times d}$.
+Сначала вычисляются проекции всех наблюдений:
+\begin{equation}
+R=\operatorname{bmm}(\Phi,X^{\mathsf T})
+\in\mathbb R^{B\times P\times n},
+\qquad
+R_{jri}=\phi_{jr}^{\mathsf T}X_i.
+\label{eq:adp-raw-projections}
+\end{equation}
+Проекции локальных средних имеют вид
+\begin{equation}
+c_{jr}=\phi_{jr}^{\mathsf T}M_j.
+\label{eq:adp-projected-mean}
+\end{equation}
+После broadcasting получаем центрированные проекции
+\begin{equation}
+Q_{jri}=R_{jri}-c_{jr}
+       =\phi_{jr}^{\mathsf T}(X_i-M_j).
+\label{eq:adp-Q}
+\end{equation}
+Главный вспомогательный тензор строится произведением Адамара:
+\begin{equation}
+H=Q\odot A_{:\,,\mathrm{None},:},
+\qquad
+H_{jri}=a_{ji}Q_{jri}.
+\label{eq:adp-H}
+\end{equation}
+Тогда обе статистики вычисляются через матричные произведения:
+\begin{align}
+I
+&=
+ m_{:\,,\mathrm{None}}\odot(Hy)
+\in\mathbb R^{B\times P},
+\label{eq:adp-I-matrix}
+\\
+U
+&=
+ m_{:\,,\mathrm{None},\mathrm{None}}
+ \odot(HX)
+\in\mathbb R^{B\times P\times d}.
+\label{eq:adp-U-matrix}
+\end{align}
+Формула \eqref{eq:adp-U-matrix} следует из
+\[
+\sum_iw_{ji}Q_{jri}M_j
+=M_j\phi_{jr}^{\mathsf T}\sum_iw_{ji}(X_i-M_j)=0.
+\]
+Следовательно, тензор разностей размера $B\times n\times d$ формировать не требуется.
+Основной временный объект имеет размер $B\times P\times n$; при $P\ll d$
+это существенно уменьшает память.
+
+\paragraph{Устойчивая форма.}
+Для защиты от ошибок округления рекомендуется предварительно глобально центрировать данные:
+\[
+X^{c}=X-\mathbf 1_nx_0^{\mathsf T},
+\qquad
+x_0=n^{-1}\sum_iX_i.
+\]
+Локальные средние вычисляются как $\mathcal M^{c}=AX^{c}$.
+После построения $Q$ полезно повторно занулить его взвешенное среднее:
+\begin{equation}
+\delta_{jr}=\sum_i a_{ji}Q_{jri},
+\qquad
+Q_{jri}\leftarrow Q_{jri}-\delta_{jr}.
+\label{eq:adp-Q-correction}
+\end{equation}
+Пусть $s=H\mathbf 1_n$ и $\bar y=Ay$. Численно защищённые формулы имеют вид
+\begin{align}
+I
+&=
+ m_{:\,,\mathrm{None}}
+ \odot\left(Hy-s\odot\bar y\right),
+\label{eq:adp-I-stable}
+\\
+U
+&=
+ m_{:\,,\mathrm{None},\mathrm{None}}
+ \odot\left(
+ HX^{c}-s_{:\,,\mathrm{None}}\odot
+ \mathcal M^{c}_{:\,,\mathrm{None},:}
+ \right).
+\label{eq:adp-U-stable}
+\end{align}
+В точной арифметике $s=0$, поэтому
+\eqref{eq:adp-I-stable}--\eqref{eq:adp-U-stable}
+совпадают с \eqref{eq:adp-I-matrix}--\eqref{eq:adp-U-matrix}.
+В плавающей арифметике дополнительные члены подавляют ошибку,
+возникающую при умножении малого остатка $s$ на большой общий сдвиг $X$ или $y$.
+
+\subsection{Батчевая схема}
+
+Полную матрицу весов $J\times n$ и полный тензор проекций
+$J\times P\times n$ хранить необязательно. Центры обрабатываются блоками
+$j=j_0,\ldots,j_1-1$ размера $B$. Внутри каждого блока выполняются следующие шаги:
+\begin{enumerate}
+\item вычислить $W_b$, $m_b$, $A_b$ и $\mathcal M_b$;
+\item вычислить $R_b=\operatorname{bmm}(\Phi_b,X^{\mathsf T})$;
+\item получить $Q_b$, применить коррекцию \eqref{eq:adp-Q-correction};
+\item выполнить $H_b=Q_b\odot A_b$;
+\item вычислить $I_b$ и $U_b$ по
+      \eqref{eq:adp-I-stable}--\eqref{eq:adp-U-stable};
+\item записать результат и перейти к следующему блоку.
+\end{enumerate}
+Если число направлений велико, внутри блока центров вводится дополнительный блок
+$r=r_0,\ldots,r_1-1$. Рабочая память плотной версии составляет
+\[
+O(BPn+BPd+Bn+Bd),
+\]
+а вычислительная сложность ---
+\[
+O(BPnd).
+\]
+Размер батча выбирается по памяти тензора $Q$ и результата $U$.
+
+\subsection{Разреженная матрица весов}
+
+Для ядра с компактным носителем большинство весов равно нулю.
+Обозначим
+\[
+\mathcal N_j=\{i:w_{ji}\neq0\},
+\qquad
+E=\operatorname{nnz}(W),
+\qquad
+\bar k=E/J.
+\]
+На CPU матрицу $W$ целесообразно хранить в формате CSR.
+Вектор масс и локальные средние вычисляются sparse--dense операциями:
+\begin{equation}
+m=W\mathbf 1_n,
+\qquad
+\mathcal M=\operatorname{diag}(m)^{-1}WX.
+\label{eq:adp-sparse-mean}
+\end{equation}
+Для каждого ненулевого ребра $(j,i)$ и направления $r$ вычисляется только
+\begin{equation}
+q_{jri}=\phi_{jr}^{\mathsf T}(X_i-M_j),
+\qquad i\in\mathcal N_j.
+\label{eq:adp-sparse-q}
+\end{equation}
+Определим разреженную матрицу $H^{(r)}\in\mathbb R^{B\times n}$
+с тем же паттерном ненулевых элементов, что у $W$:
+\begin{equation}
+H^{(r)}_{ji}=
+\begin{cases}
+\displaystyle \frac{w_{ji}}{m_j}q_{jri}, & i\in\mathcal N_j,\\[2mm]
+0, & i\notin\mathcal N_j.
+\end{cases}
+\label{eq:adp-sparse-H}
+\end{equation}
+Тогда
+\begin{align}
+I_{:r}
+&=
+m\odot\left(H^{(r)}y-s^{(r)}\odot\bar y\right),
+\label{eq:adp-sparse-I}
+\\
+U_{:r:}
+&=
+m_{:\,,\mathrm{None}}\odot
+\left(
+H^{(r)}X^{c}
+-s^{(r)}_{:\,,\mathrm{None}}\odot\mathcal M^{c}
+\right),
+\label{eq:adp-sparse-U}
+\\
+s^{(r)}&=H^{(r)}\mathbf 1_n.
+\end{align}
+Операции $H^{(r)}y$ и $H^{(r)}X^{c}$ представляют соответственно
+sparse matrix--vector и sparse matrix--dense matrix multiplication.
+Не следует заранее хранить все $P$ матриц $H^{(r)}$: направления лучше
+обрабатывать блоками, повторно используя один CSR-паттерн и меняя только массив значений.
+
+Сложность разреженного варианта равна
+\[
+O(EPd)=O(J\bar kPd),
+\]
+а память для статистик и промежуточных значений ---
+\[
+O(EP+JPd+Jd).
+\]
+По сравнению с плотной схемой ожидаемое сокращение арифметики имеет порядок
+$n/\bar k$.
+
+\subsection{Формат списка соседей для GPU}
+
+Если для каждого центра хранится не более $K$ соседей, разреженную структуру
+удобно представить массивами
+\[
+N\in\mathbb N^{B\times K},
+\qquad
+W_{\mathrm{loc}}\in\mathbb R^{B\times K}.
+\]
+Здесь $N_{jk}$ --- индекс $k$-го соседа, а отсутствующие элементы маскируются
+нулевым весом. После gather-операции
+\[
+X_{\mathcal N}=X[N]\in\mathbb R^{B\times K\times d},
+\qquad
+y_{\mathcal N}=y[N]\in\mathbb R^{B\times K}
+\]
+вычисления снова сводятся к batched matmul:
+\begin{align}
+M_j&=\sum_{k=1}^K a_{jk}X_{N_{jk}},
+\\
+Q_{jrk}&=\phi_{jr}^{\mathsf T}(X_{N_{jk}}-M_j),
+\\
+H_{jrk}&=a_{jk}Q_{jrk},
+\\
+I_{jr}&=m_j\sum_{k=1}^KH_{jrk}(Y_{N_{jk}}-\bar Y_j),
+\\
+U_{jr}&=m_j\sum_{k=1}^KH_{jrk}(X_{N_{jk}}-M_j).
+\end{align}
+Последние две редукции реализуются как
+\[
+(B,P,K)(B,K,1)\longrightarrow(B,P,1),
+\qquad
+(B,P,K)(B,K,d)\longrightarrow(B,P,d).
+\]
+Этот формат обычно предпочтительнее CSR на GPU, поскольку имеет регулярные размеры
+и использует оптимизированные batched GEMM-ядра. Его недостаток --- padding при сильно
+различающемся числе соседей.
+
+\subsection{Численная устойчивость и контроль корректности}
+
+Разреженность не меняет математическую задачу, если нулевые веса возникают из
+компактного носителя ядра. Отсечение малых положительных весов или top-$K$ выбор
+создают другую статистику. Для контроля следует вычислять долю отброшенной массы
+\[
+r_j=
+\frac{\sum_{i:\,w_{ji}\ \mathrm{discarded}}w_{ji}}
+     {\sum_iw_{ji}}
+\]
+и эффективное число соседей
+\begin{equation}
+n_{\mathrm{eff},j}
+=
+\frac{\left(\sum_iw_{ji}\right)^2}{\sum_iw_{ji}^2}
+=
+\frac{1}{\sum_i a_{ji}^2}.
+\label{eq:adp-neff}
+\end{equation}
+Большое число ненулевых элементов не гарантирует устойчивость, если
+$n_{\mathrm{eff},j}$ близко к единице.
+
+Рекомендуемые проверки реализации:
+\begin{enumerate}
+\item сравнить прямые суммы и матричный вариант в \texttt{float64};
+\item проверить инвариантность при $X_i\leftarrow X_i+c$ и
+      $Y_i\leftarrow Y_i+c_y$;
+\item сравнить разные размеры батча и перестановки соседей;
+\item отдельно сравнить одну и ту же матрицу $W$ в плотном и CSR-форматах;
+\item контролировать
+\[
+\eta_{jr}=
+\frac{|\sum_iw_{ji}Q_{jri}|}
+     {\sum_i|w_{ji}Q_{jri}|+\varepsilon};
+\]
+\item считать строки с малой массой, малым $n_{\mathrm{eff},j}$ или большим
+      $\eta_{jr}$ численно ненадёжными.
+\end{enumerate}
+Для эталонных тестов следует использовать \texttt{float64}. На GPU допустимо хранение
+в \texttt{float32}, но локальные массы, средние и редукции желательно аккумулировать
+в повышенной точности. Формулы \eqref{eq:adp-I-stable},
+\eqref{eq:adp-U-stable}, \eqref{eq:adp-sparse-I} и
+\eqref{eq:adp-sparse-U} предпочтительнее некорректированного умножения $HX$.
+
+\paragraph{Рекомендуемая реализация.}
+Прямая версия формул \eqref{eq:adp-I-direct}--\eqref{eq:adp-U-direct}
+используется как эталон для малых задач. Основное вычислительное ядро использует
+факторизацию через $H$, произведение Адамара и матричные умножения. На CPU веса
+хранятся в CSR, а на GPU --- в формате списка соседей. Центры и направления
+обрабатываются батчами; данные предварительно центрируются и масштабируются, а
+нулевой взвешенный момент проекций контролируется явно.

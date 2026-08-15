@@ -1,0 +1,148 @@
+% Фрагмент предназначен для подключения через \input.
+% Требуются пакеты amsmath и amssymb.
+
+\section{Обновление направления методом LSMR}
+\label{sec:lsmr-solver}
+
+На фиксированном внешнем шаге заданы локальные статистики
+\[
+ I_j\in\mathbb R^P,
+ \qquad
+ U_j\in\mathbb R^{P\times d},
+ \qquad j\in\mathcal J.
+\]
+При фиксированных локальных коэффициентах \(c_j\) направление
+\(\beta\in\mathbb R^d\) обновляется из ridge-задачи
+\begin{equation}
+ \min_{\beta\in\mathbb R^d}
+ \left\{
+  \sum_{j\in\mathcal J}
+  \left\|I_j-c_jU_j\beta\right\|^2
+  \lambda\left\|\beta-\beta_{\mathrm{prior}}\right\|^2
+ \right\}.
+ \label{eq:lsmr-ridge}
+\end{equation}
+Здесь \(\lambda=\texttt{lambda\_penalty}\), а
+\(\beta_{\mathrm{prior}}\) --- направление с предыдущей внутренней итерации.
+
+\subsection{Оператор без построения блочной матрицы}
+
+Если формально определить
+\[
+ A=
+ \begin{pmatrix}
+  c_1U_1\\
+  \vdots\\
+  c_JU_J
+ \end{pmatrix},
+ \qquad
+ b=
+ \begin{pmatrix}
+  I_1\\
+  \vdots\\
+  I_J
+ \end{pmatrix},
+\]
+то задача \eqref{eq:lsmr-ridge} эквивалентна
+\[
+ \min_\beta
+ \left\|
+ \widetilde A\beta-\widetilde b
+ \right\|^2,
+ \qquad
+ \widetilde A=
+ \begin{pmatrix}
+  A\\
+  \sqrt{\lambda}\,I_d
+ \end{pmatrix},
+ \qquad
+ \widetilde b=
+ \begin{pmatrix}
+  b\\
+  \sqrt{\lambda}\,\beta_{\mathrm{prior}}
+ \end{pmatrix}.
+\]
+В реализации матрицы \(A\) и \(\widetilde A\) не создаются.
+Объект \texttt{LinearOperator} размера
+\((JP+d)\times d\) задаёт только операции
+\begin{align}
+ \widetilde A v
+ &=
+ \begin{pmatrix}
+  c_1U_1v\\
+  \vdots\\
+  c_JU_Jv\\
+  \sqrt{\lambda}\,v
+ \end{pmatrix},
+ \label{eq:lsmr-matvec}\\
+ \widetilde A^{\mathsf T}
+ \begin{pmatrix}
+  z_1\\
+  \vdots\\
+  z_J\\
+  w
+ \end{pmatrix}
+ &=
+ \sum_{j\in\mathcal J}c_jU_j^{\mathsf T}z_j
+ \sqrt{\lambda}\,w,
+ \qquad
+ z_j\in\mathbb R^P,\quad w\in\mathbb R^d.
+ \label{eq:lsmr-rmatvec}
+\end{align}
+Таким образом, LSMR решает ridge-задачу без нормальных уравнений и без
+хранения полной блочной матрицы. Стоимость одной итерации составляет
+\(O(JPd)\).
+
+В коде используются параметры
+\[
+ \texttt{atol}=\texttt{btol}
+ =\min\{\texttt{tol},10^{-8}\},
+ \qquad
+ \texttt{maxiter}=\max\{50,5d\}.
+\]
+После LSMR проверяются конечность и ненулевая норма решения, затем выполняются
+нормировка и согласование знака:
+\[
+ \beta\leftarrow\frac{\beta}{\|\beta\|},
+ \qquad
+ \langle\beta,\beta_{\mathrm{prior}}\rangle<0
+ \ \Longrightarrow\
+ \beta\leftarrow-\beta.
+\]
+
+\subsection{Чередование с локальными коэффициентами}
+
+Перед каждым вызовом LSMR коэффициенты пересчитываются аналитически:
+\begin{equation}
+ c_j
+ =
+ \frac{\left\langle I_j,U_j\beta\right\rangle}
+ {\left\|U_j\beta\right\|^2+\eta},
+ \qquad
+ \eta=\texttt{local\_ridge}.
+ \label{eq:lsmr-local-slopes}
+\end{equation}
+После этого решается \eqref{eq:lsmr-ridge}, и процесс повторяется не более
+\texttt{inner\_steps} раз. Критерий остановки инвариантен к знаку направления:
+\[
+ \delta_\beta
+ =
+ \min\left\{
+  \|\beta_{\mathrm{new}}-\beta_{\mathrm{prior}}\|,
+  \|\beta_{\mathrm{new}}+\beta_{\mathrm{prior}}\|
+ \right\}
+ <\texttt{tol}.
+\]
+Итоговые коэффициенты \(c_j\) ещё раз вычисляются по
+\eqref{eq:lsmr-local-slopes}.
+
+\paragraph{Интерпретация остановки.}
+Код \texttt{istop} метода LSMR относится только к линейной подзадаче при
+фиксированных \(c_j\) и \(\beta_{\mathrm{prior}}\).
+Например, \texttt{istop=2} означает, что least-squares подзадача решена,
+а \texttt{istop=7} --- что LSMR достиг собственного лимита итераций.
+Это не гарантирует сходимость всей чередующейся схемы: она проверяется
+отдельно по \(\delta_\beta\). Кроме того, нормировка после LSMR переводит
+неограниченное решение на единичную сферу, поэтому нормированный вектор уже
+не является точным минимумом исходной евклидовой подзадачи
+\eqref{eq:lsmr-ridge}.

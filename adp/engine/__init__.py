@@ -1,1 +1,0 @@
-"""Общий training engine ADP."""

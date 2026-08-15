@@ -1,0 +1,164 @@
+% Раздел предназначен для подключения через \input.
+% Требуются стандартные пакеты amsmath и amssymb,
+% а также обозначения проекта: \betav, \fcl, \Imav, \UV, \JJJ, \dimd.
+
+\section{Variable projection и Riemannian L-BFGS для single-index задачи}
+\label{sec:varpro-rlbfgs}
+
+На фиксированном внешнем шаге структурной адаптации считаются заданными
+матрицы $\UV_j\in\mathbb R^{n_{\Phi,j}\times\dimd}$ и векторы
+$\Imav_j\in\mathbb R^{n_{\Phi,j}}$. Индекс внешнего шага далее опускается.
+Рассматривается стабилизированная задача
+\begin{equation}
+\min_{\substack{\|\betav\|=1\\(\fcl_j)_{j\in\JJJ}}}
+\frac12\sum_{j\in\JJJ}
+\left(
+ \|\Imav_j-\fcl_j\UV_j\betav\|^2
+ +\eta_j\fcl_j^2
+\right),
+\qquad \eta_j\ge 0.
+\label{eq:rlbfgs-original}
+\end{equation}
+При $\eta_j=0$ получается исходная задача. Небольшое $\eta_j>0$ рекомендуется только для локальных блоков, в которых $\|\UV_j\betav\|$ может быть близка к нулю.
+
+\subsection{Исключение локальных коэффициентов}
+
+Для фиксированного $\betav$ введём
+\begin{equation}
+ \boldsymbol{q}_j=\UV_j\betav,
+ \qquad
+ a_j=\langle\Imav_j,\boldsymbol{q}_j\rangle,
+ \qquad
+ b_j=\|\boldsymbol{q}_j\|^2+\eta_j.
+\end{equation}
+Точный минимум по локальному коэффициенту равен
+\begin{equation}
+ \widehat{\fcl}_j(\betav)=\frac{a_j}{b_j}.
+\label{eq:profiled-slope}
+\end{equation}
+После подстановки \eqref{eq:profiled-slope} остаётся задача на единичной сфере
+$\mathbb S^{\dimd-1}$:
+\begin{equation}
+ \min_{\|\betav\|=1}F(\betav),
+ \qquad
+ F(\betav)=
+ \frac12\sum_{j\in\JJJ}
+ \left(
+  \|\Imav_j\|^2-\frac{a_j^2}{b_j}
+ \right).
+\label{eq:profiled-objective}
+\end{equation}
+Таким образом, Riemannian L-BFGS оптимизирует только $\dimd$-мерный вектор
+$\betav$, а все коэффициенты $\fcl_j$ пересчитываются аналитически.
+
+\subsection{Градиент на сфере}
+
+По теореме об огибающей евклидов градиент профилированной функции можно
+вычислять без дифференцирования формулы
+$\widehat{\fcl}_j(\betav)$:
+\begin{equation}
+ \nabla F(\betav)
+ =-
+ \sum_{j\in\JJJ}
+ \widehat{\fcl}_j\,
+ \UV_j^{\mathsf T}
+ \left(
+  \Imav_j-\widehat{\fcl}_j\UV_j\betav
+ \right).
+\label{eq:euclidean-gradient}
+\end{equation}
+Касательное пространство сферы в точке $\betav$ имеет вид
+\begin{equation}
+ T_{\betav}\mathbb S^{\dimd-1}
+ =\{\boldsymbol{\xi}\in\mathbb R^{\dimd}:\langle\betav,\boldsymbol{\xi}\rangle=0\}.
+\end{equation}
+Поэтому риманов градиент равен ортогональной проекции
+\begin{equation}
+ \operatorname{grad}F(\betav)
+ =\nabla F(\betav)
+ -\betav\langle\betav,\nabla F(\betav)\rangle.
+\label{eq:riemannian-gradient}
+\end{equation}
+Формулы \eqref{eq:profiled-objective}--\eqref{eq:riemannian-gradient}
+требуют только умножений $\UV_j\betav$ и
+$\UV_j^{\mathsf T}\boldsymbol{r}_j$. Матрицы $\UV_j^{\mathsf T}\UV_j$ и матрицы
+размера $\dimd\times\dimd$ не строятся.
+
+\subsection{Шаг Riemannian L-BFGS}
+
+Пусть $\boldsymbol{g}_t=\operatorname{grad}F(\betav_t)$. По последним $m$ парам
+$(\boldsymbol{s}_i,\boldsymbol{y}_i)$ двухцикловая рекурсия L-BFGS строит приближение действия
+обратного риманова гессиана и направление
+\begin{equation}
+ \boldsymbol{d}_t=-\mathcal H_t\boldsymbol{g}_t
+ \in T_{\betav_t}\mathbb S^{\dimd-1}.
+\end{equation}
+Если $\langle\boldsymbol{g}_t,\boldsymbol{d}_t\rangle\ge0$, используется безопасный шаг
+$\boldsymbol{d}_t=-\boldsymbol{g}_t$.
+
+Длина шага $\alpha_t$ выбирается обратным поиском из условия Армихо
+\begin{equation}
+ F\bigl(R_{\betav_t}(\alpha_t\boldsymbol{d}_t)\bigr)
+ \le
+ F(\betav_t)
+ +c_1\alpha_t\langle\boldsymbol{g}_t,\boldsymbol{d}_t\rangle.
+\label{eq:armijo}
+\end{equation}
+Для сферы применяется нормирующая ретракция
+\begin{equation}
+ R_{\betav}(\boldsymbol{\xi})
+ =\frac{\betav+\boldsymbol{\xi}}{\|\betav+\boldsymbol{\xi}\|}.
+\label{eq:sphere-retraction}
+\end{equation}
+После получения $\betav_{t+1}$ касательные векторы переносятся простой
+проекцией
+\begin{equation}
+ \mathcal T_{t\to t+1}(\boldsymbol{z})
+ =\boldsymbol{z}-\betav_{t+1}
+   \langle\betav_{t+1},\boldsymbol{z}\rangle.
+\label{eq:vector-transport}
+\end{equation}
+Пары для обновления памяти определяются как
+\begin{equation}
+ \boldsymbol{s}_t=\mathcal T_{t\to t+1}(\alpha_t\boldsymbol{d}_t),
+ \qquad
+ \boldsymbol{y}_t=\boldsymbol{g}_{t+1}-\mathcal T_{t\to t+1}(\boldsymbol{g}_t).
+\label{eq:curvature-pairs}
+\end{equation}
+Пара сохраняется только при выполнении условия положительной кривизны
+\begin{equation}
+ \langle\boldsymbol{s}_t,\boldsymbol{y}_t\rangle
+ >\varepsilon_{\mathrm{curv}}\|\boldsymbol{s}_t\|\,\|\boldsymbol{y}_t\|.
+\label{eq:curvature-test}
+\end{equation}
+Это предотвращает неустойчивое обновление аппроксимации гессиана.
+
+\subsection{Вычислительная схема}
+
+Одна итерация состоит из следующих операций:
+\begin{enumerate}
+ \item для всех $j$ вычислить $\boldsymbol{q}_j=\UV_j\betav_t$,
+       $\widehat{\fcl}_j$, значение $F(\betav_t)$ и остатки;
+ \item вычислить евклидов и риманов градиенты по
+       \eqref{eq:euclidean-gradient} и \eqref{eq:riemannian-gradient};
+ \item получить направление двухцикловой рекурсией L-BFGS;
+ \item выполнить поиск шага и ретракцию \eqref{eq:sphere-retraction};
+ \item перенести касательные векторы и обновить ограниченную память.
+\end{enumerate}
+
+Если $p_j$ обозначает число строк $\UV_j$, стоимость вычисления функции и
+градиента составляет
+\begin{equation}
+ O\!\left(\sum_{j\in\JJJ}p_j\dimd\right).
+\end{equation}
+Дополнительная память оптимизатора равна $O(m\dimd)$, не считая хранения
+$\Imav_j$ и $\UV_j$. Сумма по центрам может вычисляться батчами или
+потоково, поэтому алгоритм не требует хранения дополнительных тензоров,
+зависящих от числа центров.
+
+Остановка выполняется по норме риманова градиента
+$\|\operatorname{grad}F(\betav_t)\|$ и относительному изменению
+профилированной функции. После остановки локальные коэффициенты
+восстанавливаются по \eqref{eq:profiled-slope}. Из-за эквивалентности
+$(\betav,\fcl_j)$ и $(-\betav,-\fcl_j)$ знак итогового направления можно
+согласовать с начальной оценкой.
