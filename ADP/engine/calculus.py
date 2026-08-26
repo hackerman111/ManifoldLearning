@@ -1,6 +1,9 @@
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 
 import numpy as np
+
+from ADP.engine.utils import _prepare_basis_eigenvalues, _prepare_multi_localization
+from ADP.engine.weights import _multi_components
 
 from . import utils
 
@@ -66,148 +69,8 @@ def calculate_h0(
     )
 
 
-def initialize_beta_local(
-    X: np.ndarray,
-    Y: np.ndarray,
-    centers: np.ndarray,
-    distance2: np.ndarray,
-    N_lin: int,
-    kernel: Callable,
-    local_ridge: float,
-) -> np.ndarray:
-    return initialize_basis_local(
-        X,
-        Y,
-        centers,
-        distance2,
-        N_lin,
-        kernel,
-        local_ridge,
-        1,
-    )[:, 0]
-
-
-def initialize_basis_local(
-    X: np.ndarray,
-    Y: np.ndarray,
-    centers: np.ndarray,
-    distance2: np.ndarray,
-    N_lin: int,
-    kernel: Callable,
-    local_ridge: float,
-    index_dim: int,
-) -> np.ndarray:
-    if isinstance(index_dim, bool) or not isinstance(index_dim, (int, np.integer)):
-        raise TypeError("index_dim must be an integer")
-    if not 1 <= index_dim <= X.shape[1]:
-        raise ValueError("index_dim must lie between 1 and d")
-
-    h_lin = search_bandwidth(
-        distance2,
-        N_lin,
-        kernel,
-        lower=np.finfo(float).eps,
-    )
-    weights = kernel(distance2 / h_lin**2)
-    n, d = X.shape
-    ridge_rows = np.zeros((d, d + 1))
-    ridge_rows[:, 1:] = np.sqrt(local_ridge) * np.eye(d)
-    gradients = np.empty((len(centers), d))
-
-    for j, center in enumerate(centers):
-        design = np.column_stack((np.ones(n), X - center))
-        root_weight = np.sqrt(weights[j])
-        augmented_design = np.vstack((design * root_weight[:, None], ridge_rows))
-        augmented_Y = np.concatenate((Y * root_weight, np.zeros(d)))
-        gradients[j] = np.linalg.lstsq(
-            augmented_design,
-            augmented_Y,
-            rcond=None,
-        )[
-            0
-        ][1:]
-
-    _, singular_values, right_vectors = np.linalg.svd(
-        gradients,
-        full_matrices=False,
-    )
-    threshold = (
-        np.finfo(float).eps
-        * max(gradients.shape)
-        * (singular_values[0] if len(singular_values) else 0.0)
-    )
-    if len(singular_values) < index_dim or singular_values[index_dim - 1] <= threshold:
-        raise RuntimeError("local gradients do not identify the requested index")
-
-    return _orient_basis(right_vectors[:index_dim].T.copy())
-
-
-def initialize_basis_pilot(
-    X: np.ndarray,
-    Y: np.ndarray,
-    index_dim: int,
-    *,
-    seed: int,
-) -> np.ndarray:
-    try:
-        from sklearn.neural_network import MLPRegressor
-    except ImportError as error:
-        raise ImportError(
-            "pilot initialization requires scikit-learn"
-        ) from error
-
-    X, Y = utils._prepare_xy(X, Y)
-    if isinstance(index_dim, bool) or not isinstance(index_dim, (int, np.integer)):
-        raise TypeError("index_dim must be an integer")
-    if not 1 <= index_dim <= X.shape[1]:
-        raise ValueError("index_dim must lie between 1 and d")
-    if isinstance(seed, bool) or not isinstance(seed, (int, np.integer)):
-        raise TypeError("seed must be an integer")
-    if seed < 0:
-        raise ValueError("seed must be nonnegative")
-
-    pilot = MLPRegressor(
-        hidden_layer_sizes=(int(index_dim),),
-        activation="tanh",
-        solver="lbfgs",
-        alpha=0.1,
-        max_iter=1000,
-        random_state=int(seed),
-    ).fit(X, Y)
-    weights = np.asarray(pilot.coefs_[0], dtype=float)
-    if weights.shape != (X.shape[1], index_dim) or not np.all(
-        np.isfinite(weights)
-    ):
-        raise RuntimeError("pilot initializer returned invalid weights")
-    if np.linalg.matrix_rank(weights) != index_dim:
-        raise RuntimeError("pilot initializer returned a rank-deficient basis")
-    basis, _ = np.linalg.qr(weights, mode="reduced")
-    return _orient_basis(basis)
-
-
-def initialize_basis_random(
-    rng: np.random.Generator,
-    n_features: int,
-    index_dim: int,
-) -> np.ndarray:
-    for name, value in (("n_features", n_features), ("index_dim", index_dim)):
-        if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
-            raise TypeError(f"{name} must be an integer")
-    if not 1 <= index_dim <= n_features:
-        raise ValueError("index_dim must lie between 1 and n_features")
-
-    basis, _ = np.linalg.qr(
-        rng.standard_normal((n_features, index_dim)),
-        mode="reduced",
-    )
-    return _orient_basis(basis)
-
-
-def _orient_basis(basis: np.ndarray) -> np.ndarray:
-    columns = np.arange(basis.shape[1])
-    signs = np.sign(basis[np.argmax(np.abs(basis), axis=0), columns])
-    basis *= np.where(signs == 0, 1.0, signs)
-    return basis
+def calculate_h0_from_adp(config, data) -> float:
+    return calculate_h0(data.X, data.x_j, config.N_loc, config.h_min, config.kernel)
 
 
 def calculate_rho_k(
@@ -220,12 +83,11 @@ def calculate_rho_k(
     *,
     distance2: np.ndarray | None = None,
 ) -> float | None:
-    X, centers, beta, distance2 = utils._prepare_rho(
-        X, centers, beta, h_k, distance2
-    )
+    X, centers, beta, distance2 = utils._prepare_rho(X, centers, beta, h_k, distance2)
 
     if distance2 is None:
         distance2 = pairwise_distance2(X, centers)
+    assert distance2 is not None
     projected = (centers @ beta)[:, None] - (X @ beta)[None, :]
     inverse_h2 = 1.0 / h_k**2
     projection2 = np.square(projected) * inverse_h2
@@ -252,6 +114,10 @@ def calculate_rho_k(
     return float(low)
 
 
+def calculate_rho_k_from_adp(config, data, beta, h_k) -> float | None:
+    return calculate_rho_k(data.X, data.x_j, beta, h_k, config.N_loc, config.kernel)
+
+
 def generate_proj(
     rng: np.random.Generator,
     n_centers: int,
@@ -270,43 +136,8 @@ def generate_proj(
     return values / norms
 
 
-def calculate_weight(
-    X: np.ndarray,
-    centers: np.ndarray,
-    beta: np.ndarray,
-    h: float,
-    rho: float,
-    kernel: Callable,
-    block_size: int = 128,
-    *,
-    distance2: np.ndarray | None = None,
-) -> Iterator[tuple[int, np.ndarray]]:
-    X, centers, beta = utils._prepare_weight_data(
-        X, centers, beta, h, rho, kernel, block_size
-    )
-
-    if distance2 is not None:
-        distance2 = utils._prepare_distance2(distance2, centers, len(X))
-
-    x_norm2 = None if distance2 is not None else np.einsum("nd,nd->n", X, X)
-    x_proj = X @ beta
-    center_proj = centers @ beta
-    for start in range(0, len(centers), block_size):
-        C = centers[start : start + block_size]
-        if distance2 is None:
-            c_norm2 = np.einsum("bd,bd->b", C, C)
-            distance2_block = (
-                c_norm2[:, None] + x_norm2[None, :] - 2.0 * C @ X.T
-            )
-            np.maximum(distance2_block, 0.0, out=distance2_block)
-        else:
-            distance2_block = distance2[start : start + block_size]
-
-        projection_diff = (
-            center_proj[start : start + block_size, None] - x_proj[None, :]
-        )
-        argument = (rho**2 * distance2_block + projection_diff**2) / h**2
-        yield start, kernel(argument)
+def generate_proj_from_adp(config, data, rng, beta, rho) -> np.ndarray:
+    return generate_proj(rng, len(data.x_j), config.N_phi, beta, rho)
 
 
 def calculate_alpha_k(
@@ -382,8 +213,7 @@ def generate_multi_proj(
     coordinates = z @ basis
     orthogonal = z - coordinates @ basis.T
     principal = (
-        rng.standard_normal((n_centers, n_directions, m))
-        * np.sqrt(eigenvalues)
+        rng.standard_normal((n_centers, n_directions, m)) * np.sqrt(eigenvalues)
     ) @ basis.T
     values = alpha * orthogonal + principal
     norms = np.linalg.norm(values, axis=2, keepdims=True)
@@ -392,106 +222,14 @@ def generate_multi_proj(
     return values / norms
 
 
-def calculate_multi_weight(
-    X: np.ndarray,
-    centers: np.ndarray,
-    basis: np.ndarray,
-    eigenvalues: np.ndarray,
-    h: float,
-    alpha: float,
-    kernel: Callable,
-    block_size: int = 128,
-    *,
-    distance2: np.ndarray | None = None,
-) -> Iterator[tuple[int, np.ndarray]]:
-    X, centers, basis, eigenvalues = _prepare_multi_localization(
-        X,
-        centers,
+def generate_multi_proj_from_adp(
+    config, data, rng, basis, eigenvalues, alpha
+) -> np.ndarray:
+    return generate_multi_proj(
+        rng,
+        len(data.x_j),
+        config.N_phi,
         basis,
         eigenvalues,
-        h,
         alpha,
-        kernel,
     )
-    utils._check_batch_size(block_size)
-    if distance2 is not None:
-        distance2 = utils._prepare_distance2(distance2, centers, len(X))
-
-    x_norm2 = None if distance2 is not None else np.einsum("nd,nd->n", X, X)
-    for start in range(0, len(centers), block_size):
-        C = centers[start : start + block_size]
-        if distance2 is None:
-            c_norm2 = np.einsum("bd,bd->b", C, C)
-            distance2_block = (
-                c_norm2[:, None] + x_norm2[None, :] - 2.0 * C @ X.T
-            )
-            np.maximum(distance2_block, 0.0, out=distance2_block)
-        else:
-            distance2_block = distance2[start : start + block_size]
-
-        orthogonal2, principal2 = _multi_components(
-            X,
-            C,
-            basis,
-            eigenvalues,
-            distance2_block,
-        )
-        argument = (alpha**2 * orthogonal2 + principal2) / h**2
-        yield start, kernel(argument)
-
-
-def _multi_components(X, centers, basis, eigenvalues, distance2):
-    orthogonal2 = distance2.copy()
-    principal2 = np.zeros_like(distance2)
-    for vector, eigenvalue in zip(basis.T, eigenvalues):
-        difference = (centers @ vector)[:, None] - (X @ vector)[None, :]
-        component2 = np.square(difference)
-        orthogonal2 -= component2
-        principal2 += eigenvalue * component2
-    np.maximum(orthogonal2, 0.0, out=orthogonal2)
-    return orthogonal2, principal2
-
-
-def _prepare_multi_localization(
-    X,
-    centers,
-    basis,
-    eigenvalues,
-    h,
-    alpha,
-    kernel,
-):
-    X, centers = utils._prepare_pairwise(X, centers)
-    basis, eigenvalues = _prepare_basis_eigenvalues(
-        basis,
-        eigenvalues,
-        n_features=X.shape[1],
-    )
-    if not np.isfinite(h) or h <= 0:
-        raise ValueError("h must be finite and positive")
-    if not np.isfinite(alpha) or not 0 <= alpha <= 1:
-        raise ValueError("alpha must lie in [0, 1]")
-    if not callable(kernel):
-        raise TypeError("kernel must be callable")
-    return X, centers, basis, eigenvalues
-
-
-def _prepare_basis_eigenvalues(basis, eigenvalues, *, n_features=None):
-    basis = utils._finite_real_array(basis, "basis")
-    eigenvalues = utils._finite_real_array(eigenvalues, "eigenvalues")
-    if basis.ndim != 2 or 0 in basis.shape:
-        raise ValueError("basis must have non-empty shape (d, m)")
-    if n_features is not None and basis.shape[0] != n_features:
-        raise ValueError("basis must have shape (d, m)")
-    if eigenvalues.shape != (basis.shape[1],):
-        raise ValueError("eigenvalues must have shape (m,)")
-    if np.any(eigenvalues < 0):
-        raise ValueError("eigenvalues must be nonnegative")
-    if not np.allclose(
-        basis.T @ basis,
-        np.eye(basis.shape[1]),
-        rtol=1e-8,
-        atol=1e-10,
-    ):
-        raise ValueError("basis columns must be orthonormal")
-    return basis, eigenvalues

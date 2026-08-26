@@ -1,0 +1,82 @@
+from __future__ import annotations
+
+import pytest
+
+from ADP.cli import main
+
+
+@pytest.mark.parametrize(
+    ("mode", "n", "d", "index_dim", "metric"),
+    (
+        ("single", "40", "3", "1", "cosine_abs="),
+        ("multi", "48", "4", "2", "projector_distance="),
+    ),
+)
+def test_cli_smoke(
+    capsys: pytest.CaptureFixture[str],
+    mode: str,
+    n: str,
+    d: str,
+    index_dim: str,
+    metric: str,
+) -> None:
+    assert (
+        main(
+            [
+                "--mode",
+                mode,
+                "--n",
+                n,
+                "--d",
+                d,
+                "--index-dim",
+                index_dim,
+                "--noise",
+                "0.01",
+                "--data-seed",
+                "1",
+                "--seed",
+                "2",
+                "--N_loc",
+                "6",
+                "--N_lin",
+                "10",
+                "--N_J",
+                "8",
+                "--N_phi",
+                "3",
+                "--outer_steps",
+                "1",
+                "--lambda_penalty",
+                "0.2",
+                "--local_ridge",
+                "1e-6",
+                "--kernel",
+                "epanechnikov",
+                "--a",
+                "1.41421356237",
+                "--h_min",
+                "1000000",
+                "--batch_size",
+                "4",
+                "--index_init",
+                "random",
+                "--solver-tol",
+                "1e-6",
+                "--solver-max-steps",
+                "2",
+                "--theta",
+                "0.2",
+                "--trust-radius",
+                "0.5",
+                "--lsmr-maxiter",
+                "100",
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    assert f"mode={mode}" in output
+    assert metric in output
+    assert "statistics:" in output
+    assert "process RSS peak:" in output

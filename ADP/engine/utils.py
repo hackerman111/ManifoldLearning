@@ -214,3 +214,48 @@ def check_weight_block(X, centers, beta, h, rho, kernel, block_size=128):
         or block_size <= 0
     ):
         raise ValueError("block_size must be a positive integer")
+
+
+def _prepare_multi_localization(
+    X,
+    centers,
+    basis,
+    eigenvalues,
+    h,
+    alpha,
+    kernel,
+):
+    X, centers = _prepare_pairwise(X, centers)
+    basis, eigenvalues = _prepare_basis_eigenvalues(
+        basis,
+        eigenvalues,
+        n_features=X.shape[1],
+    )
+    if not np.isfinite(h) or h <= 0:
+        raise ValueError("h must be finite and positive")
+    if not np.isfinite(alpha) or not 0 <= alpha <= 1:
+        raise ValueError("alpha must lie in [0, 1]")
+    if not callable(kernel):
+        raise TypeError("kernel must be callable")
+    return X, centers, basis, eigenvalues
+
+
+def _prepare_basis_eigenvalues(basis, eigenvalues, *, n_features=None):
+    basis = _finite_real_array(basis, "basis")
+    eigenvalues = _finite_real_array(eigenvalues, "eigenvalues")
+    if basis.ndim != 2 or 0 in basis.shape:
+        raise ValueError("basis must have non-empty shape (d, m)")
+    if n_features is not None and basis.shape[0] != n_features:
+        raise ValueError("basis must have shape (d, m)")
+    if eigenvalues.shape != (basis.shape[1],):
+        raise ValueError("eigenvalues must have shape (m,)")
+    if np.any(eigenvalues < 0):
+        raise ValueError("eigenvalues must be nonnegative")
+    if not np.allclose(
+        basis.T @ basis,
+        np.eye(basis.shape[1]),
+        rtol=1e-8,
+        atol=1e-10,
+    ):
+        raise ValueError("basis columns must be orthonormal")
+    return basis, eigenvalues

@@ -1,0 +1,207 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "adp-research"
+version = "0.1.0"
+description = "Research implementation of Average Derivative Procedure methods."
+readme = "README.md"
+requires-python = ">=3.11"
+
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+]
+
+
+# Development-only dependencies.
+# `uv sync` installs the `dev` group by default.
+[dependency-groups]
+lint = [
+    "ruff>=0.12",
+]
+
+test = [
+    "hypothesis>=6.130",
+    "pytest>=8.3",
+    "pytest-cov>=6",
+]
+
+type = [
+    "pyright>=1.1.400",
+]
+
+dev = [
+    { include-group = "lint" },
+    { include-group = "test" },
+    { include-group = "type" },
+]
+
+# Heavy dependencies used by experiments/benchmarks, not by the numerical core.
+bench = [
+    "matplotlib>=3.8",
+    "pandas>=2.2",
+    "psutil>=6",
+    "scikit-learn>=1.5",
+    "statsmodels>=0.14",
+    "threadpoolctl>=3.5",
+]
+
+release = [
+    "build>=1.2",
+    "twine>=6",
+]
+
+
+[tool.uv]
+default-groups = ["dev"]
+
+
+# Keep the current flat `ADP/` package layout.
+# A future migration to `src/ADP/` should be a separate repository change.
+[tool.setuptools]
+include-package-data = false
+
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ADP*"]
+exclude = ["tests*", "benchmarks*", "benchmark_outputs*"]
+
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+preview = false
+unsafe-fixes = false
+extend-exclude = [
+    "benchmark_outputs",
+]
+
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # import sorting
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "FA",     # future annotations
+    "PIE",    # flake8-pie
+    "RSE",    # flake8-raise
+    "SIM",    # flake8-simplify
+    "RUF",    # Ruff-specific correctness rules
+    "NPY",    # NumPy-specific rules
+    "PERF",   # common Python performance mistakes
+    "PTH",    # pathlib instead of ad-hoc os.path usage
+]
+
+ignore = [
+    # I and l are legitimate mathematical names in this project.
+    "E741",
+
+    # Concise ternaries are not automatically more readable in numerical code.
+    "SIM108",
+]
+
+
+[tool.ruff.lint.isort]
+known-first-party = ["ADP"]
+combine-as-imports = true
+
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    # Tests may intentionally use literal constants to make cases readable.
+    "PLR2004",
+]
+
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+
+[tool.pyright]
+include = ["ADP"]
+exclude = [
+    "**/__pycache__",
+    ".venv",
+    "build",
+    "dist",
+]
+pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "standard"
+useLibraryCodeForTypes = true
+reportMissingTypeStubs = false
+
+# Ruff owns unused-import diagnostics; avoid duplicate noise.
+reportUnusedImport = "none"
+
+# Keep stale suppressions visible while typing is adopted gradually.
+reportUnnecessaryTypeIgnoreComment = "warning"
+
+
+[tool.pytest.ini_options]
+minversion = "8.3"
+testpaths = ["tests"]
+
+addopts = [
+    "-ra",
+    "--strict-config",
+    "--strict-markers",
+    "--durations=10",
+]
+
+xfail_strict = true
+faulthandler_timeout = 300
+
+filterwarnings = [
+    # Add narrow, documented exceptions only for known third-party warnings.
+    "error",
+]
+
+markers = [
+    "slow: computationally expensive correctness or stress tests",
+    "benchmark: timing or memory benchmarks; not correctness tests",
+]
+
+
+[tool.coverage.run]
+branch = true
+source = ["ADP"]
+relative_files = true
+
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+precision = 1
+
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "if typing.TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@(abc\\.)?abstractmethod",
+]
