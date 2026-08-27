@@ -13,13 +13,14 @@ def _finite_real_array(value, name):
     return array
 
 
-def _prepare_xy(X, Y):
+def _prepare_xy(X, Y, *, require_overdetermined=True):
     X, Y = (_finite_real_array(value, name) for value, name in ((X, "X"), (Y, "Y")))
     if X.ndim != 2 or 0 in X.shape:
         raise ValueError("X must have non-empty shape (n, d)")
     if Y.shape != (X.shape[0],):
         raise ValueError("Y must have shape (n,)")
-    if X.shape[0] <= X.shape[1] + 1:
+    # EXACT: random-init не использует переопределенную локальную инициализацию.
+    if require_overdetermined and X.shape[0] <= X.shape[1] + 1:
         raise ValueError("n must exceed d + 1")
     return X, Y
 

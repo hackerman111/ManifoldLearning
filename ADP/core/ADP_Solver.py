@@ -50,8 +50,10 @@ class ADP_Solver:
         while h_k / a > self.config.h_min:
             h_k = h_k / a
             rho_k = calculate_rho_k_from_adp(self.config, self.data, beta_k, h_k)
+
             if rho_k is None:
                 raise RuntimeError("could not find a feasible localization factor")
+
             proj = generate_proj_from_adp(self.config, self.data, rng, beta_k, rho_k)
             weight = calculate_weight_from_adp(
                 self.config, self.data, beta_k, h_k, rho_k
@@ -59,6 +61,7 @@ class ADP_Solver:
             stat = calculate_statistics(
                 X, Y, weight, proj, batch_size=self.config.batch_size
             )
+
             beta_k = self.solver(beta_k, stat.U, stat.I)
 
         return beta_k

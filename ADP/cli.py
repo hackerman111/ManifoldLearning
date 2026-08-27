@@ -187,8 +187,10 @@ def _config(args: argparse.Namespace) -> ADP_Config:
 
 
 def _validate(args: argparse.Namespace, config: ADP_Config) -> tuple[int, int, int]:
-    if args.n <= args.d + 1:
-        raise ValueError("n must exceed d + 1")
+    if args.n < 2:
+        raise ValueError("n must be at least two")
+    if config.index_init != "random" and args.n <= args.d + 1:
+        raise ValueError("n must exceed d + 1 unless index_init is random")
     if args.mode == "single" and args.index_dim != 1:
         raise ValueError("index_dim must equal 1 in single mode")
     if args.mode == "multi" and not 1 <= args.index_dim < args.d:
@@ -281,19 +283,35 @@ def _initial_index(
 
 def _run(
     args: argparse.Namespace,
+    *,
+    data: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, dict[str, float]], dict[str, object]]:
     config = _config(args)
     n_lin, n_centers, n_directions = _validate(args, config)
     profiler = _Profiler()
     try:
         with profiler.stage("data"):
-            X, Y, true_basis = _synthetic_data(
-                args.n,
-                args.d,
-                args.index_dim,
-                args.noise,
-                args.data_seed,
-            )
+            if data is None:
+                X, Y, true_basis = _synthetic_data(
+                    args.n,
+                    args.d,
+                    args.index_dim,
+                    args.noise,
+                    args.data_seed,
+                )
+            else:
+                X, Y = utils._prepare_xy(
+                    data[0],
+                    data[1],
+                    require_overdetermined=config.index_init != "random",
+                )
+                true_basis = utils._finite_real_array(data[2], "true_basis")
+                expected = (args.d, args.index_dim)
+                if X.shape != (args.n, args.d) or true_basis.shape != expected:
+                    raise ValueError(
+                        f"injected data must have X shape {(args.n, args.d)} "
+                        f"and true_basis shape {expected}"
+                    )
 
         center_seed, init_seed, direction_seed = np.random.SeedSequence(
             config.seed
