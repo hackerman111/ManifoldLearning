@@ -20,13 +20,17 @@ class ADP_Config:
     N_J: int | None = None
     N_phi: int | None = None
     outer_steps: int | None = None
-    lambda_penalty: float = 1.0
+    lambda_penalty: float = 0.05
     local_ridge: float = 1e-8
     kernel: Callable[[np.ndarray], np.ndarray] = epanechnikov
     a: float = sqrt(2)
     h_min: float = 1.0
     batch_size: int = 32
     index_init: str = "local"
+    estimator: str = "new"
+    direction_mode: str = "auto"
+    multi_tensor: str = "orthogonal"
+    select_step: str = "best"
 
     def __post_init__(self) -> None:
         integer_fields = (
@@ -50,8 +54,8 @@ class ADP_Config:
 
         for name in ("lambda_penalty", "local_ridge"):
             value = getattr(self, name)
-            if not np.isfinite(value) or value <= 0:
-                raise ValueError(f"{name} must be finite and positive")
+            if not np.isfinite(value) or value < 0:
+                raise ValueError(f"{name} must be finite and nonnegative")
 
         if not np.isfinite(self.a) or self.a <= 1:
             raise ValueError("a must be finite and exceed one")
@@ -61,3 +65,13 @@ class ADP_Config:
             raise TypeError("kernel must be callable")
         if self.index_init not in {"local", "pilot", "random"}:
             raise ValueError("index_init must be 'local', 'pilot', or 'random'")
+        if self.estimator not in {"new", "legacy"}:
+            raise ValueError("estimator must be 'new' or 'legacy'")
+        if self.direction_mode not in {"auto", "isotropic", "localized"}:
+            raise ValueError(
+                "direction_mode must be 'auto', 'isotropic', or 'localized'"
+            )
+        if self.multi_tensor not in {"orthogonal", "full"}:
+            raise ValueError("multi_tensor must be 'orthogonal' or 'full'")
+        if self.select_step not in {"best", "last"}:
+            raise ValueError("select_step must be 'best' or 'last'")

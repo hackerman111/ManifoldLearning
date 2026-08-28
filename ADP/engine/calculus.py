@@ -82,8 +82,13 @@ def calculate_rho_k(
     kernel: Callable,
     *,
     distance2: np.ndarray | None = None,
+    estimator: str = "legacy",
 ) -> float | None:
     X, centers, beta, distance2 = utils._prepare_rho(X, centers, beta, h_k, distance2)
+    if estimator not in {"new", "legacy"}:
+        raise ValueError("estimator must be 'new' or 'legacy'")
+    if not np.isfinite(N_loc) or N_loc <= 0:
+        raise ValueError("N_loc must be finite and positive")
 
     if distance2 is None:
         distance2 = pairwise_distance2(X, centers)
@@ -92,9 +97,14 @@ def calculate_rho_k(
     inverse_h2 = 1.0 / h_k**2
     projection2 = np.square(projected) * inverse_h2
     scaled_distance2 = distance2 * inverse_h2
+    orthogonal2 = scaled_distance2 - projection2
+    np.maximum(orthogonal2, 0.0, out=orthogonal2)
 
     def enough(rho: float) -> bool:
-        argument = rho**2 * scaled_distance2 + projection2
+        if estimator == "new":
+            argument = projection2 + rho**2 * orthogonal2
+        else:
+            argument = rho**2 * scaled_distance2 + projection2
         mass = np.sum(kernel(argument), axis=1)
         return bool(np.mean(mass) >= N_loc)
 
@@ -115,7 +125,15 @@ def calculate_rho_k(
 
 
 def calculate_rho_k_from_adp(config, data, beta, h_k) -> float | None:
-    return calculate_rho_k(data.X, data.x_j, beta, h_k, config.N_loc, config.kernel)
+    return calculate_rho_k(
+        data.X,
+        data.x_j,
+        beta,
+        h_k,
+        config.N_loc,
+        config.kernel,
+        estimator=config.estimator,
+    )
 
 
 def generate_proj(
@@ -136,6 +154,26 @@ def generate_proj(
     return values / norms
 
 
+def generate_isotropic_proj(
+    rng: np.random.Generator,
+    n_centers: int,
+    n_directions: int,
+    n_features: int,
+) -> np.ndarray:
+    """Сгенерировать независимые равномерные направления на сфере."""
+    if isinstance(n_features, bool) or not isinstance(n_features, (int, np.integer)):
+        raise TypeError("n_features must be an integer")
+    if n_features < 1:
+        raise ValueError("n_features must be positive")
+    return generate_proj(
+        rng,
+        n_centers,
+        n_directions,
+        np.zeros(n_features),
+        1.0,
+    )
+
+
 def generate_proj_from_adp(config, data, rng, beta, rho) -> np.ndarray:
     return generate_proj(rng, len(data.x_j), config.N_phi, beta, rho)
 
@@ -150,6 +188,7 @@ def calculate_alpha_k(
     kernel: Callable,
     *,
     distance2: np.ndarray | None = None,
+    tensor: str = "orthogonal",
 ) -> float | None:
     X, centers, basis, eigenvalues = _prepare_multi_localization(
         X,
@@ -162,6 +201,8 @@ def calculate_alpha_k(
     )
     if not np.isfinite(N_loc) or N_loc <= 0:
         raise ValueError("N_loc must be finite and positive")
+    if tensor not in {"orthogonal", "full"}:
+        raise ValueError("tensor must be 'orthogonal' or 'full'")
     if distance2 is None:
         distance2 = pairwise_distance2(X, centers)
     else:
@@ -177,7 +218,8 @@ def calculate_alpha_k(
     inverse_h2 = 1.0 / h_k**2
 
     def enough(alpha: float) -> bool:
-        argument = (alpha**2 * orthogonal2 + principal2) * inverse_h2
+        residual2 = orthogonal2 if tensor == "orthogonal" else distance2
+        argument = (alpha**2 * residual2 + principal2) * inverse_h2
         return bool(np.mean(np.sum(kernel(argument), axis=1)) >= N_loc)
 
     if enough(1.0):

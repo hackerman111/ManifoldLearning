@@ -93,5 +93,16 @@ def test_dense_hpao_contract() -> None:
     np.testing.assert_allclose(np.linalg.norm(beta_result.index), 1.0, atol=1e-12)
     assert LSMR.lsmr(beta, U, I, mass=mass, max_steps=1).shape == (d,)
 
+    unregularized = LSMR.solve(
+        beta,
+        U,
+        I,
+        mass=mass,
+        lambda_prox=0,
+        max_steps=1,
+        trust_radius=10,
+    )
+    assert np.all(np.isfinite(unregularized.index))
+
     with pytest.raises(ValueError, match="nonzero finite norm"):
         LSMR.solve(np.zeros(d), U, I)

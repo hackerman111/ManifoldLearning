@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import ClassVar
 
 import numpy as np
@@ -14,6 +14,7 @@ class ADP_Statistics:
         "mean",
         "n_eff",
         "eta",
+        "S",
     )
 
     I: np.ndarray
@@ -22,6 +23,7 @@ class ADP_Statistics:
     mean: np.ndarray
     n_eff: np.ndarray
     eta: np.ndarray
+    S: np.ndarray = field(default_factory=lambda: np.empty(0))
 
     def __getitem__(self, name: str) -> np.ndarray:
         if name not in self._fields:

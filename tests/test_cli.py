@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
-from ADP.cli import main
+from ADP.cli import _quality, _run, build_parser, main
 
 
 @pytest.mark.parametrize(
@@ -78,5 +79,51 @@ def test_cli_smoke(
     output = capsys.readouterr().out
     assert f"mode={mode}" in output
     assert metric in output
+    assert "estimator=new" in output
+    assert "step=0" in output
     assert "statistics:" in output
     assert "process RSS peak:" in output
+
+
+def test_cli_trace_selects_the_minimum_fit_step() -> None:
+    args = build_parser().parse_args(
+        [
+            "--mode",
+            "single",
+            "--n",
+            "80",
+            "--d",
+            "4",
+            "--N_loc",
+            "8",
+            "--N_lin",
+            "12",
+            "--N_J",
+            "12",
+            "--N_phi",
+            "4",
+            "--outer_steps",
+            "2",
+            "--h_min",
+            "0.01",
+            "--index_init",
+            "random",
+            "--solver-max-steps",
+            "2",
+            "--batch_size",
+            "4",
+            "--seed",
+            "2",
+            "--data-seed",
+            "1",
+        ]
+    )
+
+    index, true_basis, _, metadata = _run(args)
+    trace = metadata["trace"]
+    errors = [step["err"] for step in trace]
+    selected = int(np.argmin(errors))
+
+    assert metadata["selected_iteration"] == selected
+    assert metadata["selected_error"] == min(errors)
+    assert _quality("single", index, true_basis) == trace[selected]["quality"]

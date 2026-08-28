@@ -122,6 +122,8 @@ def test_paired_ab_writes_log_and_plots(tmp_path) -> None:
     assert len({row["seed_bundle"] for row in rows}) == 1
     assert {row["model_seed"] for row in rows} == {"11"}
     assert {row["status"] for row in rows} <= {"success", "nonconverged"}
+    assert all(json.loads(row["trace"]) for row in rows)
+    assert {row["selected_iteration"] for row in rows} == {"0"}
     assert json.loads((series / "series.json").read_text())["seed"] == 11
     assert (series / "plots/custom/quality.png").is_file()
     assert (series / "plots/custom/runtime.png").is_file()

@@ -99,6 +99,10 @@ def solve(
             correction = step[0].reshape(prior.shape)
             correction_norm = float(np.linalg.norm(correction) / math.sqrt(m))
             if step[3] > theta or correction_norm > trust_radius:
+                if lambda_current == 0:
+                    raise RuntimeError(
+                        "unregularized HPAO step failed the trust certificate"
+                    )
                 lambda_current *= 2.0
                 continue
 
@@ -116,6 +120,10 @@ def solve(
             candidate_loss = _loss(I, U, candidate, candidate_coefficients, mass)
             rounding = 64 * np.finfo(float).eps * max(1.0, old_loss)
             if candidate_loss > old_loss + rounding:
+                if lambda_current == 0:
+                    raise RuntimeError(
+                        "unregularized HPAO step did not decrease the objective"
+                    )
                 lambda_current *= 2.0
                 continue
 
@@ -237,9 +245,10 @@ def _validate_settings(lambda_prox, max_steps, tol, theta, lsmr_maxiter):
             raise TypeError("lsmr_maxiter must be an integer or None")
         if lsmr_maxiter < 1:
             raise ValueError("lsmr_maxiter must be positive")
-    for name, value in (("lambda_prox", lambda_prox), ("tol", tol)):
-        if not np.isfinite(value) or value <= 0:
-            raise ValueError(f"{name} must be finite and positive")
+    if not np.isfinite(lambda_prox) or lambda_prox < 0:
+        raise ValueError("lambda_prox must be finite and nonnegative")
+    if not np.isfinite(tol) or tol <= 0:
+        raise ValueError("tol must be finite and positive")
     if not np.isfinite(theta) or not 0 < theta < 1:
         raise ValueError("theta must be finite and lie between zero and one")
 
@@ -372,12 +381,13 @@ def _global_correction(
         operator.rmatvec(operator @ correction) + lambda_prox * correction
     )
     normal_norm = float(np.linalg.norm(normal_residual))
-    denominator = lambda_prox * float(np.linalg.norm(correction))
-    zero_step_tolerance = (
-        64
-        * np.finfo(float).eps
-        * max(1.0, np.linalg.norm(operator.rmatvec(residual.ravel())))
+    initial_normal = float(np.linalg.norm(operator.rmatvec(residual.ravel())))
+    denominator = (
+        lambda_prox * float(np.linalg.norm(correction))
+        if lambda_prox > 0
+        else initial_normal
     )
+    zero_step_tolerance = 64 * np.finfo(float).eps * max(1.0, initial_normal)
     ratio = (
         normal_norm / denominator
         if denominator > 0

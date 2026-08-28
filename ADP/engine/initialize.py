@@ -15,6 +15,8 @@ def initialize_beta_local(
     N_lin: int,
     kernel: Callable,
     local_ridge: float,
+    *,
+    mass_weighted: bool = False,
 ) -> np.ndarray:
     return initialize_basis_local(
         X,
@@ -25,6 +27,7 @@ def initialize_beta_local(
         kernel,
         local_ridge,
         1,
+        mass_weighted=mass_weighted,
     )[:, 0]
 
 
@@ -37,11 +40,15 @@ def initialize_basis_local(
     kernel: Callable,
     local_ridge: float,
     index_dim: int,
+    *,
+    mass_weighted: bool = False,
 ) -> np.ndarray:
     if isinstance(index_dim, bool) or not isinstance(index_dim, (int, np.integer)):
         raise TypeError("index_dim must be an integer")
     if not 1 <= index_dim <= X.shape[1]:
         raise ValueError("index_dim must lie between 1 and d")
+    if not isinstance(mass_weighted, bool):
+        raise TypeError("mass_weighted must be boolean")
 
     h_lin = search_bandwidth(
         distance2,
@@ -50,6 +57,9 @@ def initialize_basis_local(
         lower=np.finfo(float).eps,
     )
     weights = kernel(distance2 / h_lin**2)
+    local_mass = weights.sum(axis=1)
+    if not np.all(np.isfinite(local_mass)) or np.any(local_mass <= 0):
+        raise RuntimeError("local initialization contains an empty neighborhood")
     n, d = X.shape
     ridge_rows = np.zeros((d, d + 1))
     ridge_rows[:, 1:] = np.sqrt(local_ridge) * np.eye(d)
@@ -66,13 +76,33 @@ def initialize_basis_local(
             rcond=None,
         )[0][1:]
 
-    _, singular_values, right_vectors = np.linalg.svd(
+    return _principal_gradient_basis(
         gradients,
-        full_matrices=False,
+        index_dim,
+        mass=local_mass if mass_weighted else None,
     )
+
+
+def _principal_gradient_basis(
+    gradients: np.ndarray,
+    index_dim: int,
+    *,
+    mass: np.ndarray | None = None,
+) -> np.ndarray:
+    """Вернуть главные направления из малого mass-взвешенного gradient PCA."""
+    values = gradients
+    if mass is not None:
+        if mass.shape != (len(gradients),):
+            raise ValueError("mass must have shape (J,)")
+        if not np.all(np.isfinite(mass)) or np.any(mass <= 0):
+            raise ValueError("mass must be finite and positive")
+        # ESTIMATOR: SVD(sqrt(mass) * gradients) соответствует J_EDR из TeX.
+        values = np.sqrt(mass)[:, None] * gradients
+
+    _, singular_values, right_vectors = np.linalg.svd(values, full_matrices=False)
     threshold = (
         np.finfo(float).eps
-        * max(gradients.shape)
+        * max(values.shape)
         * (singular_values[0] if len(singular_values) else 0.0)
     )
     if len(singular_values) < index_dim or singular_values[index_dim - 1] <= threshold:

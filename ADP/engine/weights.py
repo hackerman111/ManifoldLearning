@@ -16,11 +16,19 @@ def calculate_weight(
     block_size: int = 128,
     *,
     distance2: np.ndarray | None = None,
+    estimator: str = "legacy",
 ) -> Iterator[tuple[int, np.ndarray]]:
     X, centers, beta = utils._prepare_weight_data(
         X, centers, beta, h, rho, kernel, block_size
     )
 
+    if estimator not in {"new", "legacy"}:
+        raise ValueError("estimator must be 'new' or 'legacy'")
+    if estimator == "new":
+        beta_norm = np.linalg.norm(beta)
+        if beta_norm == 0:
+            raise ValueError("beta must be non-zero for the new estimator")
+        beta = beta / beta_norm
     if distance2 is not None:
         distance2 = utils._prepare_distance2(distance2, centers, len(X))
 
@@ -39,7 +47,15 @@ def calculate_weight(
         projection_diff = (
             center_proj[start : start + block_size, None] - x_proj[None, :]
         )
-        argument = (rho**2 * distance2_block + projection_diff**2) / h**2
+        projection2 = np.square(projection_diff)
+        if estimator == "new":
+            # ESTIMATOR: T^2=h^-2[rho^2(I-bb^T)+bb^T].
+            orthogonal2 = distance2_block - projection2
+            # NUMERICAL: roundoff must not make an orthogonal square negative.
+            np.maximum(orthogonal2, 0.0, out=orthogonal2)
+            argument = (projection2 + rho**2 * orthogonal2) / h**2
+        else:
+            argument = (rho**2 * distance2_block + projection2) / h**2
         yield start, kernel(argument)
 
 
@@ -52,6 +68,7 @@ def calculate_weight_from_adp(config, data, beta, h, rho):
         rho,
         config.kernel,
         block_size=config.batch_size,
+        estimator=config.estimator,
     )
 
 
@@ -66,6 +83,7 @@ def calculate_multi_weight(
     block_size: int = 128,
     *,
     distance2: np.ndarray | None = None,
+    tensor: str = "orthogonal",
 ) -> Iterator[tuple[int, np.ndarray]]:
     X, centers, basis, eigenvalues = _prepare_multi_localization(
         X,
@@ -77,6 +95,8 @@ def calculate_multi_weight(
         kernel,
     )
     utils._check_batch_size(block_size)
+    if tensor not in {"orthogonal", "full"}:
+        raise ValueError("tensor must be 'orthogonal' or 'full'")
     if distance2 is not None:
         distance2 = utils._prepare_distance2(distance2, centers, len(X))
 
@@ -97,7 +117,8 @@ def calculate_multi_weight(
             eigenvalues,
             distance2_block,
         )
-        argument = (alpha**2 * orthogonal2 + principal2) / h**2
+        residual2 = orthogonal2 if tensor == "orthogonal" else distance2_block
+        argument = (alpha**2 * residual2 + principal2) / h**2
         yield start, kernel(argument)
 
 

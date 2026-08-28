@@ -18,6 +18,7 @@ from .engine import utils
 from .engine.calculus import (
     calculate_alpha_k,
     calculate_rho_k,
+    generate_isotropic_proj,
     generate_multi_proj,
     generate_proj,
     pairwise_distance2,
@@ -159,9 +160,30 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("local", "pilot", "random"),
         default=defaults.index_init,
     )
+    parser.add_argument(
+        "--estimator",
+        choices=("new", "legacy"),
+        default=defaults.estimator,
+    )
+    parser.add_argument(
+        "--directions",
+        dest="direction_mode",
+        choices=("auto", "isotropic", "localized"),
+        default=defaults.direction_mode,
+    )
+    parser.add_argument(
+        "--multi-tensor",
+        choices=("orthogonal", "full"),
+        default=defaults.multi_tensor,
+    )
+    parser.add_argument(
+        "--select-step",
+        choices=("best", "last"),
+        default=defaults.select_step,
+    )
 
     parser.add_argument("--solver-tol", type=float, default=1e-6)
-    parser.add_argument("--solver-max-steps", type=int, default=10)
+    parser.add_argument("--solver-max-steps", type=int)
     parser.add_argument("--theta", type=float, default=0.1)
     parser.add_argument("--trust-radius", type=float)
     parser.add_argument("--lsmr-maxiter", type=int)
@@ -183,6 +205,10 @@ def _config(args: argparse.Namespace) -> ADP_Config:
         h_min=args.h_min,
         batch_size=args.batch_size,
         index_init=args.index_init,
+        estimator=args.estimator,
+        direction_mode=args.direction_mode,
+        multi_tensor=args.multi_tensor,
+        select_step=args.select_step,
     )
 
 
@@ -201,6 +227,8 @@ def _validate(args: argparse.Namespace, config: ADP_Config) -> tuple[int, int, i
         raise ValueError("data_seed must be nonnegative")
     if args.mode == "single" and config.index_init == "pilot":
         raise ValueError("pilot initialization is multi-index only")
+    if args.solver_max_steps is not None and args.solver_max_steps < 1:
+        raise ValueError("solver_max_steps must be positive")
 
     n_lin = config.N_lin or 2 * args.d
     n_centers = config.N_J or args.n
@@ -266,6 +294,7 @@ def _initial_index(
             n_lin,
             config.kernel,
             config.local_ridge,
+            mass_weighted=config.estimator == "new",
         )
     else:
         basis = initialize_basis_local(
@@ -277,6 +306,7 @@ def _initial_index(
             config.kernel,
             config.local_ridge,
             args.index_dim,
+            mass_weighted=config.estimator == "new",
         )
     return basis[:, 0] if args.mode == "single" else basis.T
 
@@ -318,11 +348,12 @@ def _run(
         ).spawn(3)
         with profiler.stage("initialization"):
             center_rng = np.random.default_rng(center_seed)
-            centers = (
-                X.copy()
+            center_indices = (
+                np.arange(args.n)
                 if n_centers == args.n
-                else X[center_rng.choice(args.n, size=n_centers, replace=False)]
+                else center_rng.choice(args.n, size=n_centers, replace=False)
             )
+            centers = X[center_indices]
             distance2 = pairwise_distance2(X, centers)
             index = _initial_index(
                 args,
@@ -347,12 +378,32 @@ def _run(
         factor = 1.0
         eigenvalues = np.ones(args.index_dim)
         diagnostics: dict[str, object] = {}
+        trace: list[dict[str, object]] = []
+        best_error = float("inf")
+        best_iteration = 0
+        best_index = index.copy()
+        best_eigenvalues = eigenvalues.copy()
+        best_diagnostics: dict[str, object] = {}
+        normalized = config.estimator == "new"
+        direction_mode = config.direction_mode
+        if direction_mode == "auto":
+            direction_mode = (
+                "isotropic" if normalized and args.mode == "multi" else "localized"
+            )
+        solver_max_steps = args.solver_max_steps or (3 if args.mode == "single" else 5)
         stop_reason = "h_min"
         outer_iteration = 0
 
         while True:
             with profiler.stage("directions"):
-                if args.mode == "single":
+                if direction_mode == "isotropic":
+                    directions = generate_isotropic_proj(
+                        direction_rng,
+                        n_centers,
+                        n_directions,
+                        args.d,
+                    )
+                elif args.mode == "single":
                     directions = generate_proj(
                         direction_rng,
                         n_centers,
@@ -371,6 +422,11 @@ def _run(
                     )
 
             with profiler.stage("statistics"):
+                effective_tensor = (
+                    "orthogonal"
+                    if args.mode == "multi" and outer_iteration == 0
+                    else config.multi_tensor
+                )
                 if args.mode == "single":
                     weights = calculate_weight(
                         X,
@@ -381,6 +437,7 @@ def _run(
                         config.kernel,
                         block_size=config.batch_size,
                         distance2=distance2,
+                        estimator=config.estimator,
                     )
                 else:
                     weights = calculate_multi_weight(
@@ -393,6 +450,7 @@ def _run(
                         config.kernel,
                         block_size=config.batch_size,
                         distance2=distance2,
+                        tensor=effective_tensor,
                     )
                 statistics = calculate_statistics(
                     X,
@@ -400,6 +458,7 @@ def _run(
                     weights,
                     directions,
                     batch_size=config.batch_size,
+                    normalized=normalized,
                 )
 
             with profiler.stage("solver"):
@@ -407,17 +466,48 @@ def _run(
                     index,
                     statistics.U,
                     statistics.I,
+                    mass=statistics.mass if normalized else None,
                     lambda_prox=config.lambda_penalty,
-                    max_steps=args.solver_max_steps,
+                    max_steps=solver_max_steps,
                     tol=args.solver_tol,
                     theta=args.theta,
                     trust_radius=args.trust_radius,
                     lsmr_maxiter=args.lsmr_maxiter,
                 )
-                index, eigenvalues = _solver_index(args.mode, result, index)
+                index, eigenvalues = _solver_index(
+                    args.mode,
+                    result,
+                    index,
+                    mass=statistics.mass if normalized else None,
+                )
                 diagnostics = dict(result.diagnostics)
 
             outer_iteration += 1
+            fit_error = float(np.sum(np.square(Y[center_indices] - statistics.S)))
+            quality = _quality(args.mode, index, true_basis)
+            trace.append(
+                {
+                    "iteration": outer_iteration - 1,
+                    "h": float(h),
+                    "factor_name": "rho" if args.mode == "single" else "alpha",
+                    "factor": float(factor),
+                    "h_over_factor": (
+                        float(h / factor) if factor > 0 else float("inf")
+                    ),
+                    "err": fit_error,
+                    "quality": quality,
+                    "eigenvalues": tuple(float(value) for value in eigenvalues),
+                    "tensor": effective_tensor if args.mode == "multi" else None,
+                    "solver": diagnostics,
+                }
+            )
+            if fit_error < best_error:
+                best_error = fit_error
+                best_iteration = outer_iteration - 1
+                best_index = index.copy()
+                best_eigenvalues = eigenvalues.copy()
+                best_diagnostics = diagnostics
+
             if config.outer_steps is not None and outer_iteration >= config.outer_steps:
                 stop_reason = "outer_steps"
                 break
@@ -435,6 +525,7 @@ def _run(
                         config.N_loc,
                         config.kernel,
                         distance2=distance2,
+                        estimator=config.estimator,
                     )
                 else:
                     next_factor = calculate_alpha_k(
@@ -446,6 +537,7 @@ def _run(
                         config.N_loc,
                         config.kernel,
                         distance2=distance2,
+                        tensor=config.multi_tensor,
                     )
                 if next_factor is None:
                     stop_reason = "local_mass_limit"
@@ -453,13 +545,36 @@ def _run(
                 factor = next_factor
                 h = float(next_h)
 
+        last_diagnostics = diagnostics
+        selected_iteration = outer_iteration - 1
+        if config.select_step == "best":
+            index = best_index
+            eigenvalues = best_eigenvalues
+            diagnostics = best_diagnostics
+            selected_iteration = best_iteration
+
         metadata: dict[str, object] = {
             "N_lin": n_lin,
             "N_J": n_centers,
             "N_phi": n_directions,
             "outer_iterations": outer_iteration,
             "stop_reason": stop_reason,
+            "estimator": config.estimator,
+            "direction_mode": direction_mode,
+            "multi_tensor": config.multi_tensor,
+            "solver_max_steps": solver_max_steps,
+            "selection": config.select_step,
+            "selected_iteration": selected_iteration,
+            "selected_error": (
+                best_error
+                if config.select_step == "best"
+                else trace[selected_iteration]["err"]
+            ),
+            "selected_eigenvalues": tuple(float(value) for value in eigenvalues),
+            "training_set": "all",
+            "trace": trace,
             "diagnostics": diagnostics,
+            "last_diagnostics": last_diagnostics,
         }
         return index, true_basis, profiler.records, metadata
     finally:
@@ -470,6 +585,8 @@ def _solver_index(
     mode: str,
     result: HPAOResult,
     prior: np.ndarray,
+    *,
+    mass: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     index = np.asarray(result.index, dtype=float)
     if mode == "single":
@@ -494,14 +611,31 @@ def _solver_index(
     ):
         raise RuntimeError("multi-index solver returned a non-orthonormal index")
 
-    # EXACT: одновременный поворот индекса и коэффициентов сохраняет fitted values.
-    values, vectors = np.linalg.eigh(coefficients.T @ coefficients)
-    order = np.argsort(values)[::-1]
-    values = np.maximum(values[order], 0.0)
-    if values[0] <= np.finfo(float).eps:
+    if mass is None:
+        weighted_coefficients = coefficients
+    else:
+        # ESTIMATOR: новая версия использует G=sum_j mass_j l_j l_j^T.
+        mass = np.asarray(mass, dtype=float)
+        if mass.shape != (len(coefficients),):
+            raise RuntimeError("multi-index mass has incompatible shape")
+        if not np.all(np.isfinite(mass)) or np.any(mass <= 0):
+            raise RuntimeError("multi-index mass must be finite and positive")
+        weighted_coefficients = np.sqrt(mass)[:, None] * coefficients
+
+    # EXACT при заданных mass: SVD малого фактора без структурной d x d матрицы.
+    _, singular_values, right_vectors = np.linalg.svd(
+        weighted_coefficients,
+        full_matrices=False,
+    )
+    values = np.square(singular_values)
+    threshold = (
+        np.finfo(float).eps
+        * max(weighted_coefficients.shape)
+        * (singular_values[0] if len(singular_values) else 0.0)
+    )
+    if len(values) < index.shape[0] or singular_values[index.shape[0] - 1] <= threshold:
         raise RuntimeError("local coefficients do not identify a multi-index")
-    vectors = vectors[:, order]
-    index = vectors.T @ index
+    index = right_vectors @ index
     signs = np.sign(index[np.arange(len(index)), np.argmax(np.abs(index), axis=1)])
     index *= np.where(signs == 0, 1.0, signs)[:, None]
     return index, values / values[0]
@@ -547,6 +681,23 @@ def _print_result(
     )
     quality = _quality(args.mode, index, true_basis)
     print(f"stop_reason={metadata['stop_reason']} {metric_name}={quality:.6f}")
+    print(
+        f"estimator={metadata['estimator']} directions={metadata['direction_mode']} "
+        f"selection={metadata['selection']} "
+        f"selected_step={metadata['selected_iteration']}"
+    )
+    for step in cast(list[dict[str, object]], metadata["trace"]):
+        step_h = cast(float, step["h"])
+        step_factor = cast(float, step["factor"])
+        step_ratio = cast(float, step["h_over_factor"])
+        step_error = cast(float, step["err"])
+        step_quality = cast(float, step["quality"])
+        print(
+            f"step={step['iteration']} h={step_h:.6g} "
+            f"{step['factor_name']}={step_factor:.6g} "
+            f"h/{step['factor_name']}={step_ratio:.6g} "
+            f"err={step_error:.6g} quality={step_quality:.6g}"
+        )
     print("\nstage statistics (tracemalloc peak excludes untraced native memory):")
     for name in _STAGES:
         record = profile.get(

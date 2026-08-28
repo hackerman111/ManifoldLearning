@@ -88,7 +88,7 @@ class Build:
     name: str
     config: ADP_Config
     solver_tol: float = 1e-6
-    solver_max_steps: int = 10
+    solver_max_steps: int = 3
     theta: float = 0.1
     trust_radius: float | None = None
     lsmr_maxiter: int | None = None
@@ -364,6 +364,9 @@ _RUN_COLUMNS = (
     "max_stage_traced_peak_mib",
     "outer_iterations",
     "stop_reason",
+    "selected_iteration",
+    "selected_error",
+    "trace",
     "solver_diagnostics",
 )
 
@@ -477,6 +480,9 @@ def _fit(
         "max_stage_traced_peak_mib": profile["total"]["traced_peak_bytes"] / 2**20,
         "outer_iterations": metadata["outer_iterations"],
         "stop_reason": metadata["stop_reason"],
+        "selected_iteration": metadata["selected_iteration"],
+        "selected_error": metadata["selected_error"],
+        "trace": _compact_json(metadata["trace"]),
         "solver_diagnostics": _compact_json(diagnostics),
     }
 
