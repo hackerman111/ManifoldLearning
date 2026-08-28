@@ -25,10 +25,9 @@ from .engine.calculus import (
     search_bandwidth,
 )
 from .engine.initialize import (
-    initialize_basis_local,
+    initialize_basis_local_with_spectrum,
     initialize_basis_pilot,
     initialize_basis_random,
-    initialize_beta_local,
 )
 from .engine.statistic import calculate_statistics
 from .engine.weights import calculate_multi_weight, calculate_weight
@@ -181,6 +180,22 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("best", "last"),
         default=defaults.select_step,
     )
+    parser.add_argument(
+        "--center-displacement",
+        type=float,
+        default=defaults.center_displacement,
+    )
+    parser.add_argument(
+        "--training-set",
+        choices=("all", "exclude_centers"),
+        default=defaults.training_set,
+    )
+    parser.add_argument(
+        "--fixed-directions",
+        dest="redraw_directions",
+        action="store_false",
+        default=defaults.redraw_directions,
+    )
 
     parser.add_argument("--solver-tol", type=float, default=1e-6)
     parser.add_argument("--solver-max-steps", type=int)
@@ -209,6 +224,9 @@ def _config(args: argparse.Namespace) -> ADP_Config:
         direction_mode=args.direction_mode,
         multi_tensor=args.multi_tensor,
         select_step=args.select_step,
+        center_displacement=args.center_displacement,
+        training_set=args.training_set,
+        redraw_directions=args.redraw_directions,
     )
 
 
@@ -241,6 +259,14 @@ def _validate(args: argparse.Namespace, config: ADP_Config) -> tuple[int, int, i
         n_centers,
         config.index_init,
     )
+    if config.training_set == "exclude_centers":
+        training_size = args.n - n_centers
+        if training_size < 2:
+            raise ValueError("excluding center indices leaves fewer than two rows")
+        if config.N_loc > training_size:
+            raise ValueError("N_loc cannot exceed the training-set size")
+        if config.index_init == "local" and n_lin > training_size:
+            raise ValueError("N_lin cannot exceed the training-set size")
     if args.mode == "multi" and n_directions <= args.index_dim:
         raise ValueError("N_phi must exceed index_dim in multi mode")
     return n_lin, n_centers, n_directions
@@ -275,9 +301,10 @@ def _initial_index(
     distance2: np.ndarray,
     n_lin: int,
     rng: np.random.Generator,
-) -> np.ndarray:
+) -> tuple[np.ndarray, np.ndarray]:
     if config.index_init == "random":
         basis = initialize_basis_random(rng, args.d, args.index_dim)
+        spectrum = np.empty(0)
     elif config.index_init == "pilot":
         basis = initialize_basis_pilot(
             X,
@@ -285,19 +312,9 @@ def _initial_index(
             args.index_dim,
             seed=config.seed,
         )
-    elif args.mode == "single":
-        return initialize_beta_local(
-            X,
-            Y,
-            centers,
-            distance2,
-            n_lin,
-            config.kernel,
-            config.local_ridge,
-            mass_weighted=config.estimator == "new",
-        )
+        spectrum = np.empty(0)
     else:
-        basis = initialize_basis_local(
+        basis, spectrum = initialize_basis_local_with_spectrum(
             X,
             Y,
             centers,
@@ -308,7 +325,8 @@ def _initial_index(
             args.index_dim,
             mass_weighted=config.estimator == "new",
         )
-    return basis[:, 0] if args.mode == "single" else basis.T
+    index = basis[:, 0] if args.mode == "single" else basis.T
+    return index, spectrum
 
 
 def _run(
@@ -353,18 +371,47 @@ def _run(
                 if n_centers == args.n
                 else center_rng.choice(args.n, size=n_centers, replace=False)
             )
-            centers = X[center_indices]
-            distance2 = pairwise_distance2(X, centers)
-            index = _initial_index(
+            centers = X[center_indices].copy()
+            displacement_scale = 0.0
+            if config.center_displacement > 0:
+                # ESTIMATOR/data protocol: TeX centers x_j = X_i + nu sigma_X z_j.
+                requested_scale = getattr(args, "displacement_scale", None)
+                displacement_scale = (
+                    float(requested_scale)
+                    if requested_scale is not None
+                    else float(np.sqrt(np.mean(np.var(X, axis=0))))
+                )
+                if not np.isfinite(displacement_scale) or displacement_scale <= 0:
+                    raise ValueError("center displacement scale must be positive")
+                centers += (
+                    config.center_displacement
+                    * displacement_scale
+                    * center_rng.standard_normal(centers.shape)
+                )
+
+            if config.training_set == "exclude_centers":
+                # ESTIMATOR/data protocol: testing indices не участвуют в fit.
+                training_mask = np.ones(args.n, dtype=bool)
+                training_mask[center_indices] = False
+                training_X = X[training_mask]
+                training_Y = Y[training_mask]
+            else:
+                training_X = X
+                training_Y = Y
+            test_Y = Y[center_indices]
+
+            distance2 = pairwise_distance2(training_X, centers)
+            index, initial_eigenvalues = _initial_index(
                 args,
                 config,
-                X,
-                Y,
+                training_X,
+                training_Y,
                 centers,
                 distance2,
                 n_lin,
                 np.random.default_rng(init_seed),
             )
+            initial_quality = _quality(args.mode, index, true_basis)
 
         with profiler.stage("bandwidth"):
             h = search_bandwidth(
@@ -393,33 +440,41 @@ def _run(
         solver_max_steps = args.solver_max_steps or (3 if args.mode == "single" else 5)
         stop_reason = "h_min"
         outer_iteration = 0
+        fixed_directions: np.ndarray | None = None
 
         while True:
             with profiler.stage("directions"):
-                if direction_mode == "isotropic":
-                    directions = generate_isotropic_proj(
-                        direction_rng,
-                        n_centers,
-                        n_directions,
-                        args.d,
-                    )
-                elif args.mode == "single":
-                    directions = generate_proj(
-                        direction_rng,
-                        n_centers,
-                        n_directions,
-                        index,
-                        factor,
-                    )
+                if fixed_directions is None:
+                    if direction_mode == "isotropic":
+                        directions = generate_isotropic_proj(
+                            direction_rng,
+                            n_centers,
+                            n_directions,
+                            args.d,
+                        )
+                    elif args.mode == "single":
+                        directions = generate_proj(
+                            direction_rng,
+                            n_centers,
+                            n_directions,
+                            index,
+                            factor,
+                        )
+                    else:
+                        directions = generate_multi_proj(
+                            direction_rng,
+                            n_centers,
+                            n_directions,
+                            index.T,
+                            eigenvalues,
+                            factor,
+                        )
+                    if not config.redraw_directions:
+                        # ESTIMATOR: fixed sketch переиспользует направления
+                        # первого шага.
+                        fixed_directions = directions
                 else:
-                    directions = generate_multi_proj(
-                        direction_rng,
-                        n_centers,
-                        n_directions,
-                        index.T,
-                        eigenvalues,
-                        factor,
-                    )
+                    directions = fixed_directions
 
             with profiler.stage("statistics"):
                 effective_tensor = (
@@ -429,7 +484,7 @@ def _run(
                 )
                 if args.mode == "single":
                     weights = calculate_weight(
-                        X,
+                        training_X,
                         centers,
                         index,
                         h,
@@ -441,7 +496,7 @@ def _run(
                     )
                 else:
                     weights = calculate_multi_weight(
-                        X,
+                        training_X,
                         centers,
                         index.T,
                         eigenvalues,
@@ -453,8 +508,8 @@ def _run(
                         tensor=effective_tensor,
                     )
                 statistics = calculate_statistics(
-                    X,
-                    Y,
+                    training_X,
+                    training_Y,
                     weights,
                     directions,
                     batch_size=config.batch_size,
@@ -483,7 +538,7 @@ def _run(
                 diagnostics = dict(result.diagnostics)
 
             outer_iteration += 1
-            fit_error = float(np.sum(np.square(Y[center_indices] - statistics.S)))
+            fit_error = float(np.sum(np.square(test_Y - statistics.S)))
             quality = _quality(args.mode, index, true_basis)
             trace.append(
                 {
@@ -518,7 +573,7 @@ def _run(
             with profiler.stage("update"):
                 if args.mode == "single":
                     next_factor = calculate_rho_k(
-                        X,
+                        training_X,
                         centers,
                         index,
                         next_h,
@@ -529,7 +584,7 @@ def _run(
                     )
                 else:
                     next_factor = calculate_alpha_k(
-                        X,
+                        training_X,
                         centers,
                         index.T,
                         eigenvalues,
@@ -571,7 +626,16 @@ def _run(
                 else trace[selected_iteration]["err"]
             ),
             "selected_eigenvalues": tuple(float(value) for value in eigenvalues),
-            "training_set": "all",
+            "initial_quality": initial_quality,
+            "last_quality": trace[-1]["quality"],
+            "initial_eigenvalues": tuple(
+                float(value) for value in initial_eigenvalues[: args.index_dim + 1]
+            ),
+            "training_set": config.training_set,
+            "training_size": len(training_X),
+            "center_displacement": config.center_displacement,
+            "center_displacement_scale": displacement_scale,
+            "redraw_directions": config.redraw_directions,
             "trace": trace,
             "diagnostics": diagnostics,
             "last_diagnostics": last_diagnostics,

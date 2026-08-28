@@ -415,7 +415,7 @@ T^2 = h^{-2}\{\alpha^2(I-P^\top P)+P^\top\Lambda P\}.
 
 ## Текущее состояние проверки
 
-На 28 августа 2026 года реализованы пункты 1–7 минимальной последовательности:
+На 29 августа 2026 года реализованы пункты 1–8 минимальной последовательности:
 
 - новый single-index тензор и согласованный поиск максимального `rho`;
 - нормированные `I/U`, внешний вес `mass` в HPAO-LSMR и локальное среднее `S`;
@@ -426,6 +426,12 @@ T^2 = h^{-2}\{\alpha^2(I-P^\top P)+P^\top\Lambda P\}.
 - trace `h`, `rho/alpha`, `h/(rho/alpha)`, `err`, quality, eigenvalues и solver
   diagnostics, а также выбор `best/last` шага;
 - сохранение trace и выбранного шага в CSV экспериментальных запусков.
+- полные однофакторные SI/MI-сетки и отдельные breaking-dimension сетки;
+- train на всей выборке или без test indices, displacement центров и
+  fixed/redraw directions как явные estimator-варианты;
+- первые `m + 1` собственных значения локальной gradient PCA, initial/last/
+  selected quality, wall-clock, traced peak memory и failures в артефактах;
+- компактные CSV/Markdown-таблицы и читаемые PNG-графики без ADE/SIR/MAVE.
 
 Изменения оценивателя изолированы явными параметрами. `new` является новым
 default, а прежние формулы веса и ненормированных статистик доступны через
@@ -437,7 +443,7 @@ multi-index — `5`; `lambda_penalty=0` также поддержан явно.
 - `ruff format --check .` — 24 файла отформатированы;
 - `ruff check .` — без ошибок;
 - `pyright` — 0 ошибок и предупреждений;
-- `pytest -q` — 18 тестов проходят;
+- `pytest -q` — 21 тест проходит;
 - `uv lock --check` — 69 пакетов разрешены;
 - `import ADP` и двухшаговые smoke-run single/multi завершаются.
 
@@ -451,7 +457,53 @@ multi-index тензора, dense и sparse статистики, устойчи
 `tracemalloc` peak соответственно `13.135 MiB` и `13.133 MiB`. `tracemalloc`
 не учитывает все нативные выделения NumPy/BLAS.
 
-Не выполнены и остаются отдельным этапом: полные сетки SI/MI/MAN, сравнение с
-ADE/SIR/MAVE, отдельный train/test split, fixed-vs-redraw directions и
-manifold-реализация. Они не нужны для проверки корректности реализованного
-ядра и потребуют самостоятельных воспроизводимых серий запусков.
+## Реализованный каталог экспериментов и отчётов
+
+Для single-index доступны селекторы `si-n`, `si-d`, `si-noise`, `si-tau`,
+`si-link`, обе частотные сетки, `si-scale`, `si-nlin`, `si-centers`,
+`si-displacement`, `si-training`, `si-kmax`, `si-nloc`, `si-nphi`,
+`si-lambda`, `si-a`, `si-hmin`. Для multi-index добавлены соответствующие
+сетки и отдельные `mi-init`, `mi-tensor`, `mi-direction-law`,
+`mi-direction-refresh`.
+
+`si-breaking` и `mi-breaking` содержат полный декартов продукт
+
+```text
+n(4) x d(10) x sigma_eps(7) x tau(4) x link/frequency(8) = 8960 points
+```
+
+и используют `100` повторов по умолчанию. Они намеренно не входят в короткие
+алиасы `si`, `mi` и `report`, чтобы случайно не запустить по `896000` fit для
+каждого режима. Сравнений с ADE, SIR, MAVE и другими внешними методами в
+runner нет.
+
+Каждая серия сохраняет полный `runs.csv`, воспроизводимый `series.json`,
+агрегаты `summary.csv`, `trace_summary.csv`, отдельный `failures.csv` и
+неперегруженный `summary.md`. Графики находятся в `plots/<selector>/`:
+`quality.png`, `stages.png`, `runtime.png`, `memory.png`, `failures.png`,
+`trajectory.png`. На ось выводится только один фактор; для полного факторного
+эксперимента отчёт показывает компактные main-effect панели, а все сочетания
+остаются в `runs.csv`.
+
+Команды запуска:
+
+```bash
+uv run --group bench python -m ADP.experiment --list
+uv run --group bench python -m ADP.experiment \
+  --experiment si --profile full --runs 20
+uv run --group bench python -m ADP.experiment \
+  --experiment mi --profile full --runs 20
+uv run --group bench python -m ADP.experiment \
+  --experiment si-breaking --profile full
+uv run --group bench python -m ADP.experiment \
+  --experiment mi-breaking --profile full
+```
+
+Полные breaking-серии в текущем checkout определены, но целиком не
+запускались: это отдельный длительный вычислительный этап. Проверены реальные
+малые end-to-end серии `si-link` и `mi-tensor`, включая построение всех таблиц
+и PNG; во втором случае trace подтвердил переключение `orthogonal -> full` на
+втором outer-шаге.
+
+Не выполнены и остаются отдельным этапом: manifold-сетки и
+manifold-реализация. Сравнение с ADE/SIR/MAVE исключено по текущему требованию.

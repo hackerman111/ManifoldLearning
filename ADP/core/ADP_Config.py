@@ -31,6 +31,9 @@ class ADP_Config:
     direction_mode: str = "auto"
     multi_tensor: str = "orthogonal"
     select_step: str = "best"
+    center_displacement: float = 0.0
+    training_set: str = "all"
+    redraw_directions: bool = True
 
     def __post_init__(self) -> None:
         integer_fields = (
@@ -52,7 +55,7 @@ class ADP_Config:
                 requirement = "nonnegative" if name == "seed" else "positive"
                 raise ValueError(f"{name} must be {requirement}")
 
-        for name in ("lambda_penalty", "local_ridge"):
+        for name in ("lambda_penalty", "local_ridge", "center_displacement"):
             value = getattr(self, name)
             if not np.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be finite and nonnegative")
@@ -75,3 +78,7 @@ class ADP_Config:
             raise ValueError("multi_tensor must be 'orthogonal' or 'full'")
         if self.select_step not in {"best", "last"}:
             raise ValueError("select_step must be 'best' or 'last'")
+        if self.training_set not in {"all", "exclude_centers"}:
+            raise ValueError("training_set must be 'all' or 'exclude_centers'")
+        if not isinstance(self.redraw_directions, bool):
+            raise TypeError("redraw_directions must be boolean")

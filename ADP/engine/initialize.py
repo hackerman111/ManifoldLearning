@@ -43,6 +43,33 @@ def initialize_basis_local(
     *,
     mass_weighted: bool = False,
 ) -> np.ndarray:
+    basis, _ = initialize_basis_local_with_spectrum(
+        X,
+        Y,
+        centers,
+        distance2,
+        N_lin,
+        kernel,
+        local_ridge,
+        index_dim,
+        mass_weighted=mass_weighted,
+    )
+    return basis
+
+
+def initialize_basis_local_with_spectrum(
+    X: np.ndarray,
+    Y: np.ndarray,
+    centers: np.ndarray,
+    distance2: np.ndarray,
+    N_lin: int,
+    kernel: Callable,
+    local_ridge: float,
+    index_dim: int,
+    *,
+    mass_weighted: bool = False,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Вернуть локальную gradient-PCA базу и спектр ``J_EDR``."""
     if isinstance(index_dim, bool) or not isinstance(index_dim, (int, np.integer)):
         raise TypeError("index_dim must be an integer")
     if not 1 <= index_dim <= X.shape[1]:
@@ -76,7 +103,7 @@ def initialize_basis_local(
             rcond=None,
         )[0][1:]
 
-    return _principal_gradient_basis(
+    return _principal_gradient_basis_with_spectrum(
         gradients,
         index_dim,
         mass=local_mass if mass_weighted else None,
@@ -90,6 +117,20 @@ def _principal_gradient_basis(
     mass: np.ndarray | None = None,
 ) -> np.ndarray:
     """Вернуть главные направления из малого mass-взвешенного gradient PCA."""
+    basis, _ = _principal_gradient_basis_with_spectrum(
+        gradients,
+        index_dim,
+        mass=mass,
+    )
+    return basis
+
+
+def _principal_gradient_basis_with_spectrum(
+    gradients: np.ndarray,
+    index_dim: int,
+    *,
+    mass: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
     values = gradients
     if mass is not None:
         if mass.shape != (len(gradients),):
@@ -108,7 +149,8 @@ def _principal_gradient_basis(
     if len(singular_values) < index_dim or singular_values[index_dim - 1] <= threshold:
         raise RuntimeError("local gradients do not identify the requested index")
 
-    return _orient_basis(right_vectors[:index_dim].T.copy())
+    spectrum = np.square(singular_values)
+    return _orient_basis(right_vectors[:index_dim].T.copy()), spectrum
 
 
 def initialize_basis_pilot(

@@ -23,7 +23,7 @@ from ADP.experiment import (
 
 
 def test_catalog_has_all_main_experiments() -> None:
-    assert tuple(CATALOG) == (
+    legacy = (
         "1",
         "2",
         "3",
@@ -35,11 +35,13 @@ def test_catalog_has_all_main_experiments() -> None:
         "8.1",
         "8.2",
         "8.3",
-        "custom",
     )
+    assert tuple(CATALOG)[: len(legacy)] == legacy
+    assert tuple(CATALOG)[-1] == "custom"
     assert {
         selector: len(experiment.points("full"))
         for selector, experiment in CATALOG.items()
+        if selector in legacy
     } == {
         "1": 8,
         "2": 20,
@@ -52,8 +54,20 @@ def test_catalog_has_all_main_experiments() -> None:
         "8.1": 8,
         "8.2": 20,
         "8.3": 16,
-        "custom": 1,
     }
+    assert len(CATALOG["si-d"].full) == 10
+    assert len(CATALOG["si-centers"].full) == 20
+    assert len(CATALOG["mi-nphi"].full) == 4
+    assert len(CATALOG["mi-tensor"].full) == 2
+    assert len(CATALOG["si-breaking"].full) == 8960
+    assert len(CATALOG["mi-breaking"].full) == 8960
+    assert CATALOG["si-breaking"].full_runs == 100
+    assert CATALOG["mi-breaking"].full_runs == 100
+    assert not any(
+        method in selector.lower()
+        for selector in CATALOG
+        for method in ("mave", "sir", "ade")
+    )
 
 
 def test_catalog_data_is_deterministic() -> None:
@@ -67,6 +81,25 @@ def test_catalog_data_is_deterministic() -> None:
     np.testing.assert_array_equal(first.X, second.X)
     np.testing.assert_array_equal(first.Y, second.Y)
     np.testing.assert_array_equal(first.beta, second.beta)
+
+
+def test_multi_index_report_data_is_deterministic_and_orthonormal() -> None:
+    experiment = CATALOG["mi-link"]
+    point = experiment.full[0]
+    seeds = _make_seed_bundle(experiment.selector, point, 7)
+
+    first = _generate_data(experiment.selector, point, seeds, 7)
+    second = _generate_data(experiment.selector, point, seeds, 7)
+
+    np.testing.assert_array_equal(first.X, second.X)
+    np.testing.assert_array_equal(first.Y, second.Y)
+    np.testing.assert_array_equal(first.beta, second.beta)
+    assert first.beta.shape == (point.d, point.index_dim)
+    np.testing.assert_allclose(
+        first.beta.T @ first.beta,
+        np.eye(point.index_dim),
+        atol=1e-12,
+    )
 
 
 def test_effective_config_fits_small_catalog_point() -> None:
@@ -127,13 +160,51 @@ def test_paired_ab_writes_log_and_plots(tmp_path) -> None:
     assert json.loads((series / "series.json").read_text())["seed"] == 11
     assert (series / "plots/custom/quality.png").is_file()
     assert (series / "plots/custom/runtime.png").is_file()
+    assert (series / "plots/custom/memory.png").is_file()
+    assert (series / "plots/custom/failures.png").is_file()
+    assert (series / "plots/custom/stages.png").is_file()
+    assert (series / "plots/custom/trajectory.png").is_file()
     assert (series / "plots/custom/paired_delta.png").is_file()
+    assert (series / "summary.csv").is_file()
+    assert (series / "summary.md").is_file()
+    assert (series / "trace_summary.csv").is_file()
+    assert (series / "failures.csv").is_file()
     assert not _has_numerical_failures(series)
 
     with (series / "runs.csv").open("a", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=tuple(rows[0]))
         writer.writerow({**rows[0], "status": "numerical_failure"})
     assert _has_numerical_failures(series)
+
+
+def test_single_build_writes_tables_without_plots(tmp_path) -> None:
+    config = ADP_Config(
+        N_loc=6,
+        N_lin=8,
+        N_J=8,
+        N_phi=3,
+        outer_steps=1,
+        h_min=1_000_000,
+        index_init="random",
+        batch_size=4,
+    )
+    experiment = custom_experiment(n=20, d=3, noise=0.01)
+
+    series = experiment.run(
+        Build("ADP", config, solver_max_steps=2),
+        seed=11,
+        output_dir=tmp_path,
+        plots=False,
+    )
+
+    with (series / "runs.csv").open(encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+    assert [row["build"] for row in rows] == ["ADP"]
+    assert (series / "summary.csv").is_file()
+    assert (series / "summary.md").is_file()
+    assert (series / "trace_summary.csv").is_file()
+    assert (series / "failures.csv").is_file()
+    assert not (series / "plots").exists()
 
 
 def test_cli_returns_nonzero_for_numerical_failure(tmp_path, monkeypatch) -> None:

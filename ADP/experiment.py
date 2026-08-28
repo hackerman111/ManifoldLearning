@@ -27,9 +27,21 @@ import numpy as np
 from .cli import _run, build_parser
 from .core.ADP_Config import ADP_Config
 
-LinkName = Literal["linear", "quadratic", "square", "sin", "tanh", "oscillating"]
+LinkName = Literal[
+    "linear",
+    "quadratic",
+    "square",
+    "sin",
+    "tanh",
+    "oscillating",
+    "sin_scaled",
+    "x_sin",
+    "multi_additive",
+    "multi_multiplicative",
+]
 FeatureDistribution = Literal["gaussian", "uniform", "student_t5"]
 NoiseDistribution = Literal["gaussian", "student_t5", "student_t3"]
+ModelMode = Literal["single", "multi"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +60,27 @@ class ExperimentPoint:
     outlier_fraction: float = 0.0
     outlier_scale: float = 1.0
     delta: float = 0.0
+    mode: ModelMode = "single"
+    index_dim: int = 1
+    n_samples: int | None = None
+    tau: float | None = None
+    link_scale: float = 1.0
+    N_loc: int | None = None
+    N_lin: int | None = None
+    N_J: int | None = None
+    N_phi: int | None = None
+    outer_steps: int | None = None
+    lambda_penalty: float | None = None
+    a: float | None = None
+    h_min_factor: float | None = None
+    index_init: str | None = None
+    direction_mode: str | None = None
+    multi_tensor: str | None = None
+    select_step: str | None = None
+    center_displacement: float | None = None
+    training_set: str | None = None
+    redraw_directions: bool | None = None
+    solver_max_steps: int | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.d, bool) or not isinstance(self.d, int) or self.d < 1:
@@ -60,6 +93,29 @@ class ExperimentPoint:
             raise ValueError("rho_corr must be less than one")
         if self.outlier_fraction > 1:
             raise ValueError("outlier_fraction must not exceed one")
+        if self.n_samples is not None and (
+            isinstance(self.n_samples, bool)
+            or not isinstance(self.n_samples, int)
+            or self.n_samples < 2
+        ):
+            raise ValueError("n_samples must be an integer of at least two")
+        if self.mode not in {"single", "multi"}:
+            raise ValueError("mode must be 'single' or 'multi'")
+        if (
+            isinstance(self.index_dim, bool)
+            or not isinstance(self.index_dim, int)
+            or not 1 <= self.index_dim <= self.d
+        ):
+            raise ValueError("index_dim must lie between one and d")
+        if self.mode == "single" and self.index_dim != 1:
+            raise ValueError("single mode requires index_dim=1")
+        if self.mode == "multi" and self.index_dim >= self.d:
+            raise ValueError("multi mode requires index_dim < d")
+        if self.tau is not None and (
+            not np.isfinite(self.tau) or not 0 <= self.tau <= 1
+        ):
+            raise ValueError("tau must lie in [0, 1] or be None")
+        _positive("link_scale", self.link_scale)
         if self.link not in {
             "linear",
             "quadratic",
@@ -67,18 +123,76 @@ class ExperimentPoint:
             "sin",
             "tanh",
             "oscillating",
+            "sin_scaled",
+            "x_sin",
+            "multi_additive",
+            "multi_multiplicative",
         }:
             raise ValueError(f"unknown link: {self.link}")
+        multi_links = {"multi_additive", "multi_multiplicative"}
+        if (self.mode == "multi") != (self.link in multi_links):
+            raise ValueError("link and mode must both be single-index or multi-index")
         if self.x_distribution not in {"gaussian", "uniform", "student_t5"}:
             raise ValueError(f"unknown feature distribution: {self.x_distribution}")
         if self.noise_distribution not in {"gaussian", "student_t5", "student_t3"}:
             raise ValueError(f"unknown noise distribution: {self.noise_distribution}")
         if not isinstance(self.heteroscedastic, bool):
             raise ValueError("heteroscedastic must be boolean")
+        for name in (
+            "N_loc",
+            "N_lin",
+            "N_J",
+            "N_phi",
+            "outer_steps",
+            "solver_max_steps",
+        ):
+            value = getattr(self, name)
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, int) or value < 1
+            ):
+                raise ValueError(f"{name} must be a positive integer or None")
+        for name in ("lambda_penalty", "center_displacement"):
+            value = getattr(self, name)
+            if value is not None:
+                _nonnegative(name, value)
+        for name in ("a", "h_min_factor"):
+            value = getattr(self, name)
+            if value is not None:
+                _positive(name, value)
+        if self.a is not None and self.a <= 1:
+            raise ValueError("a must exceed one")
+        if self.index_init is not None and self.index_init not in {
+            "local",
+            "pilot",
+            "random",
+        }:
+            raise ValueError("unknown index_init")
+        if self.direction_mode is not None and self.direction_mode not in {
+            "auto",
+            "isotropic",
+            "localized",
+        }:
+            raise ValueError("unknown direction_mode")
+        if self.multi_tensor is not None and self.multi_tensor not in {
+            "orthogonal",
+            "full",
+        }:
+            raise ValueError("unknown multi_tensor")
+        if self.select_step is not None and self.select_step not in {"best", "last"}:
+            raise ValueError("unknown select_step")
+        if self.training_set is not None and self.training_set not in {
+            "all",
+            "exclude_centers",
+        }:
+            raise ValueError("unknown training_set")
+        if self.redraw_directions is not None and not isinstance(
+            self.redraw_directions, bool
+        ):
+            raise ValueError("redraw_directions must be boolean or None")
 
     @property
     def n(self) -> int:
-        return math.ceil(self.d * self.n_over_d)
+        return self.n_samples or math.ceil(self.d * self.n_over_d)
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,12 +231,14 @@ class Build:
 
 @dataclass(frozen=True, slots=True)
 class Experiment:
-    """Минимальное описание smoke/full сетки для парного A/B-запуска."""
+    """Описание воспроизводимой smoke/full сетки ADP."""
 
     selector: str
     title: str
     smoke: ExperimentPoint
     full: tuple[ExperimentPoint, ...]
+    report_fields: tuple[str, ...] = ()
+    full_runs: int = 1
 
     def __post_init__(self) -> None:
         if not self.selector or Path(self.selector).name != self.selector:
@@ -131,6 +247,15 @@ class Experiment:
             raise ValueError("experiment title must not be empty")
         if not self.full:
             raise ValueError("full experiment grid must not be empty")
+        point_fields = {item.name for item in fields(ExperimentPoint)}
+        if any(name not in point_fields for name in self.report_fields):
+            raise ValueError("report_fields must name ExperimentPoint fields")
+        if (
+            isinstance(self.full_runs, bool)
+            or not isinstance(self.full_runs, int)
+            or self.full_runs < 1
+        ):
+            raise ValueError("full_runs must be a positive integer")
 
     def points(self, profile: str) -> tuple[ExperimentPoint, ...]:
         if profile == "smoke":
@@ -142,10 +267,10 @@ class Experiment:
     def run(
         self,
         a: Build,
-        b: Build,
+        b: Build | None = None,
         *,
         profile: str = "smoke",
-        runs: int = 1,
+        runs: int | None = None,
         seed: int = 0,
         output_dir: str | Path = "benchmark_outputs/experiments",
         plots: bool = True,
@@ -323,6 +448,7 @@ def _catalog() -> dict[str, Experiment]:
                 )
             ),
         ),
+        *_report_catalog(),
         custom_experiment(),
     )
     return {experiment.selector: experiment for experiment in experiments}
@@ -342,6 +468,430 @@ def custom_experiment(
     return Experiment("custom", "Пользовательский эксперимент", point, (point,))
 
 
+def _report_catalog() -> tuple[Experiment, ...]:
+    """Полные SI/MI-сетки из ``task.md`` без внешних методов."""
+    si = ExperimentPoint(
+        d=100,
+        n_over_d=10,
+        n_samples=1000,
+        sigma_eps=0.2,
+        tau=0.4,
+        link="x_sin",
+        link_scale=3,
+        N_loc=20,
+        N_lin=160,
+        N_J=500,
+        N_phi=20,
+        lambda_penalty=0.05,
+        a=math.sqrt(2),
+        h_min_factor=3,
+        index_init="local",
+        direction_mode="localized",
+        center_displacement=0.1,
+        training_set="all",
+        redraw_directions=True,
+        solver_max_steps=3,
+    )
+    mi = replace(
+        si,
+        mode="multi",
+        index_dim=2,
+        link="multi_additive",
+        N_phi=40,
+        direction_mode="isotropic",
+        multi_tensor="orthogonal",
+        solver_max_steps=5,
+    )
+    n_values = (800, 1000, 1200, 2000)
+    d_values = tuple(range(10, 101, 10))
+    noise_values = (0.0, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0)
+    tau_values = (0.0, 0.2, 0.4, 0.8)
+    scales = (1.0, 2.0, 3.0, 4.0)
+    n_loc_values = (7, 10, 15, 20)
+    lambdas = (0.0, 0.05, 0.1, 0.5, 1.0)
+    center_counts = tuple(
+        scale * si.n // (si.N_loc or 1) for scale in range(1, (si.N_loc or 1) + 1)
+    )
+
+    def make(
+        selector: str,
+        title: str,
+        points: tuple[ExperimentPoint, ...],
+        *report_fields: str,
+        full_runs: int = 1,
+    ) -> Experiment:
+        return Experiment(
+            selector,
+            title,
+            _smoke_point(points[0]),
+            points,
+            report_fields,
+            full_runs,
+        )
+
+    single = (
+        make(
+            "si-n",
+            "Single-index: объём выборки",
+            tuple(replace(si, n_samples=n, N_J=n // 2) for n in n_values),
+            "n_samples",
+        ),
+        make(
+            "si-d",
+            "Single-index: размерность",
+            tuple(replace(si, d=d, N_lin=d + 60) for d in d_values),
+            "d",
+        ),
+        make(
+            "si-noise",
+            "Single-index: шум",
+            tuple(replace(si, sigma_eps=value) for value in noise_values),
+            "sigma_eps",
+        ),
+        make(
+            "si-tau",
+            "Single-index: общий фактор",
+            tuple(replace(si, tau=value) for value in tau_values),
+            "tau",
+        ),
+        make(
+            "si-link",
+            "Single-index: функция связи",
+            tuple(replace(si, link=link) for link in ("sin_scaled", "x_sin")),
+            "link",
+        ),
+        make(
+            "si-frequency-sin",
+            "Single-index: частота sin(sx)",
+            tuple(replace(si, link="sin_scaled", link_scale=s) for s in scales),
+            "link_scale",
+        ),
+        make(
+            "si-frequency-xsin",
+            "Single-index: частота x sin(sx)",
+            tuple(replace(si, link="x_sin", link_scale=s) for s in scales),
+            "link_scale",
+        ),
+        make(
+            "si-scale",
+            "Single-index: масштаб признаков при d=10",
+            tuple(
+                replace(si, d=10, N_lin=70, sigma_x=value)
+                for value in (0.25, 0.5, 1.0, 2.0, 4.0)
+            ),
+            "sigma_x",
+        ),
+        make(
+            "si-nlin",
+            "Single-index: локальная линейная масса",
+            tuple(replace(si, N_lin=si.d + s * 20) for s in (1, 2, 3)),
+            "N_lin",
+        ),
+        make(
+            "si-centers",
+            "Single-index: число центров",
+            tuple(replace(si, N_J=value) for value in center_counts),
+            "N_J",
+        ),
+        make(
+            "si-displacement",
+            "Single-index: смещение центров",
+            tuple(replace(si, center_displacement=value) for value in (0, 0.1, 0.5, 1)),
+            "center_displacement",
+        ),
+        make(
+            "si-training",
+            "Single-index: обучающая выборка",
+            tuple(
+                replace(si, training_set=value) for value in ("all", "exclude_centers")
+            ),
+            "training_set",
+        ),
+        make(
+            "si-kmax",
+            "Single-index: число внутренних AO-шагов",
+            tuple(replace(si, solver_max_steps=value) for value in (3, 5, 7)),
+            "solver_max_steps",
+        ),
+        make(
+            "si-nloc",
+            "Single-index: локальная масса",
+            tuple(replace(si, N_loc=value) for value in n_loc_values),
+            "N_loc",
+        ),
+        make(
+            "si-nphi",
+            "Single-index: число направлений",
+            tuple(replace(si, N_phi=value) for value in (20, 40, 60)),
+            "N_phi",
+        ),
+        make(
+            "si-lambda",
+            "Single-index: регуляризация",
+            tuple(replace(si, lambda_penalty=value) for value in lambdas),
+            "lambda_penalty",
+        ),
+        make(
+            "si-a",
+            "Single-index: коэффициент уменьшения h",
+            tuple(replace(si, a=value) for value in (2**0.25, math.sqrt(2), 2.0)),
+            "a",
+        ),
+        make(
+            "si-hmin",
+            "Single-index: нижняя граница h",
+            tuple(replace(si, h_min_factor=value) for value in (1.0, 2.0, 3.0)),
+            "h_min_factor",
+        ),
+    )
+
+    multi = (
+        make(
+            "mi-n",
+            "Multi-index: объём выборки",
+            tuple(replace(mi, n_samples=n, N_J=n // 2) for n in n_values),
+            "n_samples",
+        ),
+        make(
+            "mi-d",
+            "Multi-index: размерность",
+            tuple(replace(mi, d=d, N_lin=d + 60) for d in d_values),
+            "d",
+        ),
+        make(
+            "mi-noise",
+            "Multi-index: шум",
+            tuple(replace(mi, sigma_eps=value) for value in noise_values),
+            "sigma_eps",
+        ),
+        make(
+            "mi-tau",
+            "Multi-index: общий фактор",
+            tuple(replace(mi, tau=value) for value in tau_values),
+            "tau",
+        ),
+        make(
+            "mi-link",
+            "Multi-index: функция связи",
+            tuple(
+                replace(mi, link=link)
+                for link in ("multi_additive", "multi_multiplicative")
+            ),
+            "link",
+        ),
+        make(
+            "mi-frequency-additive",
+            "Multi-index: частота additive link",
+            tuple(replace(mi, link_scale=s) for s in scales),
+            "link_scale",
+        ),
+        make(
+            "mi-frequency-multiplicative",
+            "Multi-index: частота multiplicative link",
+            tuple(
+                replace(mi, link="multi_multiplicative", link_scale=s) for s in scales
+            ),
+            "link_scale",
+        ),
+        make(
+            "mi-scale",
+            "Multi-index: масштаб признаков при d=10",
+            tuple(
+                replace(mi, d=10, N_lin=70, sigma_x=value)
+                for value in (0.25, 0.5, 1.0, 2.0, 4.0)
+            ),
+            "sigma_x",
+        ),
+        make(
+            "mi-nlin",
+            "Multi-index: локальная линейная масса",
+            tuple(replace(mi, N_lin=mi.d + s * 20) for s in (1, 2, 3)),
+            "N_lin",
+        ),
+        make(
+            "mi-centers",
+            "Multi-index: число центров",
+            tuple(replace(mi, N_J=value) for value in center_counts),
+            "N_J",
+        ),
+        make(
+            "mi-displacement",
+            "Multi-index: смещение центров",
+            tuple(replace(mi, center_displacement=value) for value in (0, 0.1, 0.5, 1)),
+            "center_displacement",
+        ),
+        make(
+            "mi-training",
+            "Multi-index: обучающая выборка",
+            tuple(
+                replace(mi, training_set=value) for value in ("all", "exclude_centers")
+            ),
+            "training_set",
+        ),
+        make(
+            "mi-init",
+            "Multi-index: инициализация",
+            tuple(replace(mi, index_init=value) for value in ("local", "random")),
+            "index_init",
+        ),
+        make(
+            "mi-kmax",
+            "Multi-index: число внутренних AO-шагов",
+            tuple(replace(mi, solver_max_steps=value) for value in (3, 5, 7)),
+            "solver_max_steps",
+        ),
+        make(
+            "mi-nloc",
+            "Multi-index: локальная масса",
+            tuple(replace(mi, N_loc=value) for value in n_loc_values),
+            "N_loc",
+        ),
+        make(
+            "mi-nphi",
+            "Multi-index: число направлений",
+            tuple(replace(mi, N_phi=value) for value in (3, 20, 40, 60)),
+            "N_phi",
+        ),
+        make(
+            "mi-lambda",
+            "Multi-index: регуляризация",
+            tuple(replace(mi, lambda_penalty=value) for value in lambdas),
+            "lambda_penalty",
+        ),
+        make(
+            "mi-a",
+            "Multi-index: коэффициент уменьшения h",
+            tuple(
+                replace(mi, a=value)
+                for value in (2 ** (1 / 4), 2 ** (1 / 3), math.sqrt(2))
+            ),
+            "a",
+        ),
+        make(
+            "mi-hmin",
+            "Multi-index: нижняя граница h",
+            tuple(replace(mi, h_min_factor=value) for value in (1.0, 2.0, 3.0)),
+            "h_min_factor",
+        ),
+        make(
+            "mi-tensor",
+            "Multi-index: тензор локализации",
+            tuple(replace(mi, multi_tensor=value) for value in ("orthogonal", "full")),
+            "multi_tensor",
+        ),
+        make(
+            "mi-direction-law",
+            "Multi-index: закон направлений",
+            tuple(
+                replace(mi, direction_mode=value)
+                for value in ("isotropic", "localized")
+            ),
+            "direction_mode",
+        ),
+        make(
+            "mi-direction-refresh",
+            "Multi-index: обновление направлений",
+            tuple(replace(mi, redraw_directions=value) for value in (False, True)),
+            "redraw_directions",
+        ),
+    )
+
+    link_cases = tuple(
+        (link, scale) for link in ("sin_scaled", "x_sin") for scale in scales
+    )
+    multi_link_cases = tuple(
+        (link, scale)
+        for link in ("multi_additive", "multi_multiplicative")
+        for scale in scales
+    )
+    single_breaking = tuple(
+        replace(
+            si,
+            n_samples=n,
+            N_J=n // 2,
+            d=d,
+            N_lin=d + 60,
+            sigma_eps=noise,
+            tau=tau,
+            link=link,
+            link_scale=scale,
+        )
+        for n, d, noise, tau, (link, scale) in product(
+            n_values,
+            d_values,
+            noise_values,
+            tau_values,
+            link_cases,
+        )
+    )
+    multi_breaking = tuple(
+        replace(
+            mi,
+            n_samples=n,
+            N_J=n // 2,
+            d=d,
+            N_lin=d + 60,
+            sigma_eps=noise,
+            tau=tau,
+            link=link,
+            link_scale=scale,
+        )
+        for n, d, noise, tau, (link, scale) in product(
+            n_values,
+            d_values,
+            noise_values,
+            tau_values,
+            multi_link_cases,
+        )
+    )
+    breaking = (
+        make(
+            "si-breaking",
+            "Single-index: полная breaking-dimension сетка",
+            single_breaking,
+            "n_samples",
+            "d",
+            "sigma_eps",
+            "tau",
+            "link",
+            "link_scale",
+            full_runs=100,
+        ),
+        make(
+            "mi-breaking",
+            "Multi-index: полная breaking-dimension сетка",
+            multi_breaking,
+            "n_samples",
+            "d",
+            "sigma_eps",
+            "tau",
+            "link",
+            "link_scale",
+            full_runs=100,
+        ),
+    )
+    return (*single, *multi, *breaking)
+
+
+def _smoke_point(point: ExperimentPoint) -> ExperimentPoint:
+    """Уменьшить одну точку, сохранив исследуемый estimator-вариант."""
+    multi = point.mode == "multi"
+    return replace(
+        point,
+        d=4,
+        n_over_d=12 if multi else 10,
+        n_samples=48 if multi else 40,
+        index_dim=2 if multi else 1,
+        N_loc=6,
+        N_lin=10,
+        N_J=8,
+        N_phi=4 if multi else 3,
+        outer_steps=1,
+        h_min_factor=3,
+        solver_max_steps=2,
+    )
+
+
 _RUN_COLUMNS = (
     "experiment",
     "title",
@@ -354,12 +904,20 @@ _RUN_COLUMNS = (
     "build",
     "order",
     "n",
+    "noise_dimension_condition",
     *tuple(field.name for field in fields(ExperimentPoint)),
     "requested_config",
     "effective_config",
     "status",
     "error",
+    "quality_metric",
+    "quality_direction",
+    "quality",
     "cosine_abs",
+    "projector_distance",
+    "initial_quality",
+    "last_quality",
+    "initial_eigenvalues",
     "fit_time_sec",
     "max_stage_traced_peak_mib",
     "outer_iterations",
@@ -374,32 +932,37 @@ _RUN_COLUMNS = (
 def run_experiment(
     experiment: Experiment,
     a: Build,
-    b: Build,
+    b: Build | None = None,
     *,
     profile: str = "smoke",
-    runs: int = 1,
+    runs: int | None = None,
     seed: int = 0,
     output_dir: str | Path = "benchmark_outputs/experiments",
     plots: bool = True,
 ) -> Path:
-    """Последовательно выполнить парный A/B-тест на одинаковых данных."""
-    if a.name == b.name:
+    """Последовательно выполнить один ADP build или парный A/B-запуск."""
+    if b is not None and a.name == b.name:
         raise ValueError("A and B build names must differ")
+    if runs is None:
+        runs = experiment.full_runs if profile == "full" else 1
     if isinstance(runs, bool) or not isinstance(runs, int) or runs < 1:
         raise ValueError("runs must be a positive integer")
     if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
         raise ValueError("seed must be a nonnegative integer")
     points = experiment.points(profile)
+    builds = (a,) if b is None else (a, b)
     series_dir = _series_directory(Path(output_dir), experiment.selector)
-    _write_manifest(series_dir, experiment, (a, b), profile, runs, seed)
+    _write_manifest(series_dir, experiment, builds, profile, runs, seed)
     runs_path = series_dir / "runs.csv"
 
-    labels = _point_labels(points)
+    labels = _point_labels(points, experiment.report_fields)
     for point_index, point in enumerate(points):
         for run_index in range(runs):
             run_seed = seed + run_index
             seeds = _make_seed_bundle(experiment.selector, point, run_seed)
-            order = (a, b) if (point_index + run_index) % 2 == 0 else (b, a)
+            order = builds
+            if len(builds) == 2 and (point_index + run_index) % 2:
+                order = builds[::-1]
             try:
                 generated = _generate_data(experiment.selector, point, seeds, run_seed)
             except Exception as error:
@@ -443,10 +1006,9 @@ def run_experiment(
                     )
                 _append_row(runs_path, row)
 
-    if plots:
-        from .experiment_plots import plot_experiment
+    from .experiment_plots import build_report
 
-        plot_experiment(series_dir)
+    build_report(series_dir, plots=plots)
     return series_dir
 
 
@@ -459,9 +1021,10 @@ def _fit(
     config = _effective_config(build.config, point, model_seed)
     args = _arguments(build, config, point)
     started = perf_counter()
+    injected_basis = data.beta[:, None] if data.beta.ndim == 1 else data.beta
     index, true_basis, profile, metadata = _run(
         args,
-        data=(data.X, data.Y, data.beta[:, None]),
+        data=(data.X, data.Y, injected_basis),
     )
     elapsed = perf_counter() - started
     diagnostics = metadata.get("diagnostics", {})
@@ -471,11 +1034,39 @@ def _fit(
         "N_lin": metadata["N_lin"],
         "N_J": metadata["N_J"],
         "N_phi": metadata["N_phi"],
+        "training_size": metadata["training_size"],
+        "center_displacement_scale": metadata["center_displacement_scale"],
     }
+    if point.mode == "single":
+        quality_metric = "cosine_abs"
+        quality_direction = "higher"
+        quality = float(abs(true_basis[:, 0] @ index))
+        cosine = quality
+        projector_distance: float | None = None
+    else:
+        quality_metric = "projector_distance"
+        quality_direction = "lower"
+        estimate = index.T
+        quality = float(
+            np.linalg.norm(
+                true_basis @ true_basis.T - estimate @ estimate.T,
+                ord="fro",
+            )
+            / math.sqrt(2 * point.index_dim)
+        )
+        cosine = None
+        projector_distance = quality
     return {
         "effective_config": _compact_json(effective),
         "status": "nonconverged" if converged is False else "success",
-        "cosine_abs": float(abs(true_basis[:, 0] @ index)),
+        "quality_metric": quality_metric,
+        "quality_direction": quality_direction,
+        "quality": quality,
+        "cosine_abs": cosine,
+        "projector_distance": projector_distance,
+        "initial_quality": metadata["initial_quality"],
+        "last_quality": metadata["last_quality"],
+        "initial_eigenvalues": _compact_json(metadata["initial_eigenvalues"]),
         "fit_time_sec": elapsed,
         "max_stage_traced_peak_mib": profile["total"]["traced_peak_bytes"] / 2**20,
         "outer_iterations": metadata["outer_iterations"],
@@ -492,6 +1083,10 @@ def _effective_config(
     point: ExperimentPoint,
     model_seed: int,
 ) -> ADP_Config:
+    overrides = _point_config_overrides(point)
+    if point.h_min_factor is not None:
+        overrides["h_min"] = point.h_min_factor * point.sigma_x / math.sqrt(point.n)
+    requested = replace(requested, **overrides)
     n_loc = min(requested.N_loc, point.n)
     index_init = "random" if point.n <= point.d + 1 else requested.index_init
     n_lin = requested.N_lin or 2 * point.d
@@ -501,7 +1096,10 @@ def _effective_config(
         n_lin = min(max(n_lin, 1), point.n)
     minimum_centers = math.ceil(point.n / n_loc)
     n_centers = min(max(requested.N_J or point.n, minimum_centers), point.n)
-    n_directions = requested.N_phi or min(n_loc, point.d)
+    n_directions = requested.N_phi or max(
+        point.index_dim + (point.mode == "multi"),
+        min(n_loc, point.d),
+    )
     return replace(
         requested,
         seed=model_seed,
@@ -513,21 +1111,45 @@ def _effective_config(
     )
 
 
+def _point_config_overrides(point: ExperimentPoint) -> dict[str, object]:
+    return {
+        name: value
+        for name in (
+            "N_loc",
+            "N_lin",
+            "N_J",
+            "N_phi",
+            "outer_steps",
+            "lambda_penalty",
+            "a",
+            "index_init",
+            "direction_mode",
+            "multi_tensor",
+            "select_step",
+            "center_displacement",
+            "training_set",
+            "redraw_directions",
+        )
+        if (value := getattr(point, name)) is not None
+    }
+
+
 def _arguments(
     build: Build,
     config: ADP_Config,
     point: ExperimentPoint,
 ) -> argparse.Namespace:
     args = build_parser().parse_args([])
-    args.mode = "single"
+    args.mode = point.mode
     args.n = point.n
     args.d = point.d
-    args.index_dim = 1
+    args.index_dim = point.index_dim
     args.noise = point.sigma_eps
+    args.displacement_scale = point.sigma_x
     for item in fields(config):
         setattr(args, item.name, getattr(config, item.name))
     args.solver_tol = build.solver_tol
-    args.solver_max_steps = build.solver_max_steps
+    args.solver_max_steps = point.solver_max_steps or build.solver_max_steps
     args.theta = build.theta
     args.trust_radius = build.trust_radius
     args.lsmr_maxiter = build.lsmr_maxiter
@@ -545,6 +1167,12 @@ def _base_row(
     build: Build,
     order: int,
 ) -> dict[str, object]:
+    requested_config = replace(build.config, **_point_config_overrides(point))
+    if point.h_min_factor is not None:
+        requested_config = replace(
+            requested_config,
+            h_min=point.h_min_factor * point.sigma_x / math.sqrt(point.n),
+        )
     return {
         "experiment": experiment.selector,
         "title": experiment.title,
@@ -557,10 +1185,26 @@ def _base_row(
         "build": build.name,
         "order": order,
         "n": point.n,
+        "noise_dimension_condition": (
+            point.sigma_eps == 0 or point.n / point.sigma_eps**2 >= 20 * point.d
+        ),
         **asdict(point),
-        "requested_config": _compact_json(_build_spec(build)),
+        "requested_config": _compact_json(
+            {
+                "config": _config_spec(requested_config),
+                "solver_tol": build.solver_tol,
+                "solver_max_steps": point.solver_max_steps or build.solver_max_steps,
+                "theta": build.theta,
+                "trust_radius": build.trust_radius,
+                "lsmr_maxiter": build.lsmr_maxiter,
+            }
+        ),
         "status": "",
         "error": "",
+        "quality_metric": (
+            "cosine_abs" if point.mode == "single" else "projector_distance"
+        ),
+        "quality_direction": "higher" if point.mode == "single" else "lower",
     }
 
 
@@ -576,7 +1220,7 @@ def _append_row(path: Path, row: Mapping[str, object]) -> None:
 def _write_manifest(
     series_dir: Path,
     experiment: Experiment,
-    builds: tuple[Build, Build],
+    builds: tuple[Build, ...],
     profile: str,
     runs: int,
     seed: int,
@@ -588,6 +1232,8 @@ def _write_manifest(
         "title": experiment.title,
         "profile": profile,
         "runs": runs,
+        "full_runs": experiment.full_runs,
+        "report_fields": experiment.report_fields,
         "seed": seed,
         "builds": [_build_spec(build) for build in builds],
         "git_commit": _git("rev-parse", "HEAD"),
@@ -603,7 +1249,13 @@ def _write_manifest(
             name: os.environ.get(name)
             for name in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS")
         },
-        "seed_design": "paired-within-experiment-v1",
+        "seed_design": "split-data-components-and-paired-build-model-seed-v2",
+        "feature_formula": (
+            "sigma_x * (tau * z0 + (1 - tau) * zi)"
+            if any(point.tau is not None for point in experiment.full)
+            else "catalog-specific legacy design"
+        ),
+        "multi_link_extension": "sum_{r=3}^m z_r^2 / r",
     }
     (series_dir / "series.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2),
@@ -644,8 +1296,11 @@ def _series_directory(output_dir: Path, selector: str) -> Path:
     return path
 
 
-def _point_labels(points: tuple[ExperimentPoint, ...]) -> tuple[str, ...]:
-    varying = tuple(
+def _point_labels(
+    points: tuple[ExperimentPoint, ...],
+    report_fields: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    varying = report_fields or tuple(
         item.name
         for item in fields(ExperimentPoint)
         if len({getattr(point, item.name) for point in points}) > 1
@@ -693,15 +1348,34 @@ def _generate_data(
         Y = np.sin(X @ beta) + point.sigma_eps * rng.normal(size=point.n)
         return _GeneratedData(X, Y, beta)
 
-    beta = _unit(np.random.default_rng(seeds.beta).normal(size=point.d), "beta")
     X = _features(point, seeds.features)
-    index = X @ beta
-    divisor = point.sigma_x if selector == "5" else 1.0
-    signal = _standardize(_link(index / divisor, point.link), f"{point.link} link")
-    noise = _noise(point, index, seeds.noise)
+    if point.mode == "single":
+        beta = _unit(
+            np.random.default_rng(seeds.beta).normal(size=point.d),
+            "beta",
+        )
+        index = X @ beta
+        divisor = point.sigma_x if selector == "5" else 1.0
+        signal_values = _link(
+            index / divisor,
+            point.link,
+            scale=point.link_scale,
+        )
+        noise_index = index
+    else:
+        basis, _ = np.linalg.qr(
+            np.random.default_rng(seeds.beta).normal(size=(point.d, point.index_dim)),
+            mode="reduced",
+        )
+        beta = _orient_columns(basis)
+        projected = X @ beta
+        signal_values = _multi_link(projected, point.link, point.link_scale)
+        noise_index = np.linalg.norm(projected, axis=1)
+    signal = _standardize(signal_values, f"{point.link} link")
+    noise = _noise(point, noise_index, seeds.noise)
     noise = _outliers(point, noise, seeds.outliers, seeds.outlier_noise)
     Y = signal + noise
-    if point.delta > 0:
+    if point.delta > 0 and point.mode == "single":
         gamma = _gamma(beta, seeds.gamma, seeds.misspecification)
         gamma_index = X @ gamma
         Y += point.delta * _standardize(
@@ -714,7 +1388,11 @@ def _generate_data(
 def _features(point: ExperimentPoint, seed: int) -> np.ndarray:
     rng = np.random.default_rng(seed)
     shape = (point.n, point.d)
-    if point.x_distribution == "gaussian":
+    if point.tau is not None:
+        # ESTIMATOR/data design: точная формула из TeX, без переименования tau в corr.
+        common = rng.normal(size=(point.n, 1))
+        values = point.tau * common + (1 - point.tau) * rng.normal(size=shape)
+    elif point.x_distribution == "gaussian":
         coordinates = np.arange(point.d)
         covariance = point.rho_corr ** np.abs(
             np.subtract.outer(coordinates, coordinates)
@@ -777,7 +1455,7 @@ def _gamma(beta: np.ndarray, seed: int, orientation_seed: int) -> np.ndarray:
     raise ValueError("cannot generate a direction orthogonal to beta")
 
 
-def _link(index: np.ndarray, name: LinkName) -> np.ndarray:
+def _link(index: np.ndarray, name: LinkName, *, scale: float = 1.0) -> np.ndarray:
     if name == "linear":
         return index
     if name == "quadratic":
@@ -788,7 +1466,39 @@ def _link(index: np.ndarray, name: LinkName) -> np.ndarray:
         return np.sin(1.5 * index)
     if name == "tanh":
         return np.tanh(2 * index)
+    if name == "sin_scaled":
+        return np.sin(scale * index)
+    if name == "x_sin":
+        return index * np.sin(scale * index)
+    if name in {"multi_additive", "multi_multiplicative"}:
+        raise ValueError(f"{name} requires multi-index projected data")
     return index * np.sin(math.sqrt(5) * index)
+
+
+def _multi_link(
+    projected: np.ndarray,
+    name: LinkName,
+    scale: float,
+) -> np.ndarray:
+    if projected.ndim != 2 or projected.shape[1] < 2:
+        raise ValueError("multi-index links require at least two coordinates")
+    if name == "multi_additive":
+        values = projected[:, 0] ** 2 + np.sin(scale * projected[:, 1])
+    elif name == "multi_multiplicative":
+        values = projected[:, 0] * np.sin(scale * projected[:, 1])
+    else:
+        raise ValueError(f"unknown multi-index link: {name}")
+    if projected.shape[1] > 2:
+        # ESTIMATOR/data design: каждая дополнительная координата участвует явно.
+        denominators = np.arange(3, projected.shape[1] + 1)
+        values = values + np.sum(projected[:, 2:] ** 2 / denominators, axis=1)
+    return np.asarray(values)
+
+
+def _orient_columns(basis: np.ndarray) -> np.ndarray:
+    columns = np.arange(basis.shape[1])
+    signs = np.sign(basis[np.argmax(np.abs(basis), axis=0), columns])
+    return np.asarray(basis * np.where(signs == 0, 1.0, signs))
 
 
 def _standardize(values: np.ndarray, name: str) -> np.ndarray:
@@ -879,16 +1589,35 @@ def _selected_experiments(
     custom: Experiment,
 ) -> tuple[Experiment, ...]:
     catalog = {**CATALOG, "custom": custom}
-    selectors = (
-        tuple(catalog)
-        if value == "all"
-        else tuple(part.strip() for part in value.split(","))
-    )
-    if not selectors or any(not selector for selector in selectors):
+    requested = tuple(part.strip() for part in value.split(","))
+    if not requested or any(not selector for selector in requested):
         raise ValueError("experiment selectors must not be empty")
-    unknown = sorted(set(selectors) - set(catalog))
+    aliases = {
+        "all": tuple(catalog),
+        "report": tuple(
+            name
+            for name in catalog
+            if name.startswith(("si-", "mi-")) and not name.endswith("-breaking")
+        ),
+        "si": tuple(
+            name
+            for name in catalog
+            if name.startswith("si-") and not name.endswith("-breaking")
+        ),
+        "mi": tuple(
+            name
+            for name in catalog
+            if name.startswith("mi-") and not name.endswith("-breaking")
+        ),
+    }
+    unknown = sorted(set(requested) - set(catalog) - set(aliases))
     if unknown:
         raise ValueError(f"unknown experiment selector: {', '.join(unknown)}")
+    selectors = tuple(
+        dict.fromkeys(
+            selector for item in requested for selector in aliases.get(item, (item,))
+        )
+    )
     return tuple(catalog[selector] for selector in selectors)
 
 
@@ -903,7 +1632,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Minimal paired ADP experiments")
     parser.add_argument("--experiment", default="custom")
     parser.add_argument("--profile", choices=("smoke", "full"), default="smoke")
-    parser.add_argument("--runs", type=int, default=1)
+    parser.add_argument("--runs", type=int)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--output-dir", type=Path, default=Path("benchmark_outputs/experiments")
@@ -921,7 +1650,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.list:
         for experiment in CATALOG.values():
-            print(f"{experiment.selector:>6}  {experiment.title}")
+            print(
+                f"{experiment.selector:>24}  "
+                f"points={len(experiment.full):>5} runs={experiment.full_runs:>3}  "
+                f"{experiment.title}"
+            )
         return 0
     failed = False
     try:
@@ -929,14 +1662,10 @@ def main(argv: list[str] | None = None) -> int:
             args.experiment,
             custom=custom_experiment(args.n, args.d, args.noise),
         )
-        common = ADP_Config()
-        builds = (
-            Build("A_local", common),
-            Build("B_random", replace(common, index_init="random")),
-        )
+        build = Build("ADP", ADP_Config())
         for experiment in experiments:
             path = experiment.run(
-                *builds,
+                build,
                 profile=args.profile,
                 runs=args.runs,
                 seed=args.seed,
