@@ -207,6 +207,8 @@ class Build:
     theta: float = 0.1
     trust_radius: float | None = None
     lsmr_maxiter: int | None = None
+    solver: str = "lsmr"
+    cg_maxiter: int | None = None
 
     def __post_init__(self) -> None:
         if not self.name or any(character in self.name for character in "\r\n"):
@@ -228,6 +230,14 @@ class Build:
             or self.lsmr_maxiter < 1
         ):
             raise ValueError("lsmr_maxiter must be a positive integer or None")
+        if self.solver not in {"lsmr", "cg"}:
+            raise ValueError("solver must be 'lsmr' or 'cg'")
+        if self.cg_maxiter is not None and (
+            isinstance(self.cg_maxiter, bool)
+            or not isinstance(self.cg_maxiter, int)
+            or self.cg_maxiter < 1
+        ):
+            raise ValueError("cg_maxiter must be a positive integer or None")
 
 
 @dataclass(frozen=True, slots=True)
@@ -1049,6 +1059,13 @@ def _fit(
     converged = isinstance(diagnostics, dict) and diagnostics.get("converged")
     effective = {
         **_config_spec(config),
+        "solver": metadata["solver"],
+        "solver_tol": build.solver_tol,
+        "solver_max_steps": metadata["solver_max_steps"],
+        "theta": build.theta if build.solver == "lsmr" else None,
+        "trust_radius": build.trust_radius if build.solver == "lsmr" else None,
+        "lsmr_maxiter": build.lsmr_maxiter if build.solver == "lsmr" else None,
+        "cg_maxiter": build.cg_maxiter if build.solver == "cg" else None,
         "N_lin": metadata["N_lin"],
         "N_J": metadata["N_J"],
         "N_phi": metadata["N_phi"],
@@ -1168,9 +1185,11 @@ def _arguments(
         setattr(args, item.name, getattr(config, item.name))
     args.solver_tol = build.solver_tol
     args.solver_max_steps = point.solver_max_steps or build.solver_max_steps
+    args.solver = build.solver
     args.theta = build.theta
     args.trust_radius = build.trust_radius
     args.lsmr_maxiter = build.lsmr_maxiter
+    args.cg_maxiter = build.cg_maxiter
     return args
 
 
@@ -1212,9 +1231,11 @@ def _base_row(
                 "config": _config_spec(requested_config),
                 "solver_tol": build.solver_tol,
                 "solver_max_steps": point.solver_max_steps or build.solver_max_steps,
+                "solver": build.solver,
                 "theta": build.theta,
                 "trust_radius": build.trust_radius,
                 "lsmr_maxiter": build.lsmr_maxiter,
+                "cg_maxiter": build.cg_maxiter,
             }
         ),
         "status": "",
@@ -1287,11 +1308,13 @@ def _build_spec(build: Build) -> dict[str, object]:
     return {
         "name": build.name,
         "config": _config_spec(build.config),
+        "solver": build.solver,
         "solver_tol": build.solver_tol,
         "solver_max_steps": build.solver_max_steps,
         "theta": build.theta,
         "trust_radius": build.trust_radius,
         "lsmr_maxiter": build.lsmr_maxiter,
+        "cg_maxiter": build.cg_maxiter,
     }
 
 
@@ -1667,6 +1690,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--n", type=int, default=240)
     parser.add_argument("--d", type=int, default=5)
     parser.add_argument("--noise", type=float, default=0.05)
+    parser.add_argument("--solver", choices=("lsmr", "cg"), default="lsmr")
+    parser.add_argument("--cg-maxiter", type=int)
     parser.add_argument("--no-plots", action="store_true")
     parser.add_argument("--list", action="store_true")
     return parser
@@ -1690,7 +1715,12 @@ def main(argv: list[str] | None = None) -> int:
             custom=custom_experiment(args.n, args.d, args.noise),
         )
         experiment_id = _experiment_id()
-        build = Build("ADP", ADP_Config())
+        build = Build(
+            "ADP",
+            ADP_Config(),
+            solver=args.solver,
+            cg_maxiter=args.cg_maxiter,
+        )
         for experiment in experiments:
             path = experiment.run(
                 build,

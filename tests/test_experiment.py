@@ -206,7 +206,13 @@ def test_single_build_writes_tables_without_plots(tmp_path, monkeypatch) -> None
     experiment = custom_experiment(n=20, d=3, noise=0.01)
 
     series = experiment.run(
-        Build("ADP", config, solver_max_steps=2),
+        Build(
+            "ADP",
+            config,
+            solver_max_steps=2,
+            solver="cg",
+            cg_maxiter=100,
+        ),
         seed=11,
         output_dir=tmp_path,
         plots=False,
@@ -216,6 +222,10 @@ def test_single_build_writes_tables_without_plots(tmp_path, monkeypatch) -> None
     with (series / "runs.csv").open(encoding="utf-8") as stream:
         rows = list(csv.DictReader(stream))
     assert [row["build"] for row in rows] == ["ADP"]
+    assert json.loads(rows[0]["requested_config"])["solver"] == "cg"
+    assert json.loads(rows[0]["effective_config"])["solver"] == "cg"
+    manifest = json.loads((series / "series.json").read_text())
+    assert manifest["builds"][0]["solver"] == "cg"
     assert (series / "summary.csv").is_file()
     assert (series / "summary.md").is_file()
     assert (series / "trace_summary.csv").is_file()
@@ -241,12 +251,15 @@ def test_cli_returns_nonzero_for_numerical_failure(tmp_path, monkeypatch) -> Non
 
 def test_cli_groups_experiments_under_one_id(tmp_path, monkeypatch) -> None:
     calls: list[tuple[str, str, bool]] = []
+    builds: list[Build] = []
 
     def fake_run(self: Experiment, *args: object, **kwargs: object) -> Path:
         experiment_id = kwargs["experiment_id"]
         progress = kwargs["progress"]
         assert isinstance(experiment_id, str)
         assert isinstance(progress, bool)
+        assert isinstance(args[0], Build)
+        builds.append(args[0])
         calls.append((self.selector, experiment_id, progress))
         series = tmp_path / experiment_id / self.selector.replace(".", "_")
         series.mkdir(parents=True)
@@ -263,6 +276,10 @@ def test_cli_groups_experiments_under_one_id(tmp_path, monkeypatch) -> None:
                 "--output-dir",
                 str(tmp_path),
                 "--no-plots",
+                "--solver",
+                "cg",
+                "--cg-maxiter",
+                "17",
             ]
         )
         == 0
@@ -270,3 +287,4 @@ def test_cli_groups_experiments_under_one_id(tmp_path, monkeypatch) -> None:
     assert [selector for selector, _, _ in calls] == ["1", "2"]
     assert len({experiment_id for _, experiment_id, _ in calls}) == 1
     assert all(progress for _, _, progress in calls)
+    assert {(build.solver, build.cg_maxiter) for build in builds} == {("cg", 17)}

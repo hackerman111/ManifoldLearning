@@ -31,7 +31,8 @@ from .engine.initialize import (
 )
 from .engine.statistic import calculate_statistics
 from .engine.weights import calculate_multi_weight, calculate_weight
-from .solver.LSMR import HPAOResult, solve
+from .solver.CG import solve as solve_cg
+from .solver.LSMR import HPAOResult, solve as solve_lsmr
 
 _STAGES = (
     "data",
@@ -197,11 +198,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=defaults.redraw_directions,
     )
 
+    parser.add_argument("--solver", choices=("lsmr", "cg"), default="lsmr")
     parser.add_argument("--solver-tol", type=float, default=1e-6)
     parser.add_argument("--solver-max-steps", type=int)
     parser.add_argument("--theta", type=float, default=0.1)
     parser.add_argument("--trust-radius", type=float)
     parser.add_argument("--lsmr-maxiter", type=int)
+    parser.add_argument("--cg-maxiter", type=int)
     return parser
 
 
@@ -247,6 +250,8 @@ def _validate(args: argparse.Namespace, config: ADP_Config) -> tuple[int, int, i
         raise ValueError("pilot initialization is multi-index only")
     if args.solver_max_steps is not None and args.solver_max_steps < 1:
         raise ValueError("solver_max_steps must be positive")
+    if args.cg_maxiter is not None and args.cg_maxiter < 1:
+        raise ValueError("cg_maxiter must be positive")
 
     n_lin = config.N_lin or 2 * args.d
     n_centers = config.N_J or args.n
@@ -517,18 +522,30 @@ def _run(
                 )
 
             with profiler.stage("solver"):
-                result = solve(
-                    index,
-                    statistics.U,
-                    statistics.I,
-                    mass=statistics.mass if normalized else None,
-                    lambda_prox=config.lambda_penalty,
-                    max_steps=solver_max_steps,
-                    tol=args.solver_tol,
-                    theta=args.theta,
-                    trust_radius=args.trust_radius,
-                    lsmr_maxiter=args.lsmr_maxiter,
-                )
+                if args.solver == "cg":
+                    result = solve_cg(
+                        index,
+                        statistics.U,
+                        statistics.I,
+                        mass=statistics.mass if normalized else None,
+                        lambda_prox=config.lambda_penalty,
+                        max_steps=solver_max_steps,
+                        tol=args.solver_tol,
+                        cg_maxiter=args.cg_maxiter,
+                    )
+                else:
+                    result = solve_lsmr(
+                        index,
+                        statistics.U,
+                        statistics.I,
+                        mass=statistics.mass if normalized else None,
+                        lambda_prox=config.lambda_penalty,
+                        max_steps=solver_max_steps,
+                        tol=args.solver_tol,
+                        theta=args.theta,
+                        trust_radius=args.trust_radius,
+                        lsmr_maxiter=args.lsmr_maxiter,
+                    )
                 index, eigenvalues = _solver_index(
                     args.mode,
                     result,
@@ -617,6 +634,7 @@ def _run(
             "estimator": config.estimator,
             "direction_mode": direction_mode,
             "multi_tensor": config.multi_tensor,
+            "solver": args.solver,
             "solver_max_steps": solver_max_steps,
             "selection": config.select_step,
             "selected_iteration": selected_iteration,
@@ -746,7 +764,8 @@ def _print_result(
     quality = _quality(args.mode, index, true_basis)
     print(f"stop_reason={metadata['stop_reason']} {metric_name}={quality:.6f}")
     print(
-        f"estimator={metadata['estimator']} directions={metadata['direction_mode']} "
+        f"estimator={metadata['estimator']} solver={metadata['solver']} "
+        f"directions={metadata['direction_mode']} "
         f"selection={metadata['selection']} "
         f"selected_step={metadata['selected_iteration']}"
     )

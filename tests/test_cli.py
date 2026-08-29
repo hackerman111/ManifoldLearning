@@ -7,10 +7,10 @@ from ADP.cli import _quality, _run, build_parser, main
 
 
 @pytest.mark.parametrize(
-    ("mode", "n", "d", "index_dim", "metric"),
+    ("mode", "n", "d", "index_dim", "metric", "solver"),
     (
-        ("single", "40", "3", "1", "cosine_abs="),
-        ("multi", "48", "4", "2", "projector_distance="),
+        ("single", "40", "3", "1", "cosine_abs=", "lsmr"),
+        ("multi", "48", "4", "2", "projector_distance=", "cg"),
     ),
 )
 def test_cli_smoke(
@@ -20,6 +20,7 @@ def test_cli_smoke(
     d: str,
     index_dim: str,
     metric: str,
+    solver: str,
 ) -> None:
     assert (
         main(
@@ -64,6 +65,8 @@ def test_cli_smoke(
                 "random",
                 "--solver-tol",
                 "1e-6",
+                "--solver",
+                solver,
                 "--solver-max-steps",
                 "2",
                 "--theta",
@@ -80,6 +83,7 @@ def test_cli_smoke(
     assert f"mode={mode}" in output
     assert metric in output
     assert "estimator=new" in output
+    assert f"solver={solver}" in output
     assert "step=0" in output
     assert "statistics:" in output
     assert "process RSS peak:" in output
