@@ -11,11 +11,11 @@
 
 ```python
 model = ADP_Manifold(index_dim=m, seed=42).fit(X, Y)
-model.centers_       # (J, d)
-model.projectors_    # (J, m, d), P_j P_j.T = I_m
-model.eigenvalues_   # (J, m), lambda_1 = 1
-model.gradients_     # (J, d)
-model.trace_         # только скалярная диагностика
+model.centers_  # (J, d)
+model.projectors_  # (J, m, d), P_j P_j.T = I_m
+model.eigenvalues_  # (J, m), lambda_1 = 1
+model.gradients_  # (J, d)
+model.trace_  # только скалярная диагностика
 ```
 
 Совместимый исторический alias `ADP_manifold = ADP_Manifold` экспортируется
