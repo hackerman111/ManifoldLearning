@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 import json
 from dataclasses import replace
+from pathlib import Path
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -14,6 +16,7 @@ from ADP.experiment import (
     Build,
     Experiment,
     _effective_config,
+    _experiment_id,
     _generate_data,
     _has_numerical_failures,
     _make_seed_bundle,
@@ -115,6 +118,12 @@ def test_effective_config_fits_small_catalog_point() -> None:
     )
 
 
+@pytest.mark.parametrize("value", ("", ".", "..", "nested/id"))
+def test_experiment_id_must_be_path_safe(value: str) -> None:
+    with pytest.raises(ValueError, match="path-safe"):
+        _experiment_id(value)
+
+
 def test_high_dimensional_data_requires_random_initialization() -> None:
     X = np.ones((3, 4))
     Y = np.ones(3)
@@ -157,7 +166,9 @@ def test_paired_ab_writes_log_and_plots(tmp_path) -> None:
     assert {row["status"] for row in rows} <= {"success", "nonconverged"}
     assert all(json.loads(row["trace"]) for row in rows)
     assert {row["selected_iteration"] for row in rows} == {"0"}
-    assert json.loads((series / "series.json").read_text())["seed"] == 11
+    manifest = json.loads((series / "series.json").read_text())
+    assert series == tmp_path / manifest["experiment_id"] / "custom"
+    assert manifest["seed"] == 11
     assert (series / "plots/custom/quality.png").is_file()
     assert (series / "plots/custom/runtime.png").is_file()
     assert (series / "plots/custom/memory.png").is_file()
@@ -177,7 +188,11 @@ def test_paired_ab_writes_log_and_plots(tmp_path) -> None:
     assert _has_numerical_failures(series)
 
 
-def test_single_build_writes_tables_without_plots(tmp_path) -> None:
+def test_single_build_writes_tables_without_plots(tmp_path, monkeypatch) -> None:
+    progress_bar = MagicMock()
+    progress_bar.__enter__.return_value = progress_bar
+    progress_factory = MagicMock(return_value=progress_bar)
+    monkeypatch.setattr("ADP.experiment.tqdm", progress_factory)
     config = ADP_Config(
         N_loc=6,
         N_lin=8,
@@ -195,6 +210,7 @@ def test_single_build_writes_tables_without_plots(tmp_path) -> None:
         seed=11,
         output_dir=tmp_path,
         plots=False,
+        progress=True,
     )
 
     with (series / "runs.csv").open(encoding="utf-8") as stream:
@@ -205,6 +221,13 @@ def test_single_build_writes_tables_without_plots(tmp_path) -> None:
     assert (series / "trace_summary.csv").is_file()
     assert (series / "failures.csv").is_file()
     assert not (series / "plots").exists()
+    progress_factory.assert_called_once_with(
+        total=1,
+        desc="custom",
+        unit="fit",
+        disable=False,
+    )
+    progress_bar.update.assert_called_once_with()
 
 
 def test_cli_returns_nonzero_for_numerical_failure(tmp_path, monkeypatch) -> None:
@@ -214,3 +237,36 @@ def test_cli_returns_nonzero_for_numerical_failure(tmp_path, monkeypatch) -> Non
     monkeypatch.setattr(Experiment, "run", lambda *args, **kwargs: series)
 
     assert experiment_main(["--experiment", "custom", "--no-plots"]) == 1
+
+
+def test_cli_groups_experiments_under_one_id(tmp_path, monkeypatch) -> None:
+    calls: list[tuple[str, str, bool]] = []
+
+    def fake_run(self: Experiment, *args: object, **kwargs: object) -> Path:
+        experiment_id = kwargs["experiment_id"]
+        progress = kwargs["progress"]
+        assert isinstance(experiment_id, str)
+        assert isinstance(progress, bool)
+        calls.append((self.selector, experiment_id, progress))
+        series = tmp_path / experiment_id / self.selector.replace(".", "_")
+        series.mkdir(parents=True)
+        (series / "runs.csv").write_text("status\nsuccess\n", encoding="utf-8")
+        return series
+
+    monkeypatch.setattr(Experiment, "run", fake_run)
+
+    assert (
+        experiment_main(
+            [
+                "--experiment",
+                "1,2",
+                "--output-dir",
+                str(tmp_path),
+                "--no-plots",
+            ]
+        )
+        == 0
+    )
+    assert [selector for selector, _, _ in calls] == ["1", "2"]
+    assert len({experiment_id for _, experiment_id, _ in calls}) == 1
+    assert all(progress for _, _, progress in calls)

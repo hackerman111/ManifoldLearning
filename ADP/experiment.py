@@ -23,6 +23,7 @@ from time import perf_counter
 from typing import Literal
 
 import numpy as np
+from tqdm import tqdm
 
 from .cli import _run, build_parser
 from .core.ADP_Config import ADP_Config
@@ -274,6 +275,8 @@ class Experiment:
         seed: int = 0,
         output_dir: str | Path = "benchmark_outputs/experiments",
         plots: bool = True,
+        experiment_id: str | None = None,
+        progress: bool = False,
     ) -> Path:
         return run_experiment(
             self,
@@ -284,6 +287,8 @@ class Experiment:
             seed=seed,
             output_dir=output_dir,
             plots=plots,
+            experiment_id=experiment_id,
+            progress=progress,
         )
 
 
@@ -939,6 +944,8 @@ def run_experiment(
     seed: int = 0,
     output_dir: str | Path = "benchmark_outputs/experiments",
     plots: bool = True,
+    experiment_id: str | None = None,
+    progress: bool = False,
 ) -> Path:
     """Последовательно выполнить один ADP build или парный A/B-запуск."""
     if b is not None and a.name == b.name:
@@ -951,21 +958,50 @@ def run_experiment(
         raise ValueError("seed must be a nonnegative integer")
     points = experiment.points(profile)
     builds = (a,) if b is None else (a, b)
-    series_dir = _series_directory(Path(output_dir), experiment.selector)
-    _write_manifest(series_dir, experiment, builds, profile, runs, seed)
+    experiment_id = _experiment_id(experiment_id)
+    series_dir = _series_directory(Path(output_dir), experiment.selector, experiment_id)
+    _write_manifest(series_dir, experiment, builds, profile, runs, seed, experiment_id)
     runs_path = series_dir / "runs.csv"
 
     labels = _point_labels(points, experiment.report_fields)
-    for point_index, point in enumerate(points):
-        for run_index in range(runs):
-            run_seed = seed + run_index
-            seeds = _make_seed_bundle(experiment.selector, point, run_seed)
-            order = builds
-            if len(builds) == 2 and (point_index + run_index) % 2:
-                order = builds[::-1]
-            try:
-                generated = _generate_data(experiment.selector, point, seeds, run_seed)
-            except Exception as error:
+    with tqdm(
+        total=len(points) * runs * len(builds),
+        desc=experiment.selector,
+        unit="fit",
+        disable=not progress,
+    ) as progress_bar:
+        for point_index, point in enumerate(points):
+            for run_index in range(runs):
+                run_seed = seed + run_index
+                seeds = _make_seed_bundle(experiment.selector, point, run_seed)
+                order = builds
+                if len(builds) == 2 and (point_index + run_index) % 2:
+                    order = builds[::-1]
+                try:
+                    generated = _generate_data(
+                        experiment.selector, point, seeds, run_seed
+                    )
+                except Exception as error:
+                    for order_index, build in enumerate(order):
+                        row = _base_row(
+                            experiment,
+                            point,
+                            labels[point_index],
+                            point_index,
+                            run_index,
+                            run_seed,
+                            seeds,
+                            build,
+                            order_index,
+                        )
+                        row.update(
+                            status="numerical_failure",
+                            error=_error_text(error),
+                        )
+                        _append_row(runs_path, row)
+                        progress_bar.update()
+                    continue
+
                 for order_index, build in enumerate(order):
                     row = _base_row(
                         experiment,
@@ -978,33 +1014,15 @@ def run_experiment(
                         build,
                         order_index,
                     )
-                    row.update(
-                        status="numerical_failure",
-                        error=_error_text(error),
-                    )
+                    try:
+                        row.update(_fit(build, point, generated, seeds.init))
+                    except Exception as error:  # Один fit не отменяет серию.
+                        row.update(
+                            status="numerical_failure",
+                            error=_error_text(error),
+                        )
                     _append_row(runs_path, row)
-                continue
-
-            for order_index, build in enumerate(order):
-                row = _base_row(
-                    experiment,
-                    point,
-                    labels[point_index],
-                    point_index,
-                    run_index,
-                    run_seed,
-                    seeds,
-                    build,
-                    order_index,
-                )
-                try:
-                    row.update(_fit(build, point, generated, seeds.init))
-                except Exception as error:  # Один fit не отменяет серию.
-                    row.update(
-                        status="numerical_failure",
-                        error=_error_text(error),
-                    )
-                _append_row(runs_path, row)
+                    progress_bar.update()
 
     from .experiment_plots import build_report
 
@@ -1224,10 +1242,12 @@ def _write_manifest(
     profile: str,
     runs: int,
     seed: int,
+    experiment_id: str,
 ) -> None:
     manifest = {
         "schema_version": 1,
         "created_at": datetime.now().astimezone().isoformat(),
+        "experiment_id": experiment_id,
         "experiment": experiment.selector,
         "title": experiment.title,
         "profile": profile,
@@ -1289,9 +1309,16 @@ def _callable_name(value: object) -> str:
     return f"{module}:{name}"
 
 
-def _series_directory(output_dir: Path, selector: str) -> Path:
-    stamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
-    path = output_dir / selector.replace(".", "_") / stamp
+def _experiment_id(value: str | None = None) -> str:
+    if value is None:
+        return datetime.now().strftime("%Y%m%dT%H%M%S%f")
+    if not value or value in {".", ".."} or Path(value).name != value:
+        raise ValueError("experiment_id must be a path-safe name")
+    return value
+
+
+def _series_directory(output_dir: Path, selector: str, experiment_id: str) -> Path:
+    path = output_dir / experiment_id / selector.replace(".", "_")
     path.mkdir(parents=True)
     return path
 
@@ -1662,6 +1689,7 @@ def main(argv: list[str] | None = None) -> int:
             args.experiment,
             custom=custom_experiment(args.n, args.d, args.noise),
         )
+        experiment_id = _experiment_id()
         build = Build("ADP", ADP_Config())
         for experiment in experiments:
             path = experiment.run(
@@ -1671,6 +1699,8 @@ def main(argv: list[str] | None = None) -> int:
                 seed=args.seed,
                 output_dir=args.output_dir,
                 plots=not args.no_plots,
+                experiment_id=experiment_id,
+                progress=True,
             )
             print(f"{experiment.selector}: {path}")
             failed = _has_numerical_failures(path) or failed
