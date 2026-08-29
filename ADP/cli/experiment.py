@@ -25,8 +25,23 @@ from typing import Literal
 import numpy as np
 from tqdm import tqdm
 
-from .cli import _run, build_parser
-from .core.ADP_Config import ADP_Config
+from ..core.ADP_Config import ADP_Config
+from .experiment_utils import (
+    fail as _fail,
+    points_for_profile,
+    select_experiments,
+    standardize as _standardize,
+    unit as _unit,
+    validate_build,
+    validate_custom_parameters,
+    validate_experiment,
+    validate_experiment_id,
+    validate_experiment_point,
+    validate_multi_link,
+    validate_run_parameters,
+    validate_single_link,
+)
+from .main import _run, build_parser
 
 LinkName = Literal[
     "linear",
@@ -84,112 +99,7 @@ class ExperimentPoint:
     solver_max_steps: int | None = None
 
     def __post_init__(self) -> None:
-        if isinstance(self.d, bool) or not isinstance(self.d, int) or self.d < 1:
-            raise ValueError("d must be a positive integer")
-        for name in ("n_over_d", "sigma_x", "outlier_scale"):
-            _positive(name, getattr(self, name))
-        for name in ("rho_corr", "sigma_eps", "outlier_fraction", "delta"):
-            _nonnegative(name, getattr(self, name))
-        if self.rho_corr >= 1:
-            raise ValueError("rho_corr must be less than one")
-        if self.outlier_fraction > 1:
-            raise ValueError("outlier_fraction must not exceed one")
-        if self.n_samples is not None and (
-            isinstance(self.n_samples, bool)
-            or not isinstance(self.n_samples, int)
-            or self.n_samples < 2
-        ):
-            raise ValueError("n_samples must be an integer of at least two")
-        if self.mode not in {"single", "multi"}:
-            raise ValueError("mode must be 'single' or 'multi'")
-        if (
-            isinstance(self.index_dim, bool)
-            or not isinstance(self.index_dim, int)
-            or not 1 <= self.index_dim <= self.d
-        ):
-            raise ValueError("index_dim must lie between one and d")
-        if self.mode == "single" and self.index_dim != 1:
-            raise ValueError("single mode requires index_dim=1")
-        if self.mode == "multi" and self.index_dim >= self.d:
-            raise ValueError("multi mode requires index_dim < d")
-        if self.tau is not None and (
-            not np.isfinite(self.tau) or not 0 <= self.tau <= 1
-        ):
-            raise ValueError("tau must lie in [0, 1] or be None")
-        _positive("link_scale", self.link_scale)
-        if self.link not in {
-            "linear",
-            "quadratic",
-            "square",
-            "sin",
-            "tanh",
-            "oscillating",
-            "sin_scaled",
-            "x_sin",
-            "multi_additive",
-            "multi_multiplicative",
-        }:
-            raise ValueError(f"unknown link: {self.link}")
-        multi_links = {"multi_additive", "multi_multiplicative"}
-        if (self.mode == "multi") != (self.link in multi_links):
-            raise ValueError("link and mode must both be single-index or multi-index")
-        if self.x_distribution not in {"gaussian", "uniform", "student_t5"}:
-            raise ValueError(f"unknown feature distribution: {self.x_distribution}")
-        if self.noise_distribution not in {"gaussian", "student_t5", "student_t3"}:
-            raise ValueError(f"unknown noise distribution: {self.noise_distribution}")
-        if not isinstance(self.heteroscedastic, bool):
-            raise ValueError("heteroscedastic must be boolean")
-        for name in (
-            "N_loc",
-            "N_lin",
-            "N_J",
-            "N_phi",
-            "outer_steps",
-            "solver_max_steps",
-        ):
-            value = getattr(self, name)
-            if value is not None and (
-                isinstance(value, bool) or not isinstance(value, int) or value < 1
-            ):
-                raise ValueError(f"{name} must be a positive integer or None")
-        for name in ("lambda_penalty", "center_displacement"):
-            value = getattr(self, name)
-            if value is not None:
-                _nonnegative(name, value)
-        for name in ("a", "h_min_factor"):
-            value = getattr(self, name)
-            if value is not None:
-                _positive(name, value)
-        if self.a is not None and self.a <= 1:
-            raise ValueError("a must exceed one")
-        if self.index_init is not None and self.index_init not in {
-            "local",
-            "pilot",
-            "random",
-        }:
-            raise ValueError("unknown index_init")
-        if self.direction_mode is not None and self.direction_mode not in {
-            "auto",
-            "isotropic",
-            "localized",
-        }:
-            raise ValueError("unknown direction_mode")
-        if self.multi_tensor is not None and self.multi_tensor not in {
-            "orthogonal",
-            "full",
-        }:
-            raise ValueError("unknown multi_tensor")
-        if self.select_step is not None and self.select_step not in {"best", "last"}:
-            raise ValueError("unknown select_step")
-        if self.training_set is not None and self.training_set not in {
-            "all",
-            "exclude_centers",
-        }:
-            raise ValueError("unknown training_set")
-        if self.redraw_directions is not None and not isinstance(
-            self.redraw_directions, bool
-        ):
-            raise ValueError("redraw_directions must be boolean or None")
+        validate_experiment_point(self)
 
     @property
     def n(self) -> int:
@@ -211,33 +121,7 @@ class Build:
     cg_maxiter: int | None = None
 
     def __post_init__(self) -> None:
-        if not self.name or any(character in self.name for character in "\r\n"):
-            raise ValueError("build name must be non-empty and single-line")
-        _positive("solver_tol", self.solver_tol)
-        if (
-            isinstance(self.solver_max_steps, bool)
-            or not isinstance(self.solver_max_steps, int)
-            or self.solver_max_steps < 1
-        ):
-            raise ValueError("solver_max_steps must be a positive integer")
-        if not np.isfinite(self.theta) or not 0 < self.theta < 1:
-            raise ValueError("theta must lie between zero and one")
-        if self.trust_radius is not None:
-            _positive("trust_radius", self.trust_radius)
-        if self.lsmr_maxiter is not None and (
-            isinstance(self.lsmr_maxiter, bool)
-            or not isinstance(self.lsmr_maxiter, int)
-            or self.lsmr_maxiter < 1
-        ):
-            raise ValueError("lsmr_maxiter must be a positive integer or None")
-        if self.solver not in {"lsmr", "cg"}:
-            raise ValueError("solver must be 'lsmr' or 'cg'")
-        if self.cg_maxiter is not None and (
-            isinstance(self.cg_maxiter, bool)
-            or not isinstance(self.cg_maxiter, int)
-            or self.cg_maxiter < 1
-        ):
-            raise ValueError("cg_maxiter must be a positive integer or None")
+        validate_build(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,28 +136,11 @@ class Experiment:
     full_runs: int = 1
 
     def __post_init__(self) -> None:
-        if not self.selector or Path(self.selector).name != self.selector:
-            raise ValueError("experiment selector must be a path-safe name")
-        if not self.title:
-            raise ValueError("experiment title must not be empty")
-        if not self.full:
-            raise ValueError("full experiment grid must not be empty")
         point_fields = {item.name for item in fields(ExperimentPoint)}
-        if any(name not in point_fields for name in self.report_fields):
-            raise ValueError("report_fields must name ExperimentPoint fields")
-        if (
-            isinstance(self.full_runs, bool)
-            or not isinstance(self.full_runs, int)
-            or self.full_runs < 1
-        ):
-            raise ValueError("full_runs must be a positive integer")
+        validate_experiment(self, point_fields)
 
     def points(self, profile: str) -> tuple[ExperimentPoint, ...]:
-        if profile == "smoke":
-            return (self.smoke,)
-        if profile == "full":
-            return self.full
-        raise ValueError("profile must be 'smoke' or 'full'")
+        return points_for_profile(self.smoke, self.full, profile)
 
     def run(
         self,
@@ -342,7 +209,9 @@ def _catalog() -> dict[str, Experiment]:
             ExperimentPoint(4, 2),
             tuple(
                 ExperimentPoint(d, ratio)
-                for d, ratio in product((5, 25, 50, 100), (1.0, 1.15, 2.0, 5.0, 10.0))
+                for d, ratio in product((5, 25, 50, 100), (1.15, 1.5, 2.0, 3.0,
+                                                           4.0, 5.0, 6.0, 7.0,
+                                                           8.0,9.0, 10.0))
             ),
         ),
         Experiment(
@@ -474,11 +343,7 @@ def custom_experiment(
     d: int = 5,
     noise: float = 0.05,
 ) -> Experiment:
-    if isinstance(n, bool) or not isinstance(n, int) or n < 2:
-        raise ValueError("n must be an integer of at least two")
-    if isinstance(d, bool) or not isinstance(d, int) or d < 1:
-        raise ValueError("d must be a positive integer")
-    _nonnegative("noise", noise)
+    validate_custom_parameters(n, d, noise)
     point = ExperimentPoint(d=d, n_over_d=n / d, sigma_eps=noise, link="sin")
     return Experiment("custom", "Пользовательский эксперимент", point, (point,))
 
@@ -958,14 +823,9 @@ def run_experiment(
     progress: bool = False,
 ) -> Path:
     """Последовательно выполнить один ADP build или парный A/B-запуск."""
-    if b is not None and a.name == b.name:
-        raise ValueError("A and B build names must differ")
     if runs is None:
         runs = experiment.full_runs if profile == "full" else 1
-    if isinstance(runs, bool) or not isinstance(runs, int) or runs < 1:
-        raise ValueError("runs must be a positive integer")
-    if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
-        raise ValueError("seed must be a nonnegative integer")
+    validate_run_parameters(a.name, None if b is None else b.name, runs, seed)
     points = experiment.points(profile)
     builds = (a,) if b is None else (a, b)
     experiment_id = _experiment_id(experiment_id)
@@ -1335,9 +1195,7 @@ def _callable_name(value: object) -> str:
 def _experiment_id(value: str | None = None) -> str:
     if value is None:
         return datetime.now().strftime("%Y%m%dT%H%M%S%f")
-    if not value or value in {".", ".."} or Path(value).name != value:
-        raise ValueError("experiment_id must be a path-safe name")
-    return value
+    return validate_experiment_id(value)
 
 
 def _series_directory(output_dir: Path, selector: str, experiment_id: str) -> Path:
@@ -1502,7 +1360,7 @@ def _gamma(beta: np.ndarray, seed: int, orientation_seed: int) -> np.ndarray:
                 else 1.0
             )
             return np.asarray(sign * candidate / norm)
-    raise ValueError("cannot generate a direction orthogonal to beta")
+    return _fail("cannot generate a direction orthogonal to beta")
 
 
 def _link(index: np.ndarray, name: LinkName, *, scale: float = 1.0) -> np.ndarray:
@@ -1520,8 +1378,7 @@ def _link(index: np.ndarray, name: LinkName, *, scale: float = 1.0) -> np.ndarra
         return np.sin(scale * index)
     if name == "x_sin":
         return index * np.sin(scale * index)
-    if name in {"multi_additive", "multi_multiplicative"}:
-        raise ValueError(f"{name} requires multi-index projected data")
+    validate_single_link(name)
     return index * np.sin(math.sqrt(5) * index)
 
 
@@ -1530,14 +1387,11 @@ def _multi_link(
     name: LinkName,
     scale: float,
 ) -> np.ndarray:
-    if projected.ndim != 2 or projected.shape[1] < 2:
-        raise ValueError("multi-index links require at least two coordinates")
+    validate_multi_link(projected, name)
     if name == "multi_additive":
         values = projected[:, 0] ** 2 + np.sin(scale * projected[:, 1])
-    elif name == "multi_multiplicative":
-        values = projected[:, 0] * np.sin(scale * projected[:, 1])
     else:
-        raise ValueError(f"unknown multi-index link: {name}")
+        values = projected[:, 0] * np.sin(scale * projected[:, 1])
     if projected.shape[1] > 2:
         # ESTIMATOR/data design: каждая дополнительная координата участвует явно.
         denominators = np.arange(3, projected.shape[1] + 1)
@@ -1549,35 +1403,6 @@ def _orient_columns(basis: np.ndarray) -> np.ndarray:
     columns = np.arange(basis.shape[1])
     signs = np.sign(basis[np.argmax(np.abs(basis), axis=0), columns])
     return np.asarray(basis * np.where(signs == 0, 1.0, signs))
-
-
-def _standardize(values: np.ndarray, name: str) -> np.ndarray:
-    mean = float(np.mean(values))
-    scale = float(np.std(values))
-    if not np.isfinite(mean) or not np.isfinite(scale) or scale <= np.finfo(float).eps:
-        raise ValueError(f"{name} has degenerate sample variance")
-    return np.asarray((values - mean) / scale)
-
-
-def _unit(vector: np.ndarray, name: str) -> np.ndarray:
-    norm = float(np.linalg.norm(vector))
-    if not np.isfinite(norm) or norm <= np.finfo(float).eps:
-        raise ValueError(f"{name} has a degenerate norm")
-    return np.asarray(vector / norm)
-
-
-def _positive(name: str, value: object) -> None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{name} must be finite and positive")
-    if not math.isfinite(float(value)) or float(value) <= 0:
-        raise ValueError(f"{name} must be finite and positive")
-
-
-def _nonnegative(name: str, value: object) -> None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{name} must be finite and nonnegative")
-    if not math.isfinite(float(value)) or float(value) < 0:
-        raise ValueError(f"{name} must be finite and nonnegative")
 
 
 CATALOG: Mapping[str, Experiment] = _catalog()
@@ -1639,9 +1464,6 @@ def _selected_experiments(
     custom: Experiment,
 ) -> tuple[Experiment, ...]:
     catalog = {**CATALOG, "custom": custom}
-    requested = tuple(part.strip() for part in value.split(","))
-    if not requested or any(not selector for selector in requested):
-        raise ValueError("experiment selectors must not be empty")
     aliases = {
         "all": tuple(catalog),
         "report": tuple(
@@ -1660,15 +1482,7 @@ def _selected_experiments(
             if name.startswith("mi-") and not name.endswith("-breaking")
         ),
     }
-    unknown = sorted(set(requested) - set(catalog) - set(aliases))
-    if unknown:
-        raise ValueError(f"unknown experiment selector: {', '.join(unknown)}")
-    selectors = tuple(
-        dict.fromkeys(
-            selector for item in requested for selector in aliases.get(item, (item,))
-        )
-    )
-    return tuple(catalog[selector] for selector in selectors)
+    return select_experiments(value, catalog, aliases)
 
 
 def _has_numerical_failures(series_dir: Path) -> bool:

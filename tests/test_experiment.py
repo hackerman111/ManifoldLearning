@@ -10,8 +10,7 @@ import numpy as np
 import pytest
 
 from ADP import ADP_Config
-from ADP.engine.utils import _prepare_xy
-from ADP.experiment import (
+from ADP.cli.experiment import (
     CATALOG,
     Build,
     Experiment,
@@ -23,6 +22,7 @@ from ADP.experiment import (
     custom_experiment,
     main as experiment_main,
 )
+from ADP.engine.utils import _prepare_xy
 
 
 def test_catalog_has_all_main_experiments() -> None:
@@ -192,7 +192,7 @@ def test_single_build_writes_tables_without_plots(tmp_path, monkeypatch) -> None
     progress_bar = MagicMock()
     progress_bar.__enter__.return_value = progress_bar
     progress_factory = MagicMock(return_value=progress_bar)
-    monkeypatch.setattr("ADP.experiment.tqdm", progress_factory)
+    monkeypatch.setattr("ADP.cli.experiment.tqdm", progress_factory)
     config = ADP_Config(
         N_loc=6,
         N_lin=8,

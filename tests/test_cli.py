@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from ADP.cli import _quality, _run, build_parser, main
+from ADP.cli.main import _quality, _run, build_parser, main
 
 
 @pytest.mark.parametrize(

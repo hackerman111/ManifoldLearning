@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from ADP.cli import _solver_index
+from ADP.cli.main import _solver_index
 from ADP.core.ADP_Config import ADP_Config
 from ADP.core.ADP_Solver import ADP_Solver
 from ADP.engine.calculus import calculate_rho_k, generate_isotropic_proj

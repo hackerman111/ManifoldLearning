@@ -12,6 +12,8 @@ from typing import Any
 
 import numpy as np
 
+from .experiment_utils import require_experiment_rows
+
 _COLORS = ("#2563eb", "#dc2626", "#059669", "#7c3aed")
 _STYLES = ("-", "--", ":")
 _AXIS_FACE = "#f8fafc"
@@ -86,8 +88,7 @@ def build_report(series_dir: str | Path, *, plots: bool = True) -> Path:
     """Записать компактные таблицы и, при запросе, читаемые PNG-графики."""
     path = Path(series_dir)
     rows, fieldnames = _read_rows(path / "runs.csv")
-    if not rows:
-        raise ValueError("runs.csv contains no experiment rows")
+    require_experiment_rows(rows)
     manifest = json.loads((path / "series.json").read_text(encoding="utf-8"))
     factors = tuple(manifest.get("report_fields") or ())
     if not factors:
