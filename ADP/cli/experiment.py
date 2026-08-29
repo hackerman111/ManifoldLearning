@@ -81,6 +81,8 @@ class ExperimentPoint:
     n_samples: int | None = None
     tau: float | None = None
     link_scale: float = 1.0
+    normalize_link_by_sigma_x: bool = False
+    basis_pool_dim: int | None = None
     N_loc: int | None = None
     N_lin: int | None = None
     N_J: int | None = None
@@ -134,6 +136,10 @@ class Experiment:
     full: tuple[ExperimentPoint, ...]
     report_fields: tuple[str, ...] = ()
     full_runs: int = 1
+    quality_threshold: float | None = None
+    condition_field: str | None = None
+    common_random_fields: tuple[str, ...] = ()
+    condition_group_fields: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         point_fields = {item.name for item in fields(ExperimentPoint)}
@@ -209,10 +215,14 @@ def _catalog() -> dict[str, Experiment]:
             ExperimentPoint(4, 2),
             tuple(
                 ExperimentPoint(d, ratio)
-                for d, ratio in product((5, 25, 50, 100), (1.15, 1.5, 2.0, 3.0,
-                                                           4.0, 5.0, 6.0, 7.0,
-                                                           8.0,9.0, 10.0))
+                for d, ratio in product(
+                    (5, 25, 50, 100),
+                    (1.15, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0),
+                )
             ),
+            report_fields=("d", "n_over_d"),
+            full_runs=25,
+            quality_threshold=0.9,
         ),
         Experiment(
             "3",
@@ -223,9 +233,26 @@ def _catalog() -> dict[str, Experiment]:
                 for d, ratio, noise in product(
                     (25, 100),
                     (2.0, 5.0, 10.0),
-                    (0.0, 0.316, 0.5, 0.707, 1.0, 1.414, 2.0),
+                    (
+                        0.0,
+                        0.2,
+                        0.316,
+                        0.4,
+                        0.5,
+                        0.6,
+                        0.707,
+                        0.8,
+                        1.0,
+                        1.414,
+                        2.0,
+                    ),
                 )
             ),
+            report_fields=("d", "n_over_d", "sigma_eps"),
+            full_runs=25,
+            quality_threshold=0.9,
+            condition_field="sigma_eps",
+            common_random_fields=("sigma_eps",),
         ),
         Experiment(
             "4",
@@ -236,22 +263,42 @@ def _catalog() -> dict[str, Experiment]:
                 for d, ratio, rho in product(
                     (25, 100),
                     (2.0, 5.0, 10.0),
-                    (0.0, 0.25, 0.5, 0.75, 0.9, 0.95),
+                    (0.0, 0.25, 0.5, 0.75, 0.9, 0.95, 0.98, 0.99),
                 )
             ),
+            report_fields=("d", "n_over_d", "rho_corr"),
+            full_runs=25,
+            quality_threshold=0.9,
+            condition_field="rho_corr",
+            common_random_fields=("rho_corr",),
         ),
         Experiment(
             "5",
             "Масштаб признаков",
-            ExperimentPoint(4, 5, sigma_x=2),
+            ExperimentPoint(
+                4,
+                5,
+                sigma_x=2,
+                normalize_link_by_sigma_x=True,
+            ),
             tuple(
-                ExperimentPoint(d, ratio, sigma_x=scale)
+                ExperimentPoint(
+                    d,
+                    ratio,
+                    sigma_x=scale,
+                    normalize_link_by_sigma_x=True,
+                )
                 for d, ratio, scale in product(
                     (25, 100),
                     (2.0, 5.0, 10.0),
-                    (0.25, 0.5, 1.0, 2.0, 4.0),
+                    (0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0),
                 )
             ),
+            report_fields=("d", "n_over_d", "sigma_x"),
+            full_runs=25,
+            quality_threshold=0.9,
+            condition_field="sigma_x",
+            common_random_fields=("sigma_x",),
         ),
         Experiment(
             "6",
@@ -332,6 +379,7 @@ def _catalog() -> dict[str, Experiment]:
                 )
             ),
         ),
+        *_detailed_multi_catalog(),
         *_report_catalog(),
         custom_experiment(),
     )
@@ -346,6 +394,141 @@ def custom_experiment(
     validate_custom_parameters(n, d, noise)
     point = ExperimentPoint(d=d, n_over_d=n / d, sigma_eps=noise, link="sin")
     return Experiment("custom", "Пользовательский эксперимент", point, (point,))
+
+
+def _detailed_multi_catalog() -> tuple[Experiment, ...]:
+    """Крупные MI-сетки границы восстановления."""
+    base = ExperimentPoint(
+        d=25,
+        n_over_d=2,
+        mode="multi",
+        index_dim=2,
+        link="multi_additive",
+        link_scale=3,
+        solver_max_steps=5,
+    )
+    dimensions = (25, 100)
+    ratios = (2.0, 5.0, 10.0)
+
+    def make(
+        selector: str,
+        title: str,
+        points: tuple[ExperimentPoint, ...],
+        report_fields: tuple[str, ...],
+        *,
+        condition_field: str | None = None,
+        common_random_fields: tuple[str, ...] = (),
+        condition_group_fields: tuple[str, ...] = (),
+    ) -> Experiment:
+        return Experiment(
+            selector,
+            title,
+            _smoke_point(points[0]),
+            points,
+            report_fields=report_fields,
+            full_runs=25,
+            quality_threshold=0.1,
+            condition_field=condition_field,
+            common_random_fields=common_random_fields,
+            condition_group_fields=condition_group_fields,
+        )
+
+    scaling = tuple(
+        replace(base, d=d, n_over_d=ratio)
+        for d, ratio in product(
+            (5, 25, 50, 100),
+            (1.15, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0),
+        )
+    )
+    noise = tuple(
+        replace(base, d=d, n_over_d=ratio, sigma_eps=value)
+        for d, ratio, value in product(
+            dimensions,
+            ratios,
+            (0.0, 0.2, 0.316, 0.4, 0.5, 0.6, 0.707, 0.8, 1.0, 1.414, 2.0),
+        )
+    )
+    correlation = tuple(
+        replace(base, d=d, n_over_d=ratio, rho_corr=value)
+        for d, ratio, value in product(
+            dimensions,
+            ratios,
+            (0.0, 0.25, 0.5, 0.75, 0.9, 0.95, 0.98, 0.99),
+        )
+    )
+    scale = tuple(
+        replace(
+            base,
+            d=d,
+            n_over_d=ratio,
+            sigma_x=value,
+            normalize_link_by_sigma_x=True,
+        )
+        for d, ratio, value in product(
+            dimensions,
+            ratios,
+            (0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0),
+        )
+    )
+    index_dimension = tuple(
+        replace(
+            base,
+            d=d,
+            n_over_d=ratio,
+            index_dim=index_dim,
+            link=link,
+            link_scale=link_scale,
+            basis_pool_dim=10,
+        )
+        for d, ratio, index_dim, link, link_scale in product(
+            (25, 50),
+            ratios,
+            (2, 3, 5, 7, 10),
+            ("multi_additive", "multi_multiplicative"),
+            (1.0, 2.0, 3.0, 4.0),
+        )
+    )
+    return (
+        make(
+            "mi-1",
+            "Multi-index: граница по размеру задачи",
+            scaling,
+            ("d", "n_over_d"),
+        ),
+        make(
+            "mi-2",
+            "Multi-index: устойчивость к шуму",
+            noise,
+            ("d", "n_over_d", "sigma_eps"),
+            condition_field="sigma_eps",
+            common_random_fields=("sigma_eps",),
+        ),
+        make(
+            "mi-3",
+            "Multi-index: коррелированные признаки",
+            correlation,
+            ("d", "n_over_d", "rho_corr"),
+            condition_field="rho_corr",
+            common_random_fields=("rho_corr",),
+        ),
+        make(
+            "mi-4",
+            "Multi-index: масштаб признаков",
+            scale,
+            ("d", "n_over_d", "sigma_x"),
+            condition_field="sigma_x",
+            common_random_fields=("sigma_x",),
+        ),
+        make(
+            "mi-5",
+            "Multi-index: размер подпространства и link",
+            index_dimension,
+            ("d", "n_over_d", "index_dim", "link", "link_scale"),
+            condition_field="index_dim",
+            common_random_fields=("index_dim", "link", "link_scale"),
+            condition_group_fields=("link", "link_scale"),
+        ),
+    )
 
 
 def _report_catalog() -> tuple[Experiment, ...]:
@@ -762,6 +945,7 @@ def _smoke_point(point: ExperimentPoint) -> ExperimentPoint:
         n_over_d=12 if multi else 10,
         n_samples=48 if multi else 40,
         index_dim=2 if multi else 1,
+        basis_pool_dim=3 if point.basis_pool_dim is not None else None,
         N_loc=6,
         N_lin=10,
         N_J=8,
@@ -792,6 +976,10 @@ _RUN_COLUMNS = (
     "error",
     "quality_metric",
     "quality_direction",
+    "convergence_pass",
+    "quality_pass",
+    "recovered",
+    "failure_mode",
     "quality",
     "cosine_abs",
     "projector_distance",
@@ -843,7 +1031,12 @@ def run_experiment(
         for point_index, point in enumerate(points):
             for run_index in range(runs):
                 run_seed = seed + run_index
-                seeds = _make_seed_bundle(experiment.selector, point, run_seed)
+                seeds = _make_seed_bundle(
+                    experiment.selector,
+                    point,
+                    run_seed,
+                    common_random_fields=experiment.common_random_fields,
+                )
                 order = builds
                 if len(builds) == 2 and (point_index + run_index) % 2:
                     order = builds[::-1]
@@ -867,6 +1060,13 @@ def run_experiment(
                         row.update(
                             status="numerical_failure",
                             error=_error_text(error),
+                            **_outcome_fields(
+                                "numerical_failure",
+                                False,
+                                None,
+                                experiment.quality_threshold,
+                                "higher",
+                            ),
                         )
                         _append_row(runs_path, row)
                         progress_bar.update()
@@ -885,11 +1085,26 @@ def run_experiment(
                         order_index,
                     )
                     try:
-                        row.update(_fit(build, point, generated, seeds.init))
+                        row.update(
+                            _fit(
+                                build,
+                                point,
+                                generated,
+                                seeds.init,
+                                experiment.quality_threshold,
+                            )
+                        )
                     except Exception as error:  # Один fit не отменяет серию.
                         row.update(
                             status="numerical_failure",
                             error=_error_text(error),
+                            **_outcome_fields(
+                                "numerical_failure",
+                                False,
+                                None,
+                                experiment.quality_threshold,
+                                "higher",
+                            ),
                         )
                     _append_row(runs_path, row)
                     progress_bar.update()
@@ -905,6 +1120,7 @@ def _fit(
     point: ExperimentPoint,
     data: _GeneratedData,
     model_seed: int,
+    quality_threshold: float | None,
 ) -> dict[str, object]:
     config = _effective_config(build.config, point, model_seed)
     args = _arguments(build, config, point)
@@ -951,11 +1167,21 @@ def _fit(
         )
         cosine = None
         projector_distance = quality
+    if not np.isfinite(quality):
+        raise RuntimeError("quality metric is not finite")
+    status = "nonconverged" if converged is False else "success"
     return {
         "effective_config": _compact_json(effective),
-        "status": "nonconverged" if converged is False else "success",
+        "status": status,
         "quality_metric": quality_metric,
         "quality_direction": quality_direction,
+        **_outcome_fields(
+            status,
+            converged,
+            quality,
+            quality_threshold,
+            quality_direction,
+        ),
         "quality": quality,
         "cosine_abs": cosine,
         "projector_distance": projector_distance,
@@ -1126,7 +1352,7 @@ def _write_manifest(
     experiment_id: str,
 ) -> None:
     manifest = {
-        "schema_version": 1,
+        "schema_version": 4,
         "created_at": datetime.now().astimezone().isoformat(),
         "experiment_id": experiment_id,
         "experiment": experiment.selector,
@@ -1135,6 +1361,24 @@ def _write_manifest(
         "runs": runs,
         "full_runs": experiment.full_runs,
         "report_fields": experiment.report_fields,
+        "condition_field": experiment.condition_field,
+        "common_random_fields": experiment.common_random_fields,
+        "condition_group_fields": experiment.condition_group_fields,
+        "recovery": (
+            None
+            if experiment.quality_threshold is None
+            else {
+                "metric": (
+                    "cosine_abs"
+                    if experiment.smoke.mode == "single"
+                    else "projector_distance"
+                ),
+                "direction": (
+                    "higher" if experiment.smoke.mode == "single" else "lower"
+                ),
+                "threshold": experiment.quality_threshold,
+            }
+        ),
         "seed": seed,
         "builds": [_build_spec(build) for build in builds],
         "git_commit": _git("rev-parse", "HEAD"),
@@ -1150,7 +1394,7 @@ def _write_manifest(
             name: os.environ.get(name)
             for name in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS")
         },
-        "seed_design": "split-data-components-and-paired-build-model-seed-v2",
+        "seed_design": "split-components-paired-builds-and-condition-levels-v4",
         "feature_formula": (
             "sigma_x * (tau * z0 + (1 - tau) * zi)"
             if any(point.tau is not None for point in experiment.full)
@@ -1183,6 +1427,44 @@ def _config_spec(config: ADP_Config) -> dict[str, object]:
         item.name: _callable_name(value) if callable(value) else value
         for item in fields(config)
         if (value := getattr(config, item.name)) is not None
+    }
+
+
+def _outcome_fields(
+    status: str,
+    converged: object,
+    quality: float | None,
+    threshold: float | None,
+    direction: str,
+) -> dict[str, object]:
+    """Классифицировать численный и статистический исход одного fit."""
+    if threshold is None:
+        return {
+            "convergence_pass": None,
+            "quality_pass": None,
+            "recovered": None,
+            "failure_mode": None,
+        }
+    convergence_pass = status != "numerical_failure" and converged is True
+    quality_pass = None
+    if quality is not None and np.isfinite(quality):
+        quality_pass = (
+            quality >= threshold if direction == "higher" else quality <= threshold
+        )
+    recovered = convergence_pass and quality_pass is True
+    if status == "numerical_failure" or quality_pass is None:
+        failure_mode = "numerical_failure"
+    elif not convergence_pass:
+        failure_mode = "nonconverged"
+    elif not quality_pass:
+        failure_mode = "converged_bad_quality"
+    else:
+        failure_mode = "recovered"
+    return {
+        "convergence_pass": convergence_pass,
+        "quality_pass": quality_pass,
+        "recovered": recovered,
+        "failure_mode": failure_mode,
     }
 
 
@@ -1225,13 +1507,22 @@ def _make_seed_bundle(
     selector: str,
     point: ExperimentPoint,
     seed: int,
+    *,
+    common_random_fields: tuple[str, ...] = (),
 ) -> _SeedBundle:
     if selector == "custom":
         return _SeedBundle(*(seed for _ in fields(_SeedBundle)))
+    parameters = asdict(point)
+    for name in (
+        "normalize_link_by_sigma_x",
+        "basis_pool_dim",
+        *common_random_fields,
+    ):
+        parameters.pop(name, None)
     payload = json.dumps(
         {
             "experiment": selector,
-            "parameters": asdict(point),
+            "parameters": parameters,
             "seed": seed,
             "seed_design": "paired-within-experiment-v1",
         },
@@ -1257,27 +1548,32 @@ def _generate_data(
         return _GeneratedData(X, Y, beta)
 
     X = _features(point, seeds.features)
+    link_divisor = point.sigma_x if point.normalize_link_by_sigma_x else 1.0
     if point.mode == "single":
         beta = _unit(
             np.random.default_rng(seeds.beta).normal(size=point.d),
             "beta",
         )
         index = X @ beta
-        divisor = point.sigma_x if selector == "5" else 1.0
         signal_values = _link(
-            index / divisor,
+            index / link_divisor,
             point.link,
             scale=point.link_scale,
         )
         noise_index = index
     else:
-        basis, _ = np.linalg.qr(
-            np.random.default_rng(seeds.beta).normal(size=(point.d, point.index_dim)),
+        basis_pool_dim = point.basis_pool_dim or point.index_dim
+        basis_pool, _ = np.linalg.qr(
+            np.random.default_rng(seeds.beta).normal(size=(point.d, basis_pool_dim)),
             mode="reduced",
         )
-        beta = _orient_columns(basis)
+        beta = _orient_columns(basis_pool)[:, : point.index_dim]
         projected = X @ beta
-        signal_values = _multi_link(projected, point.link, point.link_scale)
+        signal_values = _multi_link(
+            projected / link_divisor,
+            point.link,
+            point.link_scale,
+        )
         noise_index = np.linalg.norm(projected, axis=1)
     signal = _standardize(signal_values, f"{point.link} link")
     noise = _noise(point, noise_index, seeds.noise)

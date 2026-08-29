@@ -9,6 +9,7 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import numpy as np
 
@@ -58,9 +59,51 @@ _TRACE_COLUMNS = (
     "h_median",
     "anisotropy_median",
 )
+_FAILURE_MODES = (
+    "numerical_failure",
+    "nonconverged",
+    "converged_bad_quality",
+    "recovered",
+)
+_PHASE_COLUMNS = (
+    "experiment",
+    "title",
+    "d",
+    "n_over_d",
+    "condition_field",
+    "condition_level",
+    "build",
+    "quality_metric",
+    "quality_direction",
+    "quality_threshold",
+    "n_total",
+    "n_quality",
+    "n_converged",
+    "convergence_rate",
+    "convergence_ci_low",
+    "convergence_ci_high",
+    "n_quality_pass",
+    "quality_pass_rate",
+    "quality_pass_ci_low",
+    "quality_pass_ci_high",
+    "n_recovered",
+    "recovery_rate",
+    "recovery_ci_low",
+    "recovery_ci_high",
+    "n_numerical_failure",
+    "numerical_failure_rate",
+    "n_nonconverged",
+    "nonconverged_rate",
+    "n_converged_bad_quality",
+    "converged_bad_quality_rate",
+    "quality_median",
+    "quality_q05",
+    "quality_q95",
+)
 _FACTOR_LABELS = {
     "n_samples": "n",
     "d": "d",
+    "index_dim": "m",
     "sigma_eps": "sigma_eps",
     "sigma_x": "sigma_X",
     "tau": "τ",
@@ -84,7 +127,12 @@ _FACTOR_LABELS = {
 }
 
 
-def build_report(series_dir: str | Path, *, plots: bool = True) -> Path:
+def build_report(
+    series_dir: str | Path,
+    *,
+    plots: bool = True,
+    quality_threshold: float | None = None,
+) -> Path:
     """Записать компактные таблицы и, при запросе, читаемые PNG-графики."""
     path = Path(series_dir)
     rows, fieldnames = _read_rows(path / "runs.csv")
@@ -93,6 +141,25 @@ def build_report(series_dir: str | Path, *, plots: bool = True) -> Path:
     factors = tuple(manifest.get("report_fields") or ())
     if not factors:
         factors = _infer_factors(rows, fieldnames)
+    condition_field = manifest.get("condition_field")
+    if condition_field is not None and (
+        not isinstance(condition_field, str)
+        or not condition_field
+        or condition_field not in fieldnames
+    ):
+        raise ValueError("condition_field must name a runs.csv column or be null")
+    raw_group_fields = manifest.get("condition_group_fields") or ()
+    if (
+        not isinstance(raw_group_fields, (list, tuple))
+        or any(
+            not isinstance(name, str) or not name or name not in fieldnames
+            for name in raw_group_fields
+        )
+        or len(set(raw_group_fields)) != len(raw_group_fields)
+        or condition_field in raw_group_fields
+    ):
+        raise ValueError("condition_group_fields must name unique runs.csv columns")
+    condition_group_fields = tuple(raw_group_fields)
 
     summary = _summaries(rows, factors)
     trace = _trace_summaries(rows, factors)
@@ -100,6 +167,22 @@ def build_report(series_dir: str | Path, *, plots: bool = True) -> Path:
     _write_csv(path / "trace_summary.csv", _TRACE_COLUMNS, trace)
     _write_failures(path / "failures.csv", rows)
     _write_markdown(path / "summary.md", manifest, summary, factors)
+    recovery = _recovery_rule(manifest, rows, quality_threshold)
+    phase = (
+        _phase_summaries(
+            rows,
+            recovery,
+            condition_field,
+            condition_group_fields,
+        )
+        if recovery is not None
+        else []
+    )
+    if recovery is not None:
+        phase_columns = (*_PHASE_COLUMNS, *condition_group_fields)
+        boundary_columns = (*phase_columns, "boundary_kind")
+        _write_csv(path / "phase_summary.csv", phase_columns, phase)
+        _write_csv(path / "boundary.csv", boundary_columns, _boundary_rows(phase))
 
     if plots:
         output = path / "plots" / str(manifest["experiment"]).replace(".", "_")
@@ -141,7 +224,71 @@ def build_report(series_dir: str | Path, *, plots: bool = True) -> Path:
         _trajectory_plot(rows, output / "trajectory.png", quality_label)
         if len({row["build"] for row in rows}) == 2:
             _delta_plot(rows, output / "paired_delta.png")
+        if recovery is not None:
+            _write_phase_plots(
+                phase,
+                output,
+                condition_field,
+                condition_group_fields,
+            )
     return path
+
+
+def _write_phase_plots(
+    phase: list[dict[str, object]],
+    output: Path,
+    condition_field: str | None,
+    group_fields: tuple[str, ...],
+) -> None:
+    phase_metrics = (
+        ("convergence_rate", "P(converged)"),
+        ("quality_pass_rate", "P(quality pass)"),
+        ("recovery_rate", "P(recovered)"),
+    )
+    failure_metrics = tuple(
+        (
+            "recovery_rate" if mode == "recovered" else f"{mode}_rate",
+            mode.replace("_", " "),
+        )
+        for mode in _FAILURE_MODES
+    )
+    strata = ((),)
+    if group_fields:
+        strata = tuple(
+            dict.fromkeys(
+                tuple(str(row[field]) for field in group_fields) for row in phase
+            )
+        )
+    for levels in strata:
+        selected = [
+            row
+            for row in phase
+            if all(
+                str(row[field]) == level
+                for field, level in zip(group_fields, levels, strict=True)
+            )
+        ]
+        suffix = ""
+        if levels:
+            suffix = "-" + "-".join(
+                f"{quote('s' if field == 'link_scale' else field, safe='')}-"
+                f"{quote(level, safe='')}"
+                for field, level in zip(group_fields, levels, strict=True)
+            )
+        _phase_plot(
+            selected,
+            phase_metrics,
+            output / f"phase_diagram{suffix}.png",
+            "Граница работоспособности",
+            condition_field,
+        )
+        _phase_plot(
+            selected,
+            failure_metrics,
+            output / f"failure_modes{suffix}.png",
+            "Причины отказа",
+            condition_field,
+        )
 
 
 def plot_experiment(series_dir: str | Path) -> Path:
@@ -229,6 +376,225 @@ def _summaries(
                     }
                 )
     return result
+
+
+def _phase_summaries(
+    rows: list[dict[str, str]],
+    recovery: Mapping[str, object],
+    condition_field: str | None = None,
+    condition_group_fields: tuple[str, ...] = (),
+) -> list[dict[str, object]]:
+    """Агрегировать двумерную фазовую сетку без смешивания размерностей."""
+    groups: dict[tuple[str, ...], list[dict[str, str]]] = defaultdict(list)
+    for row in rows:
+        if not row.get("d") or not row.get("n_over_d"):
+            raise ValueError("phase report requires d and n_over_d columns")
+        condition_level = ""
+        if condition_field is not None:
+            condition_level = row.get(condition_field, "")
+            if _number(condition_level) is None:
+                raise ValueError("condition level must be finite and numeric")
+        group_levels = tuple(row.get(field, "") for field in condition_group_fields)
+        if any(not level for level in group_levels):
+            raise ValueError("phase report requires all condition group columns")
+        groups[
+            (
+                row["d"],
+                row["n_over_d"],
+                condition_level,
+                *group_levels,
+                row["build"],
+            )
+        ].append(row)
+
+    result: list[dict[str, object]] = []
+    for key, selected in groups.items():
+        d, ratio, condition_level, *group_levels, build = key
+        outcomes = [_phase_outcome(row, recovery) for row in selected]
+        quality = [
+            float(value)
+            for outcome in outcomes
+            if isinstance(value := outcome["quality"], (int, float))
+        ]
+        n_total = len(outcomes)
+        n_quality = len(quality)
+        n_converged = sum(outcome["convergence_pass"] is True for outcome in outcomes)
+        n_quality_pass = sum(outcome["quality_pass"] is True for outcome in outcomes)
+        n_recovered = sum(outcome["recovered"] is True for outcome in outcomes)
+        convergence_interval = _wilson_interval(n_converged, n_total)
+        quality_interval = _wilson_interval(n_quality_pass, n_quality)
+        recovery_interval = _wilson_interval(n_recovered, n_total)
+        counts = {
+            mode: sum(outcome["failure_mode"] == mode for outcome in outcomes)
+            for mode in _FAILURE_MODES
+        }
+        quantiles = _quantiles(quality)
+        result.append(
+            {
+                "experiment": selected[0]["experiment"],
+                "title": selected[0]["title"],
+                "d": d,
+                "n_over_d": ratio,
+                "condition_field": condition_field or "",
+                "condition_level": condition_level,
+                **dict(zip(condition_group_fields, group_levels, strict=True)),
+                "build": build,
+                "quality_metric": recovery["metric"],
+                "quality_direction": recovery["direction"],
+                "quality_threshold": recovery["threshold"],
+                "n_total": n_total,
+                "n_quality": n_quality,
+                "n_converged": n_converged,
+                "convergence_rate": n_converged / n_total,
+                "convergence_ci_low": convergence_interval[0],
+                "convergence_ci_high": convergence_interval[1],
+                "n_quality_pass": n_quality_pass,
+                "quality_pass_rate": (
+                    n_quality_pass / n_quality if n_quality else float("nan")
+                ),
+                "quality_pass_ci_low": quality_interval[0],
+                "quality_pass_ci_high": quality_interval[1],
+                "n_recovered": n_recovered,
+                "recovery_rate": n_recovered / n_total,
+                "recovery_ci_low": recovery_interval[0],
+                "recovery_ci_high": recovery_interval[1],
+                **{
+                    f"n_{mode}": count
+                    for mode, count in counts.items()
+                    if mode != "recovered"
+                },
+                **{f"{mode}_rate": counts[mode] / n_total for mode in _FAILURE_MODES},
+                "quality_median": quantiles[0],
+                "quality_q05": quantiles[1],
+                "quality_q95": quantiles[2],
+            }
+        )
+    return result
+
+
+def _phase_outcome(
+    row: Mapping[str, str],
+    recovery: Mapping[str, object],
+) -> dict[str, object]:
+    metric = str(recovery["metric"])
+    quality = _number(row.get(metric, row.get("quality", "")))
+    convergence_pass = _boolean(row.get("convergence_pass"))
+    if convergence_pass is None:
+        convergence_pass = _diagnostics_converged(row.get("solver_diagnostics", ""))
+    if row.get("status") == "numerical_failure":
+        convergence_pass = False
+
+    threshold = _number(recovery["threshold"])
+    if threshold is None:
+        raise ValueError("quality threshold must be finite")
+    direction = str(recovery["direction"])
+    quality_pass = None
+    if quality is not None:
+        quality_pass = (
+            quality >= threshold if direction == "higher" else quality <= threshold
+        )
+    recovered = convergence_pass is True and quality_pass is True
+    if row.get("status") == "numerical_failure" or quality is None:
+        failure_mode = "numerical_failure"
+    elif convergence_pass is not True:
+        failure_mode = "nonconverged"
+    elif quality_pass is not True:
+        failure_mode = "converged_bad_quality"
+    else:
+        failure_mode = "recovered"
+    return {
+        "quality": quality,
+        "convergence_pass": convergence_pass,
+        "quality_pass": quality_pass,
+        "recovered": recovered,
+        "failure_mode": failure_mode,
+    }
+
+
+def _recovery_rule(
+    manifest: Mapping[str, object],
+    rows: list[dict[str, str]],
+    quality_threshold: float | None,
+) -> dict[str, object] | None:
+    configured = manifest.get("recovery")
+    if quality_threshold is None and not isinstance(configured, Mapping):
+        return None
+    if quality_threshold is not None:
+        threshold = quality_threshold
+        metric = _first(rows, "quality_metric") or "quality"
+        direction = _first(rows, "quality_direction") or "higher"
+    else:
+        assert isinstance(configured, Mapping)
+        threshold = configured.get("threshold")
+        metric = configured.get("metric")
+        direction = configured.get("direction")
+    if (
+        isinstance(threshold, bool)
+        or not isinstance(threshold, (int, float))
+        or not np.isfinite(threshold)
+        or not 0 <= threshold <= 1
+    ):
+        raise ValueError("quality threshold must lie in [0, 1]")
+    if direction not in {"higher", "lower"}:
+        raise ValueError("quality direction must be 'higher' or 'lower'")
+    if not isinstance(metric, str) or not metric:
+        raise ValueError("quality metric must be a non-empty string")
+    return {"metric": metric, "direction": direction, "threshold": float(threshold)}
+
+
+def _boundary_rows(
+    phase: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    result: list[dict[str, object]] = []
+    for row in phase:
+        recovery_rate = _float(row["recovery_rate"])
+        convergence_rate = _float(row["convergence_rate"])
+        quality_rate = _float(row["quality_pass_rate"])
+        reasons: list[str] = []
+        if 0.2 <= recovery_rate <= 0.8:
+            reasons.append("transition")
+        if quality_rate >= 0.8 and convergence_rate < 0.8:
+            reasons.append("numerical")
+        if convergence_rate >= 0.8 and quality_rate < 0.8:
+            reasons.append("estimator")
+        if reasons:
+            result.append({**row, "boundary_kind": ",".join(reasons)})
+    return result
+
+
+def _wilson_interval(successes: int, total: int) -> tuple[float, float]:
+    if total == 0:
+        return float("nan"), float("nan")
+    z = 1.959963984540054
+    proportion = successes / total
+    denominator = 1 + z**2 / total
+    center = (proportion + z**2 / (2 * total)) / denominator
+    radius = (
+        z
+        * np.sqrt(proportion * (1 - proportion) / total + z**2 / (4 * total**2))
+        / denominator
+    )
+    return float(center - radius), float(center + radius)
+
+
+def _boolean(value: object) -> bool | None:
+    if value is True or value == "True":
+        return True
+    if value is False or value == "False":
+        return False
+    return None
+
+
+def _diagnostics_converged(value: object) -> bool | None:
+    if not value:
+        return None
+    try:
+        diagnostics = json.loads(str(value))
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return (
+        diagnostics.get("converged") is True if isinstance(diagnostics, dict) else None
+    )
 
 
 def _trace_summaries(
@@ -621,6 +987,84 @@ def _paired_deltas(
         for values in pairs.values()
         if all(build in values for build in builds)
     ]
+
+
+def _phase_plot(
+    summary: list[dict[str, object]],
+    metrics: tuple[tuple[str, str], ...],
+    path: Path,
+    title: str,
+    condition_field: str | None = None,
+) -> None:
+    plt = _pyplot()
+    builds = tuple(dict.fromkeys(str(row["build"]) for row in summary))
+    panels: tuple[tuple[str, str | None], ...]
+    if condition_field is None:
+        panels = tuple((build, None) for build in builds)
+    else:
+        panels = tuple(
+            (build, d)
+            for build in builds
+            for d in sorted(
+                {str(row["d"]) for row in summary if str(row["build"]) == build},
+                key=float,
+            )
+        )
+    fig, axes = plt.subplots(
+        len(panels),
+        len(metrics),
+        figsize=(4.8 * len(metrics), 4.0 * len(panels)),
+        facecolor=_FIGURE_FACE,
+        squeeze=False,
+    )
+    try:
+        for row_axes, (build, d) in zip(axes, panels, strict=True):
+            selected = [
+                row
+                for row in summary
+                if row["build"] == build and (d is None or str(row["d"]) == d)
+            ]
+            if condition_field is None:
+                x_field, y_field = "n_over_d", "d"
+                xlabel, ylabel = "n/d", f"{build} · d"
+            else:
+                x_field, y_field = "condition_level", "n_over_d"
+                xlabel = _factor_label(condition_field)
+                ylabel = f"{build} · d={d}\nn/d"
+            x_values = sorted({str(row[x_field]) for row in selected}, key=float)
+            y_values = sorted({str(row[y_field]) for row in selected}, key=float)
+            for ax, (metric, label) in zip(row_axes, metrics, strict=True):
+                matrix = np.full((len(y_values), len(x_values)), np.nan)
+                coordinates = {
+                    (str(row[y_field]), str(row[x_field])): _float(row[metric])
+                    for row in selected
+                }
+                for i, y_value in enumerate(y_values):
+                    for j, x_value in enumerate(x_values):
+                        matrix[i, j] = coordinates.get((y_value, x_value), float("nan"))
+                image = ax.imshow(matrix, vmin=0, vmax=1, cmap="viridis", aspect="auto")
+                for i, j in zip(*np.where(np.isfinite(matrix)), strict=True):
+                    value = matrix[i, j]
+                    ax.text(
+                        j,
+                        i,
+                        f"{value:.2f}",
+                        ha="center",
+                        va="center",
+                        fontsize=7,
+                        color="white" if value < 0.7 else "#111827",
+                    )
+                ax.set_title(label, fontweight="bold")
+                ax.set_xlabel(xlabel)
+                ax.set_ylabel(ylabel)
+                ax.set_xticks(range(len(x_values)), x_values, rotation=45, ha="right")
+                ax.set_yticks(range(len(y_values)), y_values)
+                fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
+        fig.suptitle(title, color=_TEXT_COLOR, fontweight="bold", fontsize=14)
+        _save(fig, path, plt)
+    except Exception:
+        plt.close(fig)
+        raise
 
 
 def _factor_axes(plt, count: int):

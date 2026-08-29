@@ -58,6 +58,17 @@ def validate_experiment_point(point: ExperimentPoint) -> None:
         raise ValueError("single mode requires index_dim=1")
     if point.mode == "multi" and point.index_dim >= point.d:
         raise ValueError("multi mode requires index_dim < d")
+    if not isinstance(point.normalize_link_by_sigma_x, bool):
+        raise ValueError("normalize_link_by_sigma_x must be boolean")
+    if point.basis_pool_dim is not None:
+        if (
+            isinstance(point.basis_pool_dim, bool)
+            or not isinstance(point.basis_pool_dim, int)
+            or not point.index_dim <= point.basis_pool_dim <= point.d
+        ):
+            raise ValueError("basis_pool_dim must lie between index_dim and d")
+        if point.mode != "multi":
+            raise ValueError("basis_pool_dim is supported only in multi mode")
     if point.tau is not None and (
         not np.isfinite(point.tau) or not 0 <= point.tau <= 1
     ):
@@ -176,12 +187,39 @@ def validate_experiment(experiment: Experiment, point_fields: set[str]) -> None:
         raise ValueError("full experiment grid must not be empty")
     if any(name not in point_fields for name in experiment.report_fields):
         raise ValueError("report_fields must name ExperimentPoint fields")
+    if experiment.condition_field is not None and (
+        not experiment.condition_field or experiment.condition_field not in point_fields
+    ):
+        raise ValueError(
+            "condition_field must name an ExperimentPoint field or be None"
+        )
+    if any(
+        not name or name not in point_fields for name in experiment.common_random_fields
+    ):
+        raise ValueError("common_random_fields must name ExperimentPoint fields")
+    group_fields = experiment.condition_group_fields
+    if (
+        len(set(group_fields)) != len(group_fields)
+        or any(not name or name not in point_fields for name in group_fields)
+        or experiment.condition_field in group_fields
+    ):
+        raise ValueError(
+            "condition_group_fields must be unique ExperimentPoint fields "
+            "distinct from condition_field"
+        )
+    if group_fields and experiment.condition_field is None:
+        raise ValueError("condition_group_fields require condition_field")
     if (
         isinstance(experiment.full_runs, bool)
         or not isinstance(experiment.full_runs, int)
         or experiment.full_runs < 1
     ):
         raise ValueError("full_runs must be a positive integer")
+    if experiment.quality_threshold is not None and (
+        not np.isfinite(experiment.quality_threshold)
+        or not 0 <= experiment.quality_threshold <= 1
+    ):
+        raise ValueError("quality_threshold must lie in [0, 1] or be None")
 
 
 def points_for_profile(
