@@ -407,7 +407,7 @@ def _detailed_multi_catalog() -> tuple[Experiment, ...]:
         link_scale=3,
         solver_max_steps=5,
     )
-    dimensions = (25, 100)
+    dimensions = (25, 50)
     ratios = (2.0, 5.0, 10.0)
 
     def make(
@@ -436,7 +436,7 @@ def _detailed_multi_catalog() -> tuple[Experiment, ...]:
     scaling = tuple(
         replace(base, d=d, n_over_d=ratio)
         for d, ratio in product(
-            (5, 25, 50, 100),
+            (5, 25, 50),
             (1.15, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0),
         )
     )
@@ -1801,6 +1801,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--d", type=int, default=5)
     parser.add_argument("--noise", type=float, default=0.05)
     parser.add_argument("--solver", choices=("lsmr", "cg"), default="lsmr")
+    parser.add_argument("--solver-max-steps", type=int, default=3)
     parser.add_argument("--cg-maxiter", type=int)
     parser.add_argument("--no-plots", action="store_true")
     parser.add_argument("--list", action="store_true")
@@ -1829,6 +1830,7 @@ def main(argv: list[str] | None = None) -> int:
             "ADP",
             ADP_Config(),
             solver=args.solver,
+            solver_max_steps=args.solver_max_steps,
             cg_maxiter=args.cg_maxiter,
         )
         for experiment in experiments:

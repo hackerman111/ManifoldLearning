@@ -82,7 +82,7 @@ def test_catalog_has_all_main_experiments() -> None:
     assert {
         selector: len(CATALOG[selector].full)
         for selector in ("mi-1", "mi-2", "mi-3", "mi-4", "mi-5")
-    } == {"mi-1": 44, "mi-2": 66, "mi-3": 48, "mi-4": 42, "mi-5": 240}
+    } == {"mi-1": 33, "mi-2": 66, "mi-3": 48, "mi-4": 42, "mi-5": 240}
     assert all(
         CATALOG[selector].full_runs == 25 and CATALOG[selector].quality_threshold == 0.1
         for selector in ("mi-1", "mi-2", "mi-3", "mi-4", "mi-5")
@@ -106,6 +106,11 @@ def test_catalog_has_all_main_experiments() -> None:
         ),
     }
     assert {point.d for point in CATALOG["mi-5"].full} == {25, 50}
+    assert {point.d for point in CATALOG["mi-1"].full} == {5, 25, 50}
+    assert all(
+        {point.d for point in CATALOG[selector].full} == {25, 50}
+        for selector in ("mi-2", "mi-3", "mi-4")
+    )
     assert {point.index_dim for point in CATALOG["mi-5"].full} == {2, 3, 5, 7, 10}
     assert {
         selector: (
@@ -168,8 +173,11 @@ def test_condition_levels_use_common_random_numbers(
         )
         for point in points
     }
+    other_dimension = 50 if selector.startswith("mi-") else 100
     other_point = next(
-        point for point in experiment.full if point.d == 100 and point.n_over_d == 2
+        point
+        for point in experiment.full
+        if point.d == other_dimension and point.n_over_d == 2
     )
     other_bundle = _make_seed_bundle(
         selector,
@@ -808,6 +816,8 @@ def test_cli_groups_experiments_under_one_id(tmp_path, monkeypatch) -> None:
                 "--no-plots",
                 "--solver",
                 "cg",
+                "--solver-max-steps",
+                "10",
                 "--cg-maxiter",
                 "17",
             ]
@@ -817,4 +827,6 @@ def test_cli_groups_experiments_under_one_id(tmp_path, monkeypatch) -> None:
     assert [selector for selector, _, _ in calls] == ["1", "2"]
     assert len({experiment_id for _, experiment_id, _ in calls}) == 1
     assert all(progress for _, _, progress in calls)
-    assert {(build.solver, build.cg_maxiter) for build in builds} == {("cg", 17)}
+    assert {
+        (build.solver, build.solver_max_steps, build.cg_maxiter) for build in builds
+    } == {("cg", 10, 17)}
