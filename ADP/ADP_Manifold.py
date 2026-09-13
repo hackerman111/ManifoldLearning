@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 import numpy as np
 from scipy.sparse import csr_matrix, linalg as sparse_linalg
@@ -32,6 +32,7 @@ class ADP_Manifold:
         seed: int = 42,
         cg_tol: float = 1e-8,
         cg_maxiter: int | None = None,
+        scale_boundary: Literal["raise", "stop"] = "raise",
     ) -> None:
         self.index_dim = self._integer("index_dim", index_dim, minimum=1)
         self.N_loc = self._integer("N_loc", N_loc, minimum=1)
@@ -49,6 +50,9 @@ class ADP_Manifold:
         self.seed = self._integer("seed", seed, minimum=0)
         self.cg_tol = self._finite_float("cg_tol", cg_tol, minimum=0.0, strict=True)
         self.cg_maxiter = self._optional_integer("cg_maxiter", cg_maxiter, minimum=1)
+        if scale_boundary not in {"raise", "stop"}:
+            raise ValueError("scale_boundary must be 'raise' or 'stop'")
+        self.scale_boundary = scale_boundary
 
     def fit(self, X: np.ndarray, Y: np.ndarray) -> Self:
         """Оценить локальные EDR-подпространства и вернуть ``self``.
@@ -81,7 +85,9 @@ class ADP_Manifold:
 
         h_floor = self._bandwidth_floor(Xc)
         h_lin = self._search_bandwidth(Xc, centers, N_lin, lower=h_floor)
-        gradients, gradient_mass = self._local_gradients(Xc, Yc, centers, h_lin)
+        gradients, gradient_mass, center_values = self._local_gradients(
+            Xc, Yc, centers, h_lin
+        )
 
         h_manifold = self._search_bandwidth(
             centers,
@@ -126,8 +132,27 @@ class ADP_Manifold:
         alpha = 1.0
         alpha_manifold = 1.0
         scale = 0
+        stop_reason = "h_min"
         while h / a >= h_min:
-            h /= a
+            proposed_h = h / a
+            if self.scale_boundary == "stop":
+                if (
+                    self._mean_mass(
+                        centers, centers, projectors, eigenvalues, h_manifold, 0.0
+                    )
+                    < N_manifold
+                ):
+                    stop_reason = "manifold_mass_boundary"
+                    break
+                # ESTIMATOR: отдельное правило остановки на границе массы.
+                proposed_h, boundary = self._feasible_scale(
+                    Xc, centers, projectors, eigenvalues, proposed_h, h
+                )
+                if boundary:
+                    stop_reason = "function_mass_boundary"
+                if proposed_h >= h:
+                    break
+            h = proposed_h
             scale += 1
             alpha = self._search_anisotropy(
                 Xc,
@@ -184,12 +209,16 @@ class ADP_Manifold:
                     diagnostics,
                 )
             )
+            if stop_reason == "function_mass_boundary":
+                break
 
-        trace[-1]["stop_reason"] = "h_min"
+        trace[-1]["stop_reason"] = stop_reason
         self.centers_ = centers + x_offset
         self.projectors_ = projectors
         self.eigenvalues_ = eigenvalues
         self.gradients_ = gradients
+        self.center_values_ = center_values + y_offset
+        self.x_offset_ = x_offset
         self.trace_ = trace
         self.bandwidth_ = float(h)
         self.linear_bandwidth_ = float(h_lin)
@@ -199,7 +228,122 @@ class ADP_Manifold:
         self.n_scales_ = scale
         self.center_indices_ = center_indices
         self.effective_config_ = config
+        self.stop_reason_ = stop_reason
+        self.scale_boundary_ = self.scale_boundary
         return self
+
+    def _feasible_scale(
+        self,
+        X: np.ndarray,
+        centers: np.ndarray,
+        projectors: np.ndarray,
+        eigenvalues: np.ndarray,
+        proposed: float,
+        previous: float,
+    ) -> tuple[float, bool]:
+        """Уточнить границу средней массы для фиксированной текущей геометрии.
+
+        При alpha=0 масса максимальна. Возвращается допустимая сторона
+        скобки; относительная точность sqrt(eps), без изменения N_loc.
+        Это граница доступности весов, не сертификат статистической точности.
+        """
+
+        def feasible(h: float) -> bool:
+            return (
+                self._mean_mass(X, centers, projectors, eigenvalues, h, 0.0)
+                >= self.N_loc
+            )
+
+        if feasible(proposed):
+            return proposed, False
+        if not feasible(previous):
+            # Новая геометрия могла сделать недопустимым даже прежний масштаб.
+            raise RuntimeError(
+                "updated geometry has no feasible scale in the current bracket"
+            )
+        low, high = proposed, previous
+        while high - low > math.sqrt(np.finfo(float).eps) * high:
+            middle = (low + high) / 2.0
+            if feasible(middle):
+                high = middle
+            else:
+                low = middle
+        return high, True
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """Вернуть локальные координаты ``(n, m)`` ближайших chart-центров.
+
+        Координаты относятся к локальному базису выбранного центра и поэтому
+        не задают единый глобально ориентированный chart.
+        """
+        queries = self._prepare_queries(X)
+        indices = self._nearest_center_indices(queries)
+        return self._local_coordinates(queries, indices)
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Предсказать отклик ближайшей локально-линейной моделью.
+
+        Pilot-gradient проецируется в итоговое локальное EDR-подпространство.
+        Это не меняет manifold-fit и задаёт отдельный nearest-center predictor.
+        """
+        queries = self._prepare_queries(X)
+        indices = self._nearest_center_indices(queries)
+        coordinates = self._local_coordinates(queries, indices)
+        slopes = np.einsum(
+            "nmd,nd->nm",
+            self.projectors_[indices],
+            self.gradients_[indices],
+            optimize=True,
+        )
+        return self.center_values_[indices] + np.einsum(
+            "nm,nm->n", coordinates, slopes, optimize=True
+        )
+
+    def _prepare_queries(self, X: np.ndarray) -> np.ndarray:
+        if not hasattr(self, "centers_"):
+            raise RuntimeError("fit must be called before transform or predict")
+        array = np.asarray(X)
+        if np.issubdtype(array.dtype, np.complexfloating) or not np.issubdtype(
+            array.dtype, np.number
+        ):
+            raise TypeError("X must contain real numeric values")
+        if array.dtype.itemsize > np.dtype(np.float64).itemsize:
+            raise TypeError("X has a dtype wider than float64; cast it explicitly")
+        if array.ndim != 2 or array.shape[1] != self.centers_.shape[1]:
+            raise ValueError(f"X must have shape (n, {self.centers_.shape[1]})")
+        result = np.asarray(array, dtype=np.float64)
+        if not np.all(np.isfinite(result)):
+            raise ValueError("X must contain only finite values")
+        return result
+
+    def _nearest_center_indices(self, X: np.ndarray) -> np.ndarray:
+        indices = np.empty(len(X), dtype=np.intp)
+        centered_centers = self.centers_ - self.x_offset_
+        for start in range(0, len(X), self.batch_size):
+            stop = min(start + self.batch_size, len(X))
+            distance2 = self._pairwise_distance2(
+                X[start:stop] - self.x_offset_, centered_centers
+            )
+            indices[start:stop] = np.argmin(distance2, axis=0)
+        return indices
+
+    def _local_coordinates(
+        self,
+        X: np.ndarray,
+        indices: np.ndarray,
+    ) -> np.ndarray:
+        coordinates = np.empty((len(X), self.index_dim))
+        for start in range(0, len(X), self.batch_size):
+            stop = min(start + self.batch_size, len(X))
+            selected = indices[start:stop]
+            coordinates[start:stop] = np.einsum(
+                "bmd,bd->bm",
+                self.projectors_[selected],
+                (X[start:stop] - self.x_offset_)
+                - (self.centers_[selected] - self.x_offset_),
+                optimize=True,
+            )
+        return coordinates
 
     def _effective_config(self, X: np.ndarray) -> dict[str, float | int]:
         n, d = X.shape
@@ -421,10 +565,11 @@ class ADP_Manifold:
         Y: np.ndarray,
         centers: np.ndarray,
         h: float,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Оценить local-linear gradients без normal matrix и ridge."""
         gradients = np.empty((len(centers), X.shape[1]))
         masses = np.empty(len(centers))
+        center_values = np.empty(len(centers))
         for start in range(0, len(centers), self.batch_size):
             weights = self._weight_block(X, centers, None, None, h, 1.0, start)
             for offset, weights_j in enumerate(weights):
@@ -446,7 +591,8 @@ class ADP_Manifold:
                     )
                 gradients[j] = gradient
                 masses[j] = mass
-        return gradients, masses
+                center_values[j] = y_mean + gradient @ (centers[j] - mean)
+        return gradients, masses, center_values
 
     def _build_manifold_graph(
         self,
@@ -667,13 +813,16 @@ class ADP_Manifold:
         d = U.shape[2]
         gamma = mass * weights
         normalized_weights = weights / weights.sum()
+        weighted_slopes = gamma[:, None] * slopes
+        adjoint_U = U.swapaxes(1, 2)
 
         def matvec(vector: np.ndarray) -> np.ndarray:
             B = vector.reshape(m, d)
             local_vectors = slopes @ B  # (K, d)
-            projected = np.einsum("jpd,jd->jp", U, local_vectors, optimize=True)
-            pulled_back = np.einsum("jpd,jp->jd", U, projected, optimize=True)
-            result = np.einsum("j,ja,jd->ad", gamma, slopes, pulled_back, optimize=True)
+            # EXACT: batched GEMV без повторного поиска einsum-path в каждом CG.
+            projected = U @ local_vectors[..., None]  # (K, P, 1)
+            pulled_back = (adjoint_U @ projected).squeeze(-1)  # (K, d)
+            result = weighted_slopes.T @ pulled_back
             result += self.lambda_manifold * self._penalty_action(
                 B, source_projectors, normalized_weights
             )
@@ -725,13 +874,11 @@ class ADP_Manifold:
         source_projectors: np.ndarray,
         normalized_weights: np.ndarray,
     ) -> np.ndarray:
-        coordinates = np.einsum("ad,jrd->jar", B, source_projectors, optimize=True)
-        projected = np.einsum(
-            "j,jar,jrd->ad",
-            normalized_weights,
-            coordinates,
-            source_projectors,
-            optimize=True,
+        coordinates = B @ source_projectors.swapaxes(1, 2)  # (K, m, m)
+        coordinates *= normalized_weights[:, None, None]
+        # Только (m,K*m), без промежуточных (K,m,d) или (d,d).
+        projected = coordinates.transpose(1, 0, 2).reshape(len(B), -1) @ (
+            source_projectors.reshape(-1, B.shape[1])
         )
         return B - projected
 
@@ -898,9 +1045,12 @@ class ADP_Manifold:
             "function_edges": function_edges,
             "manifold_edges": int(graph.nnz),
             "function_mass_q10": float(np.quantile(mass, 0.1)),
+            "function_mass_min": float(np.min(mass)),
+            "function_mass_mean": float(np.mean(mass)),
             "function_mass_median": float(np.median(mass)),
             "function_mass_q90": float(np.quantile(mass, 0.9)),
             "n_eff_q10": float(np.quantile(n_eff, 0.1)),
+            "n_eff_min": float(np.min(n_eff)),
             "n_eff_median": float(np.median(n_eff)),
             "n_eff_q90": float(np.quantile(n_eff, 0.9)),
             "manifold_mass_q10": float(np.quantile(manifold_mass, 0.1)),

@@ -21,7 +21,8 @@ Solver и estimator не меняются. Новые формулы генер�
 - полный профиль содержит 25 независимых повторов;
 - smoke-профиль содержит одну уменьшенную точку и один повтор;
 - внутренний AO получает `solver_max_steps=5`;
-- качество измеряется нормированной проекторной ошибкой;
+- качество измеряется метрикой из `multiindex.tex`,
+  `projector_distance = sum(sin(theta_j)^2)`;
 - recovery означает численную сходимость и `projector_distance <= 0.1`;
 - сохраняются четыре взаимоисключающих исхода `numerical_failure`,
   `nonconverged`, `converged_bad_quality`, `recovered`.

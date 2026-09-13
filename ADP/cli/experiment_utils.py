@@ -46,8 +46,8 @@ def validate_experiment_point(point: ExperimentPoint) -> None:
         or point.n_samples < 2
     ):
         raise ValueError("n_samples must be an integer of at least two")
-    if point.mode not in {"single", "multi"}:
-        raise ValueError("mode must be 'single' or 'multi'")
+    if point.mode not in {"single", "multi", "manifold"}:
+        raise ValueError("mode must be 'single', 'multi', or 'manifold'")
     if (
         isinstance(point.index_dim, bool)
         or not isinstance(point.index_dim, int)
@@ -58,6 +58,8 @@ def validate_experiment_point(point: ExperimentPoint) -> None:
         raise ValueError("single mode requires index_dim=1")
     if point.mode == "multi" and point.index_dim >= point.d:
         raise ValueError("multi mode requires index_dim < d")
+    if point.mode == "manifold" and (point.d < 2 or point.index_dim != 1):
+        raise ValueError("manifold experiment data require d >= 2 and index_dim=1")
     if not isinstance(point.normalize_link_by_sigma_x, bool):
         raise ValueError("normalize_link_by_sigma_x must be boolean")
     if point.basis_pool_dim is not None:
@@ -78,19 +80,31 @@ def validate_experiment_point(point: ExperimentPoint) -> None:
         "linear",
         "quadratic",
         "square",
+        "cubic",
+        "quartic",
         "sin",
         "tanh",
         "oscillating",
         "sin_scaled",
+        "cos_scaled",
         "x_sin",
+        "tanh_scaled",
+        "absolute",
+        "relu",
+        "gaussian_bump",
+        "manifold_radial",
         "multi_additive",
         "multi_multiplicative",
     }
     if point.link not in links:
         raise ValueError(f"unknown link: {point.link}")
-    multi_links = {"multi_additive", "multi_multiplicative"}
-    if (point.mode == "multi") != (point.link in multi_links):
-        raise ValueError("link and mode must both be single-index or multi-index")
+    allowed_links = {
+        "single": links - {"multi_additive", "multi_multiplicative", "manifold_radial"},
+        "multi": {"multi_additive", "multi_multiplicative"},
+        "manifold": {"manifold_radial"},
+    }
+    if point.link not in allowed_links[point.mode]:
+        raise ValueError(f"{point.link} is incompatible with {point.mode} mode")
     if point.x_distribution not in {"gaussian", "uniform", "student_t5"}:
         raise ValueError(f"unknown feature distribution: {point.x_distribution}")
     if point.noise_distribution not in {"gaussian", "student_t5", "student_t3"}:
@@ -102,6 +116,8 @@ def validate_experiment_point(point: ExperimentPoint) -> None:
         "N_lin",
         "N_J",
         "N_phi",
+        "N_manifold",
+        "sync_steps",
         "outer_steps",
         "solver_max_steps",
     ):
@@ -110,7 +126,7 @@ def validate_experiment_point(point: ExperimentPoint) -> None:
             isinstance(value, bool) or not isinstance(value, int) or value < 1
         ):
             raise ValueError(f"{name} must be a positive integer or None")
-    for name in ("lambda_penalty", "center_displacement"):
+    for name in ("lambda_penalty", "lambda_manifold", "center_displacement"):
         if (value := getattr(point, name)) is not None:
             nonnegative(name, value)
     for name in ("a", "h_min_factor"):
@@ -118,6 +134,14 @@ def validate_experiment_point(point: ExperimentPoint) -> None:
             positive(name, value)
     if point.a is not None and point.a <= 1:
         raise ValueError("a must exceed one")
+    if point.N_manifold is not None and point.N_manifold <= point.index_dim:
+        raise ValueError("N_manifold must exceed index_dim")
+    if (
+        point.N_manifold is not None
+        and point.N_J is not None
+        and point.N_manifold >= point.N_J
+    ):
+        raise ValueError("N_manifold must be smaller than N_J")
     if point.index_init is not None and point.index_init not in {
         "local",
         "pilot",
@@ -183,6 +207,12 @@ def validate_experiment(experiment: Experiment, point_fields: set[str]) -> None:
         raise ValueError("experiment selector must be a path-safe name")
     if not experiment.title:
         raise ValueError("experiment title must not be empty")
+    if experiment.hypothesis is not None and (
+        not experiment.hypothesis.strip()
+        or "\n" in experiment.hypothesis
+        or "\r" in experiment.hypothesis
+    ):
+        raise ValueError("hypothesis must be non-empty and single-line or None")
     if not experiment.full:
         raise ValueError("full experiment grid must not be empty")
     if any(name not in point_fields for name in experiment.report_fields):
@@ -267,7 +297,7 @@ def fail(message: str) -> Never:
 
 
 def validate_single_link(name: str) -> None:
-    if name in {"multi_additive", "multi_multiplicative"}:
+    if name in {"multi_additive", "multi_multiplicative", "manifold_radial"}:
         raise ValueError(f"{name} requires multi-index projected data")
 
 

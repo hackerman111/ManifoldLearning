@@ -7,6 +7,7 @@ import pytest
 
 from ADP.cli.main import _solver_index
 from ADP.core.ADP_Config import ADP_Config
+from ADP.core.ADP_Data import ADP_Data
 from ADP.core.ADP_Solver import ADP_Solver
 from ADP.engine.calculus import calculate_rho_k, generate_isotropic_proj
 from ADP.engine.initialize import _principal_gradient_basis
@@ -253,6 +254,31 @@ def test_isotropic_directions_are_reproducible_unit_vectors() -> None:
 
     np.testing.assert_array_equal(first, second)
     np.testing.assert_allclose(np.linalg.norm(first, axis=2), 1.0, atol=1e-15)
+
+
+def test_adp_data_multi_metric_matches_multiindex_tex() -> None:
+    true_basis = np.eye(4)[:, :2]
+    angle = np.deg2rad(60.0)
+    estimate = np.column_stack(
+        (
+            np.eye(4)[:, 0],
+            np.cos(angle) * np.eye(4)[:, 1] + np.sin(angle) * np.eye(4)[:, 2],
+        )
+    )
+    data = ADP_Data(
+        X=np.zeros((5, 4)),
+        Y=np.zeros(5),
+        beta_true=true_basis,
+        beta_k=np.empty(0),
+        beta_init=true_basis,
+        a_k=np.empty(0),
+        rho_k=np.empty(0),
+        x_j=np.zeros((1, 4)),
+        n=5,
+        d=4,
+    )
+
+    assert data.Calculate_metric(estimate) == pytest.approx(0.75, abs=1e-14)
 
 
 def test_public_single_solver_runs_the_new_mass_weighted_path() -> None:

@@ -41,6 +41,12 @@ _SUMMARY_COLUMNS = (
     "selected_quality_median",
     "selected_quality_q05",
     "selected_quality_q95",
+    "max_principal_sine_median",
+    "max_principal_sine_q05",
+    "max_principal_sine_q95",
+    "max_principal_angle_deg_median",
+    "max_principal_angle_deg_q05",
+    "max_principal_angle_deg_q95",
     "fit_time_median_sec",
     "peak_memory_median_mib",
 )
@@ -113,7 +119,10 @@ _FACTOR_LABELS = {
     "N_lin": "N_lin",
     "N_J": "N_J",
     "N_phi": "N_phi",
+    "N_manifold": "N_manifold",
     "lambda_penalty": "λ",
+    "lambda_manifold": "λ_M",
+    "sync_steps": "шаги синхронизации",
     "a": "a",
     "h_min_factor": "множитель h_min",
     "solver_max_steps": "k_max",
@@ -196,6 +205,15 @@ def build_report(
             "Качество выбранной оценки",
             quality_label,
         )
+        if _values(rows, "max_principal_angle_deg"):
+            _metric_plot(
+                summary,
+                factors,
+                "max_principal_angle",
+                output / "worst_principal_angle.png",
+                "Худшее восстановленное направление",
+                "максимальный главный угол, градусы",
+            )
         _stages_plot(summary, factors, output / "stages.png", quality_label)
         _metric_plot(
             summary,
@@ -338,6 +356,8 @@ def _summaries(
                 if not selected:
                     continue
                 quality = _quantiles(_values(selected, "quality"))
+                max_sine = _quantiles(_values(selected, "max_principal_sine"))
+                max_angle = _quantiles(_values(selected, "max_principal_angle_deg"))
                 failures = sum(row["status"] == "numerical_failure" for row in selected)
                 result.append(
                     {
@@ -367,6 +387,12 @@ def _summaries(
                         "selected_quality_median": quality[0],
                         "selected_quality_q05": quality[1],
                         "selected_quality_q95": quality[2],
+                        "max_principal_sine_median": max_sine[0],
+                        "max_principal_sine_q05": max_sine[1],
+                        "max_principal_sine_q95": max_sine[2],
+                        "max_principal_angle_deg_median": max_angle[0],
+                        "max_principal_angle_deg_q05": max_angle[1],
+                        "max_principal_angle_deg_q95": max_angle[2],
                         "fit_time_median_sec": _median(
                             _values(selected, "fit_time_sec")
                         ),
@@ -692,8 +718,8 @@ def _write_markdown(
                 f"## {_factor_label(factor)}",
                 "",
                 "| Уровень | Build | Success | Nonconv | Fail | Init | Last | "
-                "Selected | Время, sec | Память, MiB |",
-                "|---:|:---|---:|---:|---:|---:|---:|---:|---:|---:|",
+                "Selected | Worst angle, deg | Время, sec | Память, MiB |",
+                "|---:|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
             )
         )
         for row in (item for item in summary if item["factor"] == factor):
@@ -706,6 +732,7 @@ def _write_markdown(
                 _format_number(row["initial_quality_median"]),
                 _format_number(row["last_quality_median"]),
                 _format_number(row["selected_quality_median"]),
+                _format_number(row["max_principal_angle_deg_median"]),
                 _format_number(row["fit_time_median_sec"]),
                 _format_number(row["peak_memory_median_mib"]),
             )
@@ -764,7 +791,7 @@ def _metric_plot(
                     color=color,
                     label=build,
                 )
-                if metric == "selected_quality":
+                if metric in {"selected_quality", "max_principal_angle"}:
                     ax.fill_between(
                         x[valid],
                         low[valid],
@@ -792,6 +819,9 @@ def _summary_value(
     if metric == "selected_quality":
         suffix = {"median": "median", "q05": "q05", "q95": "q95"}[statistic]
         return _float(row[f"selected_quality_{suffix}"])
+    if metric == "max_principal_angle":
+        suffix = {"median": "median", "q05": "q05", "q95": "q95"}[statistic]
+        return _float(row[f"max_principal_angle_deg_{suffix}"])
     column = {
         "fit_time": "fit_time_median_sec",
         "peak_memory": "peak_memory_median_mib",
@@ -1114,7 +1144,12 @@ def _short_level(value: str) -> str:
         "multi_additive": "additive",
         "multi_multiplicative": "multiplicative",
         "sin_scaled": "sin(sx)",
+        "cos_scaled": "cos(sx)",
         "x_sin": "x sin(sx)",
+        "tanh_scaled": "tanh(sx)",
+        "absolute": "|x|",
+        "relu": "ReLU",
+        "gaussian_bump": "exp(-(sx)^2/2)",
     }.get(value, value)
 
 

@@ -13,6 +13,7 @@ from typing import cast
 
 import numpy as np
 
+from ..ADP_Manifold import ADP_Manifold
 from ..core.ADP_Config import ADP_Config, epanechnikov
 from ..engine import utils
 from ..engine.calculus import (
@@ -104,11 +105,13 @@ def parse_kernel(value: str) -> Callable[[np.ndarray], np.ndarray]:
 def build_parser() -> argparse.ArgumentParser:
     defaults = ADP_Config()
     parser = argparse.ArgumentParser(
-        description="Minimal synthetic single/multi-index ADP runner",
+        description="Minimal synthetic single/multi/manifold ADP runner",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         allow_abbrev=False,
     )
-    parser.add_argument("--mode", choices=("single", "multi"), default="single")
+    parser.add_argument(
+        "--mode", choices=("single", "multi", "manifold"), default="single"
+    )
     parser.add_argument("--n", type=int, default=240)
     parser.add_argument("--d", type=int, default=5)
     parser.add_argument("--index-dim", type=int, default=1)
@@ -122,6 +125,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--N_lin", "--n-lin", dest="N_lin", type=int)
     parser.add_argument("--N_J", "--n-centers", dest="N_J", type=int)
     parser.add_argument("--N_phi", "--n-directions", dest="N_phi", type=int)
+    parser.add_argument("--N_manifold", "--n-manifold", dest="N_manifold", type=int)
+    parser.add_argument("--sync-steps", type=int, default=5)
+    parser.add_argument("--lambda-manifold", type=float, default=1.0)
+    parser.add_argument("--scale-boundary", choices=("raise", "stop"), default="raise")
     parser.add_argument("--outer_steps", "--outer-steps", dest="outer_steps", type=int)
     parser.add_argument(
         "--lambda_penalty",
@@ -339,6 +346,8 @@ def _run(
     *,
     data: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, dict[str, float]], dict[str, object]]:
+    if args.mode == "manifold":
+        return _run_manifold(args, data=data)
     config = _config(args)
     n_lin, n_centers, n_directions = _validate(args, config)
     profiler = _Profiler()
@@ -663,6 +672,125 @@ def _run(
         profiler.finish()
 
 
+def _run_manifold(
+    args: argparse.Namespace,
+    *,
+    data: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+) -> tuple[np.ndarray, np.ndarray, dict[str, dict[str, float]], dict[str, object]]:
+    if args.n <= args.d + 1:
+        raise ValueError("manifold mode requires n > d + 1")
+    if not 1 <= args.index_dim <= args.d:
+        raise ValueError("index_dim must lie between 1 and d in manifold mode")
+    if not np.isfinite(args.noise) or args.noise < 0:
+        raise ValueError("noise must be finite and nonnegative")
+    if args.data_seed < 0:
+        raise ValueError("data_seed must be nonnegative")
+
+    profiler = _Profiler()
+    try:
+        with profiler.stage("data"):
+            if data is None:
+                X, Y, true_index = _synthetic_data(
+                    args.n,
+                    args.d,
+                    args.index_dim,
+                    args.noise,
+                    args.data_seed,
+                )
+            else:
+                X, Y = utils._prepare_xy(data[0], data[1])
+                true_index = utils._finite_real_array(data[2], "true_index")
+                if X.shape != (args.n, args.d):
+                    raise ValueError(
+                        f"injected data must have X shape {(args.n, args.d)}"
+                    )
+
+        model = ADP_Manifold(
+            args.index_dim,
+            N_loc=args.N_loc,
+            N_lin=args.N_lin,
+            N_J=args.N_J,
+            N_phi=args.N_phi,
+            N_manifold=args.N_manifold,
+            lambda_manifold=args.lambda_manifold,
+            scale_boundary=args.scale_boundary,
+            sync_steps=args.sync_steps,
+            a=args.a,
+            h_min=args.h_min,
+            batch_size=args.batch_size,
+            seed=args.seed,
+            cg_tol=args.solver_tol,
+            cg_maxiter=args.cg_maxiter,
+        )
+        with profiler.stage("solver"):
+            model.fit(X, Y)
+        if true_index.shape == (args.d, args.index_dim):
+            true_projectors = np.broadcast_to(
+                true_index.T,
+                model.projectors_.shape,
+            )
+        elif true_index.shape == (args.n, args.d, args.index_dim):
+            true_projectors = np.swapaxes(
+                true_index[model.center_indices_],
+                1,
+                2,
+            )
+        else:
+            raise ValueError(
+                "manifold true_index must have shape "
+                f"{(args.d, args.index_dim)} or {(args.n, args.d, args.index_dim)}"
+            )
+
+        with profiler.stage("update"):
+            prediction = model.predict(X)
+        quality = _quality("manifold", model.projectors_, true_projectors)
+        prediction_error = float(np.sum(np.square(Y - prediction)))
+        diagnostics: dict[str, object] = {
+            "converged": True,
+            "cg_iterations": sum(int(entry["cg_iterations"]) for entry in model.trace_),
+            "cg_relative_residual_max": max(
+                float(entry["cg_relative_residual_max"]) for entry in model.trace_
+            ),
+        }
+        trace = [dict(entry) for entry in model.trace_]
+        effective = model.effective_config_
+        metadata: dict[str, object] = {
+            "N_lin": effective["N_lin"],
+            "N_J": effective["N_J"],
+            "N_phi": effective["N_phi"],
+            "N_manifold": effective["N_manifold"],
+            "sync_steps": args.sync_steps,
+            "lambda_manifold": args.lambda_manifold,
+            "scale_boundary": args.scale_boundary,
+            "outer_iterations": len(trace),
+            "stop_reason": trace[-1]["stop_reason"],
+            "estimator": "manifold",
+            "direction_mode": "structure-adaptive",
+            "multi_tensor": None,
+            "solver": "cg",
+            "solver_max_steps": args.sync_steps,
+            "selection": "last",
+            "selected_iteration": len(trace) - 1,
+            "selected_error": prediction_error,
+            "selected_eigenvalues": (),
+            "initial_quality": None,
+            "last_quality": quality,
+            "initial_eigenvalues": (),
+            "training_set": "all",
+            "training_size": len(X),
+            "center_displacement": 0.0,
+            "center_displacement_scale": 0.0,
+            "redraw_directions": True,
+            "prediction_rmse": sqrt(prediction_error / len(Y)),
+            "trace": trace,
+            "diagnostics": diagnostics,
+            "last_diagnostics": diagnostics,
+        }
+        return model.projectors_, true_projectors, profiler.records, metadata
+    finally:
+        profiler.finish()
+
+
 def _solver_index(
     mode: str,
     result: HPAOResult,
@@ -733,14 +861,15 @@ def _orient_basis(basis: np.ndarray) -> np.ndarray:
 def _quality(mode: str, index: np.ndarray, true_basis: np.ndarray) -> float:
     if mode == "single":
         return float(abs(true_basis[:, 0] @ index))
-    estimate = index.T
-    return float(
-        np.linalg.norm(
-            true_basis @ true_basis.T - estimate @ estimate.T,
-            ord="fro",
-        )
-        / sqrt(2.0 * true_basis.shape[1])
-    )
+    if mode == "manifold":
+        if index.ndim != 3 or true_basis.shape != index.shape:
+            raise ValueError("manifold projectors must have matching (J, m, d) shapes")
+        overlap = np.einsum("jmd,jnd->jmn", index, true_basis, optimize=True)
+        missed = index.shape[1] - np.square(overlap).sum(axis=(1, 2))
+        return sqrt(float(np.maximum(missed, 0.0).mean()) / index.shape[1])
+    # ESTIMATOR/evaluation protocol, (SEDRqua): ||P(I - P_*^T P_*)||_F^2.
+    residual = index - (index @ true_basis) @ true_basis.T  # (m, d)
+    return float(np.square(residual).sum())
 
 
 def _rss_peak_mib() -> float:
@@ -754,7 +883,11 @@ def _print_result(
     profile: dict[str, dict[str, float]],
     metadata: dict[str, object],
 ) -> None:
-    metric_name = "cosine_abs" if args.mode == "single" else "projector_distance"
+    metric_name = {
+        "single": "cosine_abs",
+        "multi": "projector_distance",
+        "manifold": "local_projector_distance",
+    }[args.mode]
     print(f"mode={args.mode} X=({args.n}, {args.d}) index={index.shape}")
     print(
         "effective: "
@@ -763,6 +896,20 @@ def _print_result(
     )
     quality = _quality(args.mode, index, true_basis)
     print(f"stop_reason={metadata['stop_reason']} {metric_name}={quality:.6f}")
+    if args.mode == "manifold":
+        print(
+            f"estimator=manifold solver=cg prediction_rmse="
+            f"{cast(float, metadata['prediction_rmse']):.6f}"
+        )
+        for step in cast(list[dict[str, object]], metadata["trace"]):
+            print(
+                f"step={step['iteration']} phase={step['phase']} "
+                f"h={cast(float, step['h']):.6g} "
+                f"alpha={cast(float, step['alpha']):.6g} "
+                f"projector_change={cast(float, step['projector_change_max']):.6g}"
+            )
+        _print_profile(profile)
+        return
     print(
         f"estimator={metadata['estimator']} solver={metadata['solver']} "
         f"directions={metadata['direction_mode']} "
@@ -781,6 +928,10 @@ def _print_result(
             f"h/{step['factor_name']}={step_ratio:.6g} "
             f"err={step_error:.6g} quality={step_quality:.6g}"
         )
+    _print_profile(profile)
+
+
+def _print_profile(profile: dict[str, dict[str, float]]) -> None:
     print("\nstage statistics (tracemalloc peak excludes untraced native memory):")
     for name in _STAGES:
         record = profile.get(

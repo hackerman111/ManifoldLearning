@@ -89,6 +89,53 @@ def test_cli_smoke(
     assert "process RSS peak:" in output
 
 
+def test_cli_manifold_smoke(capsys: pytest.CaptureFixture[str]) -> None:
+    assert (
+        main(
+            [
+                "--mode",
+                "manifold",
+                "--n",
+                "80",
+                "--d",
+                "4",
+                "--index-dim",
+                "2",
+                "--noise",
+                "0.01",
+                "--N_loc",
+                "20",
+                "--N_lin",
+                "30",
+                "--N_J",
+                "12",
+                "--N_phi",
+                "8",
+                "--N_manifold",
+                "6",
+                "--sync-steps",
+                "1",
+                "--lambda-manifold",
+                "0.5",
+                "--h_min",
+                "1000000",
+                "--batch-size",
+                "4",
+                "--solver-tol",
+                "1e-7",
+                "--cg-maxiter",
+                "200",
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    assert "mode=manifold" in output
+    assert "local_projector_distance=" in output
+    assert "prediction_rmse=" in output
+    assert "phase=sync" in output
+
+
 def test_cli_trace_selects_the_minimum_fit_step() -> None:
     args = build_parser().parse_args(
         [
@@ -131,6 +178,20 @@ def test_cli_trace_selects_the_minimum_fit_step() -> None:
     assert metadata["selected_iteration"] == selected
     assert metadata["selected_error"] == min(errors)
     assert _quality("single", index, true_basis) == trace[selected]["quality"]
+
+
+def test_multi_quality_matches_multiindex_tex_metric() -> None:
+    true_basis = np.eye(4)[:, :2]
+    angle = np.deg2rad(60.0)
+    index = np.array(
+        [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, np.cos(angle), np.sin(angle), 0.0],
+        ]
+    )
+
+    # ||P(I - P_*^T P_*)||_F^2 = sin(theta)^2.
+    assert _quality("multi", index, true_basis) == pytest.approx(0.75, abs=1e-14)
 
 
 def test_cli_center_split_and_fixed_directions_are_recorded() -> None:

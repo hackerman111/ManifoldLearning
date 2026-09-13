@@ -80,8 +80,8 @@ multi-basis `(d, m)`, solver multi-index `(m, d)`, `I (J, P)`, `U (J, P, d)`.
 `profile_` после `fit`.
 
 CLI также печатает эффективные параметры, форму результата и качество:
-`abs(beta_true @ beta_hat)` для single или нормированное расстояние проекторов
-для multi.
+`abs(beta_true @ beta_hat)` для single или ошибку
+`sum(sin(theta_j)^2)` из `multiindex.tex` для multi.
 
 ## Ошибки
 

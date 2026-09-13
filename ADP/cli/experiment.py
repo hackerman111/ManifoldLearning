@@ -23,6 +23,7 @@ from time import perf_counter
 from typing import Literal
 
 import numpy as np
+from scipy.linalg import subspace_angles
 from tqdm import tqdm
 
 from ..core.ADP_Config import ADP_Config
@@ -47,17 +48,25 @@ LinkName = Literal[
     "linear",
     "quadratic",
     "square",
+    "cubic",
+    "quartic",
     "sin",
     "tanh",
     "oscillating",
     "sin_scaled",
+    "cos_scaled",
     "x_sin",
+    "tanh_scaled",
+    "absolute",
+    "relu",
+    "gaussian_bump",
+    "manifold_radial",
     "multi_additive",
     "multi_multiplicative",
 ]
 FeatureDistribution = Literal["gaussian", "uniform", "student_t5"]
 NoiseDistribution = Literal["gaussian", "student_t5", "student_t3"]
-ModelMode = Literal["single", "multi"]
+ModelMode = Literal["single", "multi", "manifold"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +96,9 @@ class ExperimentPoint:
     N_lin: int | None = None
     N_J: int | None = None
     N_phi: int | None = None
+    N_manifold: int | None = None
+    sync_steps: int | None = None
+    lambda_manifold: float | None = None
     outer_steps: int | None = None
     lambda_penalty: float | None = None
     a: float | None = None
@@ -140,6 +152,7 @@ class Experiment:
     condition_field: str | None = None
     common_random_fields: tuple[str, ...] = ()
     condition_group_fields: tuple[str, ...] = ()
+    hypothesis: str | None = None
 
     def __post_init__(self) -> None:
         point_fields = {item.name for item in fields(ExperimentPoint)}
@@ -312,6 +325,8 @@ def _catalog() -> dict[str, Experiment]:
                     ("linear", "quadratic", "square", "sin", "tanh", "oscillating"),
                 )
             ),
+            condition_field="link",
+            common_random_fields=("link",),
         ),
         Experiment(
             "7.1",
@@ -323,6 +338,8 @@ def _catalog() -> dict[str, Experiment]:
                     (25, 100), (2.0, 5.0), ("gaussian", "uniform", "student_t5")
                 )
             ),
+            condition_field="x_distribution",
+            common_random_fields=("x_distribution",),
         ),
         Experiment(
             "7.2",
@@ -334,6 +351,8 @@ def _catalog() -> dict[str, Experiment]:
                     (25, 100), (2.0, 5.0), ("gaussian", "student_t5", "student_t3")
                 )
             ),
+            condition_field="noise_distribution",
+            common_random_fields=("noise_distribution",),
         ),
         Experiment(
             "8.1",
@@ -343,6 +362,8 @@ def _catalog() -> dict[str, Experiment]:
                 ExperimentPoint(d, ratio, heteroscedastic=value)
                 for d, ratio, value in product((25, 100), (2.0, 5.0), (False, True))
             ),
+            condition_field="heteroscedastic",
+            common_random_fields=("heteroscedastic",),
         ),
         Experiment(
             "8.2",
@@ -360,13 +381,16 @@ def _catalog() -> dict[str, Experiment]:
                     (2.0, 5.0),
                     (
                         (0.0, 1.0),
+                        (0.005, 5.0),
                         (0.01, 5.0),
                         (0.01, 10.0),
+                        (0.025, 7.5),
                         (0.05, 5.0),
                         (0.05, 10.0),
                     ),
                 )
             ),
+            common_random_fields=("outlier_fraction", "outlier_scale"),
         ),
         Experiment(
             "8.3",
@@ -375,12 +399,19 @@ def _catalog() -> dict[str, Experiment]:
             tuple(
                 ExperimentPoint(d, ratio, delta=delta)
                 for d, ratio, delta in product(
-                    (25, 100), (2.0, 5.0), (0.0, 0.1, 0.25, 0.5)
+                    (25, 100),
+                    (2.0, 5.0),
+                    (0.0, 0.05, 0.1, 0.2, 0.25, 0.35, 0.5),
                 )
             ),
+            condition_field="delta",
+            common_random_fields=("delta",),
         ),
         *_detailed_multi_catalog(),
         *_report_catalog(),
+        *_parameter_scaling_catalog(),
+        *_detailed_nd_catalog(),
+        *_manifold_catalog(),
         custom_experiment(),
     )
     return {experiment.selector: experiment for experiment in experiments}
@@ -394,6 +425,366 @@ def custom_experiment(
     validate_custom_parameters(n, d, noise)
     point = ExperimentPoint(d=d, n_over_d=n / d, sigma_eps=noise, link="sin")
     return Experiment("custom", "Пользовательский эксперимент", point, (point,))
+
+
+def _manifold_catalog() -> tuple[Experiment, ...]:
+    """Базовые однофакторные ESTIMATOR-сетки manifold ADP."""
+    smoke = ExperimentPoint(
+        d=3,
+        n_over_d=80 / 3,
+        n_samples=80,
+        sigma_eps=0.02,
+        link="manifold_radial",
+        mode="manifold",
+        index_dim=1,
+        N_loc=15,
+        N_lin=30,
+        N_J=12,
+        N_phi=6,
+        N_manifold=5,
+        sync_steps=1,
+        lambda_manifold=0.5,
+        a=2.0,
+        h_min_factor=10.0,
+    )
+    base = replace(
+        smoke,
+        d=4,
+        n_over_d=60,
+        n_samples=240,
+        sigma_eps=0.05,
+        N_loc=20,
+        N_lin=60,
+        N_J=24,
+        N_phi=10,
+        N_manifold=6,
+    )
+
+    def sweep(
+        selector: str,
+        title: str,
+        field: str,
+        values: tuple[int | float, ...],
+        hypothesis: str,
+        *,
+        common_random_fields: tuple[str, ...] | None = None,
+    ) -> Experiment:
+        def point(value: int | float) -> ExperimentPoint:
+            updates = {field: value}
+            if field in {"n_samples", "d"}:
+                n = int(value) if field == "n_samples" else base.n
+                d = int(value) if field == "d" else base.d
+                updates["n_over_d"] = n / d
+            return replace(base, **updates)
+
+        return Experiment(
+            selector,
+            title,
+            smoke,
+            tuple(point(value) for value in values),
+            report_fields=(field,),
+            full_runs=5,
+            quality_threshold=0.2,
+            condition_field=field,
+            common_random_fields=common_random_fields or (field,),
+            hypothesis=hypothesis,
+        )
+
+    joint = Experiment(
+        "manifold",
+        "Manifold ADP: локально меняющееся радиальное направление",
+        smoke,
+        tuple(
+            replace(
+                smoke,
+                d=d,
+                n_over_d=n / d,
+                n_samples=n,
+                N_lin=linear_mass,
+                N_J=centers,
+                N_manifold=neighbors,
+                N_loc=local_mass,
+                N_phi=directions,
+                sigma_eps=noise,
+            )
+            for (
+                n,
+                d,
+                centers,
+                neighbors,
+                local_mass,
+                directions,
+                linear_mass,
+                noise,
+            ) in (
+                (120, 3, 16, 6, 15, 6, 30, 0.02),
+                (240, 4, 24, 8, 15, 6, 30, 0.05),
+                (400, 6, 32, 10, 25, 12, 60, 0.10),
+            )
+        ),
+        report_fields=("n_samples", "d", "sigma_eps"),
+        full_runs=5,
+        quality_threshold=0.2,
+        hypothesis=(
+            "Локальные проекторы восстанавливают радиальное направление при "
+            "росте n и умеренном шуме."
+        ),
+    )
+    return (
+        joint,
+        sweep(
+            "manifold-n",
+            "Manifold ADP: объём выборки",
+            "n_samples",
+            (120, 240, 360, 480),
+            "Ошибка локальных проекторов уменьшается при росте n.",
+            common_random_fields=("n_samples", "n_over_d"),
+        ),
+        sweep(
+            "manifold-d",
+            "Manifold ADP: размерность пространства",
+            "d",
+            (2, 3, 4, 6, 8, 10),
+            "Восстановление ухудшается при росте внешней размерности d.",
+            common_random_fields=("d", "n_over_d"),
+        ),
+        sweep(
+            "manifold-noise",
+            "Manifold ADP: шум отклика",
+            "sigma_eps",
+            (0.0, 0.02, 0.05, 0.1, 0.2, 0.4),
+            "При увеличении шума отклика ошибка локальных проекторов растёт.",
+        ),
+        sweep(
+            "manifold-scale",
+            "Manifold ADP: масштаб признаков",
+            "sigma_x",
+            (0.5, 1.0, 2.0, 4.0),
+            "Масштаб признаков не меняет качество после адаптации bandwidth.",
+        ),
+        sweep(
+            "manifold-corr",
+            "Manifold ADP: корреляция признаков",
+            "rho_corr",
+            (0.0, 0.25, 0.5, 0.75, 0.9),
+            "Сильная корреляция признаков ухудшает локальную идентификацию.",
+        ),
+        sweep(
+            "manifold-nlin",
+            "Manifold ADP: масса пилотной регрессии",
+            "N_lin",
+            (10, 20, 40, 60, 80),
+            "Слишком малая или большая N_lin ухудшает пилотные градиенты.",
+        ),
+        sweep(
+            "manifold-nloc",
+            "Manifold ADP: локальная масса",
+            "N_loc",
+            (10, 15, 20, 30, 40),
+            "N_loc задаёт компромисс между вариативностью и локальным смещением.",
+        ),
+        sweep(
+            "manifold-centers",
+            "Manifold ADP: число центров",
+            "N_J",
+            (12, 18, 24, 36, 48),
+            "После достаточного покрытия рост N_J даёт убывающий выигрыш.",
+        ),
+        sweep(
+            "manifold-nphi",
+            "Manifold ADP: число случайных направлений",
+            "N_phi",
+            (2, 4, 6, 10, 16, 24),
+            "Рост N_phi стабилизирует локальные статистики до насыщения.",
+        ),
+        sweep(
+            "manifold-neighbors",
+            "Manifold ADP: соседи manifold-графа",
+            "N_manifold",
+            (2, 4, 6, 8, 10),
+            "N_manifold задаёт компромисс между связностью и локальностью графа.",
+        ),
+        sweep(
+            "manifold-lambda",
+            "Manifold ADP: регуляризация согласованности",
+            "lambda_manifold",
+            (0.0, 0.1, 0.5, 1.0, 5.0),
+            "Умеренная lambda_manifold улучшает согласованность локальных chart.",
+        ),
+        sweep(
+            "manifold-sync",
+            "Manifold ADP: шаги синхронизации",
+            "sync_steps",
+            (1, 2, 3, 5),
+            "Дополнительные шаги синхронизации улучшают качество до насыщения.",
+        ),
+    )
+
+
+def _scaling_point(mode: Literal["single", "multi"], n: int, d: int) -> ExperimentPoint:
+    """Фиксированная конфигурация для сопоставимых SI/MI scaling-сеток."""
+    multi = mode == "multi"
+    return ExperimentPoint(
+        d=d,
+        n_over_d=n / d,
+        n_samples=n,
+        sigma_eps=0.2,
+        tau=0.0,
+        link="multi_additive" if multi else "sin_scaled",
+        mode=mode,
+        index_dim=2 if multi else 1,
+        N_loc=15,
+        N_lin=d + 60,
+        N_J=math.ceil(n / 5),
+        N_phi=20,
+        outer_steps=5,
+        lambda_penalty=0.05,
+        a=math.sqrt(2),
+        h_min_factor=3,
+        index_init="pilot" if multi else "local",
+        direction_mode="isotropic" if multi else "localized",
+        select_step="best",
+        solver_max_steps=8,
+    )
+
+
+def _parameter_scaling_catalog() -> tuple[Experiment, ...]:
+    """Парные SI/MI-сетки зависимости N_phi, N_loc и N_J от (n, d)."""
+    shapes = tuple(product((500, 1000, 2000), (10, 25, 50)))
+    n_phi_values = {
+        "single": (5, 10, 20, 30, 40, 60),
+        "multi": (3, 5, 10, 20, 30, 40),
+    }
+    n_loc_values = (7, 10, 15, 20, 30, 45)
+    center_multipliers = (1, 2, 4, 8, 12)
+    baseline_n_loc = 15
+
+    def make(
+        mode: ModelMode,
+        parameter: str,
+        points: tuple[ExperimentPoint, ...],
+        hypothesis: str,
+    ) -> Experiment:
+        prefix = "mi" if mode == "multi" else "si"
+        parameter_slug = parameter.lower().replace("_", "")
+        return Experiment(
+            f"scale-{prefix}-{parameter_slug}",
+            f"{prefix.upper()}: зависимость {parameter} от n и d",
+            _smoke_point(points[0]),
+            points,
+            report_fields=("n_samples", "d", parameter),
+            full_runs=5,
+            quality_threshold=0.1 if mode == "multi" else 0.9,
+            condition_field=parameter,
+            common_random_fields=(parameter,),
+            hypothesis=hypothesis,
+        )
+
+    experiments: list[Experiment] = []
+    for mode in ("single", "multi"):
+        bases = tuple(_scaling_point(mode, n, d) for n, d in shapes)
+        multi = mode == "multi"
+        experiments.extend(
+            (
+                make(
+                    mode,
+                    "N_phi",
+                    tuple(
+                        replace(point, N_phi=value)
+                        for point in bases
+                        for value in n_phi_values[mode]
+                    ),
+                    (
+                        "N_phi > m. "
+                        "Это обязательная граница; качество насыщается около 20--30 "
+                        "направлений. Зависимость от объёма выборки слабая, "
+                        "стоимость при этом продолжает расти."
+                        if multi
+                        else "N_phi. "
+                        "Плато качества ожидается около 20--30 "
+                        "направлений. Большая размерность может сдвинуть это плато "
+                        "вправо, объём выборки влияет слабее."
+                    ),
+                ),
+                make(
+                    mode,
+                    "N_loc",
+                    tuple(
+                        replace(point, N_loc=value)
+                        for point in bases
+                        for value in n_loc_values
+                    ),
+                    "Эффективная локальная масса растёт медленнее объёма выборки "
+                    "и слабо зависит от размерности; малые значения "
+                    "нестабильны, большие увеличивают смещение.",
+                ),
+                make(
+                    mode,
+                    "N_J",
+                    tuple(
+                        replace(
+                            point,
+                            N_J=math.ceil(multiplier * point.n / baseline_n_loc),
+                        )
+                        for point in bases
+                        for multiplier in center_multipliers
+                    ),
+                    "N_J = c*n/N_loc. "
+                    "Коэффициент покрытия почти постоянен; "
+                    "после значений около 4--8 стоимость растёт быстрее качества.",
+                ),
+            )
+        )
+    return tuple(experiments)
+
+
+def _detailed_nd_catalog() -> tuple[Experiment, ...]:
+    """Уточнение MI-границы и зависимости SI от N_loc по (n, d)."""
+    mi_points = tuple(
+        _scaling_point("multi", n, d)
+        for n, d in product(
+            (400, 600, 800, 1000, 1400, 1800, 2400),
+            (10, 15, 20, 25, 30, 35, 40, 50, 60),
+        )
+    )
+    si_points = tuple(
+        replace(_scaling_point("single", n, d), N_loc=n_loc)
+        for n, d, n_loc in product(
+            (400, 700, 1000, 1500, 2200),
+            (10, 20, 30, 40, 50, 60),
+            (10, 15, 20, 25, 30, 40, 50),
+        )
+    )
+    return (
+        Experiment(
+            "mi-boundary-nd",
+            "Multi-index: подробная граница по n и d",
+            _smoke_point(mi_points[0]),
+            mi_points,
+            report_fields=("n_samples", "d", "n_over_d"),
+            full_runs=10,
+            quality_threshold=0.1,
+            hypothesis=(
+                "При фиксированном estimator граница projector_distance <= 0.1 "
+                "зависит и от n/d, и от абсолютных n и d."
+            ),
+        ),
+        Experiment(
+            "si-nloc-nd",
+            "Single-index: N_loc в зависимости от n и d",
+            _smoke_point(si_points[0]),
+            si_points,
+            report_fields=("n_samples", "d", "N_loc"),
+            full_runs=10,
+            quality_threshold=0.9,
+            condition_field="N_loc",
+            common_random_fields=("N_loc",),
+            hypothesis=(
+                "Минимальный N_loc для устойчивой сходимости растёт при росте d; "
+                "после насыщения качества дальнейший рост оплачивается временем."
+            ),
+        ),
+    )
 
 
 def _detailed_multi_catalog() -> tuple[Experiment, ...]:
@@ -545,6 +936,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
         N_lin=160,
         N_J=500,
         N_phi=20,
+        outer_steps=3,
         lambda_penalty=0.05,
         a=math.sqrt(2),
         h_min_factor=3,
@@ -566,14 +958,26 @@ def _report_catalog() -> tuple[Experiment, ...]:
         solver_max_steps=5,
     )
     n_values = (800, 1000, 1200, 2000)
+    n_sweep_values = (800, 900, 1000, 1200, 1400, 1600, 2000)
     d_values = tuple(range(10, 101, 10))
     noise_values = (0.0, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0)
     tau_values = (0.0, 0.2, 0.4, 0.8)
+    tau_sweep_values = (0.0, 0.1, 0.2, 0.4, 0.6, 0.8, 0.9)
     scales = (1.0, 2.0, 3.0, 4.0)
-    n_loc_values = (7, 10, 15, 20)
-    lambdas = (0.0, 0.05, 0.1, 0.5, 1.0)
+    scale_sweep_values = (1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0)
+    sigma_x_values = (0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 4.0)
+    n_lin_scales = tuple(range(1, 8))
+    n_loc_values = (7, 9, 10, 12, 15, 17, 20)
+    lambdas = (0.0, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0)
+    displacements = (0.0, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0)
+    ao_steps = tuple(range(1, 8))
+    single_directions = (10, 15, 20, 30, 40, 50, 60)
+    multi_directions = (3, 5, 10, 20, 30, 40, 60)
+    single_a = tuple(2 ** (1 / 4 + step / 8) for step in range(7))
+    multi_a = tuple(2 ** (1 / 4 + step / 24) for step in range(7))
+    h_min_factors = (1.0, 4 / 3, 5 / 3, 2.0, 7 / 3, 8 / 3, 3.0)
     center_counts = tuple(
-        scale * si.n // (si.N_loc or 1) for scale in range(1, (si.N_loc or 1) + 1)
+        scale * si.n // (si.N_loc or 1) for scale in (1, 2, 3, 5, 10, 15, 20)
     )
 
     def make(
@@ -583,6 +987,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
         *report_fields: str,
         full_runs: int = 1,
     ) -> Experiment:
+        condition_field = report_fields[0] if len(report_fields) == 1 else None
         return Experiment(
             selector,
             title,
@@ -590,13 +995,15 @@ def _report_catalog() -> tuple[Experiment, ...]:
             points,
             report_fields,
             full_runs,
+            condition_field=condition_field,
+            common_random_fields=(condition_field,) if condition_field else (),
         )
 
     single = (
         make(
             "si-n",
             "Single-index: объём выборки",
-            tuple(replace(si, n_samples=n, N_J=n // 2) for n in n_values),
+            tuple(replace(si, n_samples=n, N_J=n // 2) for n in n_sweep_values),
             "n_samples",
         ),
         make(
@@ -614,7 +1021,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "si-tau",
             "Single-index: общий фактор",
-            tuple(replace(si, tau=value) for value in tau_values),
+            tuple(replace(si, tau=value) for value in tau_sweep_values),
             "tau",
         ),
         make(
@@ -626,28 +1033,29 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "si-frequency-sin",
             "Single-index: частота sin(sx)",
-            tuple(replace(si, link="sin_scaled", link_scale=s) for s in scales),
+            tuple(
+                replace(si, link="sin_scaled", link_scale=s) for s in scale_sweep_values
+            ),
             "link_scale",
         ),
         make(
             "si-frequency-xsin",
             "Single-index: частота x sin(sx)",
-            tuple(replace(si, link="x_sin", link_scale=s) for s in scales),
+            tuple(replace(si, link="x_sin", link_scale=s) for s in scale_sweep_values),
             "link_scale",
         ),
         make(
             "si-scale",
             "Single-index: масштаб признаков при d=10",
             tuple(
-                replace(si, d=10, N_lin=70, sigma_x=value)
-                for value in (0.25, 0.5, 1.0, 2.0, 4.0)
+                replace(si, d=10, N_lin=70, sigma_x=value) for value in sigma_x_values
             ),
             "sigma_x",
         ),
         make(
             "si-nlin",
             "Single-index: локальная линейная масса",
-            tuple(replace(si, N_lin=si.d + s * 20) for s in (1, 2, 3)),
+            tuple(replace(si, N_lin=si.d + s * 20) for s in n_lin_scales),
             "N_lin",
         ),
         make(
@@ -659,7 +1067,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "si-displacement",
             "Single-index: смещение центров",
-            tuple(replace(si, center_displacement=value) for value in (0, 0.1, 0.5, 1)),
+            tuple(replace(si, center_displacement=value) for value in displacements),
             "center_displacement",
         ),
         make(
@@ -673,7 +1081,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "si-kmax",
             "Single-index: число внутренних AO-шагов",
-            tuple(replace(si, solver_max_steps=value) for value in (3, 5, 7)),
+            tuple(replace(si, solver_max_steps=value) for value in ao_steps),
             "solver_max_steps",
         ),
         make(
@@ -685,7 +1093,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "si-nphi",
             "Single-index: число направлений",
-            tuple(replace(si, N_phi=value) for value in (20, 40, 60)),
+            tuple(replace(si, N_phi=value) for value in single_directions),
             "N_phi",
         ),
         make(
@@ -697,14 +1105,210 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "si-a",
             "Single-index: коэффициент уменьшения h",
-            tuple(replace(si, a=value) for value in (2**0.25, math.sqrt(2), 2.0)),
+            tuple(replace(si, a=value) for value in single_a),
             "a",
         ),
         make(
             "si-hmin",
             "Single-index: нижняя граница h",
-            tuple(replace(si, h_min_factor=value) for value in (1.0, 2.0, 3.0)),
+            tuple(replace(si, h_min_factor=value) for value in h_min_factors),
             "h_min_factor",
+        ),
+    )
+
+    hypothesis_base = replace(
+        si,
+        d=30,
+        n_over_d=20,
+        n_samples=600,
+        N_lin=90,
+        N_J=200,
+        N_phi=20,
+        outer_steps=5,
+        solver_max_steps=8,
+        link_scale=1.0,
+    )
+    function_classes = (
+        "linear",
+        "quadratic",
+        "square",
+        "cubic",
+        "quartic",
+        "sin_scaled",
+        "cos_scaled",
+        "x_sin",
+        "tanh_scaled",
+        "absolute",
+        "relu",
+        "gaussian_bump",
+    )
+    parity_scales = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5)
+    support_scales = (0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0)
+    init_links = (
+        "linear",
+        "square",
+        "cos_scaled",
+        "tanh_scaled",
+        "relu",
+        "gaussian_bump",
+    )
+    single_hypotheses = (
+        Experiment(
+            "si-function-classes",
+            "Single-index: классы функций связи",
+            _smoke_point(replace(hypothesis_base, link=function_classes[0])),
+            tuple(replace(hypothesis_base, link=link) for link in function_classes),
+            report_fields=("link",),
+            full_runs=3,
+            common_random_fields=("link",),
+            hypothesis=(
+                "Функции, имеющие информативную производную на широкой области "
+                "значений "
+                "индекса восстанавливаются лучше локализованных, насыщаемых и "
+                "осциллирующих функций."
+            ),
+        ),
+        Experiment(
+            "si-parity-frequency",
+            "Single-index: чётность и частота",
+            _smoke_point(replace(hypothesis_base, link="sin_scaled", link_scale=0.5)),
+            tuple(
+                replace(hypothesis_base, link=link, link_scale=scale)
+                for link, scale in product(("sin_scaled", "cos_scaled"), parity_scales)
+            ),
+            report_fields=("link", "link_scale"),
+            full_runs=3,
+            quality_threshold=0.9,
+            condition_field="link_scale",
+            common_random_fields=("link", "link_scale"),
+            condition_group_fields=("link",),
+            hypothesis=(
+                "При одинаковой частоте чётность функции не должна существенно "
+                "влиять на восстановление направления; рост частоты должен ухудшать "
+                "локальную оценку обеих функций."
+            ),
+        ),
+        Experiment(
+            "si-gradient-support",
+            "Single-index: ширина информативной области производной",
+            _smoke_point(replace(hypothesis_base, link="tanh_scaled", link_scale=0.25)),
+            tuple(
+                replace(hypothesis_base, link=link, link_scale=scale)
+                for link, scale in product(
+                    ("tanh_scaled", "gaussian_bump"), support_scales
+                )
+            ),
+            report_fields=("link", "link_scale"),
+            full_runs=3,
+            quality_threshold=0.9,
+            condition_field="link_scale",
+            common_random_fields=("link", "link_scale"),
+            condition_group_fields=("link",),
+            hypothesis=(
+                "Увеличение масштаба сосредоточивает производную tanh и gaussian bump "
+                "на меньшей доле выборки, поэтому качество и вероятность сходимости "
+                "должны снижаться."
+            ),
+        ),
+        Experiment(
+            "si-init-by-function",
+            "Single-index: инициализация по классам функций",
+            _smoke_point(
+                replace(hypothesis_base, link=init_links[0], index_init="local")
+            ),
+            tuple(
+                replace(hypothesis_base, link=link, index_init=index_init)
+                for link, index_init in product(init_links, ("local", "random"))
+            ),
+            report_fields=("link", "index_init"),
+            full_runs=3,
+            common_random_fields=("link", "index_init"),
+            hypothesis=(
+                "Локальная градиентная инициализация превосходит случайную, причём "
+                "её преимущество сильнее для чётных, негладких и локализованных "
+                "функций."
+            ),
+        ),
+    )
+
+    focused_dimensions = (40, 44, 48, 50, 52, 56, 60)
+    focused_frequencies = (2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0)
+    focused_tau = (0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9)
+    focused_displacements = (0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 1.0)
+    single_focus = (
+        Experiment(
+            "si-focus-d",
+            "Single-index: повтор границы размерности",
+            _smoke_point(
+                replace(
+                    si,
+                    d=focused_dimensions[0],
+                    N_lin=focused_dimensions[0] + 60,
+                )
+            ),
+            tuple(replace(si, d=d, N_lin=d + 60) for d in focused_dimensions),
+            report_fields=("d",),
+            full_runs=5,
+            quality_threshold=0.9,
+            condition_field="d",
+            common_random_fields=("d", "N_lin"),
+            hypothesis=(
+                "Граница устойчивого восстановления проходит внутри диапазона d=40--60."
+            ),
+        ),
+        Experiment(
+            "si-focus-frequency",
+            "Single-index: повтор границы частоты",
+            _smoke_point(
+                replace(si, link="sin_scaled", link_scale=focused_frequencies[0])
+            ),
+            tuple(
+                replace(si, link=link, link_scale=scale)
+                for link, scale in product(("sin_scaled", "x_sin"), focused_frequencies)
+            ),
+            report_fields=("link", "link_scale"),
+            full_runs=5,
+            quality_threshold=0.9,
+            condition_field="link_scale",
+            common_random_fields=("link", "link_scale"),
+            condition_group_fields=("link",),
+            hypothesis=(
+                "Для sin(sx) качество резко падает около s=3--3.5, тогда как "
+                "x sin(sx) остаётся более трудной и немонотонной функцией."
+            ),
+        ),
+        Experiment(
+            "si-focus-tau",
+            "Single-index: повтор границы общего фактора",
+            _smoke_point(replace(si, tau=focused_tau[0])),
+            tuple(replace(si, tau=value) for value in focused_tau),
+            report_fields=("tau",),
+            full_runs=5,
+            quality_threshold=0.9,
+            condition_field="tau",
+            common_random_fields=("tau",),
+            hypothesis=(
+                "Резкий переход к качественному восстановлению происходит между "
+                "tau=0.7 и tau=0.8."
+            ),
+        ),
+        Experiment(
+            "si-focus-displacement",
+            "Single-index: повтор границы смещения центров",
+            _smoke_point(replace(si, center_displacement=focused_displacements[0])),
+            tuple(
+                replace(si, center_displacement=value)
+                for value in focused_displacements
+            ),
+            report_fields=("center_displacement",),
+            full_runs=5,
+            quality_threshold=0.9,
+            condition_field="center_displacement",
+            common_random_fields=("center_displacement",),
+            hypothesis=(
+                "Умеренное смещение улучшает восстановление, тогда как приближение "
+                "к единице повышает риск пустой компактной поддержки."
+            ),
         ),
     )
 
@@ -712,7 +1316,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "mi-n",
             "Multi-index: объём выборки",
-            tuple(replace(mi, n_samples=n, N_J=n // 2) for n in n_values),
+            tuple(replace(mi, n_samples=n, N_J=n // 2) for n in n_sweep_values),
             "n_samples",
         ),
         make(
@@ -730,7 +1334,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "mi-tau",
             "Multi-index: общий фактор",
-            tuple(replace(mi, tau=value) for value in tau_values),
+            tuple(replace(mi, tau=value) for value in tau_sweep_values),
             "tau",
         ),
         make(
@@ -745,14 +1349,15 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "mi-frequency-additive",
             "Multi-index: частота additive link",
-            tuple(replace(mi, link_scale=s) for s in scales),
+            tuple(replace(mi, link_scale=s) for s in scale_sweep_values),
             "link_scale",
         ),
         make(
             "mi-frequency-multiplicative",
             "Multi-index: частота multiplicative link",
             tuple(
-                replace(mi, link="multi_multiplicative", link_scale=s) for s in scales
+                replace(mi, link="multi_multiplicative", link_scale=s)
+                for s in scale_sweep_values
             ),
             "link_scale",
         ),
@@ -760,15 +1365,14 @@ def _report_catalog() -> tuple[Experiment, ...]:
             "mi-scale",
             "Multi-index: масштаб признаков при d=10",
             tuple(
-                replace(mi, d=10, N_lin=70, sigma_x=value)
-                for value in (0.25, 0.5, 1.0, 2.0, 4.0)
+                replace(mi, d=10, N_lin=70, sigma_x=value) for value in sigma_x_values
             ),
             "sigma_x",
         ),
         make(
             "mi-nlin",
             "Multi-index: локальная линейная масса",
-            tuple(replace(mi, N_lin=mi.d + s * 20) for s in (1, 2, 3)),
+            tuple(replace(mi, N_lin=mi.d + s * 20) for s in n_lin_scales),
             "N_lin",
         ),
         make(
@@ -780,7 +1384,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "mi-displacement",
             "Multi-index: смещение центров",
-            tuple(replace(mi, center_displacement=value) for value in (0, 0.1, 0.5, 1)),
+            tuple(replace(mi, center_displacement=value) for value in displacements),
             "center_displacement",
         ),
         make(
@@ -800,7 +1404,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "mi-kmax",
             "Multi-index: число внутренних AO-шагов",
-            tuple(replace(mi, solver_max_steps=value) for value in (3, 5, 7)),
+            tuple(replace(mi, solver_max_steps=value) for value in ao_steps),
             "solver_max_steps",
         ),
         make(
@@ -812,7 +1416,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "mi-nphi",
             "Multi-index: число направлений",
-            tuple(replace(mi, N_phi=value) for value in (3, 20, 40, 60)),
+            tuple(replace(mi, N_phi=value) for value in multi_directions),
             "N_phi",
         ),
         make(
@@ -824,16 +1428,13 @@ def _report_catalog() -> tuple[Experiment, ...]:
         make(
             "mi-a",
             "Multi-index: коэффициент уменьшения h",
-            tuple(
-                replace(mi, a=value)
-                for value in (2 ** (1 / 4), 2 ** (1 / 3), math.sqrt(2))
-            ),
+            tuple(replace(mi, a=value) for value in multi_a),
             "a",
         ),
         make(
             "mi-hmin",
             "Multi-index: нижняя граница h",
-            tuple(replace(mi, h_min_factor=value) for value in (1.0, 2.0, 3.0)),
+            tuple(replace(mi, h_min_factor=value) for value in h_min_factors),
             "h_min_factor",
         ),
         make(
@@ -856,6 +1457,137 @@ def _report_catalog() -> tuple[Experiment, ...]:
             "Multi-index: обновление направлений",
             tuple(replace(mi, redraw_directions=value) for value in (False, True)),
             "redraw_directions",
+        ),
+    )
+
+    multi_focus_base = replace(
+        mi,
+        d=25,
+        n_over_d=40,
+        n_samples=1000,
+        N_loc=12,
+        N_lin=85,
+        N_J=500,
+        N_phi=30,
+        link_scale=3.0,
+        multi_tensor="full",
+    )
+    d_boundary = (20, 22, 24, 25, 26, 28, 30)
+    additive_frequencies = (2.0, 2.15, 2.3, 2.5, 2.7, 2.85, 3.0)
+    focused_directions = (20, 24, 28, 30, 32, 36, 40)
+    high_noise = (0.6, 0.65, 0.7, 0.75, 0.8, 0.9, 1.0)
+    multi_focus = (
+        Experiment(
+            "mi-focus-d",
+            "Multi-index: уточнение границы размерности",
+            _smoke_point(
+                replace(
+                    multi_focus_base,
+                    d=d_boundary[0],
+                    n_over_d=1000 / d_boundary[0],
+                    N_lin=d_boundary[0] + 60,
+                )
+            ),
+            tuple(
+                replace(
+                    multi_focus_base,
+                    d=d,
+                    n_over_d=1000 / d,
+                    N_lin=d + 60,
+                )
+                for d in d_boundary
+            ),
+            report_fields=("d",),
+            full_runs=3,
+            quality_threshold=0.1,
+            condition_field="d",
+            common_random_fields=("d", "n_over_d", "N_lin"),
+            hypothesis=(
+                "После настройки остальных параметров граница восстановления "
+                "остаётся внутри диапазона d=20--30."
+            ),
+        ),
+        Experiment(
+            "mi-focus-frequency-additive",
+            "Multi-index: уточнение частоты additive-link",
+            _smoke_point(replace(multi_focus_base, link_scale=additive_frequencies[0])),
+            tuple(
+                replace(multi_focus_base, link_scale=scale)
+                for scale in additive_frequencies
+            ),
+            report_fields=("link_scale",),
+            full_runs=3,
+            quality_threshold=0.1,
+            condition_field="link_scale",
+            common_random_fields=("link_scale",),
+            hypothesis=(
+                "Увеличение частоты additive-link от 2 до 3 монотонно ухудшает "
+                "восстановление подпространства."
+            ),
+        ),
+        Experiment(
+            "mi-focus-nphi",
+            "Multi-index: уточнение числа направлений",
+            _smoke_point(replace(multi_focus_base, N_phi=focused_directions[0])),
+            tuple(
+                replace(multi_focus_base, N_phi=value) for value in focused_directions
+            ),
+            report_fields=("N_phi",),
+            full_runs=3,
+            quality_threshold=0.1,
+            condition_field="N_phi",
+            common_random_fields=("N_phi",),
+            hypothesis=(
+                "Рост N_phi улучшает качество примерно до 30 направлений, после "
+                "чего дополнительная память не даёт заметного выигрыша."
+            ),
+        ),
+        Experiment(
+            "mi-focus-tensor",
+            "Multi-index: повторная проверка тензора",
+            _smoke_point(replace(multi_focus_base, multi_tensor="orthogonal")),
+            tuple(
+                replace(multi_focus_base, multi_tensor=value)
+                for value in ("orthogonal", "full")
+            ),
+            report_fields=("multi_tensor",),
+            full_runs=3,
+            common_random_fields=("multi_tensor",),
+            hypothesis=(
+                "Полный тензор локализации даёт меньшую ошибку проектора, чем "
+                "ортогональный вариант."
+            ),
+        ),
+        Experiment(
+            "mi-focus-init",
+            "Multi-index: повторная проверка инициализации",
+            _smoke_point(replace(multi_focus_base, index_init="local")),
+            tuple(
+                replace(multi_focus_base, index_init=value)
+                for value in ("local", "random")
+            ),
+            report_fields=("index_init",),
+            full_runs=3,
+            common_random_fields=("index_init",),
+            hypothesis=(
+                "Локальная градиентная инициализация устойчивее случайной при "
+                "одинаковых данных и алгоритмической случайности."
+            ),
+        ),
+        Experiment(
+            "mi-focus-noise",
+            "Multi-index: высокая шумовая граница",
+            _smoke_point(replace(multi_focus_base, sigma_eps=high_noise[0])),
+            tuple(replace(multi_focus_base, sigma_eps=value) for value in high_noise),
+            report_fields=("sigma_eps",),
+            full_runs=3,
+            quality_threshold=0.1,
+            condition_field="sigma_eps",
+            common_random_fields=("sigma_eps",),
+            hypothesis=(
+                "При sigma_eps от 0.6 до 1.0 ошибка проектора возрастает, причём "
+                "ADP перестаёт улучшать начальное подпространство."
+            ),
         ),
     )
 
@@ -933,7 +1665,14 @@ def _report_catalog() -> tuple[Experiment, ...]:
             full_runs=100,
         ),
     )
-    return (*single, *multi, *breaking)
+    return (
+        *single,
+        *single_hypotheses,
+        *single_focus,
+        *multi,
+        *multi_focus,
+        *breaking,
+    )
 
 
 def _smoke_point(point: ExperimentPoint) -> ExperimentPoint:
@@ -983,6 +1722,8 @@ _RUN_COLUMNS = (
     "quality",
     "cosine_abs",
     "projector_distance",
+    "max_principal_sine",
+    "max_principal_angle_deg",
     "initial_quality",
     "last_quality",
     "initial_eigenvalues",
@@ -992,6 +1733,7 @@ _RUN_COLUMNS = (
     "stop_reason",
     "selected_iteration",
     "selected_error",
+    "prediction_rmse",
     "trace",
     "solver_diagnostics",
 )
@@ -1138,36 +1880,50 @@ def _fit(
         "solver": metadata["solver"],
         "solver_tol": build.solver_tol,
         "solver_max_steps": metadata["solver_max_steps"],
-        "theta": build.theta if build.solver == "lsmr" else None,
-        "trust_radius": build.trust_radius if build.solver == "lsmr" else None,
-        "lsmr_maxiter": build.lsmr_maxiter if build.solver == "lsmr" else None,
-        "cg_maxiter": build.cg_maxiter if build.solver == "cg" else None,
+        "theta": build.theta if metadata["solver"] == "lsmr" else None,
+        "trust_radius": (build.trust_radius if metadata["solver"] == "lsmr" else None),
+        "lsmr_maxiter": (build.lsmr_maxiter if metadata["solver"] == "lsmr" else None),
+        "cg_maxiter": build.cg_maxiter if metadata["solver"] == "cg" else None,
         "N_lin": metadata["N_lin"],
         "N_J": metadata["N_J"],
         "N_phi": metadata["N_phi"],
         "training_size": metadata["training_size"],
         "center_displacement_scale": metadata["center_displacement_scale"],
     }
+    if point.mode == "manifold":
+        effective.update(
+            N_manifold=metadata["N_manifold"],
+            sync_steps=metadata["sync_steps"],
+            lambda_manifold=metadata["lambda_manifold"],
+        )
     if point.mode == "single":
         quality_metric = "cosine_abs"
         quality_direction = "higher"
         quality = float(abs(true_basis[:, 0] @ index))
         cosine = quality
         projector_distance: float | None = None
-    else:
+        max_principal_sine: float | None = None
+        max_principal_angle_deg: float | None = None
+    elif point.mode == "multi":
         quality_metric = "projector_distance"
         quality_direction = "lower"
         estimate = index.T
-        quality = float(
-            np.linalg.norm(
-                true_basis @ true_basis.T - estimate @ estimate.T,
-                ord="fro",
-            )
-            / math.sqrt(2 * point.index_dim)
+        quality, max_principal_sine, max_principal_angle_deg = _subspace_metrics(
+            true_basis,
+            estimate,
         )
         cosine = None
         projector_distance = quality
-    if not np.isfinite(quality):
+    else:
+        quality_metric = "local_projector_distance"
+        quality_direction = "lower"
+        quality, max_principal_sine, max_principal_angle_deg = _local_subspace_metrics(
+            true_basis, index
+        )
+        cosine = None
+        projector_distance = quality
+    metrics = (quality, max_principal_sine, max_principal_angle_deg)
+    if any(value is not None and not np.isfinite(value) for value in metrics):
         raise RuntimeError("quality metric is not finite")
     status = "nonconverged" if converged is False else "success"
     return {
@@ -1185,6 +1941,8 @@ def _fit(
         "quality": quality,
         "cosine_abs": cosine,
         "projector_distance": projector_distance,
+        "max_principal_sine": max_principal_sine,
+        "max_principal_angle_deg": max_principal_angle_deg,
         "initial_quality": metadata["initial_quality"],
         "last_quality": metadata["last_quality"],
         "initial_eigenvalues": _compact_json(metadata["initial_eigenvalues"]),
@@ -1194,9 +1952,71 @@ def _fit(
         "stop_reason": metadata["stop_reason"],
         "selected_iteration": metadata["selected_iteration"],
         "selected_error": metadata["selected_error"],
+        "prediction_rmse": metadata.get("prediction_rmse"),
         "trace": _compact_json(metadata["trace"]),
         "solver_diagnostics": _compact_json(diagnostics),
     }
+
+
+def _subspace_metrics(
+    true_basis: np.ndarray,
+    estimate: np.ndarray,
+) -> tuple[float, float, float]:
+    """Вернуть ошибку из multiindex.tex, худший синус и угол.
+
+    Требуются конечные ортонормированные базисы одинаковой формы.
+    Основная метрика равна ``sum(sin(theta_j)**2)``. Вычисление работает
+    через главные углы без проекторов размера ``d x d``.
+    """
+    if (
+        true_basis.ndim != 2
+        or estimate.ndim != 2
+        or true_basis.shape != estimate.shape
+        or true_basis.shape[1] < 1
+    ):
+        raise ValueError("subspace bases must have the same nonempty (d, m) shape")
+    identity = np.eye(true_basis.shape[1])
+    if not np.allclose(true_basis.T @ true_basis, identity, rtol=1e-7, atol=1e-8):
+        raise RuntimeError("true subspace basis is not orthonormal")
+    if not np.allclose(estimate.T @ estimate, identity, rtol=1e-7, atol=1e-8):
+        raise RuntimeError("estimated subspace basis is not orthonormal")
+    angles = subspace_angles(true_basis, estimate)
+    sines = np.sin(angles)
+    # ESTIMATOR/evaluation protocol: основная ошибка из (SEDRqua) multiindex.tex.
+    projector_distance = float(np.sum(np.square(sines)))
+    max_principal_sine = float(np.max(sines))
+    max_principal_angle_deg = math.degrees(float(np.max(angles)))
+    return projector_distance, max_principal_sine, max_principal_angle_deg
+
+
+def _local_subspace_metrics(
+    true_projectors: np.ndarray,
+    estimate: np.ndarray,
+) -> tuple[float, float, float]:
+    """Сравнить семейства локальных row-projectors формы ``(J, m, d)``."""
+    if (
+        true_projectors.ndim != 3
+        or estimate.shape != true_projectors.shape
+        or true_projectors.shape[1] < 1
+    ):
+        raise ValueError("local projectors must have the same nonempty (J, m, d) shape")
+    identity = np.broadcast_to(
+        np.eye(true_projectors.shape[1]),
+        (*true_projectors.shape[:2], true_projectors.shape[1]),
+    )
+    for name, projectors in (
+        ("true", true_projectors),
+        ("estimated", estimate),
+    ):
+        gram = projectors @ np.swapaxes(projectors, 1, 2)
+        if not np.allclose(gram, identity, rtol=1e-7, atol=1e-8):
+            raise RuntimeError(f"{name} local projectors are not orthonormal")
+    overlaps = np.einsum("jmd,jnd->jmn", estimate, true_projectors, optimize=True)
+    singular_values = np.linalg.svd(overlaps, compute_uv=False)
+    sines = np.sqrt(np.maximum(0.0, 1.0 - np.square(singular_values)))
+    quality = float(np.sqrt(np.mean(np.square(sines))))
+    max_sine = float(np.max(sines))
+    return quality, max_sine, math.degrees(math.asin(min(1.0, max_sine)))
 
 
 def _effective_config(
@@ -1276,6 +2096,11 @@ def _arguments(
     args.trust_radius = build.trust_radius
     args.lsmr_maxiter = build.lsmr_maxiter
     args.cg_maxiter = build.cg_maxiter
+    args.N_manifold = point.N_manifold
+    if point.sync_steps is not None:
+        args.sync_steps = point.sync_steps
+    if point.lambda_manifold is not None:
+        args.lambda_manifold = point.lambda_manifold
     return args
 
 
@@ -1296,6 +2121,22 @@ def _base_row(
             requested_config,
             h_min=point.h_min_factor * point.sigma_x / math.sqrt(point.n),
         )
+    requested: dict[str, object] = {
+        "config": _config_spec(requested_config),
+        "solver_tol": build.solver_tol,
+        "solver_max_steps": point.solver_max_steps or build.solver_max_steps,
+        "solver": build.solver,
+        "theta": build.theta,
+        "trust_radius": build.trust_radius,
+        "lsmr_maxiter": build.lsmr_maxiter,
+        "cg_maxiter": build.cg_maxiter,
+    }
+    if point.mode == "manifold":
+        requested["manifold"] = {
+            "N_manifold": point.N_manifold,
+            "sync_steps": point.sync_steps,
+            "lambda_manifold": point.lambda_manifold,
+        }
     return {
         "experiment": experiment.selector,
         "title": experiment.title,
@@ -1312,22 +2153,17 @@ def _base_row(
             point.sigma_eps == 0 or point.n / point.sigma_eps**2 >= 20 * point.d
         ),
         **asdict(point),
-        "requested_config": _compact_json(
-            {
-                "config": _config_spec(requested_config),
-                "solver_tol": build.solver_tol,
-                "solver_max_steps": point.solver_max_steps or build.solver_max_steps,
-                "solver": build.solver,
-                "theta": build.theta,
-                "trust_radius": build.trust_radius,
-                "lsmr_maxiter": build.lsmr_maxiter,
-                "cg_maxiter": build.cg_maxiter,
-            }
-        ),
+        "requested_config": _compact_json(requested),
         "status": "",
         "error": "",
         "quality_metric": (
-            "cosine_abs" if point.mode == "single" else "projector_distance"
+            "cosine_abs"
+            if point.mode == "single"
+            else (
+                "local_projector_distance"
+                if point.mode == "manifold"
+                else "projector_distance"
+            )
         ),
         "quality_direction": "higher" if point.mode == "single" else "lower",
     }
@@ -1352,11 +2188,12 @@ def _write_manifest(
     experiment_id: str,
 ) -> None:
     manifest = {
-        "schema_version": 4,
+        "schema_version": 8,
         "created_at": datetime.now().astimezone().isoformat(),
         "experiment_id": experiment_id,
         "experiment": experiment.selector,
         "title": experiment.title,
+        "hypothesis": experiment.hypothesis,
         "profile": profile,
         "runs": runs,
         "full_runs": experiment.full_runs,
@@ -1371,7 +2208,11 @@ def _write_manifest(
                 "metric": (
                     "cosine_abs"
                     if experiment.smoke.mode == "single"
-                    else "projector_distance"
+                    else (
+                        "local_projector_distance"
+                        if experiment.smoke.mode == "manifold"
+                        else "projector_distance"
+                    )
                 ),
                 "direction": (
                     "higher" if experiment.smoke.mode == "single" else "lower"
@@ -1401,6 +2242,12 @@ def _write_manifest(
             else "catalog-specific legacy design"
         ),
         "multi_link_extension": "sum_{r=3}^m z_r^2 / r",
+        "manifold_link": "0.5 * (x_1^2 + x_2^2)",
+        "subspace_metrics": {
+            "projector_distance": "sum(sin(theta_j)^2)",
+            "max_principal_sine": "max(sin(theta_j))",
+            "max_principal_angle_deg": "max(theta_j) * 180 / pi",
+        },
     }
     (series_dir / "series.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2),
@@ -1561,7 +2408,7 @@ def _generate_data(
             scale=point.link_scale,
         )
         noise_index = index
-    else:
+    elif point.mode == "multi":
         basis_pool_dim = point.basis_pool_dim or point.index_dim
         basis_pool, _ = np.linalg.qr(
             np.random.default_rng(seeds.beta).normal(size=(point.d, basis_pool_dim)),
@@ -1575,6 +2422,15 @@ def _generate_data(
             point.link_scale,
         )
         noise_index = np.linalg.norm(projected, axis=1)
+    else:
+        radial = X[:, :2]
+        radii = np.linalg.norm(radial, axis=1)
+        if np.any(radii <= np.finfo(float).eps):
+            raise RuntimeError("radial manifold data contain an undefined direction")
+        beta = np.zeros((point.n, point.d, 1))
+        beta[:, :2, 0] = radial / radii[:, None]
+        signal_values = 0.5 * point.link_scale * np.square(radii)
+        noise_index = radii
     signal = _standardize(signal_values, f"{point.link} link")
     noise = _noise(point, noise_index, seeds.noise)
     noise = _outliers(point, noise, seeds.outliers, seeds.outlier_noise)
@@ -1666,14 +2522,28 @@ def _link(index: np.ndarray, name: LinkName, *, scale: float = 1.0) -> np.ndarra
         return index + 0.5 * index**2
     if name == "square":
         return index**2
+    if name == "cubic":
+        return index**3
+    if name == "quartic":
+        return index**4
     if name == "sin":
         return np.sin(1.5 * index)
     if name == "tanh":
         return np.tanh(2 * index)
     if name == "sin_scaled":
         return np.sin(scale * index)
+    if name == "cos_scaled":
+        return np.cos(scale * index)
     if name == "x_sin":
         return index * np.sin(scale * index)
+    if name == "tanh_scaled":
+        return np.tanh(scale * index)
+    if name == "absolute":
+        return np.abs(index)
+    if name == "relu":
+        return np.maximum(index, 0.0)
+    if name == "gaussian_bump":
+        return np.exp(-0.5 * np.square(scale * index))
     validate_single_link(name)
     return index * np.sin(math.sqrt(5) * index)
 
@@ -1760,8 +2630,82 @@ def _selected_experiments(
     custom: Experiment,
 ) -> tuple[Experiment, ...]:
     catalog = {**CATALOG, "custom": custom}
+    single_hypotheses = (
+        "si-function-classes",
+        "si-parity-frequency",
+        "si-gradient-support",
+        "si-init-by-function",
+    )
+    focused_single = (
+        "si-focus-d",
+        "si-focus-frequency",
+        "si-focus-tau",
+        "si-focus-displacement",
+    )
+    focused_multi = (
+        "mi-focus-d",
+        "mi-focus-frequency-additive",
+        "mi-focus-nphi",
+        "mi-focus-tensor",
+        "mi-focus-init",
+        "mi-focus-noise",
+    )
+    detailed_nd = ("mi-boundary-nd", "si-nloc-nd")
+    parameter_scaling = tuple(name for name in catalog if name.startswith("scale-"))
+    manifold_basic = tuple(
+        name for name in catalog if name == "manifold" or name.startswith("manifold-")
+    )
     aliases = {
         "all": tuple(catalog),
+        "tex-all": tuple(
+            name
+            for name in catalog
+            if name.startswith(("si-", "mi-"))
+            and name not in {"mi-1", "mi-2", "mi-3", "mi-4", "mi-5"}
+            and name not in single_hypotheses
+            and name not in focused_single
+            and name not in focused_multi
+            and name not in detailed_nd
+            and not name.endswith("-breaking")
+        ),
+        "si-hypotheses": single_hypotheses,
+        "batch-2": (*focused_multi, *single_hypotheses),
+        "batch-3": focused_single,
+        "parameter-scaling": parameter_scaling,
+        "parameter-scaling-si": tuple(
+            name for name in parameter_scaling if name.startswith("scale-si-")
+        ),
+        "parameter-scaling-mi": tuple(
+            name for name in parameter_scaling if name.startswith("scale-mi-")
+        ),
+        "nd-detail": detailed_nd,
+        "manifold-basic": manifold_basic,
+        "tex-tuning": (
+            "si-nlin",
+            "si-centers",
+            "si-displacement",
+            "si-training",
+            "si-kmax",
+            "si-nloc",
+            "si-nphi",
+            "si-lambda",
+            "si-a",
+            "si-hmin",
+            "mi-nlin",
+            "mi-centers",
+            "mi-displacement",
+            "mi-training",
+            "mi-init",
+            "mi-kmax",
+            "mi-nloc",
+            "mi-nphi",
+            "mi-lambda",
+            "mi-a",
+            "mi-hmin",
+            "mi-tensor",
+            "mi-direction-law",
+            "mi-direction-refresh",
+        ),
         "report": tuple(
             name
             for name in catalog

@@ -16,11 +16,29 @@ model.projectors_  # (J, m, d), P_j P_j.T = I_m
 model.eigenvalues_  # (J, m), lambda_1 = 1
 model.gradients_  # (J, d)
 model.trace_  # только скалярная диагностика
+coordinates = model.transform(X_new)  # (n_new, m), chart ближайшего центра
+prediction = model.predict(X_new)  # (n_new,)
 ```
 
 Совместимый исторический alias `ADP_manifold = ADP_Manifold` экспортируется
-вместе с `ADP_Manifold`. Prediction, nearest-center transform, CLI и
-экспериментальные сетки в эту задачу не входят: TeX их не определяет.
+вместе с `ADP_Manifold`. `transform` использует локальный row-basis ближайшего
+центра; координаты разных chart не считаются глобально синхронизированными.
+`predict` использует ближайший local-linear pilot, градиент которого проецируется
+в итоговое EDR-подпространство. Это отдельный `ESTIMATOR` для prediction: он не
+меняет manifold-fit и не приписывается TeX.
+
+Минимальный CLI запускается через `python -m ADP.cli --mode manifold`.
+Воспроизводимый радиальный smoke/full-каталог доступен как
+`python -m ADP.cli.experiment --experiment manifold`; он записывает локальные
+principal-angle метрики и prediction RMSE.
+
+Для базовой проверки всех однофакторных серий используется
+`python -m ADP.cli.experiment --experiment manifold-basic`. Группа включает
+совместную scaling-сетку и отдельные сетки по `n`, `d`, шуму, масштабу,
+корреляции, `N_lin`, `N_loc`, `N_J`, `N_phi`, `N_manifold`,
+`lambda_manifold` и `sync_steps`. Full-профиль использует пять общих seed на
+уровнях каждого фактора; численные ошибки сохраняются в таблицах, а recovery
+требует сходимости и `local_projector_distance <= 0.2`.
 
 ## Зафиксированная интерпретация TeX
 
@@ -222,4 +240,6 @@ wall-clock и `tracemalloc` peak; результат не объявляется
 
 - `ADP/ADP_Manifold.py` — класс и все его algorithm helpers;
 - `ADP/__init__.py` — два публичных имени;
+- `ADP/cli/main.py` — terminal smoke для manifold;
+- `ADP/cli/experiment.py` — радиальный каталог и локальные метрики;
 - `tests/test_manifold.py` — reference, invariant, smoke и failure checks.

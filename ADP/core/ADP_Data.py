@@ -31,9 +31,9 @@ class ADP_Data:
 
     def Calculate_metric(self, cur_beta):
         if self.beta_true.shape[1] != 1:
-            Proj_1 = self.beta_true.T @ self.beta_true
-            Proj_2 = cur_beta.T @ cur_beta
-            return 1 / np.sqrt(2) * np.linalg.norm(Proj_1 - Proj_2, ord="fro")
+            # (SEDRqua) из multiindex.tex без матриц-проекторов размера d x d.
+            residual = cur_beta - self.beta_true @ (self.beta_true.T @ cur_beta)
+            return float(np.square(residual).sum())
 
         else:
             return 1 - np.dot(self.beta_true, cur_beta)
