@@ -2,14 +2,21 @@ from collections.abc import Callable
 
 import numpy as np
 
+from ADP.core.ADP_Config import epanechnikov
 from ADP.engine.utils import _prepare_basis_eigenvalues, _prepare_multi_localization
-from ADP.engine.weights import _multi_components
+from ADP.engine.weights import _multi_components, _projected_multi_components
 
 from . import utils
 
 
 def pairwise_distance2(X: np.ndarray, centers: np.ndarray) -> np.ndarray:
     X, centers = utils._prepare_pairwise(X, centers)
+
+    # NUMERICAL: общий сдвиг сохраняет расстояния и убирает большой offset
+    # до Gram identity; рабочая память O(nd+Jd), без (J,n,d).
+    origin = X[0]
+    X = X - origin
+    centers = centers - origin
 
     distance2 = (
         np.square(centers).sum(axis=1)[:, None]
@@ -28,8 +35,24 @@ def search_bandwidth(
     lower: float,
 ) -> float:
     distance2 = utils._prepare_bandwidth(distance2, target, kernel, lower)
+    if kernel is epanechnikov and target > distance2.shape[1]:
+        raise ValueError("target mass cannot exceed n for the Epanechnikov kernel")
+    active = distance2.ravel()
 
     def enough(h: float) -> bool:
+        nonlocal active
+        if kernel is epanechnikov:
+            argument = active / h**2
+            feasible = float(epanechnikov(argument).sum()) / len(distance2) >= target
+            if feasible:
+                # EXACT: при уменьшении h нулевые веса не оживут.
+                support = argument < 1.0
+                del argument
+                # Копию support держим лишь после двукратного сокращения:
+                # копия плюс два рабочих вектора дешевле dense scan.
+                if np.count_nonzero(support) <= distance2.size // 2:
+                    active = active[support]
+            return feasible
         mass = np.sum(kernel(distance2 / h**2), axis=1)
         return bool(np.mean(mass) >= target)
 
@@ -189,6 +212,7 @@ def calculate_alpha_k(
     *,
     distance2: np.ndarray | None = None,
     tensor: str = "orthogonal",
+    block_size: int = 32,
 ) -> float | None:
     X, centers, basis, eigenvalues = _prepare_multi_localization(
         X,
@@ -203,10 +227,32 @@ def calculate_alpha_k(
         raise ValueError("N_loc must be finite and positive")
     if tensor not in {"orthogonal", "full"}:
         raise ValueError("tensor must be 'orthogonal' or 'full'")
+    utils._check_batch_size(block_size)
     if distance2 is None:
         distance2 = pairwise_distance2(X, centers)
     else:
         distance2 = utils._prepare_distance2(distance2, centers, len(X))
+
+    inverse_h2 = 1.0 / h_k**2
+    if kernel is epanechnikov:
+        origin = X[0]
+        projected_X = (X - origin) @ basis
+        projected_centers = (centers - origin) @ basis
+        blocks: list[tuple[np.ndarray, np.ndarray]] = []
+        for start in range(0, len(centers), block_size):
+            stop = start + block_size
+            orthogonal2, principal2 = _projected_multi_components(
+                projected_X,
+                projected_centers[start:stop],
+                eigenvalues,
+                distance2[start:stop],
+            )
+            residual2 = orthogonal2 if tensor == "orthogonal" else distance2[start:stop]
+            active = principal2 * inverse_h2 < 1.0
+            blocks.append((residual2[active], principal2[active]))
+            # Полные компоненты блока больше не нужны в бисекции.
+            del orthogonal2, principal2, residual2, active
+        return _compact_alpha(blocks, inverse_h2, N_loc * len(centers))
 
     orthogonal2, principal2 = _multi_components(
         X,
@@ -215,7 +261,6 @@ def calculate_alpha_k(
         eigenvalues,
         distance2,
     )
-    inverse_h2 = 1.0 / h_k**2
 
     def enough(alpha: float) -> bool:
         residual2 = orthogonal2 if tensor == "orthogonal" else distance2
@@ -232,6 +277,46 @@ def calculate_alpha_k(
     while high - low > tolerance:
         middle = (low + high) / 2.0
         if enough(middle):
+            low = middle
+        else:
+            high = middle
+    return float(low)
+
+
+def _compact_alpha(
+    blocks: list[tuple[np.ndarray, np.ndarray]],
+    inverse_h2: float,
+    target: float,
+) -> float | None:
+    """EXACT: та же бисекция alpha, только по ещё возможному support.
+
+    K(t)=max(1-t²,0), t=(alpha²*r+p)/h². После принятия low
+    пары при t(low)>=1 нулевые во всём оставшемся интервале [low,high].
+    target обозначает полную массу J*N_loc, не n_eff.
+    Память O(E_0+B*n), E_0 — support при alpha=0.
+    """
+
+    def enough(alpha: float, *, prune: bool = False) -> bool:
+        mass = 0.0
+        for residual, principal in blocks:
+            argument = (alpha**2 * residual + principal) * inverse_h2
+            mass += float(epanechnikov(argument).sum())
+        feasible = mass >= target
+        if feasible and prune:
+            for j, (residual, principal) in enumerate(blocks):
+                support = (alpha**2 * residual + principal) * inverse_h2 < 1.0
+                blocks[j] = residual[support], principal[support]
+        return feasible
+
+    if enough(1.0):
+        return 1.0
+    if not enough(0.0):
+        return None
+    low, high = 0.0, 1.0
+    tolerance = np.sqrt(np.finfo(float).eps)
+    while high - low > tolerance:
+        middle = (low + high) / 2.0
+        if enough(middle, prune=True):
             low = middle
         else:
             high = middle

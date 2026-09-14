@@ -392,7 +392,7 @@ def _effective_config(
     n_loc = min(requested.N_loc, point.n)
     index_init = "random" if point.n <= point.d + 1 else requested.index_init
     n_lin = requested.N_lin or 2 * point.d
-    if index_init == "local":
+    if index_init in {"local", "local-cv"}:
         n_lin = min(max(n_lin, point.d + 2), point.n)
     else:
         n_lin = min(max(n_lin, 1), point.n)

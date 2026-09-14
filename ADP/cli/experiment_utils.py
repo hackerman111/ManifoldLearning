@@ -144,6 +144,7 @@ def validate_experiment_point(point: ExperimentPoint) -> None:
         raise ValueError("N_manifold must be smaller than N_J")
     if point.index_init is not None and point.index_init not in {
         "local",
+        "local-cv",
         "pilot",
         "random",
     }:

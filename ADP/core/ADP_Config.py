@@ -66,8 +66,10 @@ class ADP_Config:
             raise ValueError("h_min must be finite and positive")
         if not callable(self.kernel):
             raise TypeError("kernel must be callable")
-        if self.index_init not in {"local", "pilot", "random"}:
-            raise ValueError("index_init must be 'local', 'pilot', or 'random'")
+        if self.index_init not in {"local", "local-cv", "pilot", "random"}:
+            raise ValueError(
+                "index_init must be 'local', 'local-cv', 'pilot', or 'random'"
+            )
         if self.estimator not in {"new", "legacy"}:
             raise ValueError("estimator must be 'new' or 'legacy'")
         if self.direction_mode not in {"auto", "isotropic", "localized"}:

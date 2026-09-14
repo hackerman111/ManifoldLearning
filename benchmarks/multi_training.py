@@ -15,8 +15,6 @@ from time import perf_counter
 import numpy as np
 import scipy
 
-from ADP.cli.main import _quality, _run, build_parser
-
 
 def main() -> None:
     """Воспроизводимый отдельный процесс для одной точки multi-index ADP."""
@@ -25,7 +23,13 @@ def main() -> None:
     parser.add_argument("--label", required=True)
     parser.add_argument("--solver-source", type=Path)
     parser.add_argument("--initialization-source", type=Path)
+    parser.add_argument("--reference-root", type=Path)
     settings, arguments = parser.parse_known_args()
+    if settings.reference_root is not None:
+        sys.path.insert(0, str(settings.reference_root.resolve()))
+    from ADP.cli.main import _quality, _run, build_parser
+
+    source_root = Path(importlib.import_module("ADP").__file__).parent
     args = build_parser().parse_args(["--mode", "multi", *arguments])
     if settings.solver_source is not None:
         runner = importlib.import_module("ADP.cli.main")
@@ -68,9 +72,12 @@ def main() -> None:
             for key in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
         },
         "dtype": "float64",
+        "source_root": str(source_root),
         "source_sha256": {
-            str(path): hashlib.sha256(path.read_bytes()).hexdigest()
-            for path in sorted(Path("ADP").rglob("*.py"))
+            str(path.relative_to(source_root)): hashlib.sha256(
+                path.read_bytes()
+            ).hexdigest()
+            for path in sorted(source_root.rglob("*.py"))
         },
         "kernel": "max(1-t**2,0), t=squared anisotropic distance/h**2",
         "config": {key: value for key, value in vars(args).items() if key != "kernel"},
@@ -96,6 +103,9 @@ def main() -> None:
         index, truth, profile, metadata = _run(args)
         row.update(profile=profile, metadata=metadata)
         row["quality"] = _quality(args.mode, index, truth)
+        row["quality_metric"] = "trace_score (normalized overlap, higher is better)"
+        residual = index - (index @ truth) @ truth.T
+        row["projector_distance"] = float(np.square(residual).sum())
         row["error"] = None
         np.save(settings.output.with_suffix(".npy"), index)
     except (ValueError, RuntimeError, np.linalg.LinAlgError) as error:

@@ -28,7 +28,7 @@ def _prepare_xy(X, Y, *, require_overdetermined=True):
 def _check_model_sizes(n, d, N_loc, N_lin, N_J, index_init):
     if N_loc > n:
         raise ValueError("N_loc cannot exceed n")
-    if index_init == "local":
+    if index_init in {"local", "local-cv"}:
         if N_lin > n:
             raise ValueError("N_lin cannot exceed n")
         if N_lin <= d + 1:
@@ -70,6 +70,8 @@ def _prepare_bandwidth(distance2, target, kernel, lower):
     distance2 = _finite_real_array(distance2, "distance2")
     if distance2.ndim != 2 or 0 in distance2.shape:
         raise ValueError("distance2 must have non-empty shape (J, n)")
+    if np.any(distance2 < 0):
+        raise ValueError("distance2 must be nonnegative")
     if not np.isfinite(target) or target <= 0:
         raise ValueError("target must be finite and positive")
     if not np.isfinite(lower) or lower <= 0:

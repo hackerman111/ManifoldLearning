@@ -165,8 +165,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--index_init",
         "--index-init",
         dest="index_init",
-        choices=("local", "pilot", "random"),
+        choices=("local", "local-cv", "pilot", "random"),
         default=defaults.index_init,
+        help="local-cv: experimental weighted leave-one-out local ridge selection",
     )
     parser.add_argument(
         "--estimator",
@@ -289,7 +290,7 @@ def _validate(args: argparse.Namespace, config: ADP_Config) -> tuple[int, int, i
             raise ValueError("excluding center indices leaves fewer than two rows")
         if config.N_loc > training_size:
             raise ValueError("N_loc cannot exceed the training-set size")
-        if config.index_init == "local" and n_lin > training_size:
+        if config.index_init in {"local", "local-cv"} and n_lin > training_size:
             raise ValueError("N_lin cannot exceed the training-set size")
     if args.mode == "multi" and n_directions <= args.index_dim:
         raise ValueError("N_phi must exceed index_dim in multi mode")
@@ -348,6 +349,7 @@ def _initial_index(
             config.local_ridge,
             args.index_dim,
             mass_weighted=config.estimator == "new",
+            **({"ridge_selection": "loo"} if config.index_init == "local-cv" else {}),
         )
     index = basis[:, 0] if args.mode == "single" else basis.T
     return index, spectrum
@@ -634,6 +636,7 @@ def _run(
                         config.kernel,
                         distance2=distance2,
                         tensor=config.multi_tensor,
+                        block_size=config.batch_size,
                     )
                 if next_factor is None:
                     stop_reason = "local_mass_limit"
