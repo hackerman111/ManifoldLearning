@@ -65,7 +65,7 @@ def test_detailed_nd_catalog_refines_mi_boundary_and_pairs_si_nloc() -> None:
     multi, single = experiments
     assert len(multi.full) == 63
     assert multi.full_runs == 10
-    assert multi.quality_threshold == 0.1
+    assert multi.quality_threshold == 0.95
     assert {(point.n, point.d) for point in multi.full} == {
         (n, d)
         for n in (400, 600, 800, 1000, 1400, 1800, 2400)

@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 from scipy.sparse import linalg as sparse_linalg
 
+from ._multi_operator import adjoint as multi_adjoint, forward as multi_forward
 from .LSMR import (
     HPAOResult,
     _gauge_fix,
@@ -179,17 +180,8 @@ def _normal_operator(
 
         def matvec(vector: np.ndarray) -> np.ndarray:
             matrix = vector.reshape(index_shape)
-            projected = np.einsum(
-                "jpd,md,jm->jp", U, matrix, coefficients, optimize=True
-            )
-            result = np.einsum(
-                "j,jm,jpd,jp->md",
-                mass,
-                coefficients,
-                U,
-                projected,
-                optimize=True,
-            )
+            projected = multi_forward(U, matrix, coefficients)
+            result = multi_adjoint(U, mass[:, None] * projected, coefficients)
             result += lambda_prox * matrix
             return result.ravel()
 
@@ -234,7 +226,7 @@ def _global_step(
         rhs = np.einsum("j,jpd,jp->d", mass * coefficients, U, I, optimize=True)
         rhs += lambda_prox * prior
     else:
-        rhs = np.einsum("j,jm,jpd,jp->md", mass, coefficients, U, I, optimize=True)
+        rhs = multi_adjoint(U, mass[:, None] * I, coefficients)
         rhs += lambda_prox * prior
         rhs = rhs.ravel()
     krylov_tol = min(1e-10, tol * 0.1)

@@ -115,7 +115,8 @@ def test_catalog_has_all_main_experiments() -> None:
         for selector in ("mi-1", "mi-2", "mi-3", "mi-4", "mi-5")
     } == {"mi-1": 33, "mi-2": 66, "mi-3": 48, "mi-4": 42, "mi-5": 240}
     assert all(
-        CATALOG[selector].full_runs == 25 and CATALOG[selector].quality_threshold == 0.1
+        CATALOG[selector].full_runs == 25
+        and CATALOG[selector].quality_threshold == 0.95
         for selector in ("mi-1", "mi-2", "mi-3", "mi-4", "mi-5")
     )
     assert {
@@ -374,7 +375,7 @@ def test_second_batch_has_focused_paired_multi_and_single_experiments() -> None:
         1.0,
     )
     assert all(
-        experiment.quality_threshold == 0.1
+        experiment.quality_threshold == 0.95
         for experiment in focused_multi
         if experiment.selector not in {"mi-focus-tensor", "mi-focus-init"}
     )
@@ -498,7 +499,7 @@ def test_subspace_metrics_match_dense_projector_and_worst_angle() -> None:
         )
     )
 
-    projector_distance, max_sine, max_angle = _subspace_metrics(
+    trace_score, projector_distance, max_sine, max_angle = _subspace_metrics(
         true_basis,
         estimate,
     )
@@ -510,11 +511,12 @@ def test_subspace_metrics_match_dense_projector_and_worst_angle() -> None:
         ** 2
     )
 
+    assert trace_score == pytest.approx(0.625, abs=1e-14)
     assert projector_distance == pytest.approx(dense_reference, abs=1e-14)
     assert max_sine == pytest.approx(np.sin(angle), abs=1e-14)
     assert max_angle == pytest.approx(60.0, abs=1e-12)
     assert _subspace_metrics(true_basis, true_basis) == pytest.approx(
-        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0, 0.0),
         abs=1e-14,
     )
     with pytest.raises(RuntimeError, match="not orthonormal"):
@@ -1236,7 +1238,10 @@ def test_paired_ab_writes_log_and_plots(tmp_path) -> None:
     assert {row["selected_iteration"] for row in rows} == {"0"}
     manifest = json.loads((series / "series.json").read_text())
     assert series == tmp_path / manifest["experiment_id"] / "custom"
-    assert manifest["schema_version"] == 8
+    assert manifest["schema_version"] == 9
+    assert manifest["subspace_metrics"]["trace_score"] == (
+        "trace(P_hat @ P_true) / m = mean(cos(theta_j)^2)"
+    )
     assert manifest["subspace_metrics"]["projector_distance"] == ("sum(sin(theta_j)^2)")
     assert manifest["hypothesis"] == "Проверяемая гипотеза"
     assert manifest["subspace_metrics"]["max_principal_sine"] == ("max(sin(theta_j))")
@@ -1280,7 +1285,7 @@ def test_manifold_experiment_writes_local_quality_and_prediction(tmp_path) -> No
     assert np.isfinite(float(row["prediction_rmse"]))
     assert json.loads(row["effective_config"])["solver"] == "cg"
     manifest = json.loads((series / "series.json").read_text())
-    assert manifest["schema_version"] == 8
+    assert manifest["schema_version"] == 9
     assert manifest["manifold_link"] == "0.5 * (x_1^2 + x_2^2)"
 
 

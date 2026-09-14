@@ -192,8 +192,8 @@ def validate_build(build: Build) -> None:
         or build.lsmr_maxiter < 1
     ):
         raise ValueError("lsmr_maxiter must be a positive integer or None")
-    if build.solver not in {"lsmr", "cg"}:
-        raise ValueError("solver must be 'lsmr' or 'cg'")
+    if build.solver not in {"lsmr", "cg", "hybrid"}:
+        raise ValueError("solver must be 'lsmr', 'cg', or 'hybrid'")
     if build.cg_maxiter is not None and (
         isinstance(build.cg_maxiter, bool)
         or not isinstance(build.cg_maxiter, int)

@@ -674,7 +674,7 @@ def _parameter_scaling_catalog() -> tuple[Experiment, ...]:
             points,
             report_fields=("n_samples", "d", parameter),
             full_runs=5,
-            quality_threshold=0.1 if mode == "multi" else 0.9,
+            quality_threshold=0.95 if mode == "multi" else 0.9,
             condition_field=parameter,
             common_random_fields=(parameter,),
             hypothesis=hypothesis,
@@ -763,9 +763,9 @@ def _detailed_nd_catalog() -> tuple[Experiment, ...]:
             mi_points,
             report_fields=("n_samples", "d", "n_over_d"),
             full_runs=10,
-            quality_threshold=0.1,
+            quality_threshold=0.95,
             hypothesis=(
-                "При фиксированном estimator граница projector_distance <= 0.1 "
+                "При фиксированном estimator граница trace_score >= 0.95 "
                 "зависит и от n/d, и от абсолютных n и d."
             ),
         ),
@@ -818,7 +818,7 @@ def _detailed_multi_catalog() -> tuple[Experiment, ...]:
             points,
             report_fields=report_fields,
             full_runs=25,
-            quality_threshold=0.1,
+            quality_threshold=0.95,
             condition_field=condition_field,
             common_random_fields=common_random_fields,
             condition_group_fields=condition_group_fields,
@@ -1499,7 +1499,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
             ),
             report_fields=("d",),
             full_runs=3,
-            quality_threshold=0.1,
+            quality_threshold=0.95,
             condition_field="d",
             common_random_fields=("d", "n_over_d", "N_lin"),
             hypothesis=(
@@ -1517,7 +1517,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
             ),
             report_fields=("link_scale",),
             full_runs=3,
-            quality_threshold=0.1,
+            quality_threshold=0.95,
             condition_field="link_scale",
             common_random_fields=("link_scale",),
             hypothesis=(
@@ -1534,7 +1534,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
             ),
             report_fields=("N_phi",),
             full_runs=3,
-            quality_threshold=0.1,
+            quality_threshold=0.95,
             condition_field="N_phi",
             common_random_fields=("N_phi",),
             hypothesis=(
@@ -1581,7 +1581,7 @@ def _report_catalog() -> tuple[Experiment, ...]:
             tuple(replace(multi_focus_base, sigma_eps=value) for value in high_noise),
             report_fields=("sigma_eps",),
             full_runs=3,
-            quality_threshold=0.1,
+            quality_threshold=0.95,
             condition_field="sigma_eps",
             common_random_fields=("sigma_eps",),
             hypothesis=(
@@ -1721,6 +1721,7 @@ _RUN_COLUMNS = (
     "failure_mode",
     "quality",
     "cosine_abs",
+    "trace_score",
     "projector_distance",
     "max_principal_sine",
     "max_principal_angle_deg",
@@ -1880,10 +1881,18 @@ def _fit(
         "solver": metadata["solver"],
         "solver_tol": build.solver_tol,
         "solver_max_steps": metadata["solver_max_steps"],
-        "theta": build.theta if metadata["solver"] == "lsmr" else None,
-        "trust_radius": (build.trust_radius if metadata["solver"] == "lsmr" else None),
-        "lsmr_maxiter": (build.lsmr_maxiter if metadata["solver"] == "lsmr" else None),
-        "cg_maxiter": build.cg_maxiter if metadata["solver"] == "cg" else None,
+        "theta": build.theta
+        if point.mode != "manifold" and metadata["solver"] in {"lsmr", "hybrid"}
+        else None,
+        "trust_radius": build.trust_radius
+        if point.mode != "manifold" and metadata["solver"] in {"lsmr", "hybrid"}
+        else None,
+        "lsmr_maxiter": build.lsmr_maxiter
+        if point.mode != "manifold" and metadata["solver"] in {"lsmr", "hybrid"}
+        else None,
+        "cg_maxiter": build.cg_maxiter
+        if point.mode == "manifold" or metadata["solver"] == "cg"
+        else None,
         "N_lin": metadata["N_lin"],
         "N_J": metadata["N_J"],
         "N_phi": metadata["N_phi"],
@@ -1901,19 +1910,22 @@ def _fit(
         quality_direction = "higher"
         quality = float(abs(true_basis[:, 0] @ index))
         cosine = quality
+        trace_score: float | None = None
         projector_distance: float | None = None
         max_principal_sine: float | None = None
         max_principal_angle_deg: float | None = None
     elif point.mode == "multi":
-        quality_metric = "projector_distance"
-        quality_direction = "lower"
+        quality_metric = "trace_score"
+        quality_direction = "higher"
         estimate = index.T
-        quality, max_principal_sine, max_principal_angle_deg = _subspace_metrics(
-            true_basis,
-            estimate,
-        )
+        (
+            quality,
+            projector_distance,
+            max_principal_sine,
+            max_principal_angle_deg,
+        ) = _subspace_metrics(true_basis, estimate)
         cosine = None
-        projector_distance = quality
+        trace_score = quality
     else:
         quality_metric = "local_projector_distance"
         quality_direction = "lower"
@@ -1921,6 +1933,7 @@ def _fit(
             true_basis, index
         )
         cosine = None
+        trace_score = None
         projector_distance = quality
     metrics = (quality, max_principal_sine, max_principal_angle_deg)
     if any(value is not None and not np.isfinite(value) for value in metrics):
@@ -1940,6 +1953,7 @@ def _fit(
         ),
         "quality": quality,
         "cosine_abs": cosine,
+        "trace_score": trace_score,
         "projector_distance": projector_distance,
         "max_principal_sine": max_principal_sine,
         "max_principal_angle_deg": max_principal_angle_deg,
@@ -1961,12 +1975,12 @@ def _fit(
 def _subspace_metrics(
     true_basis: np.ndarray,
     estimate: np.ndarray,
-) -> tuple[float, float, float]:
-    """Вернуть ошибку из multiindex.tex, худший синус и угол.
+) -> tuple[float, float, float, float]:
+    """Вернуть trace-score, ошибку проектора, худший синус и угол.
 
     Требуются конечные ортонормированные базисы одинаковой формы.
-    Основная метрика равна ``sum(sin(theta_j)**2)``. Вычисление работает
-    через главные углы без проекторов размера ``d x d``.
+    Основная метрика равна ``mean(cos(theta_j)**2)`` — нормированному
+    следу произведения проекторов. Вычисление не строит проекторы ``d x d``.
     """
     if (
         true_basis.ndim != 2
@@ -1982,11 +1996,13 @@ def _subspace_metrics(
         raise RuntimeError("estimated subspace basis is not orthonormal")
     angles = subspace_angles(true_basis, estimate)
     sines = np.sin(angles)
-    # ESTIMATOR/evaluation protocol: основная ошибка из (SEDRqua) multiindex.tex.
+    # ESTIMATOR/evaluation protocol: tr(P_hat P_true) / m.
+    overlap = true_basis.T @ estimate
+    trace_score = float(np.square(overlap).sum() / true_basis.shape[1])
     projector_distance = float(np.sum(np.square(sines)))
     max_principal_sine = float(np.max(sines))
     max_principal_angle_deg = math.degrees(float(np.max(angles)))
-    return projector_distance, max_principal_sine, max_principal_angle_deg
+    return trace_score, projector_distance, max_principal_sine, max_principal_angle_deg
 
 
 def _local_subspace_metrics(
@@ -2162,10 +2178,12 @@ def _base_row(
             else (
                 "local_projector_distance"
                 if point.mode == "manifold"
-                else "projector_distance"
+                else "trace_score"
             )
         ),
-        "quality_direction": "higher" if point.mode == "single" else "lower",
+        "quality_direction": (
+            "higher" if point.mode in {"single", "multi"} else "lower"
+        ),
     }
 
 
@@ -2188,7 +2206,7 @@ def _write_manifest(
     experiment_id: str,
 ) -> None:
     manifest = {
-        "schema_version": 8,
+        "schema_version": 9,
         "created_at": datetime.now().astimezone().isoformat(),
         "experiment_id": experiment_id,
         "experiment": experiment.selector,
@@ -2211,11 +2229,13 @@ def _write_manifest(
                     else (
                         "local_projector_distance"
                         if experiment.smoke.mode == "manifold"
-                        else "projector_distance"
+                        else "trace_score"
                     )
                 ),
                 "direction": (
-                    "higher" if experiment.smoke.mode == "single" else "lower"
+                    "higher"
+                    if experiment.smoke.mode in {"single", "multi"}
+                    else "lower"
                 ),
                 "threshold": experiment.quality_threshold,
             }
@@ -2244,6 +2264,7 @@ def _write_manifest(
         "multi_link_extension": "sum_{r=3}^m z_r^2 / r",
         "manifold_link": "0.5 * (x_1^2 + x_2^2)",
         "subspace_metrics": {
+            "trace_score": "trace(P_hat @ P_true) / m = mean(cos(theta_j)^2)",
             "projector_distance": "sum(sin(theta_j)^2)",
             "max_principal_sine": "max(sin(theta_j))",
             "max_principal_angle_deg": "max(theta_j) * 180 / pi",
@@ -2744,7 +2765,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--n", type=int, default=240)
     parser.add_argument("--d", type=int, default=5)
     parser.add_argument("--noise", type=float, default=0.05)
-    parser.add_argument("--solver", choices=("lsmr", "cg"), default="lsmr")
+    parser.add_argument("--solver", choices=("lsmr", "cg", "hybrid"), default="lsmr")
     parser.add_argument("--solver-max-steps", type=int, default=3)
     parser.add_argument("--cg-maxiter", type=int)
     parser.add_argument("--no-plots", action="store_true")

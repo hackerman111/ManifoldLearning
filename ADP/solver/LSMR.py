@@ -7,6 +7,11 @@ from typing import Any
 import numpy as np
 from scipy.sparse import linalg as sparse_linalg
 
+from ADP.solver._multi_operator import (
+    adjoint as multi_adjoint,
+    forward as multi_forward,
+)
+
 # EXACT: matrix-free actions preserve the fixed dense-U objective.
 
 
@@ -41,6 +46,9 @@ def solve(
     theta: float = 0.1,
     trust_radius: float | None = None,
     lsmr_maxiter: int | None = None,
+    linear_solver: str = "lsmr",
+    dense_max_unknowns: int = 256,
+    dense_max_bytes: int = 64 * 1024**2,
 ) -> HPAOResult:
     """Решить dense-``U`` задачу HPAO-LSMR.
 
@@ -52,6 +60,18 @@ def solve(
     """
     index, U, I, mass = _validate_inputs(index_init, U, I, mass)
     _validate_settings(lambda_prox, max_steps, tol, theta, lsmr_maxiter)
+    if linear_solver not in {"lsmr", "hybrid"}:
+        raise ValueError("linear_solver must be 'lsmr' or 'hybrid'")
+    for name, value in (
+        ("dense_max_unknowns", dense_max_unknowns),
+        ("dense_max_bytes", dense_max_bytes),
+    ):
+        if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+            raise TypeError(f"{name} must be an integer")
+        if value < 0:
+            raise ValueError(f"{name} must be nonnegative")
+    if linear_solver == "hybrid" and index.ndim != 2:
+        raise ValueError("hybrid currently requires a multi-index matrix")
     index = _normalize_index(index)
     m = 1 if index.ndim == 1 else index.shape[0]
     if trust_radius is None:
@@ -71,6 +91,9 @@ def solve(
     certified_count = 0
     accepted_steps = 0
     accepted_correction_norm = math.inf
+    hybrid_calls = 0
+    hybrid_iterations = 0
+    hybrid_backends: list[str] = []
     last: dict[str, object] = {
         "lsmr_stop": 0,
         "lsmr_iterations": 0,
@@ -84,17 +107,35 @@ def solve(
     for _ in range(max_steps):
         prior = index
         old_loss = loss
+        workspace = None
+        if linear_solver == "hybrid":
+            from ADP.solver.HYBRID import RidgeWorkspace
 
-        while lambda_current <= lambda_cap:
-            step = _global_correction(
-                I,
+            workspace = RidgeWorkspace(
                 U,
+                I,
                 prior,
                 coefficients,
                 mass,
-                lambda_current,
-                tol,
-                lsmr_maxiter,
+                max_unknowns=dense_max_unknowns,
+                max_bytes=dense_max_bytes,
+            )
+            hybrid_backends.append(workspace.backend)
+
+        while lambda_current <= lambda_cap:
+            step = (
+                workspace.correction(lambda_current, tol, lsmr_maxiter)
+                if workspace is not None
+                else _global_correction(
+                    I,
+                    U,
+                    prior,
+                    coefficients,
+                    mass,
+                    lambda_current,
+                    tol,
+                    lsmr_maxiter,
+                )
             )
             correction = step[0].reshape(prior.shape)
             correction_norm = float(np.linalg.norm(correction) / math.sqrt(m))
@@ -150,6 +191,10 @@ def solve(
                 "HPAO-LSMR could not produce a certified decreasing step"
             )
 
+        if workspace is not None:
+            hybrid_calls += workspace.calls
+            hybrid_iterations += workspace.iterations
+
         relative_change = abs(old_loss - loss) / max(1.0, old_loss)
         aligned_step = _index_distance(index, prior)
         gradient, local_gradient, orthogonality = _stationarity(
@@ -190,6 +235,13 @@ def solve(
         "local_gradient": local_gradient,
         "orthogonality": orthogonality,
     }
+    if linear_solver == "hybrid":
+        diagnostics.update(
+            linear_solver="hybrid",
+            linear_backends=tuple(hybrid_backends),
+            linear_solves_total=hybrid_calls,
+            linear_iterations_total=hybrid_iterations,
+        )
     return HPAOResult(index, coefficients, diagnostics)
 
 
@@ -287,7 +339,7 @@ def _local_refit(
         )
         return coefficients, (denominator > 0).astype(np.intp)
 
-    projected = np.einsum("jpd,md->jpm", U, index, optimize=True)
+    projected = U @ index.T
     coefficients = np.empty((U.shape[0], index.shape[0]))
     ranks = np.empty(U.shape[0], dtype=np.intp)
     for j, local_operator in enumerate(projected):
@@ -300,7 +352,7 @@ def _local_refit(
 def _predict(U: np.ndarray, index: np.ndarray, coefficients: np.ndarray) -> np.ndarray:
     if index.ndim == 1:
         return coefficients[:, None] * (U @ index)
-    return np.einsum("jpd,md,jm->jp", U, index, coefficients, optimize=True)
+    return multi_forward(U, index, coefficients)
 
 
 def _loss(I, U, index, coefficients, mass) -> float:
@@ -323,7 +375,7 @@ def _linear_operator(
             data = coefficients[:, None] * (U @ vector)
             return (sqrt_mass[:, None] * data).ravel()
         matrix = vector.reshape(index_shape)
-        data = np.einsum("jpd,md,jm->jp", U, matrix, coefficients, optimize=True)
+        data = multi_forward(U, matrix, coefficients)
         return (sqrt_mass[:, None] * data).ravel()
 
     def rmatvec(vector):
@@ -337,14 +389,7 @@ def _linear_operator(
                 data,
                 optimize=True,
             )
-        return np.einsum(
-            "j,jm,jpd,jp->md",
-            sqrt_mass,
-            coefficients,
-            U,
-            data,
-            optimize=True,
-        ).ravel()
+        return multi_adjoint(U, sqrt_mass[:, None] * data, coefficients).ravel()
 
     linear_operator: Any = sparse_linalg.LinearOperator
     return linear_operator((rows, size), matvec=matvec, rmatvec=rmatvec, dtype=float)

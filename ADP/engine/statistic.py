@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Iterator
 
 import numpy as np
@@ -44,7 +46,6 @@ def calculate_statistics(
         stop = start + W.shape[0]
 
         batch = slice(start, stop)
-        A = W / mass_block[:, None]
         Phib = Phi[batch]
         # ponytail: 25% is an empirical dense/local crossover; benchmark-based
         # dispatch is only needed if substantially different kernels are added.
@@ -61,7 +62,7 @@ def calculate_statistics(
             block_values = _dense_block(
                 Xc,
                 Y,
-                A,
+                W / mass_block[:, None],
                 Phib,
                 mass_block,
                 normalized,
@@ -86,16 +87,29 @@ def calculate_statistics(
     )
 
 
-def _dense_block(Xc, Y, A, Phi, mass, normalized):
+def _dense_block(
+    Xc: np.ndarray,
+    Y: np.ndarray,
+    A: np.ndarray,
+    Phi: np.ndarray,
+    mass: np.ndarray,
+    normalized: bool,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     mean = A @ Xc
     y_bar = A @ Y
-    Q = Phi @ Xc.T - Phi @ mean[..., None]
+    # EXACT: один GEMM для всех (B, P) строк вместо B отдельных GEMM.
+    Q = (Phi.reshape(-1, Xc.shape[1]) @ Xc.T).reshape(*Phi.shape[:2], len(Xc))
+    Q -= Phi @ mean[..., None]
     residual = (Q @ A[..., None]).squeeze(-1)
     eta = _normalized_residual(A, Q, residual)
-    H = (Q - residual[..., None]) * A[:, None, :]
+    # После вычисления eta буфер Q используется под H.
+    Q -= residual[..., None]
+    Q *= A[:, None, :]
+    H = Q
     summed = H.sum(axis=2)
     I = H @ Y - summed * y_bar[:, None]
-    U = H @ Xc - summed[..., None] * mean[:, None, :]
+    U = (H.reshape(-1, len(Xc)) @ Xc).reshape(Phi.shape)
+    U -= summed[..., None] * mean[:, None, :]
     if not normalized:
         I *= mass[:, None]
         U *= mass[:, None, None]
@@ -103,34 +117,47 @@ def _dense_block(Xc, Y, A, Phi, mass, normalized):
     return I, U, mean, n_eff, eta, y_bar
 
 
-def _local_block(Xc, Y, W, Phi, mass, normalized):
-    rows, columns = np.nonzero(W)
-    counts = np.bincount(rows, minlength=len(W))
-    width = int(counts.max())
-    offsets = np.repeat(np.cumsum(counts) - counts, counts)
-    slots = np.arange(len(rows)) - offsets
+def _local_block(
+    Xc: np.ndarray,
+    Y: np.ndarray,
+    W: np.ndarray,
+    Phi: np.ndarray,
+    mass: np.ndarray,
+    normalized: bool,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """EXACT: только ненулевые соседи; рабочая память O(k_max*(d+P)).
 
-    indices = np.zeros((len(W), width), dtype=np.intp)
-    local_weights = np.zeros((len(W), width), dtype=W.dtype)
-    indices[rows, slots] = columns
-    local_weights[rows, slots] = W[rows, columns]
-
-    A = local_weights / mass[:, None]
-    local_X = Xc[indices]
-    local_Y = Y[indices]
-    mean = np.einsum("bm,bmd->bd", A, local_X, optimize=True)
-    y_bar = np.einsum("bm,bm->b", A, local_Y, optimize=True)
-    Q = Phi @ np.swapaxes(local_X - mean[:, None, :], 1, 2)
-    residual = (Q @ A[..., None]).squeeze(-1)
-    eta = _normalized_residual(A, Q, residual)
-    H = (Q - residual[..., None]) * A[:, None, :]
-    summed = H.sum(axis=2)
-    I = (H @ local_Y[..., None]).squeeze(-1) - summed * y_bar[:, None]
-    U = H @ local_X - summed[..., None] * mean[:, None, :]
+    W: (B,n), Phi: (B,P,d). Центрируем до проекции, как в прежней
+    локальной ветке. Пустые строки отклонены на границе calculate_statistics.
+    """
+    B, P, d = Phi.shape
+    I = np.empty((B, P))
+    U = np.empty_like(Phi)
+    mean = np.empty((B, d))
+    n_eff = np.empty(B)
+    eta = np.empty((B, P))
+    y_bar = np.empty(B)
+    for j in range(B):
+        indices = np.flatnonzero(W[j])
+        A = W[j, indices] / mass[j]
+        local_X = Xc[indices]
+        local_Y = Y[indices]
+        mean[j] = A @ local_X
+        y_bar[j] = A @ local_Y
+        Q = Phi[j] @ (local_X - mean[j]).T
+        residual = Q @ A
+        denominator = np.abs(Q) @ A
+        np.divide(np.abs(residual), denominator, out=eta[j], where=denominator != 0)
+        eta[j, denominator == 0] = 0
+        Q -= residual[:, None]
+        Q *= A
+        summed = Q.sum(axis=1)
+        I[j] = Q @ local_Y - summed * y_bar[j]
+        U[j] = Q @ local_X - summed[:, None] * mean[j]
+        n_eff[j] = 1.0 / (A @ A)
     if not normalized:
         I *= mass[:, None]
         U *= mass[:, None, None]
-    n_eff = 1.0 / np.square(A).sum(axis=1)
     return I, U, mean, n_eff, eta, y_bar
 
 

@@ -93,14 +93,19 @@ def initialize_basis_local_with_spectrum(
     gradients = np.empty((len(centers), d))
 
     for j, center in enumerate(centers):
-        design = np.column_stack((np.ones(n), X - center))
-        root_weight = np.sqrt(weights[j])
+        support = weights[j] != 0
+        local_X = X[support]
+        local_Y = Y[support]
+        design = np.column_stack((np.ones(len(local_X)), local_X - center))
+        root_weight = np.sqrt(weights[j, support])
         augmented_design = np.vstack((design * root_weight[:, None], ridge_rows))
-        augmented_Y = np.concatenate((Y * root_weight, np.zeros(d)))
+        augmented_Y = np.concatenate((local_Y * root_weight, np.zeros(d)))
+        # EXACT: нулевые строки не влияют на LS. Сохраняем исходный cutoff
+        # rcond=None для (n+d,d+1), чтобы screening не менял численный ранг.
         gradients[j] = np.linalg.lstsq(
             augmented_design,
             augmented_Y,
-            rcond=None,
+            rcond=np.finfo(float).eps * max(n + d, d + 1),
         )[0][1:]
 
     return _principal_gradient_basis_with_spectrum(

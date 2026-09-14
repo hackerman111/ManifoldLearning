@@ -1154,8 +1154,11 @@ def _short_level(value: str) -> str:
 
 
 def _quality_label(rows: list[dict[str, str]]) -> str:
-    if _first(rows, "quality_metric") == "cosine_abs":
+    metric = _first(rows, "quality_metric")
+    if metric == "cosine_abs":
         return "|cos(β, β*)| (выше лучше)"
+    if metric == "trace_score":
+        return "нормированный trace подпространств (выше лучше)"
     return "ошибка проектора (ниже лучше)"
 
 

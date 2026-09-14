@@ -33,6 +33,7 @@ from ..engine.initialize import (
 from ..engine.statistic import calculate_statistics
 from ..engine.weights import calculate_multi_weight, calculate_weight
 from ..solver.CG import solve as solve_cg
+from ..solver.HYBRID import solve as solve_hybrid
 from ..solver.LSMR import HPAOResult, solve as solve_lsmr
 
 _STAGES = (
@@ -205,7 +206,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=defaults.redraw_directions,
     )
 
-    parser.add_argument("--solver", choices=("lsmr", "cg"), default="lsmr")
+    parser.add_argument("--solver", choices=("lsmr", "cg", "hybrid"), default="lsmr")
+    parser.add_argument("--dense-max-unknowns", type=int, default=256)
+    parser.add_argument("--dense-max-bytes", type=int, default=64 * 1024**2)
     parser.add_argument("--solver-tol", type=float, default=1e-6)
     parser.add_argument("--solver-max-steps", type=int)
     parser.add_argument("--theta", type=float, default=0.1)
@@ -241,6 +244,8 @@ def _config(args: argparse.Namespace) -> ADP_Config:
 
 
 def _validate(args: argparse.Namespace, config: ADP_Config) -> tuple[int, int, int]:
+    if args.mode == "single" and args.solver == "hybrid":
+        raise ValueError("hybrid solver supports multi and manifold modes")
     if args.n < 2:
         raise ValueError("n must be at least two")
     if config.index_init != "random" and args.n <= args.d + 1:
@@ -543,7 +548,8 @@ def _run(
                         cg_maxiter=args.cg_maxiter,
                     )
                 else:
-                    result = solve_lsmr(
+                    method = solve_hybrid if args.solver == "hybrid" else solve_lsmr
+                    result = method(
                         index,
                         statistics.U,
                         statistics.I,
@@ -554,6 +560,8 @@ def _run(
                         theta=args.theta,
                         trust_radius=args.trust_radius,
                         lsmr_maxiter=args.lsmr_maxiter,
+                        dense_max_unknowns=args.dense_max_unknowns,
+                        dense_max_bytes=args.dense_max_bytes,
                     )
                 index, eigenvalues = _solver_index(
                     args.mode,
@@ -721,6 +729,9 @@ def _run_manifold(
             seed=args.seed,
             cg_tol=args.solver_tol,
             cg_maxiter=args.cg_maxiter,
+            solver="hybrid" if args.solver == "hybrid" else "cg",
+            dense_max_unknowns=args.dense_max_unknowns,
+            dense_max_bytes=args.dense_max_bytes,
         )
         with profiler.stage("solver"):
             model.fit(X, Y)
@@ -751,6 +762,17 @@ def _run_manifold(
             "cg_relative_residual_max": max(
                 float(entry["cg_relative_residual_max"]) for entry in model.trace_
             ),
+            "linear_iterations": sum(
+                int(entry["linear_iterations"]) for entry in model.trace_
+            ),
+            "linear_relative_residual_max": max(
+                float(entry["linear_relative_residual_max"]) for entry in model.trace_
+            ),
+            "dense_solves": sum(int(entry["dense_solves"]) for entry in model.trace_),
+            "pcg_solves": sum(int(entry["pcg_solves"]) for entry in model.trace_),
+            "fallback_solves": sum(
+                int(entry["fallback_solves"]) for entry in model.trace_
+            ),
         }
         trace = [dict(entry) for entry in model.trace_]
         effective = model.effective_config_
@@ -767,7 +789,7 @@ def _run_manifold(
             "estimator": "manifold",
             "direction_mode": "structure-adaptive",
             "multi_tensor": None,
-            "solver": "cg",
+            "solver": model.solver,
             "solver_max_steps": args.sync_steps,
             "selection": "last",
             "selected_iteration": len(trace) - 1,
@@ -867,9 +889,9 @@ def _quality(mode: str, index: np.ndarray, true_basis: np.ndarray) -> float:
         overlap = np.einsum("jmd,jnd->jmn", index, true_basis, optimize=True)
         missed = index.shape[1] - np.square(overlap).sum(axis=(1, 2))
         return sqrt(float(np.maximum(missed, 0.0).mean()) / index.shape[1])
-    # ESTIMATOR/evaluation protocol, (SEDRqua): ||P(I - P_*^T P_*)||_F^2.
-    residual = index - (index @ true_basis) @ true_basis.T  # (m, d)
-    return float(np.square(residual).sum())
+    # ESTIMATOR/evaluation protocol: normalized trace of projector overlap.
+    overlap = index @ true_basis  # (m, m)
+    return float(np.square(overlap).sum() / index.shape[0])
 
 
 def _rss_peak_mib() -> float:
@@ -885,7 +907,7 @@ def _print_result(
 ) -> None:
     metric_name = {
         "single": "cosine_abs",
-        "multi": "projector_distance",
+        "multi": "trace_score",
         "manifold": "local_projector_distance",
     }[args.mode]
     print(f"mode={args.mode} X=({args.n}, {args.d}) index={index.shape}")
@@ -898,7 +920,7 @@ def _print_result(
     print(f"stop_reason={metadata['stop_reason']} {metric_name}={quality:.6f}")
     if args.mode == "manifold":
         print(
-            f"estimator=manifold solver=cg prediction_rmse="
+            f"estimator=manifold solver={metadata['solver']} prediction_rmse="
             f"{cast(float, metadata['prediction_rmse']):.6f}"
         )
         for step in cast(list[dict[str, object]], metadata["trace"]):

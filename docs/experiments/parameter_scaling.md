@@ -12,8 +12,8 @@
 
 - не увеличивает частоту `numerical_failure` и `nonconverged`;
 - для single-index сохраняет `cosine_abs >= 0.9`;
-- для multi-index сохраняет `projector_distance <= 0.1`, где
-  `projector_distance = sum(sin(theta_j)^2)` по `multiindex.tex`;
+- для multi-index сохраняет эквивалентную границу `trace_score >= 0.95`, где
+  `trace_score = trace(P_hat P_true) / m = mean(cos(theta_j)^2)` при `m=2`;
 - по качеству отличается от лучшего уровня не более чем на `0.01` для SI и
   `0.02` для MI.
 
@@ -113,7 +113,7 @@ uv run --no-sync python -m ADP.cli.experiment \
 - `mi-boundary-nd`: фиксирует estimator и перебирает
   `n={400,600,800,1000,1400,1800,2400}` и
   `d={10,15,20,25,30,35,40,50,60}`. Это 63 точки для оценки частоты
-  `projector_distance <= 0.1`, `nonconverged` и `numerical_failure` отдельно;
+  `trace_score >= 0.95`, `nonconverged` и `numerical_failure` отдельно;
 - `si-nloc-nd`: парно сравнивает `N_loc={10,15,20,25,30,40,50}` на одних
   данных для каждой пары `n={400,700,1000,1500,2200}` и
   `d={10,20,30,40,50,60}`. Это 210 точек для разделения выигрыша в качестве,

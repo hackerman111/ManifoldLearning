@@ -10,7 +10,8 @@ from ADP.cli.main import _quality, _run, build_parser, main
     ("mode", "n", "d", "index_dim", "metric", "solver"),
     (
         ("single", "40", "3", "1", "cosine_abs=", "lsmr"),
-        ("multi", "48", "4", "2", "projector_distance=", "cg"),
+        ("multi", "48", "4", "2", "trace_score=", "cg"),
+        ("multi", "48", "4", "2", "trace_score=", "hybrid"),
     ),
 )
 def test_cli_smoke(
@@ -89,12 +90,15 @@ def test_cli_smoke(
     assert "process RSS peak:" in output
 
 
-def test_cli_manifold_smoke(capsys: pytest.CaptureFixture[str]) -> None:
+@pytest.mark.parametrize("solver", ["cg", "hybrid"])
+def test_cli_manifold_smoke(capsys: pytest.CaptureFixture[str], solver: str) -> None:
     assert (
         main(
             [
                 "--mode",
                 "manifold",
+                "--solver",
+                solver,
                 "--n",
                 "80",
                 "--d",
@@ -180,7 +184,7 @@ def test_cli_trace_selects_the_minimum_fit_step() -> None:
     assert _quality("single", index, true_basis) == trace[selected]["quality"]
 
 
-def test_multi_quality_matches_multiindex_tex_metric() -> None:
+def test_multi_quality_is_normalized_projector_trace() -> None:
     true_basis = np.eye(4)[:, :2]
     angle = np.deg2rad(60.0)
     index = np.array(
@@ -190,8 +194,14 @@ def test_multi_quality_matches_multiindex_tex_metric() -> None:
         ]
     )
 
-    # ||P(I - P_*^T P_*)||_F^2 = sin(theta)^2.
-    assert _quality("multi", index, true_basis) == pytest.approx(0.75, abs=1e-14)
+    # tr(P_hat P_true) / m = (1 + cos(theta)^2) / 2.
+    assert _quality("multi", index, true_basis) == pytest.approx(0.625, abs=1e-14)
+
+    rotation = np.array([[0.0, 1.0], [-1.0, 0.0]])
+    assert _quality("multi", rotation @ index, true_basis) == pytest.approx(
+        0.625, abs=1e-14
+    )
+    assert _quality("multi", true_basis.T, true_basis) == pytest.approx(1.0, abs=1e-14)
 
 
 def test_cli_center_split_and_fixed_directions_are_recorded() -> None:

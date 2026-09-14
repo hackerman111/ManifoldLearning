@@ -32,6 +32,9 @@ class ADP_Manifold:
         seed: int = 42,
         cg_tol: float = 1e-8,
         cg_maxiter: int | None = None,
+        solver: Literal["cg", "hybrid"] = "cg",
+        dense_max_unknowns: int = 256,
+        dense_max_bytes: int = 64 * 1024**2,
         scale_boundary: Literal["raise", "stop"] = "raise",
     ) -> None:
         self.index_dim = self._integer("index_dim", index_dim, minimum=1)
@@ -50,6 +53,15 @@ class ADP_Manifold:
         self.seed = self._integer("seed", seed, minimum=0)
         self.cg_tol = self._finite_float("cg_tol", cg_tol, minimum=0.0, strict=True)
         self.cg_maxiter = self._optional_integer("cg_maxiter", cg_maxiter, minimum=1)
+        if solver not in {"cg", "hybrid"}:
+            raise ValueError("solver must be 'cg' or 'hybrid'")
+        self.solver = solver
+        self.dense_max_unknowns = self._integer(
+            "dense_max_unknowns", dense_max_unknowns, minimum=0
+        )
+        self.dense_max_bytes = self._integer(
+            "dense_max_bytes", dense_max_bytes, minimum=0
+        )
         if scale_boundary not in {"raise", "stop"}:
             raise ValueError("scale_boundary must be 'raise' or 'stop'")
         self.scale_boundary = scale_boundary
@@ -697,13 +709,19 @@ class ADP_Manifold:
             mean = normalized @ X
             y_mean = normalized @ Y
             phi = directions[start:stop]
-            projected = phi @ X.T - (phi @ mean[..., None])
+            # EXACT: общий GEMM без повторного чтения X для каждого центра.
+            projected = (phi.reshape(-1, d) @ X.T).reshape(len(weights), P, len(X))
+            projected -= phi @ mean[..., None]
             correction = (projected @ normalized[..., None]).squeeze(-1)
             projected -= correction[..., None]
-            moments = projected * normalized[:, None, :]
+            projected *= normalized[:, None, :]
+            moments = projected
             summed = moments.sum(axis=2)
             I[start:stop] = moments @ Y - summed * y_mean[:, None]
-            U[start:stop] = moments @ X - summed[..., None] * mean[:, None, :]
+            U[start:stop] = (moments.reshape(-1, len(X)) @ X).reshape(
+                len(weights), P, d
+            )
+            U[start:stop] -= summed[..., None] * mean[:, None, :]
             mass[start:stop] = mass_block
             n_eff[start:stop] = 1.0 / np.square(normalized).sum(axis=1)
             edges += int(np.count_nonzero(weights))
@@ -728,6 +746,9 @@ class ADP_Manifold:
         penalties = np.empty(J)
         iterations_total = 0
         residual_max = 0.0
+        dense_solves = 0
+        pcg_solves = 0
+        fallback_solves = 0
 
         for l in range(J):
             begin, end = graph.indptr[l : l + 2]
@@ -736,17 +757,40 @@ class ADP_Manifold:
             source_U = U[sources]
             source_I = I[sources]
             slopes = self._local_slopes(source_I, source_U, projectors[l], l)
-            operator, preconditioner, rhs = self._build_B_system(
-                source_U,
-                source_I,
-                mass[sources],
-                weights,
-                projectors[sources],
-                slopes,
-            )
-            B, iterations, residual = self._solve_B(
-                operator, preconditioner, rhs, projectors[l]
-            )
+            if self.solver == "hybrid":
+                from .solver.HYBRID import solve_manifold
+
+                linear = solve_manifold(
+                    source_U,
+                    source_I,
+                    mass[sources],
+                    weights,
+                    projectors[sources],
+                    slopes,
+                    projectors[l],
+                    ridge=self.lambda_manifold,
+                    tol=self.cg_tol,
+                    maxiter=self.cg_maxiter,
+                    dense_max_unknowns=self.dense_max_unknowns,
+                    dense_max_bytes=self.dense_max_bytes,
+                )
+                B = linear.solution.reshape(projectors[l].shape)
+                iterations, residual = linear.iterations, linear.relative_residual
+                dense_solves += int(linear.backend == "dense-svd")
+                pcg_solves += int(linear.backend == "block-pcg")
+                fallback_solves += int(linear.backend.startswith("block-pcg->"))
+            else:
+                operator, preconditioner, rhs = self._build_B_system(
+                    source_U,
+                    source_I,
+                    mass[sources],
+                    weights,
+                    projectors[sources],
+                    slopes,
+                )
+                B, iterations, residual = self._solve_B(
+                    operator, preconditioner, rhs, projectors[l]
+                )
             gamma = mass[sources] * weights
             updated[l], eigenvalues[l] = self._recover_projector(B, slopes, gamma, l)
             changes[l] = self._projector_distance(projectors[l], updated[l])
@@ -770,8 +814,15 @@ class ADP_Manifold:
                 "projector_change_max": float(np.max(changes)),
                 "objective": float(objectives.sum()),
                 "manifold_penalty": float(penalties.sum()),
-                "cg_iterations": iterations_total,
-                "cg_relative_residual_max": residual_max,
+                "cg_iterations": iterations_total if self.solver == "cg" else 0,
+                "cg_relative_residual_max": residual_max
+                if self.solver == "cg"
+                else 0.0,
+                "linear_iterations": iterations_total,
+                "linear_relative_residual_max": residual_max,
+                "dense_solves": dense_solves,
+                "pcg_solves": pcg_solves,
+                "fallback_solves": fallback_solves,
             },
         )
 
