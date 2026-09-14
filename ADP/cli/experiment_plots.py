@@ -22,6 +22,20 @@ _FIGURE_FACE = "#ffffff"
 _GRID_COLOR = "#cbd5e1"
 _TEXT_COLOR = "#111827"
 _SPINE_COLOR = "#94a3b8"
+_CATEGORICAL_CONDITIONS = {
+    "link",
+    "x_distribution",
+    "noise_distribution",
+    "heteroscedastic",
+    "mode",
+    "normalize_link_by_sigma_x",
+    "index_init",
+    "direction_mode",
+    "multi_tensor",
+    "select_step",
+    "training_set",
+    "redraw_directions",
+}
 _SUMMARY_COLUMNS = (
     "experiment",
     "title",
@@ -418,7 +432,10 @@ def _phase_summaries(
         condition_level = ""
         if condition_field is not None:
             condition_level = row.get(condition_field, "")
-            if _number(condition_level) is None:
+            if not condition_level or (
+                condition_field not in _CATEGORICAL_CONDITIONS
+                and _number(condition_level) is None
+            ):
                 raise ValueError("condition level must be finite and numeric")
         group_levels = tuple(row.get(field, "") for field in condition_group_fields)
         if any(not level for level in group_levels):
@@ -800,7 +817,7 @@ def _metric_plot(
                         alpha=0.16,
                     )
             _style(ax, _factor_label(factor), ylabel, levels)
-            if len(builds) > 1:
+            if len(builds) > 1 and ax.get_legend_handles_labels()[0]:
                 ax.legend(fontsize=9)
         fig.suptitle(title, color=_TEXT_COLOR, fontweight="bold", fontsize=14)
         _save(fig, path, plt)
@@ -877,7 +894,8 @@ def _stages_plot(
                             label=label,
                         )
             _style(ax, _factor_label(factor), ylabel, levels)
-            ax.legend(fontsize=8, ncols=2)
+            if ax.get_legend_handles_labels()[0]:
+                ax.legend(fontsize=8, ncols=2)
         fig.suptitle(
             "Initialization / last / stopping-selected",
             color=_TEXT_COLOR,
@@ -1061,7 +1079,10 @@ def _phase_plot(
                 x_field, y_field = "condition_level", "n_over_d"
                 xlabel = _factor_label(condition_field)
                 ylabel = f"{build} · d={d}\nn/d"
-            x_values = sorted({str(row[x_field]) for row in selected}, key=float)
+            x_values = sorted(
+                {str(row[x_field]) for row in selected},
+                key=str if condition_field in _CATEGORICAL_CONDITIONS else float,
+            )
             y_values = sorted({str(row[y_field]) for row in selected}, key=float)
             for ax, (metric, label) in zip(row_axes, metrics, strict=True):
                 matrix = np.full((len(y_values), len(x_values)), np.nan)

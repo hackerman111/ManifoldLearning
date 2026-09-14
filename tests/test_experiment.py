@@ -1293,7 +1293,7 @@ def test_single_build_writes_tables_without_plots(tmp_path, monkeypatch) -> None
     progress_bar = MagicMock()
     progress_bar.__enter__.return_value = progress_bar
     progress_factory = MagicMock(return_value=progress_bar)
-    monkeypatch.setattr("ADP.cli.experiment.tqdm", progress_factory)
+    monkeypatch.setattr("experiments.runner.tqdm", progress_factory)
     config = ADP_Config(
         N_loc=6,
         N_lin=8,

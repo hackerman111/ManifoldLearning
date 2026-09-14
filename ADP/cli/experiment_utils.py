@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Never, TypeVar
 import numpy as np
 
 if TYPE_CHECKING:
-    from .experiment import Build, Experiment, ExperimentPoint
+    from experiments.models import Build, Experiment, ExperimentPoint
 
 _T = TypeVar("_T")
 

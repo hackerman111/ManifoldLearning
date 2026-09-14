@@ -243,9 +243,16 @@ def _config(args: argparse.Namespace) -> ADP_Config:
     )
 
 
+def _validate_solver_mode(mode: str, solver: str) -> None:
+    if mode == "single" and solver == "hybrid":
+        raise ValueError(
+            "hybrid solver supports multi and manifold modes; "
+            "use lsmr or cg for single mode"
+        )
+
+
 def _validate(args: argparse.Namespace, config: ADP_Config) -> tuple[int, int, int]:
-    if args.mode == "single" and args.solver == "hybrid":
-        raise ValueError("hybrid solver supports multi and manifold modes")
+    _validate_solver_mode(args.mode, args.solver)
     if args.n < 2:
         raise ValueError("n must be at least two")
     if config.index_init != "random" and args.n <= args.d + 1:
