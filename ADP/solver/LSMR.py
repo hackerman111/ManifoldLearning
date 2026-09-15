@@ -13,6 +13,7 @@ from ADP.solver._multi_operator import (
 )
 
 # EXACT: matrix-free actions preserve the fixed dense-U objective.
+_LOCAL_REFIT_BYTES = 4 * 1024**2
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +50,7 @@ def solve(
     linear_solver: str = "lsmr",
     dense_max_unknowns: int = 256,
     dense_max_bytes: int = 64 * 1024**2,
+    hybrid_inner_rtol: float | None = None,
 ) -> HPAOResult:
     """Решить dense-``U`` задачу HPAO-LSMR.
 
@@ -57,6 +59,8 @@ def solve(
     ``(m, d)``. Штраф ``lambda_prox`` применяется к correction-шагу. Он не
     входит в статистический функционал. ``mass`` задаёт внешний множитель
     ``c_j``; при уже ненормированных ``U`` и ``I`` используйте ``mass=None``.
+    ``hybrid_inner_rtol`` включает отдельный APPROXIMATE-режим HYBRID:
+    сертификат относительной ошибки коррекции; по умолчанию отключён.
     """
     index, U, I, mass = _validate_inputs(index_init, U, I, mass)
     _validate_settings(lambda_prox, max_steps, tol, theta, lsmr_maxiter)
@@ -72,6 +76,11 @@ def solve(
             raise ValueError(f"{name} must be nonnegative")
     if linear_solver == "hybrid" and index.ndim != 2:
         raise ValueError("hybrid currently requires a multi-index matrix")
+    if hybrid_inner_rtol is not None:
+        if linear_solver != "hybrid":
+            raise ValueError("hybrid_inner_rtol requires the hybrid solver")
+        if not np.isfinite(hybrid_inner_rtol) or not 0 < hybrid_inner_rtol <= theta:
+            raise ValueError("hybrid_inner_rtol must be finite and in (0, theta]")
     index = _normalize_index(index)
     m = 1 if index.ndim == 1 else index.shape[0]
     if trust_radius is None:
@@ -91,8 +100,17 @@ def solve(
     certified_count = 0
     accepted_steps = 0
     accepted_correction_norm = math.inf
+    U_norm2 = np.einsum("jpd,jpd->j", U, U, optimize=True)
+    gradient = local_gradient = orthogonality = math.inf
     hybrid_calls = 0
     hybrid_iterations = 0
+    hybrid_screened = 0
+    hybrid_screening_matvecs = 0
+    hybrid_recycled_solves = 0
+    hybrid_projected_solves = 0
+    hybrid_refinements = 0
+    hybrid_forward_calls = 0
+    hybrid_adjoint_calls = 0
     hybrid_backends: list[str] = []
     last: dict[str, object] = {
         "lsmr_stop": 0,
@@ -123,8 +141,23 @@ def solve(
             hybrid_backends.append(workspace.backend)
 
         while lambda_current <= lambda_cap:
+            # EXACT/NUMERICAL: отклоняем только доказанно слишком длинный
+            # ridge-шаг. После первого принятого шага screening нужен лишь
+            # при повторной пробе: обычно прежняя lambda уже подходит.
+            if (
+                workspace is not None
+                and lambda_current > 0
+                and (accepted_steps == 0 or workspace.calls > 0)
+                and workspace.rejects_trust(
+                    lambda_current, trust_radius * math.sqrt(m), lsmr_maxiter
+                )
+            ):
+                lambda_current *= 2.0
+                continue
             step = (
-                workspace.correction(lambda_current, tol, lsmr_maxiter)
+                workspace.correction(
+                    lambda_current, tol, lsmr_maxiter, relative_tol=hybrid_inner_rtol
+                )
                 if workspace is not None
                 else _global_correction(
                     I,
@@ -139,7 +172,8 @@ def solve(
             )
             correction = step[0].reshape(prior.shape)
             correction_norm = float(np.linalg.norm(correction) / math.sqrt(m))
-            if step[3] > theta or correction_norm > trust_radius:
+            required_ratio = theta if hybrid_inner_rtol is None else hybrid_inner_rtol
+            if step[3] > required_ratio or correction_norm > trust_radius:
                 if lambda_current == 0:
                     raise RuntimeError(
                         "unregularized HPAO step failed the trust certificate"
@@ -194,11 +228,18 @@ def solve(
         if workspace is not None:
             hybrid_calls += workspace.calls
             hybrid_iterations += workspace.iterations
+            hybrid_screened += workspace.screened_trials
+            hybrid_screening_matvecs += workspace.screening_matvecs
+            hybrid_recycled_solves += workspace.recycled_solves
+            hybrid_projected_solves += workspace.projected_solves
+            hybrid_refinements += workspace.refinements
+            hybrid_forward_calls += workspace.forward_calls
+            hybrid_adjoint_calls += workspace.adjoint_calls
 
         relative_change = abs(old_loss - loss) / max(1.0, old_loss)
         aligned_step = _index_distance(index, prior)
         gradient, local_gradient, orthogonality = _stationarity(
-            I, U, index, coefficients, mass, loss
+            I, U, index, coefficients, mass, loss, U_norm2=U_norm2
         )
         certified = (
             relative_change < tol
@@ -220,9 +261,6 @@ def solve(
         else:
             small_correction_count = 0
 
-    gradient, local_gradient, orthogonality = _stationarity(
-        I, U, index, coefficients, mass, loss
-    )
     diagnostics = {
         **last,
         "accepted_steps": accepted_steps,
@@ -241,6 +279,14 @@ def solve(
             linear_backends=tuple(hybrid_backends),
             linear_solves_total=hybrid_calls,
             linear_iterations_total=hybrid_iterations,
+            linear_screened_trials=hybrid_screened,
+            linear_screening_matvecs=hybrid_screening_matvecs,
+            linear_recycled_solves=hybrid_recycled_solves,
+            linear_projected_solves=hybrid_projected_solves,
+            linear_refinements=hybrid_refinements,
+            linear_forward_calls=hybrid_forward_calls,
+            linear_adjoint_calls=hybrid_adjoint_calls,
+            hybrid_inner_rtol=hybrid_inner_rtol,
         )
     return HPAOResult(index, coefficients, diagnostics)
 
@@ -256,6 +302,8 @@ def _validate_inputs(index, U, I, mass):
     I = np.asarray(I, dtype=float)
     if U.ndim != 3:
         raise ValueError("U must have shape (J, p, d)")
+    if 0 in U.shape:
+        raise ValueError("U dimensions J, p, and d must be positive")
     if I.shape != U.shape[:2]:
         raise ValueError("I must have shape (J, p) matching U")
     if index.ndim == 1:
@@ -339,13 +387,35 @@ def _local_refit(
         )
         return coefficients, (denominator > 0).astype(np.intp)
 
-    projected = U @ index.T
-    coefficients = np.empty((U.shape[0], index.shape[0]))
-    ranks = np.empty(U.shape[0], dtype=np.intp)
-    for j, local_operator in enumerate(projected):
-        coefficients[j], _, ranks[j], _ = np.linalg.lstsq(
-            local_operator, I[j], rcond=None
-        )
+    J, P, _ = U.shape
+    m = len(index)
+    coefficients = np.empty((J, m))
+    ranks = np.empty(J, dtype=np.intp)
+    # NUMERICAL: minimum-norm SVD сохраняет cutoff исходного lstsq(rcond=None).
+    # Пакеты убирают J вызовов Python; рабочие SVD-массивы ограничены 4 MiB
+    # либо размером одного центра, если один центр превышает этот бюджет.
+    block_size = max(1, _LOCAL_REFIT_BYTES // (8 * (3 * P * m + 3 * m * m)))
+    rcond = np.finfo(float).eps * max(P, m)
+    for start in range(0, J, block_size):
+        stop = min(J, start + block_size)
+        projected = U[start:stop] @ index.T
+        left, singular, right = np.linalg.svd(projected, full_matrices=False)
+        keep = singular > rcond * singular[:, :1]
+        coordinates = (left.swapaxes(1, 2) @ I[start:stop, :, None]).squeeze(-1)
+        np.divide(coordinates, singular, out=coordinates, where=keep)
+        coordinates[~keep] = 0
+        coefficients[start:stop] = (
+            right.swapaxes(1, 2) @ coordinates[..., None]
+        ).squeeze(-1)
+        ranks[start:stop] = np.count_nonzero(keep, axis=1)
+        # Вблизи потери ранга разные LAPACK-драйверы заметно расходятся
+        # по слабым компонентам. Сохраняем исходный lstsq для таких центров.
+        sensitive = singular[:, -1] <= math.sqrt(np.finfo(float).eps) * singular[:, 0]
+        for local in np.flatnonzero(sensitive):
+            j = start + local
+            coefficients[j], _, ranks[j], _ = np.linalg.lstsq(
+                projected[local], I[j], rcond=None
+            )
     return coefficients, ranks
 
 
@@ -467,15 +537,16 @@ def _gauge_fix(raw_index, coefficients, prior):
 def _index_distance(index: np.ndarray, prior: np.ndarray) -> float:
     if index.ndim == 1:
         return float(min(np.linalg.norm(index - prior), np.linalg.norm(index + prior)))
-    return float(
-        np.linalg.norm(index.T @ index - prior.T @ prior, ord="fro") / math.sqrt(2.0)
-    )
+    # NUMERICAL: для ортонормальных строк это ||P*P-Q*Q||_F/sqrt(2).
+    # Остаток проекции не вычитает близкие traces и требует (m,d), не (d,d).
+    return float(np.linalg.norm(index - (index @ prior.T) @ prior, ord="fro"))
 
 
-def _stationarity(I, U, index, coefficients, mass, loss):
+def _stationarity(I, U, index, coefficients, mass, loss, *, U_norm2=None):
     residual = I - _predict(U, index, coefficients)
     transposed_residual = np.einsum("jpd,jp->jd", U, residual, optimize=True)
-    U_norm2 = np.einsum("jpd,jpd->j", U, U, optimize=True)
+    if U_norm2 is None:
+        U_norm2 = np.einsum("jpd,jpd->j", U, U, optimize=True)
 
     if index.ndim == 1:
         gradient = -np.einsum(

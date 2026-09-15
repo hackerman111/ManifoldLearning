@@ -210,6 +210,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--solver", choices=("lsmr", "cg", "hybrid"), default="lsmr")
     parser.add_argument("--dense-max-unknowns", type=int, default=256)
     parser.add_argument("--dense-max-bytes", type=int, default=64 * 1024**2)
+    parser.add_argument(
+        "--hybrid-inner-rtol",
+        type=float,
+        help="opt-in relative correction error certificate for multi HYBRID",
+    )
     parser.add_argument("--solver-tol", type=float, default=1e-6)
     parser.add_argument("--solver-max-steps", type=int)
     parser.add_argument("--theta", type=float, default=0.1)
@@ -360,6 +365,14 @@ def _run(
     *,
     data: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, dict[str, float]], dict[str, object]]:
+    if args.hybrid_inner_rtol is not None:
+        if args.mode != "multi" or args.solver != "hybrid":
+            raise ValueError("hybrid_inner_rtol requires multi mode with hybrid solver")
+        if (
+            not np.isfinite(args.hybrid_inner_rtol)
+            or not 0 < args.hybrid_inner_rtol <= args.theta
+        ):
+            raise ValueError("hybrid_inner_rtol must be finite and in (0, theta]")
     if args.mode == "manifold":
         return _run_manifold(args, data=data)
     config = _config(args)
@@ -571,6 +584,7 @@ def _run(
                         lsmr_maxiter=args.lsmr_maxiter,
                         dense_max_unknowns=args.dense_max_unknowns,
                         dense_max_bytes=args.dense_max_bytes,
+                        hybrid_inner_rtol=args.hybrid_inner_rtol,
                     )
                 index, eigenvalues = _solver_index(
                     args.mode,

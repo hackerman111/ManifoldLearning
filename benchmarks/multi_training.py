@@ -9,8 +9,10 @@ import platform
 import resource
 import subprocess
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 from time import perf_counter
+from unittest.mock import patch
 
 import numpy as np
 import scipy
@@ -24,8 +26,13 @@ def main() -> None:
     parser.add_argument("--solver-source", type=Path)
     parser.add_argument("--initialization-source", type=Path)
     parser.add_argument("--reference-root", type=Path)
+    parser.add_argument("--no-tracemalloc", action="store_true")
     settings, arguments = parser.parse_known_args()
+    if settings.output.exists() or settings.output.with_suffix(".npy").exists():
+        parser.error("output prefix already exists; choose a new --output path")
     if settings.reference_root is not None:
+        if not (settings.reference_root / "ADP" / "__init__.py").is_file():
+            parser.error("--reference-root must contain the reference ADP package")
         sys.path.insert(0, str(settings.reference_root.resolve()))
     from ADP.cli.main import _quality, _run, build_parser
 
@@ -72,6 +79,7 @@ def main() -> None:
             for key in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
         },
         "dtype": "float64",
+        "tracemalloc_enabled": not settings.no_tracemalloc,
         "source_root": str(source_root),
         "source_sha256": {
             str(path.relative_to(source_root)): hashlib.sha256(
@@ -100,12 +108,31 @@ def main() -> None:
         row["blas"] = "threadpoolctl unavailable"
     started = perf_counter()
     try:
-        index, truth, profile, metadata = _run(args)
+        # Сохраняем таймеры исходного CLI; отключаются только измерения памяти.
+        tracing = (
+            patch("tracemalloc.start") if settings.no_tracemalloc else nullcontext()
+        )
+        with tracing:
+            index, truth, profile, metadata = _run(args)
+        if settings.no_tracemalloc:
+            for record in profile.values():
+                record.pop("traced_peak_bytes", None)
         row.update(profile=profile, metadata=metadata)
         row["quality"] = _quality(args.mode, index, truth)
-        row["quality_metric"] = "trace_score (normalized overlap, higher is better)"
-        residual = index - (index @ truth) @ truth.T
-        row["projector_distance"] = float(np.square(residual).sum())
+        if args.mode == "manifold":
+            row["quality_metric"] = "RMS principal sine (lower is better)"
+            residual = index - (index @ truth.swapaxes(1, 2)) @ truth
+            row["projector_distance"] = float(
+                np.square(residual).sum(axis=(1, 2)).mean()
+            )
+        elif args.mode == "single":
+            row["quality_metric"] = "absolute cosine (higher is better)"
+            residual = index - (index @ truth) @ truth.T
+            row["projector_distance"] = float(np.square(residual).sum())
+        else:
+            row["quality_metric"] = "trace_score (normalized overlap, higher is better)"
+            residual = index - (index @ truth) @ truth.T
+            row["projector_distance"] = float(np.square(residual).sum())
         row["error"] = None
         np.save(settings.output.with_suffix(".npy"), index)
     except (ValueError, RuntimeError, np.linalg.LinAlgError) as error:

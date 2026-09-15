@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -13,8 +14,13 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cases", nargs="+")
     parser.add_argument("--feasible", action="store_true")
+    parser.add_argument("--reference-root", type=Path)
+    parser.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3])
+    parser.add_argument("--timeout", type=float, default=180)
+    parser.add_argument("--no-tracemalloc", action="store_true")
+    parser.add_argument("--hybrid-inner-rtol", type=float)
     args = parser.parse_args()
-    args.output.mkdir(parents=True, exist_ok=True)
+    args.output.mkdir(parents=True, exist_ok=False)
     env = dict(os.environ)
     env.update(OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
     cases = {
@@ -139,6 +145,52 @@ def main() -> None:
         "--cg-maxiter",
         "1000",
     ]
+    cases["multi1000"] = [
+        "--mode",
+        "multi",
+        "--n",
+        "10000",
+        "--d",
+        "1000",
+        "--index-dim",
+        "10",
+        "--N_J",
+        "100",
+        "--N_phi",
+        "20",
+        "--N_loc",
+        "100",
+        "--N_lin",
+        "150",
+        "--index-init",
+        "random",
+        "--outer_steps",
+        "1",
+        "--solver-max-steps",
+        "2",
+    ]
+    cases["multi_large"] = [
+        "--mode",
+        "multi",
+        "--n",
+        "10000",
+        "--d",
+        "100",
+        "--index-dim",
+        "10",
+        "--N_J",
+        "500",
+        "--N_phi",
+        "20",
+        "--N_loc",
+        "20",
+        "--N_lin",
+        "150",
+        "--outer_steps",
+        "3",
+        "--solver-max-steps",
+        "3",
+    ]
     if args.feasible:
         cases["manifold20"] += ["--N_lin", "100"]
         cases["manifold_adaptive"] += [
@@ -156,8 +208,12 @@ def main() -> None:
     for name, flags in cases.items():
         if args.cases and name not in args.cases:
             continue
-        baseline = "cg" if name.startswith("manifold") else "lsmr"
-        for seed in (1, 2, 3):
+        baseline = (
+            "reference"
+            if args.reference_root is not None
+            else ("cg" if name.startswith("manifold") else "lsmr")
+        )
+        for seed in args.seeds:
             order = (baseline, "hybrid") if seed % 2 else ("hybrid", baseline)
             for solver in order:
                 label = f"{name}_{seed}_{solver}"
@@ -171,13 +227,40 @@ def main() -> None:
                     label,
                     *flags,
                     "--solver",
-                    solver,
+                    "hybrid" if solver == "reference" else solver,
                     "--seed",
                     str(seed + 100),
                     "--data-seed",
                     str(seed),
                 ]
-                subprocess.run(command, env=env, check=True, timeout=120)
+                if solver == "reference":
+                    command += ["--reference-root", str(args.reference_root)]
+                if args.no_tracemalloc:
+                    command.append("--no-tracemalloc")
+                if (
+                    solver == "hybrid"
+                    and name.startswith("multi")
+                    and args.hybrid_inner_rtol is not None
+                ):
+                    command += ["--hybrid-inner-rtol", str(args.hybrid_inner_rtol)]
+                try:
+                    subprocess.run(command, env=env, check=True, timeout=args.timeout)
+                except (
+                    subprocess.CalledProcessError,
+                    subprocess.TimeoutExpired,
+                ) as error:
+                    # Отказы процесса тоже остаются в таблице результатов.
+                    (args.output / f"{label}.json").write_text(
+                        json.dumps(
+                            {
+                                "label": label,
+                                "arguments": command,
+                                "error": f"{type(error).__name__}: {error}",
+                            },
+                            indent=2,
+                        )
+                        + "\n"
+                    )
 
 
 if __name__ == "__main__":
