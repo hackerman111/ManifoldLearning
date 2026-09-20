@@ -1,0 +1,741 @@
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english,russian]{babel}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,array}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\geometry{margin=2cm}
+\setlength{\parindent}{1.25em}
+\setlength{\parskip}{0.35em}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert_2}
+\newcommand{\ip}[2]{\left\langle #1,#2\right\rangle}
+\newcommand{\argmin}{\operatorname*{arg\,min}}
+\newcommand{\argmax}{\operatorname*{arg\,max}}
+\newcommand{\tr}{\operatorname{tr}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\matvec}{\operatorname{matvec}}
+\newcommand{\sign}{\operatorname{sign}}
+
+\title{Выбор параметра ridge-регуляризации\\
+в matrix-free single-index солвере\\
+методом Hybrid Golub--Kahan и projected GCV}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Постановка задачи}
+
+На фиксированном шаге чередующейся оптимизации заданы локальные статистики
+\[
+    I_j\in\R^{P},
+    \qquad
+    U_j\in\R^{P\times d},
+    \qquad
+    j=1,\ldots,J,
+\]
+и локальные коэффициенты \(c_j\in\R\).
+Глобальное направление \(\beta\in\R^d\) вычисляется из ridge-задачи
+\begin{equation}
+\label{eq:ridge}
+    \widehat\beta_\lambda
+    =
+    \argmin_{\beta\in\R^d}
+    \left\{
+        \sum_{j=1}^{J}
+        \norm{I_j-c_jU_j\beta}^{2}
+        +
+        \lambda\norm{\beta-\beta_0}^{2}
+    \right\},
+\end{equation}
+где \(\beta_0\) --- направление с предыдущего внутреннего или внешнего шага.
+
+Определим
+\[
+    A=
+    \begin{pmatrix}
+        c_1U_1\\
+        \vdots\\
+        c_JU_J
+    \end{pmatrix}
+    \in\R^{JP\times d},
+    \qquad
+    b=
+    \begin{pmatrix}
+        I_1\\
+        \vdots\\
+        I_J
+    \end{pmatrix}
+    \in\R^{JP}.
+\]
+Тогда \eqref{eq:ridge} принимает вид
+\begin{equation}
+\label{eq:ridge-compact}
+    \widehat\beta_\lambda
+    =
+    \argmin_{\beta}
+    \left\{
+        \norm{A\beta-b}^{2}
+        +
+        \lambda\norm{\beta-\beta_0}^{2}
+    \right\}.
+\end{equation}
+
+Матрица \(A\) не формируется. Достаточно операторов
+\begin{align}
+\label{eq:matvec}
+    Av
+    &=
+    \begin{pmatrix}
+        c_1U_1v\\
+        \vdots\\
+        c_JU_Jv
+    \end{pmatrix},
+    \\
+\label{eq:rmatvec}
+    A^\top z
+    &=
+    \sum_{j=1}^{J}
+    c_jU_j^\top z_j,
+    \qquad
+    z=
+    (z_1^\top,\ldots,z_J^\top)^\top .
+\end{align}
+Одна пара операций \(Av\) и \(A^\top z\) требует
+\[
+    O(JPd)
+\]
+арифметических операций и сохраняет разреженную или потоковую реализацию локальных статистик.
+
+Если текущая модель содержит локальный свободный коэффициент \(a_jS_j\), следует заменить
+\[
+    I_j
+    \quad\text{на}\quad
+    I_j-a_jS_j.
+\]
+Остальная схема не меняется.
+
+\section{Соответствие между \(\lambda\) и \texttt{damp}}
+
+LSMR с параметром \texttt{damp}\(=\mu\) решает
+\begin{equation}
+\label{eq:lsmr-damp}
+    \min_x
+    \left\{
+        \norm{Ax-b}^{2}
+        +
+        \mu^2\norm{x}^{2}
+    \right\}.
+\end{equation}
+Поэтому параметр \(\lambda\) из \eqref{eq:ridge-compact} нельзя напрямую передавать как
+\texttt{damp}.
+
+Для центрированного штрафа вводится
+\[
+    \delta=\beta-\beta_0,
+    \qquad
+    r_0=b-A\beta_0.
+\]
+Тогда
+\begin{equation}
+\label{eq:shifted}
+    \widehat\delta_\lambda
+    =
+    \argmin_{\delta}
+    \left\{
+        \norm{A\delta-r_0}^{2}
+        +
+        \lambda\norm{\delta}^{2}
+    \right\},
+    \qquad
+    \widehat\beta_\lambda=\beta_0+\widehat\delta_\lambda.
+\end{equation}
+Для обычного вызова LSMR требуется
+\begin{equation}
+\boxed{
+    \texttt{damp}=\sqrt{\lambda}.
+}
+\end{equation}
+
+Эквивалентная расширенная система имеет вид
+\[
+    \min_{\beta}
+    \left\|
+    \begin{pmatrix}
+        A\\
+        \sqrt{\lambda}I_d
+    \end{pmatrix}\beta
+    -
+    \begin{pmatrix}
+        b\\
+        \sqrt{\lambda}\beta_0
+    \end{pmatrix}
+    \right\|_2^2.
+\]
+В этом варианте регуляризация уже включена в оператор, поэтому
+\begin{equation}
+\boxed{
+    \texttt{damp}=0.
+}
+\end{equation}
+Одновременное использование расширенной системы и ненулевого \texttt{damp}
+добавляет второй штраф относительно нуля.
+
+\section{Hybrid Golub--Kahan regularization}
+
+\subsection{Одна Krylov-проекция для всех значений \(\lambda\)}
+
+Для задачи \eqref{eq:shifted} выполняется \(k\) шагов билинеаризации Голуба--Кахана:
+\begin{equation}
+\label{eq:gkb}
+    AV_k=U_{k+1}B_k,
+    \qquad
+    r_0=\rho u_1,
+    \qquad
+    \rho=\norm{r_0},
+\end{equation}
+где
+\[
+    V_k\in\R^{d\times k},
+    \qquad
+    U_{k+1}\in\R^{JP\times(k+1)},
+    \qquad
+    B_k\in\R^{(k+1)\times k}
+\]
+и \(B_k\) --- нижняя бидиагональная матрица.
+
+При ограничении \(\delta=V_ky\) исходная задача заменяется малой ridge-задачей
+\begin{equation}
+\label{eq:projected}
+    y_{\lambda,k}
+    =
+    \argmin_{y\in\R^k}
+    \left\{
+        \norm{B_ky-\rho e_1}^{2}
+        +
+        \lambda\norm{y}^{2}
+    \right\}.
+\end{equation}
+После этого
+\begin{equation}
+\label{eq:beta-projected}
+    \widetilde\beta_{\lambda,k}
+    =
+    \beta_0+V_ky_{\lambda,k}.
+\end{equation}
+
+Один Krylov-процесс обслуживает всю сетку значений \(\lambda\). Повторные полные
+запуски LSMR для каждого кандидата не требуются.
+
+\subsection{Решение малой задачи}
+
+Пусть
+\[
+    B_k=\widehat U_k\Theta_k\widehat V_k^\top,
+    \qquad
+    \Theta_k=\diag(\theta_1,\ldots,\theta_k).
+\]
+Тогда
+\begin{equation}
+\label{eq:projected-solution}
+    y_{\lambda,k}
+    =
+    \widehat V_k
+    \diag\left(
+        \frac{\theta_i}{\theta_i^2+\lambda}
+    \right)
+    \widehat U_k^\top \rho e_1.
+\end{equation}
+SVD выполняется только для матрицы размера \((k+1)\times k\).
+Полная SVD матрицы \(A\) не используется.
+
+\section{Выбор \(\lambda\) по projected GCV}
+
+Определим сглаживающую матрицу проецированной задачи
+\[
+    H_{k,\lambda}
+    =
+    B_k(B_k^\top B_k+\lambda I_k)^{-1}B_k^\top.
+\]
+Projected GCV задаётся функцией
+\begin{equation}
+\label{eq:pgcv}
+    G_k(\lambda)
+    =
+    \frac{
+        \norm{(I_{k+1}-H_{k,\lambda})\rho e_1}^{2}
+    }{
+        \left[
+            \tr(I_{k+1}-H_{k,\lambda})
+        \right]^2
+    }.
+\end{equation}
+Множитель, не зависящий от \(\lambda\), можно опустить.
+
+След вычисляется по сингулярным значениям \(B_k\):
+\begin{equation}
+\label{eq:dof}
+    \tr(H_{k,\lambda})
+    =
+    \sum_{i=1}^{k}
+    \frac{\theta_i^2}{\theta_i^2+\lambda}.
+\end{equation}
+Следовательно, вычисление \(G_k(\lambda)\) не требует:
+
+\begin{itemize}[nosep]
+    \item формирования \(A^\top A\);
+    \item SVD полной матрицы \(A\);
+    \item случайных trace-probe векторов;
+    \item новых операций \(Av\) и \(A^\top u\) для каждого \(\lambda\).
+\end{itemize}
+
+Выбранный параметр:
+\begin{equation}
+\label{eq:lambda-choice}
+    \lambda_k
+    =
+    \argmin_{\lambda>0}G_k(\lambda).
+\end{equation}
+
+Projected GCV оценивает prediction-риск проецированной линейной задачи.
+Он не минимизирует напрямую ошибку направления
+\[
+    1-\left|
+        \ip{\widehat\beta_\lambda/\norm{\widehat\beta_\lambda}}{\beta^\ast}
+    \right|.
+\]
+Поэтому в синтетических экспериментах выбор необходимо проверять по
+\(\lvert\cos(\widehat\beta_\lambda,\beta^\ast)\rvert\).
+На реальных данных применяется cross-fitted ошибка локальных моментных уравнений.
+
+\subsection{Weighted GCV}
+
+Если обычный projected GCV систематически выбирает слишком большое \(\lambda\),
+можно использовать
+\begin{equation}
+\label{eq:wgcv}
+    G_{k,\omega}(\lambda)
+    =
+    \frac{
+        \norm{(I_{k+1}-H_{k,\lambda})\rho e_1}^{2}
+    }{
+        \left[
+            (k+1)
+            -
+            \omega\tr(H_{k,\lambda})
+        \right]^2
+    },
+\end{equation}
+где \(\omega>0\) калибруется экспериментально.
+Weighted GCV не следует включать до обнаружения воспроизводимого смещения
+обычного projected GCV.
+
+После обнаружения систематического выбора слишком большого \(\lambda\)
+используется вес
+\begin{equation}
+\label{eq:wgcv-full-weight}
+    \omega_k=\frac{k+1}{JP}.
+\end{equation}
+Тогда знаменатель \eqref{eq:wgcv} равен
+\[
+    \frac{k+1}{JP}
+    \left[
+        JP-\tr(H_{k,\lambda})
+    \right].
+\]
+Множитель \((k+1)/(JP)\) не зависит от \(\lambda\), поэтому минимум можно
+эквивалентно искать для критерия
+\begin{equation}
+\label{eq:wgcv-full}
+    G_{k,\mathrm{full}}(\lambda)
+    =
+    \frac{
+        \norm{(I_{k+1}-H_{k,\lambda})\rho e_1}^{2}
+    }{
+        \left[
+            JP-\tr(H_{k,\lambda})
+        \right]^2
+    }.
+\end{equation}
+
+\subsection{Cross-fitted проверка обновления}
+
+Наблюдения один раз разбиваются на две непересекающиеся части.
+Для каждой упорядоченной пары training--validation локальные коэффициенты
+оцениваются только по training-моментам:
+\[
+    \widehat c_j^{(a)}(\beta)
+    =
+    \frac{
+        \sum_p I_{jp}^{(a)}U_{jp}^{(a)}\beta
+    }{
+        \sum_p (U_{jp}^{(a)}\beta)^2+\eta
+    }.
+\]
+Направление оценивается на противоположной части:
+\begin{equation}
+\label{eq:cross-fitted-moment-loss}
+    L_{\mathrm{cf}}(\beta)
+    =
+    \frac{1}{N_{\mathrm{mom}}}
+    \sum_{(a,b)\in\{(1,2),(2,1)\}}
+    \sum_{j,p}
+    \left(
+        I_{jp}^{(b)}
+        -
+        \widehat c_j^{(a)}(\beta)U_{jp}^{(b)}\beta
+    \right)^2.
+\end{equation}
+Кандидат применяется только если
+\[
+    L_{\mathrm{cf}}(\beta_{\mathrm{new}})
+    \leq
+    L_{\mathrm{cf}}(\beta_0).
+\]
+Для локальной инициализации первая пара систем локальных моментов сохраняется
+как фиксированная валидационная цель. При случайной инициализации ранний
+запрет по валидационному критерию не применяется: на разреженных локальных
+моментах он может блокировать выход из плохого начального направления.
+
+\section{Поиск минимума}
+
+Унимодальность \(G_k(\lambda)\) в общем случае не гарантируется.
+Поэтому используется следующая схема.
+
+\begin{enumerate}[label=\arabic*.]
+    \item Оценить \(\theta_1=\norm{B_k}\).
+    \item Построить логарифмическую сетку
+    \begin{equation}
+    \label{eq:lambda-range}
+        \lambda
+        \in
+        \left[
+            10^{-8}\theta_1^2,\,
+            10^{2}\theta_1^2
+        \right].
+    \end{equation}
+    \item Вычислить \(G_k(\lambda)\) в 17--25 точках.
+    \item Если минимум находится на границе, расширить диапазон на одну декаду.
+    \item Для лучшего внутреннего интервала применить метод Брента к
+    \(t=\log\lambda\).
+    \item При нескольких сравнимых минимумах проверить два лучших значения
+    по наблюдаемому validation-критерию.
+\end{enumerate}
+
+На следующей итерации используется continuation:
+\[
+    \lambda
+    \in
+    \left[
+        \lambda_{\mathrm{prev}}/100,\,
+        100\lambda_{\mathrm{prev}}
+    \right],
+\]
+объединённый со спектральным диапазоном \eqref{eq:lambda-range}.
+Под следующей итерацией здесь понимается следующий внутренний или внешний
+запуск после изменения коэффициентов \(c_j\), весов либо \(U_j\).
+Внутри одного процесса Голуба--Кахана значение
+\(\lambda_{\mathrm{prev}}\) фиксировано для всех checkpoints и обновляется
+только после возврата принятого кандидата.
+
+\section{Нормировка направления}
+
+После решения проецированной задачи вычисляется
+\begin{equation}
+\label{eq:normalize}
+    \beta_{\mathrm{new}}
+    =
+    \frac{
+        \widetilde\beta_{\lambda_k,k}
+    }{
+        \norm{\widetilde\beta_{\lambda_k,k}}
+    }.
+\end{equation}
+Знак согласуется с предыдущим направлением:
+\[
+    \beta_{\mathrm{new}}
+    \leftarrow
+    \sign\!\left(
+        \ip{\beta_{\mathrm{new}}}{\beta_0}
+    \right)\beta_{\mathrm{new}}.
+\]
+Для контроля сходимости используется расстояние между прямыми
+\begin{equation}
+\label{eq:projective-distance}
+    d_{\pm}(\beta_1,\beta_2)
+    =
+    \sqrt{
+        2\left(
+            1-\left|\ip{\beta_1}{\beta_2}\right|
+        \right)
+    }.
+\end{equation}
+
+Нормировка означает, что итоговый вектор не является точным минимумом
+неограниченной евклидовой задачи \eqref{eq:ridge}. В single-index модели это
+допустимо, поскольку оценивается направление. Параметр \(\lambda\) регулирует
+величину и спектральный состав шага до проекции на сферу.
+
+\section{Критерии остановки Krylov-процесса}
+
+Проверки выполняются каждые \(\Delta k\) шагов после минимальной длины проекции.
+Процесс останавливается, если два раза подряд выполнены условия
+\begin{align}
+\label{eq:stop-lambda}
+    \left|
+        \log_{10}\lambda_k
+        -
+        \log_{10}\lambda_{k-\Delta k}
+    \right|
+    &<0.1,
+    \\
+\label{eq:stop-direction}
+    d_{\pm}
+    \left(
+        \beta_{\lambda_k,k},
+        \beta_{\lambda_{k-\Delta k},k-\Delta k}
+    \right)
+    &<\varepsilon_{\mathrm{dir}},
+    \\
+\label{eq:stop-gcv}
+    \frac{
+        |G_k(\lambda_k)-G_{k-\Delta k}(\lambda_{k-\Delta k})|
+    }{
+        \max\{1,|G_k(\lambda_k)|\}
+    }
+    &<\varepsilon_{\mathrm{GCV}}.
+\end{align}
+Дополнительно выбранное \(\lambda_k\) должно лежать внутри диапазона поиска.
+
+Практические начальные значения:
+\[
+    \Delta k=5,
+    \qquad
+    \varepsilon_{\mathrm{dir}}=10^{-3},
+    \qquad
+    \varepsilon_{\mathrm{GCV}}=10^{-2},
+    \qquad
+    k_{\max}=\min\{d,100\}.
+\]
+Значения \(k_{\max}\in\{50,100,200\}\) следует сравнить экспериментально.
+
+\section{Интеграция в чередующуюся оптимизацию}
+
+\begin{enumerate}[label=\textbf{Шаг \arabic*.}]
+    \item Зафиксировать текущие локальные статистики \(I_j,U_j\) и направление
+    \(\beta\).
+
+    \item Обновить локальные коэффициенты, например
+    \[
+        c_j
+        =
+        \frac{
+            \ip{I_j}{U_j\beta}
+        }{
+            \norm{U_j\beta}^{2}+\eta
+        },
+    \]
+    где \(\eta>0\) стабилизирует почти вырожденные локальные задачи.
+
+    \item Создать matrix-free операции \eqref{eq:matvec}--\eqref{eq:rmatvec}.
+
+    \item Положить
+    \[
+        \beta_0=\beta,
+        \qquad
+        r_0=b-A\beta_0.
+    \]
+
+    \item Выполнить билинеаризацию Голуба--Кахана, одновременно контролируя
+    стабилизацию \(\lambda_k\), projected GCV и направления.
+
+    \item Выбрать \(\lambda_k\) по \eqref{eq:lambda-choice}, решить
+    \eqref{eq:projected} и вычислить \(\beta_{\mathrm{new}}\) по
+    \eqref{eq:normalize}.
+
+    \item Если
+    \[
+        d_{\pm}(\beta_{\mathrm{new}},\beta)<\varepsilon_{\mathrm{inner}},
+    \]
+    завершить внутреннее чередование. Иначе положить
+    \(\beta\leftarrow\beta_{\mathrm{new}}\) и вернуться к шагу 2.
+
+    \item После изменения весов, направлений или \(U_j\) начать новый
+    Krylov-процесс с warm start \(\beta_0=\beta_{\mathrm{previous}}\).
+\end{enumerate}
+
+После обновления \(c_j\) матрица \(A\) меняется. Старый Krylov-базис нельзя
+считать базисом новой задачи. Warm start переносит \(\beta_0\) и
+\(\lambda_{\mathrm{prev}}\), но не сами векторы \(V_k\), если не реализован
+отдельный recycling-алгоритм.
+
+\section{Обработка неудачных случаев}
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.34\textwidth}
+                >{\raggedright\arraybackslash}p{0.56\textwidth}}
+\toprule
+Ситуация & Действие\\
+\midrule
+Минимум GCV на границе &
+Расширить диапазон на одну декаду и повторить поиск.\\
+
+\(\lambda_k\) нестабилен при росте \(k\) &
+Продолжить Голуба--Кахана до стабилизации или \(k_{\max}\).\\
+
+Несколько локальных минимумов &
+Проверить два лучших значения по cross-fitted moment loss.\\
+
+\(\lambda\) слишком велико, \(\beta_{\mathrm{new}}\approx\beta_0\) &
+Сравнить \(\lambda/10,\lambda,\lambda\cdot10\); уменьшить параметр при
+улучшении validation-критерия.\\
+
+\(\lambda\) слишком мало и решение чувствительно к \(k\) &
+Увеличить нижнюю границу либо ограничить вклад малых Ritz-значений.\\
+
+Нулевой или почти нулевой \(r_0\) &
+Сохранить \(\beta_0\); новый Krylov-процесс не требуется.\\
+
+NaN, Inf или вырожденная малая задача &
+Использовать \(\lambda_{\mathrm{prev}}\), увеличить \(\eta\) и проверить
+масштабирование \(I_j,U_j\).\\
+
+Известна дисперсия шума &
+Заменить projected GCV на projected UPRE или discrepancy principle.\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Стоимость и память}
+
+Пусть \(T_{\mathrm{op}}\) --- стоимость одного вызова \(Av\) или \(A^\top u\).
+
+Один hybrid-запуск с \(k\) шагами требует
+\[
+    O(kT_{\mathrm{op}})
+\]
+для операторных вычислений. После построения проекции обработка \(L\) кандидатов
+требует
+\[
+    O(k^3+Lk)
+\]
+операций: \(O(k^3)\) на SVD \(B_k\) и \(O(Lk)\) на значения критерия.
+
+При отдельных LSMR-запусках по сетке стоимость составляет
+\[
+    O(LkT_{\mathrm{op}}).
+\]
+Поэтому hybrid-схема устраняет множитель \(L\) перед дорогими
+matrix-free операциями.
+
+Дополнительная память:
+\[
+    O(dk+k^2)
+\]
+для \(V_k\) и \(B_k\).
+Хранить \(U_{k+1}\) полностью не обязательно, если не требуется повторная
+ортогонализация слева. При \(d=1000\) и \(k=100\) матрица \(V_k\) занимает
+около \(0.8\) МБ в формате \texttt{float64}.
+
+\section{Рекомендуемая конфигурация}
+
+Основная схема:
+\[
+\boxed{
+\begin{gathered}
+    \delta=\beta-\beta_0,\qquad r_0=b-A\beta_0
+    \\
+    \text{Golub--Kahan}
+    \longrightarrow
+    B_k,V_k
+    \longrightarrow
+    \text{projected ridge}
+    \\
+    \longrightarrow
+    \text{projected GCV}
+    \longrightarrow
+    \lambda_k
+    \longrightarrow
+    \beta_{\mathrm{new}}
+    =
+    \operatorname{normalize}
+    \left(
+        \beta_0+V_ky_{\lambda_k,k}
+    \right).
+\end{gathered}
+}
+\]
+
+Projected GCV используется как дешёвый основной селектор.
+В синтетических тестах его необходимо сравнивать с параметром
+\[
+    \lambda_{\mathrm{dir}}
+    =
+    \argmax_\lambda
+    \left|
+        \cos(\widehat\beta_\lambda,\beta^\ast)
+    \right|.
+\]
+Если GCV систематически ухудшает качество направления, окончательный выбор
+следует выполнять по cross-fitted moment validation, сохраняя один
+Krylov-процесс для дешёвого вычисления кандидатов.
+
+\section{Замечание о реализации}
+
+Готовая функция \texttt{scipy.sparse.linalg.lsmr} не возвращает базис \(V_k\)
+и бидиагональную матрицу \(B_k\). Для hybrid-метода требуется собственная
+реализация билинеаризации Голуба--Кахана либо библиотека, предоставляющая
+доступ к проецированной задаче. Matrix-free функции \texttt{matvec} и
+\texttt{rmatvec} из текущего LSMR-солвера можно использовать без изменения.
+
+\begin{thebibliography}{9}
+
+\bibitem{PaigeSaunders1982}
+C.~C. Paige, M.~A. Saunders.
+\newblock LSQR: An algorithm for sparse linear equations and sparse least squares.
+\newblock \emph{ACM Transactions on Mathematical Software},
+8(1):43--71, 1982.
+
+\bibitem{FongSaunders2011}
+D.~C.-L. Fong, M.~A. Saunders.
+\newblock LSMR: An iterative algorithm for sparse least-squares problems.
+\newblock \emph{SIAM Journal on Scientific Computing},
+33(5):2950--2971, 2011.
+
+\bibitem{GolubHeathWahba1979}
+G.~H. Golub, M.~Heath, G.~Wahba.
+\newblock Generalized cross-validation as a method for choosing a good ridge parameter.
+\newblock \emph{Technometrics},
+21(2):215--223, 1979.
+
+\bibitem{OLearySimmons1981}
+D.~P. O'Leary, J.~A. Simmons.
+\newblock A bidiagonalization-regularization procedure for large scale
+discretizations of ill-posed problems.
+\newblock \emph{SIAM Journal on Scientific and Statistical Computing},
+2(4):474--489, 1981.
+
+\bibitem{ChungNagyOLeary2008}
+J.~Chung, J.~G. Nagy, D.~P. O'Leary.
+\newblock A weighted-GCV method for Lanczos-hybrid regularization.
+\newblock \emph{Electronic Transactions on Numerical Analysis},
+28:149--167, 2008.
+
+\bibitem{Hansen1992}
+P.~C. Hansen.
+\newblock Analysis of discrete ill-posed problems by means of the L-curve.
+\newblock \emph{SIAM Review},
+34(4):561--580, 1992.
+
+\end{thebibliography}
+
+\end{document}
