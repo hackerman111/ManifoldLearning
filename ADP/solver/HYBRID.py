@@ -27,6 +27,7 @@ TRUST_MAX_VECTORS = 32
 
 
 def use_dense(rows: int, columns: int, max_unknowns: int, max_bytes: int) -> bool:
+    """Проверить, помещается ли bounded dense SVD в заданный memory budget."""
     return (
         columns <= max_unknowns
         and 8 * (4 * rows * columns + 4 * columns**2) <= max_bytes
@@ -130,6 +131,7 @@ class RidgeWorkspace:
         max_unknowns: int = DENSE_MAX_UNKNOWNS,
         max_bytes: int = DENSE_MAX_BYTES,
     ) -> None:
+        """Подготовить фиксированные статистики для повторных ridge-проб."""
         self.U, self.coefficients, self.index = U, coefficients, index
         self.root = np.sqrt(mass)
         self._weighted_coefficients = self.root[:, None] * coefficients
@@ -176,6 +178,7 @@ class RidgeWorkspace:
             raise RuntimeError("hybrid linear system contains non-finite statistics")
 
     def matvec(self, value: np.ndarray) -> np.ndarray:
+        """Применить weighted joint design ``A`` к flattened multi-index."""
         self.forward_calls += 1
         np.matmul(
             self._weighted_coefficients,
@@ -185,6 +188,7 @@ class RidgeWorkspace:
         return (self.U @ self._local[..., None]).ravel()
 
     def rmatvec(self, value: np.ndarray) -> np.ndarray:
+        """Применить математически сопряжённый оператор ``A.T``."""
         self.adjoint_calls += 1
         np.matmul(
             self.U.swapaxes(1, 2),
@@ -290,6 +294,7 @@ class RidgeWorkspace:
         *,
         relative_tol: float | None = None,
     ) -> tuple[np.ndarray, int, int, float, float]:
+        """Решить одну ridge correction-пробу и вернуть certificate residual."""
         self.calls += 1
         if self.singular is not None:
             s = self.singular
@@ -313,10 +318,12 @@ class RidgeWorkspace:
             )
 
             def matvec(z: np.ndarray) -> np.ndarray:
+                """Применить scaled augmented design в cached ridge solve."""
                 value = scale * z
                 return np.concatenate((self.matvec(value), root_ridge * value))
 
             def rmatvec(v: np.ndarray) -> np.ndarray:
+                """Применить adjoint scaled augmented design."""
                 return scale * (self.rmatvec(v[:rows]) + root_ridge * v[rows:])
 
             operator = _operator_type(
@@ -390,6 +397,7 @@ class RidgeWorkspace:
         return correction, stop, iterations, ratio, normal_norm
 
     def _certificate(self, correction: np.ndarray, ridge: float) -> tuple[float, float]:
+        """Проверить normal-residual коррекции в исходных координатах."""
         """Остаток в исходных координатах; при lambda>0 H >= lambda I."""
         normal = (
             self.rmatvec(self.residual - self.matvec(correction)) - ridge * correction
@@ -428,6 +436,7 @@ class PenaltyRoot:
     """NUMERICAL: sqrt(I-sum w_j P_j.T P_j) через малый спектральный фактор."""
 
     def __init__(self, projectors: np.ndarray, weights: np.ndarray) -> None:
+        """Построить малый спектральный фактор ``sqrt(I-F*F)``."""
         factor = (np.sqrt(weights)[:, None, None] * projectors).reshape(
             -1, projectors.shape[-1]
         )
@@ -440,6 +449,7 @@ class PenaltyRoot:
         self.factors = squares / (1.0 + np.sqrt(1.0 - squares))
 
     def apply(self, B: np.ndarray) -> np.ndarray:
+        """Применить корень manifold penalty к матрице ``B``."""
         return B - ((B @ self.basis.T) * self.factors) @ self.basis
 
 
@@ -467,6 +477,7 @@ def _manifold_pcg(
     local = np.empty((len(U), d))
 
     def matvec(vector: np.ndarray) -> np.ndarray:
+        """Применить block-PCG normal operator без dense ``d x d`` матриц."""
         B = vector.reshape(m, d)
         np.matmul(slopes, B, out=local)
         projected = U @ local[..., None]
@@ -491,6 +502,7 @@ def _manifold_pcg(
         return LinearResult(initial.ravel(), "block-pcg-failed", -1, 0, math.inf, None)
 
     def precondition(vector: np.ndarray) -> np.ndarray:
+        """Применить block spectral preconditioner к flattened ``B``."""
         local = vector.reshape(m, d).T[..., None]
         coordinates = (vectors.swapaxes(1, 2) @ local) / values[..., None]
         return (vectors @ coordinates).squeeze(-1).T.ravel()
@@ -505,6 +517,7 @@ def _manifold_pcg(
     iterations = 0
 
     def record(_: np.ndarray) -> None:
+        """Считать итерации block-PCG для linear diagnostics."""
         nonlocal iterations
         iterations += 1
 
@@ -623,11 +636,13 @@ def solve_manifold(
     root_ridge = math.sqrt(ridge)
 
     def matvec(vector: np.ndarray) -> np.ndarray:
+        """Применить augmented manifold forward operator."""
         B = vector.reshape(initial.shape)
         data = root[:, None] * forward(U, B, slopes)
         return np.concatenate((data.ravel(), root_ridge * penalty.apply(B).ravel()))
 
     def rmatvec(vector: np.ndarray) -> np.ndarray:
+        """Применить adjoint augmented manifold operator."""
         data = root[:, None] * vector[:rows].reshape(I.shape)
         result = adjoint(U, data, slopes)
         result += root_ridge * penalty.apply(vector[rows:].reshape(initial.shape))

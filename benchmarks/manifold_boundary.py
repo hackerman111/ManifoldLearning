@@ -149,7 +149,7 @@ def main() -> None:
         np.show_config()
     report = {
         "source_sha256": hashlib.sha256(
-            Path("ADP/ADP_Manifold.py").read_bytes()
+            Path("ADP/core/ADP_Manifold.py").read_bytes()
         ).hexdigest(),
         "benchmark_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "reference_kernel": args.reference,

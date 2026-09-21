@@ -18,7 +18,7 @@ from types import SimpleNamespace
 import numpy as np
 import scipy
 
-from ADP.ADP_Manifold import ADP_Manifold
+from ADP.core.ADP_Manifold import ADP_Manifold
 from ADP.engine.statistic import calculate_statistics
 from benchmarks.statistics_reference import (
     calculate_statistics as reference_statistics,
@@ -80,7 +80,7 @@ def worker(args: argparse.Namespace) -> None:
     np.savez(args.output.with_suffix(".npz"), **result)
     sources = [
         Path("ADP/engine/statistic.py"),
-        Path("ADP/ADP_Manifold.py"),
+        Path("ADP/core/ADP_Manifold.py"),
         Path("benchmarks/statistics_reference.py"),
         Path(__file__),
     ]

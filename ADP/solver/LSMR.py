@@ -292,6 +292,7 @@ def solve(
 
 
 def _validate_inputs(index, U, I, mass):
+    """Проверить формы и конечность dense-статистик перед solver-ом."""
     for name, value in (("initial index", index), ("U", U), ("I", I)):
         array = np.asarray(value)
         if np.iscomplexobj(array) or not np.issubdtype(array.dtype, np.number):
@@ -334,6 +335,7 @@ def _validate_inputs(index, U, I, mass):
 
 
 def _validate_settings(lambda_prox, max_steps, tol, theta, lsmr_maxiter):
+    """Проверить численные допуски, лимиты итераций и trust-параметры."""
     if isinstance(max_steps, bool) or not isinstance(max_steps, (int, np.integer)):
         raise TypeError("max_steps must be an integer")
     if max_steps < 1:
@@ -354,6 +356,7 @@ def _validate_settings(lambda_prox, max_steps, tol, theta, lsmr_maxiter):
 
 
 def _normalize_index(index: np.ndarray) -> np.ndarray:
+    """Нормировать single-index или ортонормировать строки multi-index."""
     if index.ndim == 1:
         norm = np.linalg.norm(index)
         if not np.isfinite(norm) or norm == 0:
@@ -366,6 +369,7 @@ def _normalize_index(index: np.ndarray) -> np.ndarray:
 
 
 def _default_trust_radius(d: int, m: int) -> float:
+    """Выбрать консервативный радиус correction по ``d`` и рангу ``m``."""
     if m == 1:
         return 0.35 if d <= 100 else 0.20
     return 0.25 if d <= 100 else 0.15
@@ -420,12 +424,14 @@ def _local_refit(
 
 
 def _predict(U: np.ndarray, index: np.ndarray, coefficients: np.ndarray) -> np.ndarray:
+    """Вычислить локальные fitted values для single- или multi-index."""
     if index.ndim == 1:
         return coefficients[:, None] * (U @ index)
     return multi_forward(U, index, coefficients)
 
 
 def _loss(I, U, index, coefficients, mass) -> float:
+    """Вычислить взвешенную половину квадратичной ошибки ``I - fitted``."""
     residual = I - _predict(U, index, coefficients)
     return 0.5 * float(np.einsum("j,jp,jp->", mass, residual, residual))
 
@@ -441,6 +447,7 @@ def _linear_operator(
     size = math.prod(index_shape)
 
     def matvec(vector):
+        """Применить scaled forward action глобального least-squares оператора."""
         if len(index_shape) == 1:
             data = coefficients[:, None] * (U @ vector)
             return (sqrt_mass[:, None] * data).ravel()
@@ -449,6 +456,7 @@ def _linear_operator(
         return (sqrt_mass[:, None] * data).ravel()
 
     def rmatvec(vector):
+        """Применить adjoint action того же оператора."""
         data = vector.reshape(U.shape[:2])
         if len(index_shape) == 1:
             return np.einsum(
@@ -475,6 +483,7 @@ def _global_correction(
     tol,
     maxiter,
 ):
+    """Решить matrix-free ridge correction и вернуть residual certificate."""
     operator = _linear_operator(U, coefficients, np.sqrt(mass), index.shape)
     residual = np.sqrt(mass)[:, None] * (I - _predict(U, index, coefficients))
     krylov_tol = min(1e-10, tol * 0.1)
@@ -535,6 +544,7 @@ def _gauge_fix(raw_index, coefficients, prior):
 
 
 def _index_distance(index: np.ndarray, prior: np.ndarray) -> float:
+    """Измерить sign-invariant distance для линии или projector-distance для basis."""
     if index.ndim == 1:
         return float(min(np.linalg.norm(index - prior), np.linalg.norm(index + prior)))
     # NUMERICAL: для ортонормальных строк это ||P*P-Q*Q||_F/sqrt(2).
@@ -543,6 +553,7 @@ def _index_distance(index: np.ndarray, prior: np.ndarray) -> float:
 
 
 def _stationarity(I, U, index, coefficients, mass, loss, *, U_norm2=None):
+    """Посчитать Riemannian/local stationarity и ортонормированность индекса."""
     residual = I - _predict(U, index, coefficients)
     transposed_residual = np.einsum("jpd,jp->jd", U, residual, optimize=True)
     if U_norm2 is None:

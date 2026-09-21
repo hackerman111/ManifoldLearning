@@ -1,3 +1,5 @@
+# ruff: noqa: RUF002
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from math import sqrt
@@ -6,6 +8,12 @@ import numpy as np
 
 
 def epanechnikov(value: np.ndarray) -> np.ndarray:
+    """Вычислить профиль ядра Епанечникова ``max(1 - value**2, 0)``.
+
+    Формула — компактное ядро из локальной ядерной регрессии: на входе
+    безразмерное расстояние или его нормированное значение, на выходе массив
+    неотрицательных весов той же формы. Функция не меняет входной массив.
+    """
     result = np.square(value, dtype=float)
     np.subtract(1.0, result, out=result)
     np.maximum(result, 0.0, out=result)
@@ -34,8 +42,17 @@ class ADP_Config:
     center_displacement: float = 0.0
     training_set: str = "all"
     redraw_directions: bool = True
+    # Совместимость для перенесённых single/multi моделей.
+    smart_weights: bool = False
+    gpu: bool = False
 
     def __post_init__(self) -> None:
+        """Проверить границы конфигурации до запуска численного алгоритма.
+
+        Здесь проверяются размеры, параметры регуляризации и допустимые режимы;
+        результатом является либо пригодный для ``core`` объект конфигурации,
+        либо явная ошибка на границе API.
+        """
         integer_fields = (
             "seed",
             "N_loc",
@@ -84,3 +101,7 @@ class ADP_Config:
             raise ValueError("training_set must be 'all' or 'exclude_centers'")
         if not isinstance(self.redraw_directions, bool):
             raise TypeError("redraw_directions must be boolean")
+        if not isinstance(self.smart_weights, (bool, np.bool_)):
+            raise TypeError("smart_weights must be boolean")
+        if not isinstance(self.gpu, (bool, np.bool_)):
+            raise TypeError("gpu must be boolean")

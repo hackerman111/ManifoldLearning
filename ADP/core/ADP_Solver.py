@@ -1,18 +1,63 @@
+# ruff: noqa: RUF002
+
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
 
-from ..engine.calculus import (
+from ..engine.common.calculus import (
     calculate_h0_from_adp,
     calculate_rho_k_from_adp,
     generate_isotropic_proj,
     generate_proj_from_adp,
 )
-from ..engine.statistic import calculate_statistics
-from ..engine.weights import calculate_weight_from_adp
+from ..engine.common.statistic import calculate_statistics
+from ..engine.common.weights import calculate_weight_from_adp
 from ..solver.LSMR import lsmr
 from .ADP_Config import ADP_Config
 from .ADP_Data import ADP_Data
+
+
+@dataclass(slots=True)
+class ADP_SolverResult:
+    """Результат совместимого solver-адаптера single/multi моделей."""
+
+    index: np.ndarray
+    coefficients: np.ndarray | None
+    diagnostics: dict[str, object]
+
+
+class ADP_solver:
+    """Настраиваемый адаптер legacy solver API внутри ``core``."""
+
+    def __init__(self, method: Callable, **settings: object) -> None:
+        """Создать адаптер метода solver с фиксированными настройками."""
+        if not callable(method):
+            raise TypeError("method must be callable")
+        self.method = method
+        self.settings = dict(settings)
+
+    def fit(self, statistics, initial_index, **problem_params) -> ADP_SolverResult:
+        """Запустить solver и проверить его индекс и тип результата."""
+        overlap = self.settings.keys() & problem_params.keys()
+        if overlap:
+            names = ", ".join(sorted(overlap))
+            raise ValueError(f"duplicate solver settings: {names}")
+
+        result = self.method(
+            statistics,
+            initial_index,
+            **problem_params,
+            **self.settings,
+        )
+        if not isinstance(result, ADP_SolverResult):
+            raise TypeError("solver method must return ADP_SolverResult")
+
+        index = np.asarray(result.index, dtype=float)
+        if not np.all(np.isfinite(index)):
+            raise RuntimeError("solver returned a non-finite index")
+        result.index = index
+        return result
 
 
 class ADP_Solver:
@@ -22,11 +67,13 @@ class ADP_Solver:
         data: ADP_Data,
         solver: Callable[..., np.ndarray] | None = None,
     ):
+        """Собрать совместимый single/multi solver поверх core-статистик."""
         self.config = config
         self.data = data
         self.solver = solver or lsmr
 
     def fit(self) -> np.ndarray:
+        """Выполнить legacy-последовательность bandwidth, weights и solver."""
         X, Y = self.data.X, self.data.Y
         beta_init = self.data.beta_init
         a = self.config.a
@@ -37,6 +84,7 @@ class ADP_Solver:
         normalized = self.config.estimator == "new"
 
         def run_step(beta: np.ndarray, h: float, rho: float) -> np.ndarray:
+            """Построить статистики одного масштаба и решить локальную задачу."""
             if self.config.direction_mode == "isotropic":
                 proj = generate_isotropic_proj(
                     rng,

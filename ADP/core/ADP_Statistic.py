@@ -15,6 +15,7 @@ class ADP_Statistics:
         "n_eff",
         "eta",
         "S",
+        "S",
     )
 
     I: np.ndarray
@@ -26,9 +27,11 @@ class ADP_Statistics:
     S: np.ndarray = field(default_factory=lambda: np.empty(0))
 
     def __getitem__(self, name: str) -> np.ndarray:
+        """Вернуть поле статистики по имени, сохраняя mapping API."""
         if name not in self._fields:
             raise KeyError(name)
         return getattr(self, name)
 
     def __iter__(self) -> Iterator[str]:
+        """Итерировать имена доступных полей статистики."""
         return iter(self._fields)

@@ -134,6 +134,7 @@ def _validate_settings(
     tol: float,
     cg_maxiter: int | None,
 ) -> None:
+    """Проверить параметры proximal-CG до создания LinearOperator."""
     if isinstance(max_steps, bool) or not isinstance(max_steps, (int, np.integer)):
         raise TypeError("max_steps must be an integer")
     if max_steps < 1:
@@ -164,6 +165,7 @@ def _normal_operator(
         size = U.shape[2]
 
         def matvec(vector: np.ndarray) -> np.ndarray:
+            """Применить normal operator к single-index vector."""
             projected = U @ vector  # (J, p)
             result = np.einsum(
                 "j,jpd,jp->d", weighted_squares, U, projected, optimize=True
@@ -179,6 +181,7 @@ def _normal_operator(
         size = math.prod(index_shape)
 
         def matvec(vector: np.ndarray) -> np.ndarray:
+            """Применить joint multi-index normal operator к vector."""
             matrix = vector.reshape(index_shape)
             projected = multi_forward(U, matrix, coefficients)
             result = multi_adjoint(U, mass[:, None] * projected, coefficients)
@@ -193,6 +196,7 @@ def _normal_operator(
         )
 
     def precondition(vector: np.ndarray) -> np.ndarray:
+        """Применить Jacobi-предобусловливатель к flattened индексу."""
         return vector / diagonal.ravel()
 
     linear_operator: Any = sparse_linalg.LinearOperator
@@ -221,6 +225,7 @@ def _global_step(
     tol: float,
     maxiter: int | None,
 ) -> tuple[np.ndarray, int, int, float]:
+    """Решить один proximal correction matrix-free сопряжёнными градиентами."""
     operator, preconditioner = _normal_operator(U, coefficients, mass, lambda_prox)
     if coefficients.ndim == 1:
         rhs = np.einsum("j,jpd,jp->d", mass * coefficients, U, I, optimize=True)
@@ -233,6 +238,7 @@ def _global_step(
     iterations = 0
 
     def record_iteration(_: np.ndarray) -> None:
+        """Считать итерации внутреннего CG для diagnostics."""
         nonlocal iterations
         iterations += 1
 

@@ -13,10 +13,10 @@ from typing import cast
 
 import numpy as np
 
-from ..ADP_Manifold import ADP_Manifold
 from ..core.ADP_Config import ADP_Config, epanechnikov
-from ..engine import utils
-from ..engine.calculus import (
+from ..core.manifold.ADP_Manifold import ADP_Manifold
+from ..engine.common import utils
+from ..engine.common.calculus import (
     calculate_alpha_k,
     calculate_rho_k,
     generate_isotropic_proj,
@@ -25,13 +25,13 @@ from ..engine.calculus import (
     pairwise_distance2,
     search_bandwidth,
 )
-from ..engine.initialize import (
+from ..engine.common.initialize import (
     initialize_basis_local_with_spectrum,
     initialize_basis_pilot,
     initialize_basis_random,
 )
-from ..engine.statistic import calculate_statistics
-from ..engine.weights import calculate_multi_weight, calculate_weight
+from ..engine.common.statistic import calculate_statistics
+from ..engine.common.weights import calculate_multi_weight, calculate_weight
 from ..solver.CG import solve as solve_cg
 from ..solver.HYBRID import solve as solve_hybrid
 from ..solver.LSMR import HPAOResult, solve as solve_lsmr
