@@ -53,3 +53,19 @@ Use this form:
 - **Alternatives rejected:** Ranking all fits on the same seed would report a selection-biased winner. A full Cartesian hyperparameter search is expensive and cannot be interpreted as a local parameter effect. Treating tiny quality differences as decisive is unsupported by six validation seed.
 - **Affected:** `experiments/diagnostic.py`, `experiments/runner.py`, `experiments/README.md`, `docs/experiments/diagnostic_2026-09-23/`.
 - **Status:** active
+
+## 2026-09-23 — Isolate a local quadratic manifold estimator for validation
+
+- **Decision:** Implement an explicit `ADP_Manifold(estimator="local_quadratic")` variant for `m=1`: a 60-neighbor second-order pilot, quadratic correction of directional moments, a self-only center graph, and an observation-mass floor of six. Keep the existing estimator accessible as `estimator="manifold"` while the candidate is validated on untouched seed.
+- **Reason/evidence:** `docs/experiments/manifold_recovery_2026-09-23/{reference.md,selection.md}` show the live normal operator matches a direct reference; even true projectors plus moments degrade under the broad graph. On fixed selection seed 0–9 the combined variant recovered 10/10 with zero errors and RMS sine 0.034–0.076, while the baseline recovered 0/10 with six failures. Each component alone failed the threshold or still had numerical failures.
+- **Alternatives rejected:** Treating the inconsistent manuscript penalty mass as an established bug is unsupported. Floor 12 had no material quality gain over floor six. Two or three graph neighbors reintroduced large directional bias on the radial geometry. No validation seed was used to select this variant.
+- **Affected:** `ADP/core/manifold/ADP_Manifold.py`, `ADP/engine/manifol_engine/{fit.py,weights.py}`, the experiment probe and focused tests. The default and any broader recovery claim remain contingent on M4 validation.
+- **Status:** active
+
+## 2026-09-23 — Retain the manifold default and publish the validated opt-in estimator
+
+- **Decision:** Keep `estimator="manifold"` as the public default and expose the validated `estimator="local_quadratic"` option for `m=1`. Store second-order coefficients in packed symmetric form rather than per-center dense `d×d` matrices. Describe `h_min` plus certified inner solves as scheduled completion, not outer stationarity.
+- **Reason/evidence:** Frozen validation seed 100–119 gave the option 20/20 recovery, zero numerical errors and maximum all-center RMS sine 0.1485 versus the 0.2 threshold; the original gave 0/20 with ten failures. A different noiseless varying geometry gave 5/5; CG/hybrid quality agreed within 1.34e-9. The packed representation changed held-out quality by at most 1.10e-15 with identical outcomes. The new estimator assumes a locally quadratic response and removes cross-center pooling, so the evidence is insufficient to replace the general default. Fixed-shape median fit cost increased from 0.0708 to 0.0981 s with similar measured memory.
+- **Alternatives rejected:** Replacing the default globally would silently change every `m=1` estimator based on two tested designs. Keeping dense Hessian arrays would violate the plan's working-memory invariant. Relabeling scheduled completion as fixed-point convergence is unsupported by the trace.
+- **Affected:** `ADP/core/manifold/ADP_Manifold.py`, `ADP/engine/manifol_engine/{fit.py,weights.py}`, `agent-notes/ADP/manifold.md`, `docs/experiments/manifold_recovery_2026-09-23/`.
+- **Status:** active

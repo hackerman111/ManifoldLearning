@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import numpy as np
 import pytest
 
 from ADP import ADP_Manifold, ADP_manifold
+from ADP.engine.manifol_engine.weights import (
+    local_quadratic_pilot,
+    quadratic_statistics,
+)
 
 
 def _projectors(rng: np.random.Generator, count: int, m: int, d: int) -> np.ndarray:
@@ -417,3 +422,151 @@ def test_B_system_uses_normalized_final_tex_penalty() -> None:
     np.testing.assert_allclose(
         rhs, data.T @ (np.sqrt(mass * weights)[:, None] * I).ravel()
     )
+
+
+def test_manifold_local_step_has_explicit_least_squares_reference() -> None:
+    """Проверить slope, objective, gradient, B и projector одной задачи."""
+    rng = np.random.default_rng(410)
+    K, P, d = 4, 6, 3
+    U = rng.normal(size=(K, P, d))
+    I = rng.normal(size=(K, P))
+    mass = rng.uniform(0.5, 2.0, K)
+    weights = rng.uniform(0.2, 1.0, K)
+    projectors = _projectors(rng, K, 1, d)
+    initial = _projectors(rng, 1, 1, d)[0]
+    model = ADP_Manifold(1, lambda_manifold=0.7, cg_tol=1e-12)
+
+    slopes = model._local_slopes(I, U, initial, 0)
+    expected_slopes = np.array(
+        [np.linalg.lstsq(U[j] @ initial.T, I[j], rcond=None)[0] for j in range(K)]
+    )
+    np.testing.assert_allclose(slopes, expected_slopes, rtol=1e-13, atol=1e-13)
+
+    gamma = mass * weights
+    E = np.einsum("j,jrd,jre->de", weights / weights.sum(), projectors, projectors)
+    penalty_matrix = np.eye(d) - E
+    design = (np.sqrt(gamma)[:, None, None] * slopes[:, :, None] * U).reshape(K * P, d)
+    response = (np.sqrt(gamma)[:, None] * I).ravel()
+    values, vectors = np.linalg.eigh(penalty_matrix)
+    penalty_root = (vectors * np.sqrt(np.maximum(values, 0))) @ vectors.T
+    augmented = np.vstack((design, math.sqrt(model.lambda_manifold) * penalty_root))
+    target = np.concatenate((response, np.zeros(d)))
+    reference_B = np.linalg.lstsq(augmented, target, rcond=None)[0]
+
+    operator, preconditioner, rhs = model._build_B_system(
+        U, I, mass, weights, projectors, slopes
+    )
+    actual_B, _, residual = model._solve_B(operator, preconditioner, rhs, initial)
+    np.testing.assert_allclose(actual_B.ravel(), reference_B, rtol=1e-10, atol=1e-11)
+    assert residual < 1e-10
+
+    trial = rng.normal(size=d)
+    delta = rng.normal(size=d)
+    epsilon = 1e-6
+
+    def explicit_objective(vector: np.ndarray) -> float:
+        return float(
+            np.square(design @ vector - response).sum()
+            + model.lambda_manifold * vector @ penalty_matrix @ vector
+        )
+
+    data_and_penalty = model._objective(
+        trial[None, :], U, I, gamma, slopes, projectors, weights
+    )
+    np.testing.assert_allclose(data_and_penalty[0], explicit_objective(trial))
+    finite_difference = (
+        explicit_objective(trial + epsilon * delta)
+        - explicit_objective(trial - epsilon * delta)
+    ) / (2 * epsilon)
+    np.testing.assert_allclose(
+        finite_difference, 2 * np.dot(operator @ trial - rhs, delta), rtol=1e-8
+    )
+    assert explicit_objective(reference_B) <= explicit_objective(trial)
+
+    recovered, _ = model._recover_projector(actual_B, slopes, gamma, 0)
+    np.testing.assert_allclose(
+        recovered.T @ recovered,
+        np.outer(reference_B, reference_B) / np.dot(reference_B, reference_B),
+        rtol=1e-10,
+        atol=1e-10,
+    )
+
+
+def test_quadratic_moment_correction_recovers_exact_center_gradient() -> None:
+    rng = np.random.default_rng(52)
+    X = rng.normal(size=(80, 3))
+    centers = X[:6]
+    Y = 0.5 * np.square(X[:, 0]) + X[:, 0] * X[:, 1] + 0.2 * X[:, 2]
+    expected_gradient = np.column_stack(
+        (X[:6, 0] + X[:6, 1], X[:6, 0], np.full(6, 0.2))
+    )
+    gradient, _, quadratic_coefficients = local_quadratic_pilot(X, Y, centers)
+    np.testing.assert_allclose(gradient, expected_gradient, rtol=1e-12, atol=1e-12)
+
+    directions = rng.normal(size=(6, 8, 3))
+    directions /= np.linalg.norm(directions, axis=2, keepdims=True)
+    model = ADP_Manifold(1, estimator="local_quadratic", N_loc=10)
+    I, U, mass, n_eff, _ = quadratic_statistics(
+        model,
+        X,
+        Y,
+        centers,
+        directions,
+        None,
+        None,
+        0.5,
+        1.0,
+        quadratic_coefficients,
+    )
+    np.testing.assert_allclose(
+        I, np.einsum("jpd,jd->jp", U, expected_gradient), rtol=1e-11, atol=1e-11
+    )
+    assert np.min(mass) >= 6.0 - 1e-8
+    assert np.min(n_eff) > 1.0
+
+
+def test_local_quadratic_variant_recovers_varying_radial_direction() -> None:
+    rng = np.random.default_rng(732)
+    X = rng.normal(size=(240, 4))
+    Y = 0.5 * np.square(X[:, :2]).sum(axis=1)
+    Y = (Y - Y.mean()) / Y.std() + 0.05 * rng.normal(size=len(X))
+    model = ADP_Manifold(
+        1,
+        estimator="local_quadratic",
+        N_loc=20,
+        N_lin=60,
+        N_J=24,
+        N_phi=10,
+        N_manifold=6,
+        sync_steps=1,
+        lambda_manifold=0.5,
+        a=math.sqrt(2),
+        h_min=10 / math.sqrt(len(X)),
+        cg_tol=1e-6,
+        seed=93,
+    ).fit(X, Y)
+    truth = X[model.center_indices_, :2]
+    truth /= np.linalg.norm(truth, axis=1)[:, None]
+    error = np.sqrt(
+        np.mean(
+            1 - np.square(np.einsum("jd,jd->j", model.projectors_[:, 0, :2], truth))
+        )
+    )
+    assert error <= 0.2
+    assert model.stop_reason_ == "h_min"
+    assert max(entry["linear_relative_residual_max"] for entry in model.trace_) < 1e-6
+    assert model.result_.projectors is model.projectors_
+    assert model.transform(X[:3]).shape == (3, 1)
+    assert np.all(np.isfinite(model.predict(X[:3])))
+
+
+def test_local_quadratic_rejects_unsupported_rank() -> None:
+    with pytest.raises(ValueError, match="index_dim=1"):
+        ADP_Manifold(2, estimator="local_quadratic")
+    with pytest.raises(ValueError, match="estimator"):
+        ADP_Manifold(1, estimator="unknown")
+    with pytest.raises(ValueError, match="polynomial terms"):
+        local_quadratic_pilot(np.ones((10, 4)), np.ones(10), np.ones((2, 4)))
+    with pytest.raises(RuntimeError, match="rank-deficient local quadratic pilot"):
+        X = np.column_stack((np.linspace(-1, 1, 80), np.zeros((80, 2))))
+        local_quadratic_pilot(X, X[:, 0], X[:2])

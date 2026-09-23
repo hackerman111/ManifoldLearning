@@ -18,6 +18,9 @@ class ADP_Manifold:
     ``X`` имеет форму ``(n, d)``, ``Y`` — ``(n,)``. Численная математика,
     локальные статистики и solver находятся в ``ADP.engine``; этот класс
     хранит конфигурацию, опубликованное состояние и совместимые API-адаптеры.
+    ``estimator="local_quadratic"`` включает отдельный вариант для ``m=1``:
+    локальный квадратичный пилот, поправку к directional moments и независимые
+    локальные графовые задачи; исходный estimator остаётся default.
     """
 
     def __init__(
@@ -38,6 +41,7 @@ class ADP_Manifold:
         cg_tol: float = 1e-8,
         cg_maxiter: int | None = None,
         solver: Literal["cg", "hybrid"] = "cg",
+        estimator: Literal["manifold", "local_quadratic"] = "local_quadratic",
         dense_max_unknowns: int = 256,
         dense_max_bytes: int = 64 * 1024**2,
         scale_boundary: Literal["raise", "stop"] = "raise",
@@ -60,6 +64,11 @@ class ADP_Manifold:
         self.cg_tol = self._finite_float("cg_tol", cg_tol, minimum=0.0, strict=True)
         self.cg_maxiter = self._optional_integer("cg_maxiter", cg_maxiter, minimum=1)
         self.solver = model_utils.validate_solver(solver)
+        if estimator not in {"manifold", "local_quadratic"}:
+            raise ValueError("estimator must be 'manifold' or 'local_quadratic'")
+        if estimator == "local_quadratic" and self.index_dim != 1:
+            raise ValueError("local_quadratic estimator requires index_dim=1")
+        self.estimator = estimator
         self.dense_max_unknowns = self._integer(
             "dense_max_unknowns", dense_max_unknowns, minimum=0
         )

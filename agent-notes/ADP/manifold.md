@@ -6,6 +6,8 @@
 
 Публичный класс хранит конфигурацию, вызывает `engine.manifol_engine.fit`, затем публикует centers, projectors, eigenvalues, gradients, center response, bandwidths, scale factors, trace и `ADP_Manifold_result`. `transform` возвращает координаты в локальном chart ближайшего центра. `predict` применяет affine chart этого же ближайшего центра. Источники: **SRC-MAN-API**, **SRC-MAN-QUERY**.
 
+`estimator="manifold"` сохраняет исходный алгоритм по умолчанию. Явный экспериментальный `estimator="local_quadratic"` доступен только при `m=1`: до 60 ближайших наблюдений задают локальный полином второй степени, его квадратичный directional moment вычитается из `I_j`, недостаточная масса наблюдений локально доводится до шести, а manifold-граф содержит только собственное ребро центра. Это отдельный ESTIMATOR для быстро меняющейся геометрии, без соседского penalty. Симметричные коэффициенты квадратичной части хранятся как `(J,d(d+1)/2)`, без плотных `(J,d,d)` матриц; полный ранг пилота проверяется явно. Результат на радиальном сценарии и границы применимости — в `docs/experiments/manifold_recovery_2026-09-23/`. Источники: **SRC-MAN-API**, **SRC-MAN-QUAD**, **SRC-MAN-FIT-ORCH**.
+
 ## Эффективные параметры
 
 При незаданных размерах live-код выводит:
@@ -26,7 +28,7 @@
 3. **Начальная геометрия manifold:** по расстояниям между центрами выбирается `h_manifold` с целевой средней mass `N_manifold`; строится CSR-граф. Для каждого target локальные projectors и eigenvalues инициализируются SVD взвешенных градиентов соседних source centers.
 4. **Первичная ADP-статистика:** по X и centers выбирается h для `N_loc`; случайные единичные Gaussian направления строят normalized I/U и function graph mass/effective sample size.
 5. **Sync-фаза:** `sync_steps` раз обновляются projectors на фиксированном графе и стартовой ADP-статистике.
-6. **Масштабный цикл:** пока `h/a >= h_min`, h уменьшается на a. По текущим локальным projectors ищется максимальный function `alpha`, пересчитываются directions/statistics; затем ищется `alpha_manifold`, обновляются graph edges и выполняется один проекторный шаг. В `scale_boundary="stop"` используется feasible mass boundary; иначе infeasible target поднимает явную ошибку.
+6. **Масштабный цикл:** пока `h/a >= h_min`, h уменьшается на a. По текущим локальным projectors ищется максимальный function `alpha`, пересчитываются directions/statistics; в исходном estimator затем ищется `alpha_manifold`, обновляются graph edges и выполняется один проекторный шаг. В `local_quadratic` пересчитываются исправленные moments, а граф остаётся диагональным. В `scale_boundary="stop"` используется feasible function-mass boundary; для исходного estimator отдельно проверяется manifold-mass boundary.
 7. **Результат:** trace содержит фазу/масштаб, bandwidths/alpha, число ребер, квантили mass и n_eff, solver итерации/остаток, objective и изменение projector.
 
 ## Локальный projector update
@@ -49,11 +51,12 @@ Query привязывается к ближайшему center через па�
 
 | ID | Фрагмент | Команда sed |
 |---|---|---|
-| SRC-MAN-API | config, fit publication, transform/predict, private hook facade | `rtk proxy sed -n '15,329p' ADP/core/manifold/ADP_Manifold.py` |
+| SRC-MAN-API | config, fit publication, transform/predict, private hook facade | `rtk proxy sed -n '15,433p' ADP/core/manifold/ADP_Manifold.py` |
 | SRC-MAN-CONFIG | effective sizes and boundary validations | `rtk proxy sed -n '49,101p' ADP/core/manifold/ADP_Manifold_utils.py` |
-| SRC-MAN-FIT-ORCH | setup, init, sync/scale loops, result | `rtk proxy sed -n '37,213p' ADP/engine/manifol_engine/fit.py` |
-| SRC-MAN-QUERY | nearest chart, local coordinates, prediction | `rtk proxy sed -n '214,234p' ADP/engine/manifol_engine/fit.py` |
-| SRC-MAN-WEIGHTS | kernel block, bandwidth/alpha, full gradients, statistics | `rtk proxy sed -n '16,224p' ADP/engine/manifol_engine/weights.py` |
+| SRC-MAN-FIT-ORCH | setup, estimator branch, sync/scale loops, result | `rtk proxy sed -n '39,243p' ADP/engine/manifol_engine/fit.py` |
+| SRC-MAN-QUERY | nearest chart, local coordinates, prediction | `rtk proxy sed -n '244,264p' ADP/engine/manifol_engine/fit.py` |
+| SRC-MAN-WEIGHTS | kernel block, bandwidth/alpha and original local gradients/statistics | `rtk proxy sed -n '16,174p;311,360p' ADP/engine/manifol_engine/weights.py` |
+| SRC-MAN-QUAD | local quadratic pilot and corrected directional moments | `rtk proxy sed -n '175,310p' ADP/engine/manifol_engine/weights.py` |
 | SRC-MAN-GRAPH | CSR orientation and projectors initialization | `rtk proxy sed -n '14,67p' ADP/engine/manifol_engine/graphs.py` |
 | SRC-MAN-PENALTY | exact rank-one penalty action and general low-rank path | `rtk proxy sed -n '16,35p' ADP/engine/manifol_engine/optimisation.py` |
 | SRC-MAN-STEP | all-target synchronous update / solver dispatch | `rtk proxy sed -n '43,136p' ADP/engine/manifol_engine/optimisation.py` |

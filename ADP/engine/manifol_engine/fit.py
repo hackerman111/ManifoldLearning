@@ -8,8 +8,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from scipy.sparse import csr_matrix
 
 from .utils import bandwidth_floor, trace_entry
+from .weights import local_quadratic_pilot, quadratic_statistics
 
 
 @dataclass(slots=True)
@@ -65,9 +67,16 @@ def fit(model: Any, X: np.ndarray, Y: np.ndarray) -> ManifoldFitState:
 
     h_floor = bandwidth_floor(Xc)
     h_lin = model._search_bandwidth(Xc, centers, N_lin, lower=h_floor)
-    gradients, gradient_mass, center_values = model._local_gradients(
-        Xc, Yc, centers, h_lin
-    )
+    quadratic_coefficients = None
+    if model.estimator == "local_quadratic":
+        gradients, center_values, quadratic_coefficients = local_quadratic_pilot(
+            Xc, Yc, centers
+        )
+        gradient_mass = np.ones(N_J)
+    else:
+        gradients, gradient_mass, center_values = model._local_gradients(
+            Xc, Yc, centers, h_lin
+        )
 
     h_manifold = model._search_bandwidth(
         centers,
@@ -75,16 +84,34 @@ def fit(model: Any, X: np.ndarray, Y: np.ndarray) -> ManifoldFitState:
         N_manifold,
         lower=bandwidth_floor(centers),
     )
-    manifold_graph = model._build_manifold_graph(centers, None, None, h_manifold, 1.0)
+    manifold_graph = (
+        csr_matrix((np.ones(N_J), (np.arange(N_J), np.arange(N_J))), shape=(N_J, N_J))
+        if model.estimator == "local_quadratic"
+        else model._build_manifold_graph(centers, None, None, h_manifold, 1.0)
+    )
     projectors, eigenvalues = model._initialize_projectors(
         gradients, gradient_mass, manifold_graph, model.index_dim
     )
 
     h = model._search_bandwidth(Xc, centers, model.N_loc, lower=h_min)
     directions = model._random_directions(direction_rng, len(centers), N_phi, d)
-    I, U, mass, n_eff, function_edges = model._calculate_statistics(
-        Xc, Yc, centers, directions, None, None, h, 1.0
-    )
+    if quadratic_coefficients is None:
+        I, U, mass, n_eff, function_edges = model._calculate_statistics(
+            Xc, Yc, centers, directions, None, None, h, 1.0
+        )
+    else:
+        I, U, mass, n_eff, function_edges = quadratic_statistics(
+            model,
+            Xc,
+            Yc,
+            centers,
+            directions,
+            None,
+            None,
+            h,
+            1.0,
+            quadratic_coefficients,
+        )
 
     trace: list[dict[str, float | int | str]] = []
     for iteration in range(model.sync_steps):
@@ -115,7 +142,8 @@ def fit(model: Any, X: np.ndarray, Y: np.ndarray) -> ManifoldFitState:
         proposed_h = h / a
         if model.scale_boundary == "stop":
             if (
-                model._mean_mass(
+                model.estimator == "manifold"
+                and model._mean_mass(
                     centers, centers, projectors, eigenvalues, h_manifold, 0.0
                 )
                 < N_manifold
@@ -142,33 +170,35 @@ def fit(model: Any, X: np.ndarray, Y: np.ndarray) -> ManifoldFitState:
             kind="function",
         )
         directions = model._random_directions(direction_rng, len(centers), N_phi, d)
-        I, U, mass, n_eff, function_edges = model._calculate_statistics(
-            Xc,
-            Yc,
-            centers,
-            directions,
-            projectors,
-            eigenvalues,
-            h,
-            alpha,
-        )
-
-        alpha_manifold = model._search_anisotropy(
-            centers,
-            centers,
-            projectors,
-            eigenvalues,
-            h_manifold,
-            N_manifold,
-            kind="manifold",
-        )
-        manifold_graph = model._build_manifold_graph(
-            centers,
-            projectors,
-            eigenvalues,
-            h_manifold,
-            alpha_manifold,
-        )
+        if quadratic_coefficients is None:
+            I, U, mass, n_eff, function_edges = model._calculate_statistics(
+                Xc, Yc, centers, directions, projectors, eigenvalues, h, alpha
+            )
+            alpha_manifold = model._search_anisotropy(
+                centers,
+                centers,
+                projectors,
+                eigenvalues,
+                h_manifold,
+                N_manifold,
+                kind="manifold",
+            )
+            manifold_graph = model._build_manifold_graph(
+                centers, projectors, eigenvalues, h_manifold, alpha_manifold
+            )
+        else:
+            I, U, mass, n_eff, function_edges = quadratic_statistics(
+                model,
+                Xc,
+                Yc,
+                centers,
+                directions,
+                projectors,
+                eigenvalues,
+                h,
+                alpha,
+                quadratic_coefficients,
+            )
         projectors, eigenvalues, diagnostics = model._one_step(
             I, U, mass, manifold_graph, projectors
         )

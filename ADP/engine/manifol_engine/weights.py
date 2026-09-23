@@ -172,6 +172,142 @@ def local_gradients(
     return gradients, masses, center_values
 
 
+def local_quadratic_pilot(
+    X: np.ndarray, Y: np.ndarray, centers: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Оценить градиент и упакованные квадратичные коэффициенты по 60 соседям.
+
+    Этот отдельный ESTIMATOR-вариант предназначен для ``m=1``. Полином
+    второй степени убирает смещение directional moments от квадратичной
+    части отклика без тензора ``(J,n,d)`` или матриц ``(J,d,d)``.
+    """
+    n, d = X.shape
+    n_terms = 1 + d + d * (d + 1) // 2
+    neighbors_count = min(60, n)
+    if neighbors_count < n_terms or n <= 6:
+        raise ValueError(
+            "local_quadratic requires n > 6 and at least "
+            f"{n_terms} observations for its polynomial terms"
+        )
+    pairs = [(a, b) for a in range(d) for b in range(a, d)]
+    gradients = np.empty((len(centers), d))
+    values = np.empty(len(centers))
+    quadratic_coefficients = np.empty((len(centers), len(pairs)))
+    for j, center in enumerate(centers):
+        distance2 = np.sum(np.square(X - center), axis=1)
+        neighbors = np.argpartition(distance2, neighbors_count - 1)[:neighbors_count]
+        delta = X[neighbors] - center
+        design = np.column_stack(
+            (
+                np.ones(neighbors_count),
+                delta,
+                *(
+                    (0.5 if a == b else 1.0) * delta[:, a] * delta[:, b]
+                    for a, b in pairs
+                ),
+            )
+        )
+        coefficient, _, rank, _ = np.linalg.lstsq(design, Y[neighbors], rcond=None)
+        model_utils.require_full_rank(
+            int(rank),
+            n_terms,
+            f"rank-deficient local quadratic pilot at center {j}: "
+            f"rank={rank}, required={n_terms}",
+        )
+        if not np.all(np.isfinite(coefficient)):
+            raise RuntimeError(f"non-finite local quadratic pilot at center {j}")
+        values[j] = coefficient[0]
+        gradients[j] = coefficient[1 : d + 1]
+        quadratic_coefficients[j] = coefficient[d + 1 :]
+    return gradients, values, quadratic_coefficients
+
+
+def quadratic_statistics(
+    model: Any,
+    X: np.ndarray,
+    Y: np.ndarray,
+    centers: np.ndarray,
+    directions: np.ndarray,
+    projectors: np.ndarray | None,
+    eigenvalues: np.ndarray | None,
+    h: float,
+    alpha: float,
+    quadratic_coefficients: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
+    """Вычесть момент квадратичной части и защитить массу каждого центра."""
+    I, U, mass, n_eff, edges = model._calculate_statistics(
+        X, Y, centers, directions, projectors, eigenvalues, h, alpha
+    )
+    d = X.shape[1]
+    pairs = [(a, b) for a in range(d) for b in range(a, d)]
+    for j, center in enumerate(centers):
+        basis = None if projectors is None else projectors[j : j + 1]
+        spectrum = None if eigenvalues is None else eigenvalues[j : j + 1]
+
+        def local_weight(
+            bandwidth: float,
+            center_block: np.ndarray = centers[j : j + 1],
+            basis: np.ndarray | None = basis,
+            spectrum: np.ndarray | None = spectrum,
+        ) -> np.ndarray:
+            return model._weight_block(
+                X, center_block, basis, spectrum, bandwidth, alpha, 0
+            )[0]
+
+        weight = local_weight(h)
+        if mass[j] < 6.0:
+            old_support = np.count_nonzero(weight)
+            low, high = h, h
+            for _ in range(30):
+                if local_weight(high).sum() >= 6.0:
+                    break
+                high *= 2
+            else:
+                raise RuntimeError(f"observation mass below six at center {j}")
+            for _ in range(35):
+                middle = (low + high) / 2
+                if local_weight(middle).sum() >= 6.0:
+                    high = middle
+                else:
+                    low = middle
+            weight = local_weight(high)
+            mass[j] = weight.sum()
+            normalized = weight / mass[j]
+            moment = _dense_moments(
+                X,
+                Y,
+                normalized[None, :],
+                directions[j : j + 1],
+                mass[j : j + 1],
+                True,
+                include_eta=False,
+            )
+            I[j] = moment.I[0]
+            U[j] = moment.U[0]
+            n_eff[j] = 1.0 / np.square(normalized).sum()
+            edges += int(np.count_nonzero(weight) - old_support)
+        else:
+            normalized = weight / mass[j]
+        delta = X - center
+        quadratic = np.zeros(len(X))
+        for coefficient, (a, b) in zip(quadratic_coefficients[j], pairs, strict=True):
+            quadratic += (
+                (0.5 if a == b else 1.0) * coefficient * delta[:, a] * delta[:, b]
+            )
+        correction = _dense_moments(
+            X,
+            quadratic,
+            normalized[None, :],
+            directions[j : j + 1],
+            mass[j : j + 1],
+            True,
+            include_eta=False,
+        )
+        I[j] -= correction.I[0]
+    model_utils.require_statistics(mass, I, U)
+    return I, U, mass, n_eff, edges
+
+
 def random_directions(rng: np.random.Generator, J: int, P: int, d: int) -> np.ndarray:
     """Сгенерировать единичные направления random-direction sketch."""
     directions = rng.standard_normal((J, P, d))

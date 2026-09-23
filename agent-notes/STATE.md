@@ -2,20 +2,25 @@
 
 ## Task
 
-- ID: diagnostic-adp-benchmarks-2026-09-23
-- Status: done; D1–D3 complete.
-- Goal: парные диагностические бенчмарки single/multi/manifold с отдельными seed для выбора и проверки параметров.
-- Plan: `PLAN.md`; previous completed CPU optimization plan archived at `agent-notes/history/plans/optimize-manifold-projectors-hpao-lsmr-2026-09-23-complete.md`.
+- ID: repair-manifold-recovery-2026-09-23.
+- Status: done; M1–M5 acceptance evidence is linked from `PLAN.md`.
+- Goal: repair manifold recovery to full-center RMS sine `<=0.2` on the radial base scenario, then validate at least 16/20 independent seed without numerical errors.
 
 ## Established facts
 
-- `experiments/diagnostic.py` runs base/noise/correlation/scarce scenarios with local one-factor estimator variants and paired data/initialization seeds. Full default: 12 seed per variant, 1440 fits across all modes/scenarios; smoke: 48 fits. `--dry-run` and `--analyze` are available.
-- Report files under `benchmark_outputs/diagnostic/<run>/` are `run.json`, `diagnostics.{csv,json,md}` and normal `series/*` artifacts. New runs record a code SHA-256 and reject source changes during execution. Selection uses the first half of seed; validation uses the rest. Numerical failures remain in recovery denominators and now retain fit wall-clock time in `experiments/runner.py`.
-- Full base run (360 fits, 12 seed per variant) is at `docs/experiments/diagnostic_2026-09-23/20260923T184703547414-all/`. Its report was regenerated with the final selection rule; its numeric fits preceded the code-hash field, so this initial artifact has Git/dirty provenance in `series.json` but no run-time code hash. Single baseline: 6/6 validation recoveries; faster unregularized candidate failed one validation trust certificate, so baseline retained. Multi `solver_max_steps=80`: 6/6 selection, 5/6 validation recoveries versus baseline 5/6 and 4/6; preliminary only, with wide Wilson intervals. Manifold: 0 validation recoveries for every variant, frequent rank-deficient local slopes, no recommendation.
-- 48-fit smoke across all three modes and four scenarios completed before the final failure-timing change; it is a functionality check, not scientific evidence for stressed regimes. Fresh 4-fit manifold smoke with seed 4 confirmed all numerical failures have fit time and empty traced memory; fresh run/analysis code SHA-256 matched.
-- Scientific classification: tested parameter changes are explicit experimental `ESTIMATOR` variants; production estimator/defaults unchanged. Details and limits are in `experiments/README.md`; selection decision is recorded in `agent-notes/DECISIONS.md`.
-- Ruff, Pyright (new diagnostic and runner), and `git diff --check` passed. No existing historical artifacts were overwritten. Earlier dirty CPU optimization work remains intact.
+- M1 artifact: `docs/experiments/manifold_recovery_2026-09-23/diagnostics.md` and `baseline_selection/{manifest.json,runs.json,centers.csv}`. Reproduce with `python -m experiments.manifold_recovery_probe --seeds 0:10 --out ...` using one BLAS thread and `UV_CACHE_DIR=/tmp/adp-uv-cache`.
+- Baseline matches old seed-0 quality exactly (`0.48095653044126213`). Selection 0–9 gives 0/10 recovered, six rank-0 slope failures. No algorithm code changed in M1.
+- Across 240 selected centers, pilot-gradient RMS sine is 0.266, graph-SVD initialization is 0.479; all initial per-seed errors exceed 0.2. Radius-near-zero centers are worst. Successful ADP updates do not fix the global bias.
+- Global mean observation mass 20 allows center mass and `n_eff` as low as one; rank failures arise before B solve. Successful linear solves have certified small residuals. M3 confirmed that a per-center mass floor removes these failures, while narrow graph locality and a quadratic moment correction are jointly needed for quality on the selected radial design.
+- `ADP/cli/main.py` still sets manifold `converged=True` after successful `fit`. The current scale schedule has no outer stationarity certificate. For this research, distinguish scheduled completion with certified inner solves from true convergence.
+- `tex/manifold-ade.tex:214-225` includes `W_l` in the penalty; `:334-353` omits it. Current code and `tests/test_manifold.py:397-420` choose the latter normalized penalty. This is an unresolved estimator interpretation.
+- M2 artifact: `docs/experiments/manifold_recovery_2026-09-23/reference.md` and `oracle_*_selection/`. Direct moments, objective gradient, augmented LS minimizer, adjoint and projector reference pass all 13 focused tests. No confirmed EXACT/NUMERICAL defect in those components.
+- With true initial projectors and true directional moments, the first graph/objective update raises aggregate RMS sine from 0 to 0.223; final median among successful fits is 0.243 and zero recoveries. Broad neighborhood bias and low per-center observation mass survive the oracle probes. Manuscript does not specify an explicit `h_M` recurrence; varying it is an ESTIMATOR experiment.
+- M3 selection artifact: `docs/experiments/manifold_recovery_2026-09-23/selection.md` and per-variant directories. Explicit local quadratic moment correction + self-only graph + per-center mass floor six recovers 10/10 selection with zero errors (RMS 0.034–0.076). Component variants fail or leave rank errors. This is an ESTIMATOR change specialized to `m=1`, not a confirmed defect in the existing normal operator.
+- Production option `ADP_Manifold(estimator="local_quadratic")` is implemented in `ADP/core/manifold/ADP_Manifold.py` and `ADP/engine/manifol_engine/{fit.py,weights.py}`; default remains `estimator="manifold"` because the new estimator assumes a locally quadratic scalar response and removes neighbor pooling. `production_selection/` matches the probe per seed within `1e-12` and reproduces the baseline. Updated route: `agent-notes/ADP/manifold.md`.
+- M4 held-out artifact: `docs/experiments/manifold_recovery_2026-09-23/validation.md` and `production_validation/`. Candidate 20/20 recovered on seed 100–119, zero errors, worst RMS 0.1485, all `h_min`, maximum inner residual 5.42e-7. Baseline 0/20 and ten errors. A different noiseless varying geometry gives 5/5 candidate recovery; CG/hybrid selection quality differs by ≤1.34e-9.
+- M5 packed the quadratic coefficients into `(J,d(d+1)/2)` without changing the estimator; a second run on the same held-out inputs confirmed max quality drift 1.10e-15 and identical outcomes. Cost and checks: `docs/experiments/manifold_recovery_2026-09-23/completion.md`. Fixed-shape median wall time baseline 0.0708 s, candidate 0.0981 s; traced peaks about 0.646 MiB. Final suite 309 passed, 28 CUDA skips; Ruff on affected trees, format, `uv lock --check`, `git diff --check` pass. Pyright 0 errors, one existing legacy warning. Repository-wide Ruff has ten pre-existing issues only in untouched `test/`.
 
 ## Next action
 
-No required work remains. The full noise/correlation/scarce scenarios are available for a later, separately budgeted run; no parameter recommendation should be inferred from their smoke results.
+No required work remains in this plan. If broader manifold recovery is requested later, design a new study for non-quadratic links and `m>1` before changing the default.
