@@ -5,10 +5,10 @@ This directory is the durable routing layer for agent work. Do not scan the repo
 Operational files:
 
 - [`STATE.md`](STATE.md) — current compact handoff state; rewrite in place.
-- [`WORKFLOW.md`](WORKFLOW.md) — `PLAN.md`, checkpoints, handoff, map maintenance, and machine-readable history.
+- [`WORKFLOW.md`](WORKFLOW.md) — `PLAN.md`, Markdown checkpoints, handoff, map maintenance, and optional machine-readable history.
 - [`DECISIONS.md`](DECISIONS.md) — append-only durable decisions.
-- [`history/state.json`](history/state.json) — machine-readable current state.
-- [`history/events.jsonl`](history/events.jsonl) — append-only development events.
+- [`history/state.json`](history/state.json) — optional machine-readable state snapshot; may be older than `STATE.md`.
+- [`history/events.jsonl`](history/events.jsonl) — optional append-only development events.
 - [`contracts/`](contracts/) — on-demand numerical, research, and engineering rules moved out of root `AGENTS.md` to save context.
 
 For any task, read this file only far enough to choose a thematic route, then open that route and its cited source locators. Do not preload all notes.

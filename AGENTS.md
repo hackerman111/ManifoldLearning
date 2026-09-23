@@ -45,7 +45,7 @@ Treat the notes as maintained indices. If a code change invalidates a documented
 
 Do not regenerate or reread the entire map after each change. Refresh only the affected note and source ranges. Update `agent-notes/README.md` only when top-level routing changes.
 
-When a note conflicts with code in a way that could affect the current task, verify the minimal relevant source, fix the note, then continue. Record a `map_update` event in `agent-notes/history/events.jsonl`.
+When a note conflicts with code in a way that could affect the current task, verify the minimal relevant source, fix the note, then continue. Mention the correction in `STATE.md` if it affects handoff.
 
 ## Work lifecycle
 
@@ -66,7 +66,7 @@ At every meaningful checkpoint update the durable state before continuing. A che
 - a failure that invalidates the current hypothesis or approach;
 - immediately before context reset/handoff and at task completion.
 
-The checkpoint protocol is defined in `agent-notes/WORKFLOW.md`. In short, keep `PLAN.md` current, rewrite `agent-notes/STATE.md` to the latest concise truth, update `agent-notes/history/state.json`, append one event to `events.jsonl`, and append to `DECISIONS.md` only for durable decisions.
+The checkpoint protocol is defined in `agent-notes/WORKFLOW.md`. In short, keep `PLAN.md` current, rewrite `agent-notes/STATE.md` to the latest concise truth, and append to `DECISIONS.md` only for durable decisions. JSON/JSONL history is optional; it is not required for checkpoints or handoffs.
 
 ## `PLAN.md`
 
@@ -74,7 +74,7 @@ The checkpoint protocol is defined in `agent-notes/WORKFLOW.md`. In short, keep 
 
 For research or numerical work it must state: goal, non-goals, known evidence, hypotheses when applicable, mathematical invariants, change class when applicable, exact read set, bounded work units, verification, and stop conditions.
 
-Do not keep completed implementation chatter in the plan. Preserve durable outcomes in `STATE.md`, `DECISIONS.md`, experiment artifacts, and the machine-readable history.
+Do not keep completed implementation chatter in the plan. Preserve durable outcomes in `STATE.md`, `DECISIONS.md`, and experiment artifacts. Machine-readable history may be kept when useful, without duplicating all task information.
 
 ## Reconnaissance and GPT-6 Luna
 
@@ -109,8 +109,8 @@ Before finishing a non-trivial task:
 
 - verify the implementation against the plan's acceptance evidence;
 - update affected `agent-notes` routes;
-- update `PLAN.md`, `STATE.md`, and machine-readable state/history;
+- update `PLAN.md` and `STATE.md`;
 - append any durable decision to `DECISIONS.md`;
 - leave the repository in a state from which a fresh agent can resume by reading only `AGENTS.md -> PLAN.md -> STATE.md -> relevant agent-notes`.
 
-If the task is complete, mark `PLAN.md` and `history/state.json` as `done`; do not erase the evidence or append-only history.
+If the task is complete, mark `PLAN.md` as `done`; do not erase the evidence or existing history.

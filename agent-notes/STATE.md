@@ -2,38 +2,27 @@
 
 ## Task
 
-- ID: bottlenecks-multi-manifold-2026-09-23
-- Status: active (planning checkpoint; measurements pending)
-- Goal: найти и формализовать bottleneck времени и памяти CPU-путей multi-index и manifold ADP
-- Plan: `PLAN.md`
+- ID: optimize-manifold-projectors-hpao-lsmr-2026-09-23
+- Status: active; plan written, mathematical work not started
+- Goal: после математического вывода точных более эффективных вариантов ускорить manifold projector update и current HPAO/LSMR
+- Plan: `PLAN.md`; next step M1
 
 ## Established facts
 
-- Multi-index идет через `engine.common.index_fit.fit_index`; его `IndexProfiler` уже разделяет основные фазы.
-- Manifold идет через `engine.manifol_engine.fit`; его trace дает solver diagnostics, но не полный профиль времени по фазам.
-- Дерево содержит незавершенные правки; стартовый HEAD `31b7ae7`. Измерения должны фиксировать dirty state.
-- Подтвержденных измерениями этой задачи bottleneck пока нет.
-
-## Current hypothesis / approach
-
-Сначала зафиксировать контрольную и представительскую CPU-конфигурации для каждой модели и формат воспроизводимых результатов; затем измерить фазы, проверить масштабирование и оформить выводы.
-
-## Active read set
-
-- `agent-notes/ADP/index-pipeline.md`
-- `agent-notes/ADP/multi-index.md`
-- `agent-notes/ADP/manifold.md`
-- `agent-notes/ADP/solvers.md`
-- Source IDs и benchmark/test paths указаны в `PLAN.md`.
+- `docs/adp_fit_bottlenecks.md` измерил manifold projector update как 56–58% полного CPU fit и HPAO/LSMR как 65–73% сходящегося multi-index fit на указанных там формах. Это исходные, а не универсальные оценки.
+- Manifold `_one_step` включает slopes, B-system, CG, recovery и objective; HPAO/LSMR включает matrix-free ridge correction и строгий normal residual certificate. Точные read routes и математические инварианты записаны в `PLAN.md`.
+- Production-код для этой оптимизации еще не менялся. Сначала завершить M1–M3 и математический gate G; затем отдельно менять код каждого принятого варианта.
+- Предыдущий план инструкций сохранен в `agent-notes/history/plans/optional-agent-json-2026-09-23.md`; более ранний план профилирования — в `agent-notes/history/plans/bottlenecks-multi-manifold-2026-09-23.md`. Существующие незакоммиченные изменения и экспериментальные данные сохранены.
 
 ## Last verified evidence
 
-План составлен по live-маршрутам `SRC-IFIT-LOOP` и `SRC-MAN-FIT-ORCH`; замеры еще не запускались.
+- План составлен по live-фрагментам `SRC-MAN-STEP`, `SRC-MAN-B-SYSTEM`, `SRC-MAN-RECOVER`, `SRC-HPAO-ENTRY`, `SRC-HPAO-OP` и отчету `docs/adp_fit_bottlenecks.md`.
+- Математический вывод новых вариантов, новые benchmark-запуски и кодовая верификация еще не выполнялись.
 
 ## Open questions / blockers
 
-Нет.
+- Неизвестно, какой точный вариант даст устойчивый выигрыш полного `fit` при ограниченной памяти. Это предмет M2/M3, а не предположение плана.
 
 ## Next action
 
-Выполнить P1 из `PLAN.md`: уточнить параметры запусков по существующим benchmark/experiment entry points и сохранить baseline evidence.
+M1: проверить текущий checkout, зафиксировать точные локальные задачи и воспроизвести парные baseline/reference для manifold и HPAO без правок production-кода.

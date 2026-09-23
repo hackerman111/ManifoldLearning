@@ -1,0 +1,4946 @@
+{
+  "command": [
+    "/usr/bin/python",
+    "-m",
+    "benchmarks.fit_bottlenecks",
+    "--child",
+    "--case",
+    "multi_base",
+    "--profile",
+    "traced"
+  ],
+  "case_shape": [
+    "multi",
+    600,
+    8,
+    48,
+    16,
+    2
+  ],
+  "profile_mode": "traced",
+  "warmup_count": 1,
+  "timed_repeats": 10,
+  "git_head": "c58c5cf4eb269ea3c7476e775342c771c9419158",
+  "git_status_before": " M PLAN.md\n M agent-notes/DECISIONS.md\n M agent-notes/STATE.md\n M agent-notes/history/events.jsonl\n M agent-notes/history/state.json\n?? benchmarks/fit_bottlenecks.py\n?? docs/experiments/bottlenecks_2026-09-23/manifold_base_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/manifold_control_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_J2_time.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_off.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_time.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_control_baseline.json\n",
+  "git_status_after": " M PLAN.md\n M agent-notes/DECISIONS.md\n M agent-notes/STATE.md\n M agent-notes/history/events.jsonl\n M agent-notes/history/state.json\n?? benchmarks/fit_bottlenecks.py\n?? docs/experiments/bottlenecks_2026-09-23/manifold_base_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/manifold_control_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_J2_time.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_off.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_time.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_control_baseline.json\n",
+  "source_sha256_before": {
+    "ADP/__init__.py": "39b3d44cf81c9a6df81571455f9ccd78e2ac6c52ce9bcbb9e76154189844cc26",
+    "ADP/cli/__init__.py": "2388754dbcbaf9a52f236f6c6d623e39efa28f4ccd41bfd850c2fae478fee6da",
+    "ADP/cli/__main__.py": "e4ff3ad1054fb5ad4c26c3915f8511c9d15bf0b2742c6c7e6eb4aed24b1a99ab",
+    "ADP/cli/experiment.py": "b65bf75576114eb3da0b9640e3a7a45de8d28a6b27525337bcdedabbf5eaa080",
+    "ADP/cli/experiment_plots.py": "02da062a1d82d43cd67002e19e56fd6c12d0c156e98b3f7694a8634f8ea2ebb2",
+    "ADP/cli/experiment_utils.py": "bedd3e77f51ee03ff587ee0098cb567e1cd2a51f55e1f13942893f856016f2ff",
+    "ADP/cli/main.py": "2024b8d8ece841aef23a1e7d0a4eaae34e645ca58e3ba91190b77936a3b019a4",
+    "ADP/cli.py": "6bea069301e4b6ca6014c2e9a286db9a913d9aed0d6c6b944ca9dbafa55cb6b6",
+    "ADP/core/ADP_Config.py": "d803afe7cf9e52ddc321bb711bb5adc3eb7721a217f94570dd8aafdc1685a4d3",
+    "ADP/core/ADP_Data.py": "faf02f014c6a6d05327b287eb5a05dae77d07f8a99d916aeeaf604e765ad3cdc",
+    "ADP/core/ADP_Solver.py": "0115893e242df9ba070b156839c4fc3cc77d407d1c9d8b6130f02d2b5334a209",
+    "ADP/core/ADP_Statistic.py": "be6f5e9d215180a0101dd25f1fb2a79f1e9afeb6652c5cc8dfa38ea48c77a8a5",
+    "ADP/core/__init__.py": "8459652afe34f924c5a479e6c215e5b72be6bf8d3447b0a217f07d1d6d009a38",
+    "ADP/core/manifold/ADP_Manifold.py": "973488ba5ffa521fb743a12d3ef0787b8cc978aed2ec03b3780c3aab219f53ad",
+    "ADP/core/manifold/ADP_Manifold_result.py": "630f39c6ee4c6757b7c0db19240e59aec2e406c30279b2ed69030485b316d5e3",
+    "ADP/core/manifold/ADP_Manifold_utils.py": "ff6ff4b9433cb123eeefa0b693119b9d0e6e159e9d306c83d31fdcd3ec8eb27e",
+    "ADP/core/manifold/__init__.py": "cc393ddf77b47d0522ebd4219b69667788d962d94f3d87453552f9a35b7695af",
+    "ADP/core/multi/ADP_multi_index.py": "465636b275cd8e9d290c9c4f38304eb7258a3d3729b12512090c02de89351fa5",
+    "ADP/core/multi/ADP_multi_index_result.py": "b0aa2d22b65c582a95b3214ffe225b5cb92c87013971cc0bb4a16b570ad56ef1",
+    "ADP/core/multi/ADP_multi_index_utils.py": "e128ce603f513ef48d53e1d823fdc0a1c0c350c1ddbd2d53ec660da040d91229",
+    "ADP/core/multi/__init__.py": "ec56c6b805208b2b558e999089d75d9458ebabdfda75c1d3072951d2f677bc3f",
+    "ADP/core/single/ADP_single_index.py": "d636b1b1eddc5cdbdfe61e567e899e92399c3e666b75f0efe85c2a8d43c91b95",
+    "ADP/core/single/ADP_single_index_result.py": "6f539f9f285911f4776261f2346ad6a51fc3a42faeaf80c067ef8c8df4eafaf1",
+    "ADP/core/single/ADP_single_index_utils.py": "982fb26681d3b6b4547d55c2520c17252ec93c9a4b9e997fc0c128c57c32650e",
+    "ADP/core/single/__init__.py": "38c5b31c28225e064dd22aed9abce4fbc929690d4091cb02d264a6ca1d7de48d",
+    "ADP/engine/__init__.py": "580333799aa34f8147779b45ddede43d88587212c001ae97f3e13d1f3910cc0a",
+    "ADP/engine/common/ADP_Statistic_engine.py": "74276b3a0a70e4efa36611c48fe53ed4305c02f7bda0414842d45cb71c42cc3b",
+    "ADP/engine/common/__init__.py": "a1e486353e43b9473fa1068a87b0e84481f17fadc06adc552de77d35672826d8",
+    "ADP/engine/common/box_kernel.py": "2776cf53404da905372be854fcb5c0001ef25453973b17bcd09b51fa6b6382ae",
+    "ADP/engine/common/calculus.py": "5d50b69edbfa9363b33d791da24c50fa47a29ccb4e2e4a791ad7ee8e80615c5e",
+    "ADP/engine/common/gpu_statistics.py": "564d95e8204dc728c83904d93ee446d4a992ac160a00abc72308aa51fe445edd",
+    "ADP/engine/common/index_fit.py": "f059a8f000cf81659f55133ebc3cbd86ec9b38244224abdfaf94d5cfc36e6b20",
+    "ADP/engine/common/initialize.py": "8146befd146847d4b88ac3b1f0c27c7eb68d00998ba44a3f334e114718b9b4bc",
+    "ADP/engine/common/logger.py": "05fd5d8bc3082c4410b33b585d054fdf693f3d39e51d1e21703201b43a2f377a",
+    "ADP/engine/common/statistic.py": "25f8b1e33c3e1280ae5a5959e51a747b2cc9c24661b64358ea7a9da585fa9fa1",
+    "ADP/engine/common/utils.py": "3dd3eafbaf8e246054589013eae17259b9abaf314f7be5100c65edaf0162f98a",
+    "ADP/engine/common/weights.py": "0cc5a04bbff3ae60e74da248ccd73b0128090072fdb1267c4334d78a7e7d006e",
+    "ADP/engine/manifol_engine/__init__.py": "657c1941611c974126b68da000053322261d7eae80c79f43360f9a029baa9d5c",
+    "ADP/engine/manifol_engine/fit.py": "75e3c45c0b73972493a907a3352a61333c7fc0bc0107ae8e8b58f2697b461e3c",
+    "ADP/engine/manifol_engine/graphs.py": "71f8b0b9a31260cb09e8158a022a793056b467adb6463fb9896e3067187d6c71",
+    "ADP/engine/manifol_engine/optimisation.py": "34b6030933da0eb77412ede4dca94c405c3f08d716e3c2239ba7e0e3cf732081",
+    "ADP/engine/manifol_engine/utils.py": "467f66dc6b93cf513aba8bce5d1cc96f90adf750b4c2a026574c1ebc0af65d55",
+    "ADP/engine/manifol_engine/weights.py": "7827aec7f53f1f1dadd7da388fe099f4cf702d357965eef80644cb0c114828a7",
+    "ADP/engine/multi_index/ADP_multi_index_engine.py": "19a86165375ed267b898f1fb18fb750d909a3d1da98a442592aa062fb072bb09",
+    "ADP/engine/multi_index/__init__.py": "ecffff79930f2262696edc0c8af9d884681dc0df1474dc451e9bfb64e52299d4",
+    "ADP/engine/single_index/ADP_single_index_engine.py": "4bcaad15ccbe249f6311d3660b0f9cc6268ce1af405e676af109babc6c0ef2ca",
+    "ADP/engine/single_index/__init__.py": "1a0d3013732cbf557046b6dcca340f140434f58b2bfda8924259df5af55dbc7b",
+    "ADP/gpu.py": "560d3de7bb1c84428b8b4f0d204094fe6d533b681ebff5ed6e9ecac4a19258da",
+    "ADP/solver/CG.py": "b30566dfd036b8e13c8f00758641ab65a904e00a3bb166664a9c40973ffd59d3",
+    "ADP/solver/HYBRID.py": "0ecdd86d1d0c700e93a681c2d5eae135f852fccb10d671c24d3f661905463c98",
+    "ADP/solver/LSMR.py": "00e1c2c02bce027cc836a2b4d814f2321d7d1f62bf963934381fd6409cc46702",
+    "ADP/solver/_multi_operator.py": "f10629519425fb042cef58b3d4f9b2ec5c0fe41f946a20f6117a0d57ea6cd2ae",
+    "ADP/solver/legacy_lsmr.py": "c97b0ff519ba43afdbe11d1eb48f68fa275a9aa32b37b804ff9c6684fac13016",
+    "benchmarks/fit_bottlenecks.py": "9b0956a0a0f62d7bec22fdbe720a6c5c6903ef78c1c98c5de8a777b1fe6f0bc7"
+  },
+  "source_sha256_after": {
+    "ADP/__init__.py": "39b3d44cf81c9a6df81571455f9ccd78e2ac6c52ce9bcbb9e76154189844cc26",
+    "ADP/cli/__init__.py": "2388754dbcbaf9a52f236f6c6d623e39efa28f4ccd41bfd850c2fae478fee6da",
+    "ADP/cli/__main__.py": "e4ff3ad1054fb5ad4c26c3915f8511c9d15bf0b2742c6c7e6eb4aed24b1a99ab",
+    "ADP/cli/experiment.py": "b65bf75576114eb3da0b9640e3a7a45de8d28a6b27525337bcdedabbf5eaa080",
+    "ADP/cli/experiment_plots.py": "02da062a1d82d43cd67002e19e56fd6c12d0c156e98b3f7694a8634f8ea2ebb2",
+    "ADP/cli/experiment_utils.py": "bedd3e77f51ee03ff587ee0098cb567e1cd2a51f55e1f13942893f856016f2ff",
+    "ADP/cli/main.py": "2024b8d8ece841aef23a1e7d0a4eaae34e645ca58e3ba91190b77936a3b019a4",
+    "ADP/cli.py": "6bea069301e4b6ca6014c2e9a286db9a913d9aed0d6c6b944ca9dbafa55cb6b6",
+    "ADP/core/ADP_Config.py": "d803afe7cf9e52ddc321bb711bb5adc3eb7721a217f94570dd8aafdc1685a4d3",
+    "ADP/core/ADP_Data.py": "faf02f014c6a6d05327b287eb5a05dae77d07f8a99d916aeeaf604e765ad3cdc",
+    "ADP/core/ADP_Solver.py": "0115893e242df9ba070b156839c4fc3cc77d407d1c9d8b6130f02d2b5334a209",
+    "ADP/core/ADP_Statistic.py": "be6f5e9d215180a0101dd25f1fb2a79f1e9afeb6652c5cc8dfa38ea48c77a8a5",
+    "ADP/core/__init__.py": "8459652afe34f924c5a479e6c215e5b72be6bf8d3447b0a217f07d1d6d009a38",
+    "ADP/core/manifold/ADP_Manifold.py": "973488ba5ffa521fb743a12d3ef0787b8cc978aed2ec03b3780c3aab219f53ad",
+    "ADP/core/manifold/ADP_Manifold_result.py": "630f39c6ee4c6757b7c0db19240e59aec2e406c30279b2ed69030485b316d5e3",
+    "ADP/core/manifold/ADP_Manifold_utils.py": "ff6ff4b9433cb123eeefa0b693119b9d0e6e159e9d306c83d31fdcd3ec8eb27e",
+    "ADP/core/manifold/__init__.py": "cc393ddf77b47d0522ebd4219b69667788d962d94f3d87453552f9a35b7695af",
+    "ADP/core/multi/ADP_multi_index.py": "465636b275cd8e9d290c9c4f38304eb7258a3d3729b12512090c02de89351fa5",
+    "ADP/core/multi/ADP_multi_index_result.py": "b0aa2d22b65c582a95b3214ffe225b5cb92c87013971cc0bb4a16b570ad56ef1",
+    "ADP/core/multi/ADP_multi_index_utils.py": "e128ce603f513ef48d53e1d823fdc0a1c0c350c1ddbd2d53ec660da040d91229",
+    "ADP/core/multi/__init__.py": "ec56c6b805208b2b558e999089d75d9458ebabdfda75c1d3072951d2f677bc3f",
+    "ADP/core/single/ADP_single_index.py": "d636b1b1eddc5cdbdfe61e567e899e92399c3e666b75f0efe85c2a8d43c91b95",
+    "ADP/core/single/ADP_single_index_result.py": "6f539f9f285911f4776261f2346ad6a51fc3a42faeaf80c067ef8c8df4eafaf1",
+    "ADP/core/single/ADP_single_index_utils.py": "982fb26681d3b6b4547d55c2520c17252ec93c9a4b9e997fc0c128c57c32650e",
+    "ADP/core/single/__init__.py": "38c5b31c28225e064dd22aed9abce4fbc929690d4091cb02d264a6ca1d7de48d",
+    "ADP/engine/__init__.py": "580333799aa34f8147779b45ddede43d88587212c001ae97f3e13d1f3910cc0a",
+    "ADP/engine/common/ADP_Statistic_engine.py": "74276b3a0a70e4efa36611c48fe53ed4305c02f7bda0414842d45cb71c42cc3b",
+    "ADP/engine/common/__init__.py": "a1e486353e43b9473fa1068a87b0e84481f17fadc06adc552de77d35672826d8",
+    "ADP/engine/common/box_kernel.py": "2776cf53404da905372be854fcb5c0001ef25453973b17bcd09b51fa6b6382ae",
+    "ADP/engine/common/calculus.py": "5d50b69edbfa9363b33d791da24c50fa47a29ccb4e2e4a791ad7ee8e80615c5e",
+    "ADP/engine/common/gpu_statistics.py": "564d95e8204dc728c83904d93ee446d4a992ac160a00abc72308aa51fe445edd",
+    "ADP/engine/common/index_fit.py": "f059a8f000cf81659f55133ebc3cbd86ec9b38244224abdfaf94d5cfc36e6b20",
+    "ADP/engine/common/initialize.py": "8146befd146847d4b88ac3b1f0c27c7eb68d00998ba44a3f334e114718b9b4bc",
+    "ADP/engine/common/logger.py": "05fd5d8bc3082c4410b33b585d054fdf693f3d39e51d1e21703201b43a2f377a",
+    "ADP/engine/common/statistic.py": "25f8b1e33c3e1280ae5a5959e51a747b2cc9c24661b64358ea7a9da585fa9fa1",
+    "ADP/engine/common/utils.py": "3dd3eafbaf8e246054589013eae17259b9abaf314f7be5100c65edaf0162f98a",
+    "ADP/engine/common/weights.py": "0cc5a04bbff3ae60e74da248ccd73b0128090072fdb1267c4334d78a7e7d006e",
+    "ADP/engine/manifol_engine/__init__.py": "657c1941611c974126b68da000053322261d7eae80c79f43360f9a029baa9d5c",
+    "ADP/engine/manifol_engine/fit.py": "75e3c45c0b73972493a907a3352a61333c7fc0bc0107ae8e8b58f2697b461e3c",
+    "ADP/engine/manifol_engine/graphs.py": "71f8b0b9a31260cb09e8158a022a793056b467adb6463fb9896e3067187d6c71",
+    "ADP/engine/manifol_engine/optimisation.py": "34b6030933da0eb77412ede4dca94c405c3f08d716e3c2239ba7e0e3cf732081",
+    "ADP/engine/manifol_engine/utils.py": "467f66dc6b93cf513aba8bce5d1cc96f90adf750b4c2a026574c1ebc0af65d55",
+    "ADP/engine/manifol_engine/weights.py": "7827aec7f53f1f1dadd7da388fe099f4cf702d357965eef80644cb0c114828a7",
+    "ADP/engine/multi_index/ADP_multi_index_engine.py": "19a86165375ed267b898f1fb18fb750d909a3d1da98a442592aa062fb072bb09",
+    "ADP/engine/multi_index/__init__.py": "ecffff79930f2262696edc0c8af9d884681dc0df1474dc451e9bfb64e52299d4",
+    "ADP/engine/single_index/ADP_single_index_engine.py": "4bcaad15ccbe249f6311d3660b0f9cc6268ce1af405e676af109babc6c0ef2ca",
+    "ADP/engine/single_index/__init__.py": "1a0d3013732cbf557046b6dcca340f140434f58b2bfda8924259df5af55dbc7b",
+    "ADP/gpu.py": "560d3de7bb1c84428b8b4f0d204094fe6d533b681ebff5ed6e9ecac4a19258da",
+    "ADP/solver/CG.py": "b30566dfd036b8e13c8f00758641ab65a904e00a3bb166664a9c40973ffd59d3",
+    "ADP/solver/HYBRID.py": "0ecdd86d1d0c700e93a681c2d5eae135f852fccb10d671c24d3f661905463c98",
+    "ADP/solver/LSMR.py": "00e1c2c02bce027cc836a2b4d814f2321d7d1f62bf963934381fd6409cc46702",
+    "ADP/solver/_multi_operator.py": "f10629519425fb042cef58b3d4f9b2ec5c0fe41f946a20f6117a0d57ea6cd2ae",
+    "ADP/solver/legacy_lsmr.py": "c97b0ff519ba43afdbe11d1eb48f68fa275a9aa32b37b804ff9c6684fac13016",
+    "benchmarks/fit_bottlenecks.py": "9b0956a0a0f62d7bec22fdbe720a6c5c6903ef78c1c98c5de8a777b1fe6f0bc7"
+  },
+  "python": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "blas": {
+    "Compilers": {
+      "c": {
+        "name": "gcc",
+        "linker": "ld.bfd",
+        "version": "16.1.1",
+        "commands": "cc",
+        "args": "-march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto, -ffat-lto-objects",
+        "linker args": "-Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now, -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto, -ffat-lto-objects"
+      },
+      "cython": {
+        "name": "cython",
+        "linker": "cython",
+        "version": "3.2.9",
+        "commands": "cython"
+      },
+      "c++": {
+        "name": "gcc",
+        "linker": "ld.bfd",
+        "version": "16.1.1",
+        "commands": "c++",
+        "args": "-march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -Wp,-D_GLIBCXX_ASSERTIONS, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto, -ffat-lto-objects",
+        "linker args": "-Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now, -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -Wp,-D_GLIBCXX_ASSERTIONS, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto, -ffat-lto-objects"
+      }
+    },
+    "Machine Information": {
+      "host": {
+        "cpu": "x86_64",
+        "family": "x86_64",
+        "endian": "little",
+        "system": "linux"
+      },
+      "build": {
+        "cpu": "x86_64",
+        "family": "x86_64",
+        "endian": "little",
+        "system": "linux"
+      }
+    },
+    "Build Dependencies": {
+      "blas": {
+        "name": "cblas",
+        "found": true,
+        "version": "3.12.0",
+        "detection method": "pkgconfig",
+        "include directory": "/usr/include",
+        "lib directory": "/usr/lib",
+        "openblas configuration": "unknown",
+        "pc file directory": "/usr/lib/pkgconfig"
+      },
+      "lapack": {
+        "name": "lapack",
+        "found": true,
+        "version": "3.12.0",
+        "detection method": "pkgconfig",
+        "include directory": "/usr/include",
+        "lib directory": "/usr/lib",
+        "openblas configuration": "unknown",
+        "pc file directory": "/usr/lib/pkgconfig"
+      }
+    },
+    "Python Information": {
+      "path": "/usr/bin/python",
+      "version": "3.14"
+    },
+    "SIMD Extensions": {
+      "found": [
+        "X86_V2",
+        "X86_V3"
+      ],
+      "not found": [
+        "X86_V4",
+        "AVX512_ICL",
+        "AVX512_SPR"
+      ]
+    }
+  },
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "rows": [
+    {
+      "case": "multi_base",
+      "profile_mode": "traced",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 5,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.09935480400235974,
+      "rss_pre_fit_bytes": 74477568,
+      "rss_peak_bytes": 82071552,
+      "rss_sampled_phase_peak_bytes": {
+        "unattributed": 79769600,
+        "initialize_basis_local_with_spectrum": 76357632,
+        "search_bandwidth": 76505088,
+        "calculate_statistics": 82272256,
+        "calculate_alpha_k": 79769600
+      },
+      "rss_samples": 44,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.0008749019980314188,
+        "initialize_basis_local_with_spectrum": 0.009148171000560978,
+        "search_bandwidth": 0.0013817170001857448,
+        "calculate_multi_weight": 5.3389994718600065e-06,
+        "calculate_statistics": 0.01356741199924727,
+        "calculate_alpha_k": 0.0021400890000222716
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.0008749019980314188,
+        "initialize_basis_local_with_spectrum": 0.009148171000560978,
+        "search_bandwidth": 0.0013817170001857448,
+        "calculate_multi_weight": 5.3389994718600065e-06,
+        "calculate_statistics": 0.01356741199924727,
+        "calculate_alpha_k": 0.0021400890000222716
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.010246582998661324,
+            "time_fraction": 0.10422580676271702,
+            "memory_bytes": 730192.0,
+            "memory_fraction": 0.05073276013903791
+          },
+          "bandwidth": {
+            "time_seconds": 0.001397537998855114,
+            "time_fraction": 0.014215424344999419,
+            "memory_bytes": 461990.0,
+            "memory_fraction": 0.03209844514406365
+          },
+          "directions": {
+            "time_seconds": 0.00038970000241533853,
+            "time_fraction": 0.003963935797180177,
+            "memory_bytes": 507394.0,
+            "memory_fraction": 0.03525305412547248
+          },
+          "statistics": {
+            "time_seconds": 0.013625699000840541,
+            "time_fraction": 0.13859737155831262,
+            "memory_bytes": 11634835.0,
+            "memory_fraction": 0.8083727202054846
+          },
+          "solver": {
+            "time_seconds": 0.07048347299860325,
+            "time_fraction": 0.7169411341983328,
+            "memory_bytes": 151770.0,
+            "memory_fraction": 0.01054477590318955
+          },
+          "update": {
+            "time_seconds": 0.0021683880004275125,
+            "time_fraction": 0.022056327338457953,
+            "memory_bytes": 906728.0,
+            "memory_fraction": 0.06299824448275189
+          }
+        },
+        "total_time_seconds": 0.09921382199900108,
+        "stage_memory_bytes": 14392909.0,
+        "peak_memory_bytes": 6276185,
+        "max_memory": 11634835.0
+      },
+      "basis": [
+        [
+          0.9976158021831874,
+          -0.0012056224779415266
+        ],
+        [
+          0.0016052776124965695,
+          0.9129652469293014
+        ],
+        [
+          0.041859221477935825,
+          0.05375986506237926
+        ],
+        [
+          -0.013208717982647956,
+          0.08785480216643786
+        ],
+        [
+          -0.03877451053777161,
+          0.1287055940088985
+        ],
+        [
+          -0.03316119102992754,
+          -0.023676343456574822
+        ],
+        [
+          0.013762151891341123,
+          0.30602986699369344
+        ],
+        [
+          -0.006398873498647756,
+          0.2123780505553629
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08292747845982261
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 15,
+            "normal_residual_ratio": 0.0001762023984968487,
+            "normal_residual": 1.1119496048383454e-09,
+            "correction_norm": 0.00035698361095031644,
+            "gauge_error": 5.286537051152131e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 79,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.47674616369112033,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00017826810219597608,
+            "local_gradient": 4.679077039764265e-15,
+            "orthogonality": 4.594926594259402e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024663785316736277
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406316995620728,
+          "h_over_factor": 1.5678827758295935,
+          "err": 2.9236828892597964,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.005563900499378442
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 24,
+            "normal_residual_ratio": 1.3340545838724278e-06,
+            "normal_residual": 3.5896805510609183e-10,
+            "correction_norm": 0.007610745439157736,
+            "gauge_error": 8.983993248890316e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 123,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.7015808026231606,
+            "loss_history": [
+              0.8360235829481518,
+              0.7097523959345063,
+              0.7029802329005346,
+              0.7018892985476304,
+              0.7016440153347521,
+              0.7015808026231606
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00033231692648926663,
+            "local_gradient": 4.626475645337561e-15,
+            "orthogonality": 1.1102611404534927e-15
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15,
+          "k": 1,
+          "alpha": 0.7406316995620728,
+          "mean_mass": 30.00000056038371,
+          "distance_initial": 0.2870205064876666,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "repeat": 0,
+      "warmup": true
+    },
+    {
+      "case": "multi_base",
+      "profile_mode": "traced",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 5,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.09703893899859395,
+      "rss_pre_fit_bytes": 74551296,
+      "rss_peak_bytes": 82219008,
+      "rss_sampled_phase_peak_bytes": {
+        "unattributed": 79831040,
+        "initialize_basis_local_with_spectrum": 76484608,
+        "search_bandwidth": 76632064,
+        "calculate_statistics": 82161664,
+        "calculate_alpha_k": 79831040
+      },
+      "rss_samples": 43,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.0008652180003991816,
+        "initialize_basis_local_with_spectrum": 0.008981415998277953,
+        "search_bandwidth": 0.0013148200014256872,
+        "calculate_multi_weight": 5.38099993718788e-06,
+        "calculate_statistics": 0.013161047001631232,
+        "calculate_alpha_k": 0.002129624997905921
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.0008652180003991816,
+        "initialize_basis_local_with_spectrum": 0.008981415998277953,
+        "search_bandwidth": 0.0013148200014256872,
+        "calculate_multi_weight": 5.38099993718788e-06,
+        "calculate_statistics": 0.013161047001631232,
+        "calculate_alpha_k": 0.002129624997905921
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.010062027999083512,
+            "time_fraction": 0.10477366414840134,
+            "memory_bytes": 730192.0,
+            "memory_fraction": 0.05073419126610569
+          },
+          "bandwidth": {
+            "time_seconds": 0.0013262499996926636,
+            "time_fraction": 0.013809946867298835,
+            "memory_bytes": 461990.0,
+            "memory_fraction": 0.03209935061330194
+          },
+          "directions": {
+            "time_seconds": 0.00037127299947314896,
+            "time_fraction": 0.0038659833343449674,
+            "memory_bytes": 507440.0,
+            "memory_fraction": 0.035257244691906615
+          },
+          "statistics": {
+            "time_seconds": 0.01321259000178543,
+            "time_fraction": 0.13757976697179555,
+            "memory_bytes": 11634746.0,
+            "memory_fraction": 0.8083893399223193
+          },
+          "solver": {
+            "time_seconds": 0.0689100370000233,
+            "time_fraction": 0.7175449197469905,
+            "memory_bytes": 151407.0,
+            "memory_fraction": 0.01051985189789434
+          },
+          "update": {
+            "time_seconds": 0.0021536730018851813,
+            "time_fraction": 0.022425718931168768,
+            "memory_bytes": 906728.0,
+            "memory_fraction": 0.06300002160847214
+          }
+        },
+        "total_time_seconds": 0.09690149399830261,
+        "stage_memory_bytes": 14392503.0,
+        "peak_memory_bytes": 6276294,
+        "max_memory": 11634746.0
+      },
+      "basis": [
+        [
+          0.9976158021831874,
+          -0.0012056224779415266
+        ],
+        [
+          0.0016052776124965695,
+          0.9129652469293014
+        ],
+        [
+          0.041859221477935825,
+          0.05375986506237926
+        ],
+        [
+          -0.013208717982647956,
+          0.08785480216643786
+        ],
+        [
+          -0.03877451053777161,
+          0.1287055940088985
+        ],
+        [
+          -0.03316119102992754,
+          -0.023676343456574822
+        ],
+        [
+          0.013762151891341123,
+          0.30602986699369344
+        ],
+        [
+          -0.006398873498647756,
+          0.2123780505553629
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08292747845982261
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 15,
+            "normal_residual_ratio": 0.0001762023984968487,
+            "normal_residual": 1.1119496048383454e-09,
+            "correction_norm": 0.00035698361095031644,
+            "gauge_error": 5.286537051152131e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 79,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.47674616369112033,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00017826810219597608,
+            "local_gradient": 4.679077039764265e-15,
+            "orthogonality": 4.594926594259402e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024663785316736277
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406316995620728,
+          "h_over_factor": 1.5678827758295935,
+          "err": 2.9236828892597964,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.005563900499378442
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 24,
+            "normal_residual_ratio": 1.3340545838724278e-06,
+            "normal_residual": 3.5896805510609183e-10,
+            "correction_norm": 0.007610745439157736,
+            "gauge_error": 8.983993248890316e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 123,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.7015808026231606,
+            "loss_history": [
+              0.8360235829481518,
+              0.7097523959345063,
+              0.7029802329005346,
+              0.7018892985476304,
+              0.7016440153347521,
+              0.7015808026231606
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00033231692648926663,
+            "local_gradient": 4.626475645337561e-15,
+            "orthogonality": 1.1102611404534927e-15
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15,
+          "k": 1,
+          "alpha": 0.7406316995620728,
+          "mean_mass": 30.00000056038371,
+          "distance_initial": 0.2870205064876666,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "repeat": 1,
+      "warmup": false
+    },
+    {
+      "case": "multi_base",
+      "profile_mode": "traced",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 5,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.09706974099754007,
+      "rss_pre_fit_bytes": 74608640,
+      "rss_peak_bytes": 82124800,
+      "rss_sampled_phase_peak_bytes": {
+        "unattributed": 79785984,
+        "initialize_basis_local_with_spectrum": 76431360,
+        "search_bandwidth": 76808192,
+        "calculate_statistics": 82321408,
+        "calculate_alpha_k": 79785984
+      },
+      "rss_samples": 44,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.0008670649986015633,
+        "initialize_basis_local_with_spectrum": 0.0090517099997669,
+        "search_bandwidth": 0.0013987980019010138,
+        "calculate_multi_weight": 5.426001735031605e-06,
+        "calculate_statistics": 0.013702702002774458,
+        "calculate_alpha_k": 0.0021700270008295774
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.0008670649986015633,
+        "initialize_basis_local_with_spectrum": 0.0090517099997669,
+        "search_bandwidth": 0.0013987980019010138,
+        "calculate_multi_weight": 5.426001735031605e-06,
+        "calculate_statistics": 0.013702702002774458,
+        "calculate_alpha_k": 0.0021700270008295774
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.010217903000011574,
+            "time_fraction": 0.10627318864418055,
+            "memory_bytes": 871225.0,
+            "memory_fraction": 0.05996019973771607
+          },
+          "bandwidth": {
+            "time_seconds": 0.001409967000654433,
+            "time_fraction": 0.014664622383129714,
+            "memory_bytes": 461990.0,
+            "memory_fraction": 0.03179547496551114
+          },
+          "directions": {
+            "time_seconds": 0.00037700900429626927,
+            "time_fraction": 0.0039211518287154135,
+            "memory_bytes": 507440.0,
+            "memory_fraction": 0.03492347413688386
+          },
+          "statistics": {
+            "time_seconds": 0.013755317002505763,
+            "time_fraction": 0.14306471676880697,
+            "memory_bytes": 11631288.0,
+            "memory_fraction": 0.800498552827226
+          },
+          "solver": {
+            "time_seconds": 0.06819128999995883,
+            "time_fraction": 0.7092361148904465,
+            "memory_bytes": 151384.0,
+            "memory_fraction": 0.010418680452345156
+          },
+          "update": {
+            "time_seconds": 0.0021960289996059146,
+            "time_fraction": 0.022840205484720894,
+            "memory_bytes": 906728.0,
+            "memory_fraction": 0.06240361788031773
+          }
+        },
+        "total_time_seconds": 0.09692334500141442,
+        "stage_memory_bytes": 14530055.0,
+        "peak_memory_bytes": 6272661,
+        "max_memory": 11631288.0
+      },
+      "basis": [
+        [
+          0.9976158021831874,
+          -0.0012056224779415266
+        ],
+        [
+          0.0016052776124965695,
+          0.9129652469293014
+        ],
+        [
+          0.041859221477935825,
+          0.05375986506237926
+        ],
+        [
+          -0.013208717982647956,
+          0.08785480216643786
+        ],
+        [
+          -0.03877451053777161,
+          0.1287055940088985
+        ],
+        [
+          -0.03316119102992754,
+          -0.023676343456574822
+        ],
+        [
+          0.013762151891341123,
+          0.30602986699369344
+        ],
+        [
+          -0.006398873498647756,
+          0.2123780505553629
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08292747845982261
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 15,
+            "normal_residual_ratio": 0.0001762023984968487,
+            "normal_residual": 1.1119496048383454e-09,
+            "correction_norm": 0.00035698361095031644,
+            "gauge_error": 5.286537051152131e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 79,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.47674616369112033,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00017826810219597608,
+            "local_gradient": 4.679077039764265e-15,
+            "orthogonality": 4.594926594259402e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024663785316736277
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406316995620728,
+          "h_over_factor": 1.5678827758295935,
+          "err": 2.9236828892597964,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.005563900499378442
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 24,
+            "normal_residual_ratio": 1.3340545838724278e-06,
+            "normal_residual": 3.5896805510609183e-10,
+            "correction_norm": 0.007610745439157736,
+            "gauge_error": 8.983993248890316e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 123,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.7015808026231606,
+            "loss_history": [
+              0.8360235829481518,
+              0.7097523959345063,
+              0.7029802329005346,
+              0.7018892985476304,
+              0.7016440153347521,
+              0.7015808026231606
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00033231692648926663,
+            "local_gradient": 4.626475645337561e-15,
+            "orthogonality": 1.1102611404534927e-15
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15,
+          "k": 1,
+          "alpha": 0.7406316995620728,
+          "mean_mass": 30.00000056038371,
+          "distance_initial": 0.2870205064876666,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "repeat": 2,
+      "warmup": false
+    },
+    {
+      "case": "multi_base",
+      "profile_mode": "traced",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 5,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.0994755060019088,
+      "rss_pre_fit_bytes": 74588160,
+      "rss_peak_bytes": 82096128,
+      "rss_sampled_phase_peak_bytes": {
+        "unattributed": 79831040,
+        "initialize_basis_local_with_spectrum": 76414976,
+        "search_bandwidth": 76562432,
+        "calculate_statistics": 82333696,
+        "calculate_alpha_k": 79831040
+      },
+      "rss_samples": 44,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.0008484320023853797,
+        "initialize_basis_local_with_spectrum": 0.009183566999126924,
+        "search_bandwidth": 0.001313194999966072,
+        "calculate_multi_weight": 5.744997906731442e-06,
+        "calculate_statistics": 0.013432924999506213,
+        "calculate_alpha_k": 0.0021554670020123012
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.0008484320023853797,
+        "initialize_basis_local_with_spectrum": 0.009183566999126924,
+        "search_bandwidth": 0.001313194999966072,
+        "calculate_multi_weight": 5.744997906731442e-06,
+        "calculate_statistics": 0.013432924999506213,
+        "calculate_alpha_k": 0.0021554670020123012
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.010223833000054583,
+            "time_fraction": 0.10373577247270462,
+            "memory_bytes": 738541.0,
+            "memory_fraction": 0.051289603219683226
+          },
+          "bandwidth": {
+            "time_seconds": 0.0013251759992272127,
+            "time_fraction": 0.013445853031968462,
+            "memory_bytes": 461990.0,
+            "memory_fraction": 0.03208391110508618
+          },
+          "directions": {
+            "time_seconds": 0.00038821099951746874,
+            "time_fraction": 0.003938969652294827,
+            "memory_bytes": 507440.0,
+            "memory_fraction": 0.035240286264128944
+          },
+          "statistics": {
+            "time_seconds": 0.013488931999745546,
+            "time_fraction": 0.13686498799598135,
+            "memory_bytes": 11631334.0,
+            "memory_fraction": 0.807763557846634
+          },
+          "solver": {
+            "time_seconds": 0.07094922300166218,
+            "time_fraction": 0.7198838688363077,
+            "memory_bytes": 153440.0,
+            "memory_fraction": 0.01065597809468695
+          },
+          "update": {
+            "time_seconds": 0.002181109000957804,
+            "time_fraction": 0.02213054801074302,
+            "memory_bytes": 906684.0,
+            "memory_fraction": 0.06296666346978064
+          }
+        },
+        "total_time_seconds": 0.09933257499869796,
+        "stage_memory_bytes": 14399429.0,
+        "peak_memory_bytes": 6140112,
+        "max_memory": 11631334.0
+      },
+      "basis": [
+        [
+          0.9976158021831874,
+          -0.0012056224779415266
+        ],
+        [
+          0.0016052776124965695,
+          0.9129652469293014
+        ],
+        [
+          0.041859221477935825,
+          0.05375986506237926
+        ],
+        [
+          -0.013208717982647956,
+          0.08785480216643786
+        ],
+        [
+          -0.03877451053777161,
+          0.1287055940088985
+        ],
+        [
+          -0.03316119102992754,
+          -0.023676343456574822
+        ],
+        [
+          0.013762151891341123,
+          0.30602986699369344
+        ],
+        [
+          -0.006398873498647756,
+          0.2123780505553629
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08292747845982261
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 15,
+            "normal_residual_ratio": 0.0001762023984968487,
+            "normal_residual": 1.1119496048383454e-09,
+            "correction_norm": 0.00035698361095031644,
+            "gauge_error": 5.286537051152131e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 79,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.47674616369112033,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00017826810219597608,
+            "local_gradient": 4.679077039764265e-15,
+            "orthogonality": 4.594926594259402e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024663785316736277
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406316995620728,
+          "h_over_factor": 1.5678827758295935,
+          "err": 2.9236828892597964,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.005563900499378442
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 24,
+            "normal_residual_ratio": 1.3340545838724278e-06,
+            "normal_residual": 3.5896805510609183e-10,
+            "correction_norm": 0.007610745439157736,
+            "gauge_error": 8.983993248890316e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 123,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.7015808026231606,
+            "loss_history": [
+              0.8360235829481518,
+              0.7097523959345063,
+              0.7029802329005346,
+              0.7018892985476304,
+              0.7016440153347521,
+              0.7015808026231606
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00033231692648926663,
+            "local_gradient": 4.626475645337561e-15,
+            "orthogonality": 1.1102611404534927e-15
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15,
+          "k": 1,
+          "alpha": 0.7406316995620728,
+          "mean_mass": 30.00000056038371,
+          "distance_initial": 0.2870205064876666,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "repeat": 3,
+      "warmup": false
+    },
+    {
+      "case": "multi_base",
+      "profile_mode": "traced",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 5,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.10167821900176932,
+      "rss_pre_fit_bytes": 74436608,
+      "rss_peak_bytes": 82038784,
+      "rss_sampled_phase_peak_bytes": {
+        "unattributed": 79663104,
+        "initialize_basis_local_with_spectrum": 76308480,
+        "search_bandwidth": 76455936,
+        "calculate_statistics": 82231296,
+        "calculate_alpha_k": 79663104
+      },
+      "rss_samples": 46,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.0008695249998709187,
+        "initialize_basis_local_with_spectrum": 0.0090634050029621,
+        "search_bandwidth": 0.0013172949984436855,
+        "calculate_multi_weight": 5.743997462559491e-06,
+        "calculate_statistics": 0.013373403999139555,
+        "calculate_alpha_k": 0.002136451999831479
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.0008695249998709187,
+        "initialize_basis_local_with_spectrum": 0.0090634050029621,
+        "search_bandwidth": 0.0013172949984436855,
+        "calculate_multi_weight": 5.743997462559491e-06,
+        "calculate_statistics": 0.013373403999139555,
+        "calculate_alpha_k": 0.002136451999831479
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.010127419001946691,
+            "time_fraction": 0.10051736362380148,
+            "memory_bytes": 738541.0,
+            "memory_fraction": 0.05129154453914623
+          },
+          "bandwidth": {
+            "time_seconds": 0.0013290589995449409,
+            "time_fraction": 0.013191268842443007,
+            "memory_bytes": 461990.0,
+            "memory_fraction": 0.032085125486114065
+          },
+          "directions": {
+            "time_seconds": 0.000381639001716394,
+            "time_fraction": 0.0037878699697501956,
+            "memory_bytes": 507440.0,
+            "memory_fraction": 0.03524162011444776
+          },
+          "statistics": {
+            "time_seconds": 0.013423067000985611,
+            "time_fraction": 0.13322755841595654,
+            "memory_bytes": 11631334.0,
+            "memory_fraction": 0.8077941318229941
+          },
+          "solver": {
+            "time_seconds": 0.0733288410010573,
+            "time_fraction": 0.7278085140546058,
+            "memory_bytes": 152895.0,
+            "memory_fraction": 0.01061853126950672
+          },
+          "update": {
+            "time_seconds": 0.0021629059992847033,
+            "time_fraction": 0.021467425093443036,
+            "memory_bytes": 906684.0,
+            "memory_fraction": 0.06296904676779116
+          }
+        },
+        "total_time_seconds": 0.1015263640001649,
+        "stage_memory_bytes": 14398884.0,
+        "peak_memory_bytes": 6140162,
+        "max_memory": 11631334.0
+      },
+      "basis": [
+        [
+          0.9976158021831874,
+          -0.0012056224779415266
+        ],
+        [
+          0.0016052776124965695,
+          0.9129652469293014
+        ],
+        [
+          0.041859221477935825,
+          0.05375986506237926
+        ],
+        [
+          -0.013208717982647956,
+          0.08785480216643786
+        ],
+        [
+          -0.03877451053777161,
+          0.1287055940088985
+        ],
+        [
+          -0.03316119102992754,
+          -0.023676343456574822
+        ],
+        [
+          0.013762151891341123,
+          0.30602986699369344
+        ],
+        [
+          -0.006398873498647756,
+          0.2123780505553629
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08292747845982261
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 15,
+            "normal_residual_ratio": 0.0001762023984968487,
+            "normal_residual": 1.1119496048383454e-09,
+            "correction_norm": 0.00035698361095031644,
+            "gauge_error": 5.286537051152131e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 79,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.47674616369112033,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00017826810219597608,
+            "local_gradient": 4.679077039764265e-15,
+            "orthogonality": 4.594926594259402e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024663785316736277
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406316995620728,
+          "h_over_factor": 1.5678827758295935,
+          "err": 2.9236828892597964,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.005563900499378442
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 24,
+            "normal_residual_ratio": 1.3340545838724278e-06,
+            "normal_residual": 3.5896805510609183e-10,
+            "correction_norm": 0.007610745439157736,
+            "gauge_error": 8.983993248890316e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 123,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.7015808026231606,
+            "loss_history": [
+              0.8360235829481518,
+              0.7097523959345063,
+              0.7029802329005346,
+              0.7018892985476304,
+              0.7016440153347521,
+              0.7015808026231606
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00033231692648926663,
+            "local_gradient": 4.626475645337561e-15,
+            "orthogonality": 1.1102611404534927e-15
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15,
+          "k": 1,
+          "alpha": 0.7406316995620728,
+          "mean_mass": 30.00000056038371,
+          "distance_initial": 0.2870205064876666,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "repeat": 4,
+      "warmup": false
+    },
+    {
+      "case": "multi_base",
+      "profile_mode": "traced",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 5,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.09775307200106909,
+      "rss_pre_fit_bytes": 74473472,
+      "rss_peak_bytes": 81924096,
+      "rss_sampled_phase_peak_bytes": {
+        "unattributed": 79638528,
+        "initialize_basis_local_with_spectrum": 76279808,
+        "search_bandwidth": 76652544,
+        "calculate_statistics": 82173952,
+        "calculate_alpha_k": 79638528
+      },
+      "rss_samples": 43,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.0008726520027266815,
+        "initialize_basis_local_with_spectrum": 0.008735280000109924,
+        "search_bandwidth": 0.0013020309997955337,
+        "calculate_multi_weight": 5.930003680987284e-06,
+        "calculate_statistics": 0.013211609999416396,
+        "calculate_alpha_k": 0.0022590840017073788
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.0008726520027266815,
+        "initialize_basis_local_with_spectrum": 0.008735280000109924,
+        "search_bandwidth": 0.0013020309997955337,
+        "calculate_multi_weight": 5.930003680987284e-06,
+        "calculate_statistics": 0.013211609999416396,
+        "calculate_alpha_k": 0.0022590840017073788
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.009919157997501316,
+            "time_fraction": 0.10242538073270352,
+            "memory_bytes": 871225.0,
+            "memory_fraction": 0.05996756668206194
+          },
+          "bandwidth": {
+            "time_seconds": 0.0013128419996064622,
+            "time_fraction": 0.013556427035989237,
+            "memory_bytes": 461990.0,
+            "memory_fraction": 0.031799381481759356
+          },
+          "directions": {
+            "time_seconds": 0.00037345699820434675,
+            "time_fraction": 0.0038563228086505455,
+            "memory_bytes": 507440.0,
+            "memory_fraction": 0.034927764971328316
+          },
+          "statistics": {
+            "time_seconds": 0.013263884997286368,
+            "time_fraction": 0.13696308408274957,
+            "memory_bytes": 11627835.0,
+            "memory_fraction": 0.8003592306585712
+          },
+          "solver": {
+            "time_seconds": 0.06968787599907955,
+            "time_fraction": 0.719598098291932,
+            "memory_bytes": 153052.0,
+            "memory_fraction": 0.01053477117371855
+          },
+          "update": {
+            "time_seconds": 0.0022855560018797405,
+            "time_fraction": 0.023600687047975116,
+            "memory_bytes": 906728.0,
+            "memory_fraction": 0.06241128503256065
+          }
+        },
+        "total_time_seconds": 0.09761433500170824,
+        "stage_memory_bytes": 14528270.0,
+        "peak_memory_bytes": 6272547,
+        "max_memory": 11627835.0
+      },
+      "basis": [
+        [
+          0.9976158021831874,
+          -0.0012056224779415266
+        ],
+        [
+          0.0016052776124965695,
+          0.9129652469293014
+        ],
+        [
+          0.041859221477935825,
+          0.05375986506237926
+        ],
+        [
+          -0.013208717982647956,
+          0.08785480216643786
+        ],
+        [
+          -0.03877451053777161,
+          0.1287055940088985
+        ],
+        [
+          -0.03316119102992754,
+          -0.023676343456574822
+        ],
+        [
+          0.013762151891341123,
+          0.30602986699369344
+        ],
+        [
+          -0.006398873498647756,
+          0.2123780505553629
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08292747845982261
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 15,
+            "normal_residual_ratio": 0.0001762023984968487,
+            "normal_residual": 1.1119496048383454e-09,
+            "correction_norm": 0.00035698361095031644,
+            "gauge_error": 5.286537051152131e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 79,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.47674616369112033,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00017826810219597608,
+            "local_gradient": 4.679077039764265e-15,
+            "orthogonality": 4.594926594259402e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024663785316736277
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406316995620728,
+          "h_over_factor": 1.5678827758295935,
+          "err": 2.9236828892597964,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.005563900499378442
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 24,
+            "normal_residual_ratio": 1.3340545838724278e-06,
+            "normal_residual": 3.5896805510609183e-10,
+            "correction_norm": 0.007610745439157736,
+            "gauge_error": 8.983993248890316e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 123,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.7015808026231606,
+            "loss_history": [
+              0.8360235829481518,
+              0.7097523959345063,
+              0.7029802329005346,
+              0.7018892985476304,
+              0.7016440153347521,
+              0.7015808026231606
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00033231692648926663,
+            "local_gradient": 4.626475645337561e-15,
+            "orthogonality": 1.1102611404534927e-15
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15,
+          "k": 1,
+          "alpha": 0.7406316995620728,
+          "mean_mass": 30.00000056038371,
+          "distance_initial": 0.2870205064876666,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "repeat": 5,
+      "warmup": false
+    },
+    {
+      "case": "multi_base",
+      "profile_mode": "traced",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 5,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.09791949999998906,
+      "rss_pre_fit_bytes": 74403840,
+      "rss_peak_bytes": 81960960,
+      "rss_sampled_phase_peak_bytes": {
+        "unattributed": 79630336,
+        "initialize_basis_local_with_spectrum": 76230656,
+        "search_bandwidth": 76378112,
+        "calculate_statistics": 82132992,
+        "calculate_alpha_k": 79630336
+      },
+      "rss_samples": 43,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.0008577900007367134,
+        "initialize_basis_local_with_spectrum": 0.009042813999258215,
+        "search_bandwidth": 0.0013529110001400113,
+        "calculate_multi_weight": 5.277997843222693e-06,
+        "calculate_statistics": 0.012922137000714429,
+        "calculate_alpha_k": 0.0021621339983539656
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.0008577900007367134,
+        "initialize_basis_local_with_spectrum": 0.009042813999258215,
+        "search_bandwidth": 0.0013529110001400113,
+        "calculate_multi_weight": 5.277997843222693e-06,
+        "calculate_statistics": 0.012922137000714429,
+        "calculate_alpha_k": 0.0021621339983539656
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.01013218899970525,
+            "time_fraction": 0.10453204721377848,
+            "memory_bytes": 730192.0,
+            "memory_fraction": 0.05072774830591293
+          },
+          "bandwidth": {
+            "time_seconds": 0.0013633360031235497,
+            "time_fraction": 0.014065302517639645,
+            "memory_bytes": 461990.0,
+            "memory_fraction": 0.03209527417425652
+          },
+          "directions": {
+            "time_seconds": 0.0003694580009323545,
+            "time_fraction": 0.003811634504458274,
+            "memory_bytes": 507440.0,
+            "memory_fraction": 0.03525276721787209
+          },
+          "statistics": {
+            "time_seconds": 0.012968597999133635,
+            "time_fraction": 0.1337947898900609,
+            "memory_bytes": 11636051.0,
+            "memory_fraction": 0.808377339662399
+          },
+          "solver": {
+            "time_seconds": 0.06990761699853465,
+            "time_fraction": 0.7212248331437707,
+            "memory_bytes": 151977.0,
+            "memory_fraction": 0.010558114857856193
+          },
+          "update": {
+            "time_seconds": 0.0021878229999856558,
+            "time_fraction": 0.022571392730291944,
+            "memory_bytes": 906681.0,
+            "memory_fraction": 0.06298875578170322
+          }
+        },
+        "total_time_seconds": 0.09777582400056417,
+        "stage_memory_bytes": 14394331.0,
+        "peak_memory_bytes": 6272668,
+        "max_memory": 11636051.0
+      },
+      "basis": [
+        [
+          0.9976158021831874,
+          -0.0012056224779415266
+        ],
+        [
+          0.0016052776124965695,
+          0.9129652469293014
+        ],
+        [
+          0.041859221477935825,
+          0.05375986506237926
+        ],
+        [
+          -0.013208717982647956,
+          0.08785480216643786
+        ],
+        [
+          -0.03877451053777161,
+          0.1287055940088985
+        ],
+        [
+          -0.03316119102992754,
+          -0.023676343456574822
+        ],
+        [
+          0.013762151891341123,
+          0.30602986699369344
+        ],
+        [
+          -0.006398873498647756,
+          0.2123780505553629
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08292747845982261
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 15,
+            "normal_residual_ratio": 0.0001762023984968487,
+            "normal_residual": 1.1119496048383454e-09,
+            "correction_norm": 0.00035698361095031644,
+            "gauge_error": 5.286537051152131e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 79,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.47674616369112033,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00017826810219597608,
+            "local_gradient": 4.679077039764265e-15,
+            "orthogonality": 4.594926594259402e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024663785316736277
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406316995620728,
+          "h_over_factor": 1.5678827758295935,
+          "err": 2.9236828892597964,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.005563900499378442
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 24,
+            "normal_residual_ratio": 1.3340545838724278e-06,
+            "normal_residual": 3.5896805510609183e-10,
+            "correction_norm": 0.007610745439157736,
+            "gauge_error": 8.983993248890316e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 123,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.7015808026231606,
+            "loss_history": [
+              0.8360235829481518,
+              0.7097523959345063,
+              0.7029802329005346,
+              0.7018892985476304,
+              0.7016440153347521,
+              0.7015808026231606
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00033231692648926663,
+            "local_gradient": 4.626475645337561e-15,
+            "orthogonality": 1.1102611404534927e-15
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15,
+          "k": 1,
+          "alpha": 0.7406316995620728,
+          "mean_mass": 30.00000056038371,
+          "distance_initial": 0.2870205064876666,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "repeat": 6,
+      "warmup": false
+    },
+    {
+      "case": "multi_base",
+      "profile_mode": "traced",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 5,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.09767421299693524,
+      "rss_pre_fit_bytes": 74641408,
+      "rss_peak_bytes": 82186240,
+      "rss_sampled_phase_peak_bytes": {
+        "unattributed": 79863808,
+        "initialize_basis_local_with_spectrum": 76480512,
+        "search_bandwidth": 76627968,
+        "calculate_statistics": 82395136,
+        "calculate_alpha_k": 79863808
+      },
+      "rss_samples": 43,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.000845564001792809,
+        "initialize_basis_local_with_spectrum": 0.009070243999303784,
+        "search_bandwidth": 0.001340605998848332,
+        "calculate_multi_weight": 5.532998329726979e-06,
+        "calculate_statistics": 0.013345931001822464,
+        "calculate_alpha_k": 0.0021361540020734537
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.000845564001792809,
+        "initialize_basis_local_with_spectrum": 0.009070243999303784,
+        "search_bandwidth": 0.001340605998848332,
+        "calculate_multi_weight": 5.532998329726979e-06,
+        "calculate_statistics": 0.013345931001822464,
+        "calculate_alpha_k": 0.0021361540020734537
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.010110203998920042,
+            "time_fraction": 0.10469098948467451,
+            "memory_bytes": 738541.0,
+            "memory_fraction": 0.05125504384786932
+          },
+          "bandwidth": {
+            "time_seconds": 0.0013518070009013172,
+            "time_fraction": 0.01399793837313138,
+            "memory_bytes": 461990.0,
+            "memory_fraction": 0.03206229269231789
+          },
+          "directions": {
+            "time_seconds": 0.00036721800279337913,
+            "time_fraction": 0.003802536138057294,
+            "memory_bytes": 507394.0,
+            "memory_fraction": 0.03521334864028646
+          },
+          "statistics": {
+            "time_seconds": 0.01339260099848616,
+            "time_fraction": 0.13868015427331876,
+            "memory_bytes": 11644579.0,
+            "memory_fraction": 0.8081384882287893
+          },
+          "solver": {
+            "time_seconds": 0.06918921500255237,
+            "time_fraction": 0.71645313794448,
+            "memory_bytes": 149906.0,
+            "memory_fraction": 0.010403536977715113
+          },
+          "update": {
+            "time_seconds": 0.002160818999982439,
+            "time_fraction": 0.022375243786338112,
+            "memory_bytes": 906728.0,
+            "memory_fraction": 0.06292728961302196
+          }
+        },
+        "total_time_seconds": 0.0975295130010636,
+        "stage_memory_bytes": 14409138.0,
+        "peak_memory_bytes": 6281151,
+        "max_memory": 11644579.0
+      },
+      "basis": [
+        [
+          0.9976158021831874,
+          -0.0012056224779415266
+        ],
+        [
+          0.0016052776124965695,
+          0.9129652469293014
+        ],
+        [
+          0.041859221477935825,
+          0.05375986506237926
+        ],
+        [
+          -0.013208717982647956,
+          0.08785480216643786
+        ],
+        [
+          -0.03877451053777161,
+          0.1287055940088985
+        ],
+        [
+          -0.03316119102992754,
+          -0.023676343456574822
+        ],
+        [
+          0.013762151891341123,
+          0.30602986699369344
+        ],
+        [
+          -0.006398873498647756,
+          0.2123780505553629
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08292747845982261
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 15,
+            "normal_residual_ratio": 0.0001762023984968487,
+            "normal_residual": 1.1119496048383454e-09,
+            "correction_norm": 0.00035698361095031644,
+            "gauge_error": 5.286537051152131e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 79,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.47674616369112033,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00017826810219597608,
+            "local_gradient": 4.679077039764265e-15,
+            "orthogonality": 4.594926594259402e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024663785316736277
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406316995620728,
+          "h_over_factor": 1.5678827758295935,
+          "err": 2.9236828892597964,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.005563900499378442
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 24,
+            "normal_residual_ratio": 1.3340545838724278e-06,
+            "normal_residual": 3.5896805510609183e-10,
+            "correction_norm": 0.007610745439157736,
+            "gauge_error": 8.983993248890316e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 123,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.7015808026231606,
+            "loss_history": [
+              0.8360235829481518,
+              0.7097523959345063,
+              0.7029802329005346,
+              0.7018892985476304,
+              0.7016440153347521,
+              0.7015808026231606
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00033231692648926663,
+            "local_gradient": 4.626475645337561e-15,
+            "orthogonality": 1.1102611404534927e-15
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15,
+          "k": 1,
+          "alpha": 0.7406316995620728,
+          "mean_mass": 30.00000056038371,
+          "distance_initial": 0.2870205064876666,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "repeat": 7,
+      "warmup": false
+    },
+    {
+      "case": "multi_base",
+      "profile_mode": "traced",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 5,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.09780913199938368,
+      "rss_pre_fit_bytes": 74534912,
+      "rss_peak_bytes": 82223104,
+      "rss_sampled_phase_peak_bytes": {
+        "unattributed": 79843328,
+        "initialize_basis_local_with_spectrum": 76460032,
+        "search_bandwidth": 76607488,
+        "calculate_statistics": 82333696,
+        "calculate_alpha_k": 79843328
+      },
+      "rss_samples": 43,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.0008808579987089615,
+        "initialize_basis_local_with_spectrum": 0.009249630002159392,
+        "search_bandwidth": 0.0014065989998925943,
+        "calculate_multi_weight": 5.485002475325018e-06,
+        "calculate_statistics": 0.013177770000766031,
+        "calculate_alpha_k": 0.002170272000512341
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.0008808579987089615,
+        "initialize_basis_local_with_spectrum": 0.009249630002159392,
+        "search_bandwidth": 0.0014065989998925943,
+        "calculate_multi_weight": 5.485002475325018e-06,
+        "calculate_statistics": 0.013177770000766031,
+        "calculate_alpha_k": 0.002170272000512341
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.010448794000694761,
+            "time_fraction": 0.10784954118042901,
+            "memory_bytes": 871225.0,
+            "memory_fraction": 0.05990470254923225
+          },
+          "bandwidth": {
+            "time_seconds": 0.0014189169996825512,
+            "time_fraction": 0.014645666033678036,
+            "memory_bytes": 461990.0,
+            "memory_fraction": 0.031766046119796616
+          },
+          "directions": {
+            "time_seconds": 0.0003810759990301449,
+            "time_fraction": 0.003933360313883305,
+            "memory_bytes": 507440.0,
+            "memory_fraction": 0.03489115011803198
+          },
+          "statistics": {
+            "time_seconds": 0.013231061002443312,
+            "time_fraction": 0.13656732617648473,
+            "memory_bytes": 11644491.0,
+            "memory_fraction": 0.8006654649398398
+          },
+          "solver": {
+            "time_seconds": 0.06920759199783788,
+            "time_fraction": 0.7143414869383825,
+            "memory_bytes": 151642.0,
+            "memory_fraction": 0.01042677712872183
+          },
+          "update": {
+            "time_seconds": 0.002195624001615215,
+            "time_fraction": 0.0226626193571424,
+            "memory_bytes": 906728.0,
+            "memory_fraction": 0.062345859144377465
+          }
+        },
+        "total_time_seconds": 0.0976579500020307,
+        "stage_memory_bytes": 14543516.0,
+        "peak_memory_bytes": 6281197,
+        "max_memory": 11644491.0
+      },
+      "basis": [
+        [
+          0.9976158021831874,
+          -0.0012056224779415266
+        ],
+        [
+          0.0016052776124965695,
+          0.9129652469293014
+        ],
+        [
+          0.041859221477935825,
+          0.05375986506237926
+        ],
+        [
+          -0.013208717982647956,
+          0.08785480216643786
+        ],
+        [
+          -0.03877451053777161,
+          0.1287055940088985
+        ],
+        [
+          -0.03316119102992754,
+          -0.023676343456574822
+        ],
+        [
+          0.013762151891341123,
+          0.30602986699369344
+        ],
+        [
+          -0.006398873498647756,
+          0.2123780505553629
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08292747845982261
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 15,
+            "normal_residual_ratio": 0.0001762023984968487,
+            "normal_residual": 1.1119496048383454e-09,
+            "correction_norm": 0.00035698361095031644,
+            "gauge_error": 5.286537051152131e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 79,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.47674616369112033,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00017826810219597608,
+            "local_gradient": 4.679077039764265e-15,
+            "orthogonality": 4.594926594259402e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024663785316736277
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406316995620728,
+          "h_over_factor": 1.5678827758295935,
+          "err": 2.9236828892597964,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.005563900499378442
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 24,
+            "normal_residual_ratio": 1.3340545838724278e-06,
+            "normal_residual": 3.5896805510609183e-10,
+            "correction_norm": 0.007610745439157736,
+            "gauge_error": 8.983993248890316e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 123,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.7015808026231606,
+            "loss_history": [
+              0.8360235829481518,
+              0.7097523959345063,
+              0.7029802329005346,
+              0.7018892985476304,
+              0.7016440153347521,
+              0.7015808026231606
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00033231692648926663,
+            "local_gradient": 4.626475645337561e-15,
+            "orthogonality": 1.1102611404534927e-15
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15,
+          "k": 1,
+          "alpha": 0.7406316995620728,
+          "mean_mass": 30.00000056038371,
+          "distance_initial": 0.2870205064876666,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "repeat": 8,
+      "warmup": false
+    },
+    {
+      "case": "multi_base",
+      "profile_mode": "traced",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 5,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.09741874699830078,
+      "rss_pre_fit_bytes": 74534912,
+      "rss_peak_bytes": 81903616,
+      "rss_sampled_phase_peak_bytes": {
+        "pairwise_distance2": 74731520,
+        "initialize_basis_local_with_spectrum": 76222464,
+        "search_bandwidth": 76365824,
+        "calculate_statistics": 82161664,
+        "unattributed": 79630336,
+        "calculate_alpha_k": 79630336
+      },
+      "rss_samples": 43,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.000998660998448031,
+        "initialize_basis_local_with_spectrum": 0.008936292000726098,
+        "search_bandwidth": 0.0013164400006644428,
+        "calculate_multi_weight": 6.303005648078397e-06,
+        "calculate_statistics": 0.01313830200524535,
+        "calculate_alpha_k": 0.0022371009981725365
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.000998660998448031,
+        "initialize_basis_local_with_spectrum": 0.008936292000726098,
+        "search_bandwidth": 0.0013164400006644428,
+        "calculate_multi_weight": 6.303005648078397e-06,
+        "calculate_statistics": 0.01313830200524535,
+        "calculate_alpha_k": 0.0022371009981725365
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.010137860001123045,
+            "time_fraction": 0.1050694480588421,
+            "memory_bytes": 871369.0,
+            "memory_fraction": 0.05997601287114231
+          },
+          "bandwidth": {
+            "time_seconds": 0.001327753001532983,
+            "time_fraction": 0.013760919465655209,
+            "memory_bytes": 461990.0,
+            "memory_fraction": 0.031798604479088693
+          },
+          "directions": {
+            "time_seconds": 0.00037916299697826616,
+            "time_fraction": 0.00392967024721486,
+            "memory_bytes": 507440.0,
+            "memory_fraction": 0.034926911528104
+          },
+          "statistics": {
+            "time_seconds": 0.013189253000746248,
+            "time_fraction": 0.13669428586933743,
+            "memory_bytes": 11627790.0,
+            "memory_fraction": 0.800336576930026
+          },
+          "solver": {
+            "time_seconds": 0.06918987700191792,
+            "time_fraction": 0.7170884375050913,
+            "memory_bytes": 153308.0,
+            "memory_fraction": 0.010552134148964543
+          },
+          "update": {
+            "time_seconds": 0.0022633240005234256,
+            "time_fraction": 0.023457238853859023,
+            "memory_bytes": 906728.0,
+            "memory_fraction": 0.06240976004267437
+          }
+        },
+        "total_time_seconds": 0.09727588500027196,
+        "stage_memory_bytes": 14528625.0,
+        "peak_memory_bytes": 6273027,
+        "max_memory": 11627790.0
+      },
+      "basis": [
+        [
+          0.9976158021831874,
+          -0.0012056224779415266
+        ],
+        [
+          0.0016052776124965695,
+          0.9129652469293014
+        ],
+        [
+          0.041859221477935825,
+          0.05375986506237926
+        ],
+        [
+          -0.013208717982647956,
+          0.08785480216643786
+        ],
+        [
+          -0.03877451053777161,
+          0.1287055940088985
+        ],
+        [
+          -0.03316119102992754,
+          -0.023676343456574822
+        ],
+        [
+          0.013762151891341123,
+          0.30602986699369344
+        ],
+        [
+          -0.006398873498647756,
+          0.2123780505553629
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08292747845982261
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 15,
+            "normal_residual_ratio": 0.0001762023984968487,
+            "normal_residual": 1.1119496048383454e-09,
+            "correction_norm": 0.00035698361095031644,
+            "gauge_error": 5.286537051152131e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 79,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.47674616369112033,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00017826810219597608,
+            "local_gradient": 4.679077039764265e-15,
+            "orthogonality": 4.594926594259402e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024663785316736277
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406316995620728,
+          "h_over_factor": 1.5678827758295935,
+          "err": 2.9236828892597964,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.005563900499378442
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 24,
+            "normal_residual_ratio": 1.3340545838724278e-06,
+            "normal_residual": 3.5896805510609183e-10,
+            "correction_norm": 0.007610745439157736,
+            "gauge_error": 8.983993248890316e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 123,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.7015808026231606,
+            "loss_history": [
+              0.8360235829481518,
+              0.7097523959345063,
+              0.7029802329005346,
+              0.7018892985476304,
+              0.7016440153347521,
+              0.7015808026231606
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00033231692648926663,
+            "local_gradient": 4.626475645337561e-15,
+            "orthogonality": 1.1102611404534927e-15
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15,
+          "k": 1,
+          "alpha": 0.7406316995620728,
+          "mean_mass": 30.00000056038371,
+          "distance_initial": 0.2870205064876666,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "repeat": 9,
+      "warmup": false
+    },
+    {
+      "case": "multi_base",
+      "profile_mode": "traced",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 5,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.09791060799761908,
+      "rss_pre_fit_bytes": 74534912,
+      "rss_peak_bytes": 82001920,
+      "rss_sampled_phase_peak_bytes": {
+        "unattributed": 79761408,
+        "initialize_basis_local_with_spectrum": 76320768,
+        "search_bandwidth": 76464128,
+        "calculate_statistics": 82296832,
+        "calculate_alpha_k": 79761408
+      },
+      "rss_samples": 44,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.0008850919984979555,
+        "initialize_basis_local_with_spectrum": 0.008823061998555204,
+        "search_bandwidth": 0.0013464969997585285,
+        "calculate_multi_weight": 6.188005500007421e-06,
+        "calculate_statistics": 0.013447435001580743,
+        "calculate_alpha_k": 0.0022080119997553993
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.0008850919984979555,
+        "initialize_basis_local_with_spectrum": 0.008823061998555204,
+        "search_bandwidth": 0.0013464969997585285,
+        "calculate_multi_weight": 6.188005500007421e-06,
+        "calculate_statistics": 0.013447435001580743,
+        "calculate_alpha_k": 0.0022080119997553993
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.009921286997268908,
+            "time_fraction": 0.10237695676571633,
+            "memory_bytes": 730192.0,
+            "memory_fraction": 0.05075732256430304
+          },
+          "bandwidth": {
+            "time_seconds": 0.0013581910025095567,
+            "time_fraction": 0.014015062922963749,
+            "memory_bytes": 461990.0,
+            "memory_fraction": 0.03211398570715971
+          },
+          "directions": {
+            "time_seconds": 0.00037858500218135305,
+            "time_fraction": 0.003906587966978302,
+            "memory_bytes": 507394.0,
+            "memory_fraction": 0.03527012200242125
+          },
+          "statistics": {
+            "time_seconds": 0.013498313004674856,
+            "time_fraction": 0.1392879983484111,
+            "memory_bytes": 11636141.0,
+            "memory_fraction": 0.8088548794573369
+          },
+          "solver": {
+            "time_seconds": 0.06951947699781158,
+            "time_fraction": 0.7173658511178398,
+            "memory_bytes": 143499.0,
+            "memory_fraction": 0.009974944987968812
+          },
+          "update": {
+            "time_seconds": 0.0022335229987220373,
+            "time_fraction": 0.023047542878090722,
+            "memory_bytes": 906728.0,
+            "memory_fraction": 0.06302874528081022
+          }
+        },
+        "total_time_seconds": 0.09776854699885007,
+        "stage_memory_bytes": 14385944.0,
+        "peak_memory_bytes": 6281031,
+        "max_memory": 11636141.0
+      },
+      "basis": [
+        [
+          0.9976158021831874,
+          -0.0012056224779415266
+        ],
+        [
+          0.0016052776124965695,
+          0.9129652469293014
+        ],
+        [
+          0.041859221477935825,
+          0.05375986506237926
+        ],
+        [
+          -0.013208717982647956,
+          0.08785480216643786
+        ],
+        [
+          -0.03877451053777161,
+          0.1287055940088985
+        ],
+        [
+          -0.03316119102992754,
+          -0.023676343456574822
+        ],
+        [
+          0.013762151891341123,
+          0.30602986699369344
+        ],
+        [
+          -0.006398873498647756,
+          0.2123780505553629
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08292747845982261
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 15,
+            "normal_residual_ratio": 0.0001762023984968487,
+            "normal_residual": 1.1119496048383454e-09,
+            "correction_norm": 0.00035698361095031644,
+            "gauge_error": 5.286537051152131e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 79,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.47674616369112033,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00017826810219597608,
+            "local_gradient": 4.679077039764265e-15,
+            "orthogonality": 4.594926594259402e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 15,
+          "normal_residual_ratio": 0.0001762023984968487,
+          "normal_residual": 1.1119496048383454e-09,
+          "correction_norm": 0.00035698361095031644,
+          "gauge_error": 5.286537051152131e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 79,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.47674616369112033,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00017826810219597608,
+          "local_gradient": 4.679077039764265e-15,
+          "orthogonality": 4.594926594259402e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024663785316736277
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406316995620728,
+          "h_over_factor": 1.5678827758295935,
+          "err": 2.9236828892597964,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.005563900499378442
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 24,
+            "normal_residual_ratio": 1.3340545838724278e-06,
+            "normal_residual": 3.5896805510609183e-10,
+            "correction_norm": 0.007610745439157736,
+            "gauge_error": 8.983993248890316e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 123,
+            "lsmr_solves_total": 5,
+            "accepted_steps": 5,
+            "converged": false,
+            "loss": 0.7015808026231606,
+            "loss_history": [
+              0.8360235829481518,
+              0.7097523959345063,
+              0.7029802329005346,
+              0.7018892985476304,
+              0.7016440153347521,
+              0.7015808026231606
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 0.00033231692648926663,
+            "local_gradient": 4.626475645337561e-15,
+            "orthogonality": 1.1102611404534927e-15
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 24,
+          "normal_residual_ratio": 1.3340545838724278e-06,
+          "normal_residual": 3.5896805510609183e-10,
+          "correction_norm": 0.007610745439157736,
+          "gauge_error": 8.983993248890316e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 123,
+          "lsmr_solves_total": 5,
+          "accepted_steps": 5,
+          "converged": false,
+          "loss": 0.7015808026231606,
+          "loss_history": [
+            0.8360235829481518,
+            0.7097523959345063,
+            0.7029802329005346,
+            0.7018892985476304,
+            0.7016440153347521,
+            0.7015808026231606
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 0.00033231692648926663,
+          "local_gradient": 4.626475645337561e-15,
+          "orthogonality": 1.1102611404534927e-15,
+          "k": 1,
+          "alpha": 0.7406316995620728,
+          "mean_mass": 30.00000056038371,
+          "distance_initial": 0.2870205064876666,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "repeat": 10,
+      "warmup": false
+    }
+  ]
+}

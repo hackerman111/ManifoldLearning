@@ -4,18 +4,17 @@ This file defines how an agent carries a PhD-level research/software task across
 
 ## State model
 
-Use four layers with distinct jobs:
+Use these Markdown files with distinct jobs:
 
 | File | Role | Update style |
 |---|---|---|
 | `PLAN.md` | current task and bounded work units | edit in place |
 | `agent-notes/STATE.md` | concise current truth needed to resume | rewrite in place |
 | `agent-notes/DECISIONS.md` | durable decisions and why | append only |
-| `agent-notes/history/events.jsonl` | machine-readable development history | append only |
 
-`agent-notes/history/state.json` is the machine-readable mirror of the current handoff state. It should agree with `STATE.md` and `PLAN.md`.
+`agent-notes/history/state.json` and `events.jsonl` are optional machine-readable records. They may remain as historical snapshots; a checkpoint does not require updating them. When maintained, they should agree with the Markdown state for the same point in time. `PLAN.md` and `STATE.md` are authoritative for the current handoff.
 
-The architecture map under `agent-notes/ADP/` and `agent-notes/tex/` is a fifth layer: a routing cache for the repository. Update it only when the mapped facts change.
+The architecture map under `agent-notes/ADP/` and `agent-notes/tex/` is a separate routing cache for the repository. Update it only when the mapped facts change.
 
 ## Starting or resuming work
 
@@ -49,7 +48,7 @@ For research questions, prefer an experiment that distinguishes competing hypoth
 
 Execute one plan work unit at a time. After editing, run the focused verification for that unit before starting the next one.
 
-If verification fails twice for the same conceptual reason, stop local patching. Record the failed assumption in `STATE.md` and `events.jsonl`, revise the plan or hypothesis, then proceed.
+If verification fails twice for the same conceptual reason, stop local patching. Record the failed assumption in `STATE.md`, revise the plan or hypothesis, then proceed.
 
 Large mechanical edits may span many files, but conceptual changes should remain narrow enough to review and verify independently.
 
@@ -59,12 +58,12 @@ At a mandatory checkpoint:
 
 1. Update statuses/evidence in `PLAN.md`.
 2. Rewrite `agent-notes/STATE.md` with only the facts a fresh agent needs now.
-3. Update `agent-notes/history/state.json`.
-4. Append exactly one compact JSON object to `agent-notes/history/events.jsonl` for the checkpoint.
-5. If a durable decision was made, append it to `agent-notes/DECISIONS.md`.
-6. If code changes made an architecture/theory note stale, update only the affected note and include its path in the event.
+3. If a durable decision was made, append it to `agent-notes/DECISIONS.md`.
+4. If code changes made an architecture/theory note stale, update only the affected note and link it from `STATE.md` when it matters for handoff.
 
-Do not use `STATE.md` as an append-only log. Old details belong in events, decisions, experiment artifacts, commits, or archived plans.
+Update JSON/JSONL history only when the task needs a machine-readable record. A short Markdown checkpoint with paths to evidence is sufficient.
+
+Do not use `STATE.md` as an append-only log. Old details belong in decisions, experiment artifacts, commits, archived plans, or optional events.
 
 ## What belongs in `STATE.md`
 
@@ -86,9 +85,9 @@ Append to `DECISIONS.md` when choosing between materially different mathematical
 
 A decision entry records the decision, evidence/reason, alternatives rejected, affected files/contracts, and whether it is active or superseded. Do not log formatting choices or routine implementation details.
 
-## Machine-readable history
+## Optional machine-readable history
 
-Each line of `events.jsonl` is one object conforming to `history/event.schema.json`.
+If used, each line of `events.jsonl` is one object conforming to `history/event.schema.json`. Record only information useful to the machine-readable use case; do not copy all task information into JSON.
 
 Use event types:
 
@@ -104,7 +103,7 @@ Use event types:
 
 Prefer paths to evidence over embedding evidence. Store benchmark/result files under the project's normal experiment layout and reference them from the event.
 
-Do not rewrite prior JSONL events. Corrections are new events referring to the earlier event ID in `supersedes`.
+Do not rewrite prior JSONL events. When maintaining this history, corrections are new events referring to the earlier event ID in `supersedes`.
 
 ## Architecture-map maintenance
 
@@ -117,13 +116,13 @@ When editing a mapped source:
 - preserve the distinction between live-code notes and TeX notes;
 - never change a note to hide a code/theory disagreement;
 - if a source path is removed or responsibility moves, update the thematic route and top-level README when necessary;
-- append a `map_update` event listing both the note and verified source paths.
+- mention the note and verified source paths in `STATE.md` when they matter for handoff; an optional `map_update` event may also record them.
 
 Do not perform a repository-wide map rebuild merely because one line number moved.
 
 ## Handoff / new chat
 
-Before a context reset or new chat, create a checkpoint and then append a `handoff` event.
+Before a context reset or new chat, create a Markdown checkpoint. An optional `handoff` event may supplement it.
 
 A fresh agent must be able to resume with this minimal read sequence:
 
@@ -133,4 +132,4 @@ If that sequence is insufficient, improve the durable files before handing off r
 
 ## Completion
 
-A task is complete only when implementation/research evidence is verified and the durable state has been updated. Mark the plan and `state.json` as `done`, leave `STATE.md` with the final result and any follow-up, and append a `completion` event.
+A task is complete only when implementation/research evidence is verified and the durable state has been updated. Mark `PLAN.md` as `done` and leave `STATE.md` with the final result and any follow-up. If maintaining machine-readable history for this task, update it consistently.

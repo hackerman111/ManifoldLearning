@@ -1,0 +1,2444 @@
+{
+  "command": [
+    "/usr/bin/python",
+    "-m",
+    "benchmarks.fit_bottlenecks",
+    "--child",
+    "--case",
+    "multi_base",
+    "--profile",
+    "cprofile"
+  ],
+  "case_shape": [
+    "multi",
+    600,
+    8,
+    48,
+    16,
+    2
+  ],
+  "profile_mode": "cprofile",
+  "warmup_count": 1,
+  "timed_repeats": 1,
+  "git_head": "c58c5cf4eb269ea3c7476e775342c771c9419158",
+  "git_status_before": " M PLAN.md\n M agent-notes/DECISIONS.md\n M agent-notes/STATE.md\n M agent-notes/history/events.jsonl\n M agent-notes/history/state.json\n?? benchmarks/fit_bottlenecks.py\n?? docs/experiments/bottlenecks_2026-09-23/manifold_base_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/manifold_control_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_J2_time.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_J2_time_converged.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_cprofile.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_off.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_off_converged.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_time.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_time_converged.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_traced.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_traced_converged.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_control_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_control_time_converged.json\n",
+  "git_status_after": " M PLAN.md\n M agent-notes/DECISIONS.md\n M agent-notes/STATE.md\n M agent-notes/history/events.jsonl\n M agent-notes/history/state.json\n?? benchmarks/fit_bottlenecks.py\n?? docs/experiments/bottlenecks_2026-09-23/manifold_base_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/manifold_control_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_J2_time.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_J2_time_converged.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_cprofile.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_off.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_off_converged.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_time.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_time_converged.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_traced.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_base_traced_converged.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_control_baseline.json\n?? docs/experiments/bottlenecks_2026-09-23/multi_control_time_converged.json\n",
+  "source_sha256_before": {
+    "ADP/__init__.py": "39b3d44cf81c9a6df81571455f9ccd78e2ac6c52ce9bcbb9e76154189844cc26",
+    "ADP/cli/__init__.py": "2388754dbcbaf9a52f236f6c6d623e39efa28f4ccd41bfd850c2fae478fee6da",
+    "ADP/cli/__main__.py": "e4ff3ad1054fb5ad4c26c3915f8511c9d15bf0b2742c6c7e6eb4aed24b1a99ab",
+    "ADP/cli/experiment.py": "b65bf75576114eb3da0b9640e3a7a45de8d28a6b27525337bcdedabbf5eaa080",
+    "ADP/cli/experiment_plots.py": "02da062a1d82d43cd67002e19e56fd6c12d0c156e98b3f7694a8634f8ea2ebb2",
+    "ADP/cli/experiment_utils.py": "bedd3e77f51ee03ff587ee0098cb567e1cd2a51f55e1f13942893f856016f2ff",
+    "ADP/cli/main.py": "2024b8d8ece841aef23a1e7d0a4eaae34e645ca58e3ba91190b77936a3b019a4",
+    "ADP/cli.py": "6bea069301e4b6ca6014c2e9a286db9a913d9aed0d6c6b944ca9dbafa55cb6b6",
+    "ADP/core/ADP_Config.py": "d803afe7cf9e52ddc321bb711bb5adc3eb7721a217f94570dd8aafdc1685a4d3",
+    "ADP/core/ADP_Data.py": "faf02f014c6a6d05327b287eb5a05dae77d07f8a99d916aeeaf604e765ad3cdc",
+    "ADP/core/ADP_Solver.py": "0115893e242df9ba070b156839c4fc3cc77d407d1c9d8b6130f02d2b5334a209",
+    "ADP/core/ADP_Statistic.py": "be6f5e9d215180a0101dd25f1fb2a79f1e9afeb6652c5cc8dfa38ea48c77a8a5",
+    "ADP/core/__init__.py": "8459652afe34f924c5a479e6c215e5b72be6bf8d3447b0a217f07d1d6d009a38",
+    "ADP/core/manifold/ADP_Manifold.py": "973488ba5ffa521fb743a12d3ef0787b8cc978aed2ec03b3780c3aab219f53ad",
+    "ADP/core/manifold/ADP_Manifold_result.py": "630f39c6ee4c6757b7c0db19240e59aec2e406c30279b2ed69030485b316d5e3",
+    "ADP/core/manifold/ADP_Manifold_utils.py": "ff6ff4b9433cb123eeefa0b693119b9d0e6e159e9d306c83d31fdcd3ec8eb27e",
+    "ADP/core/manifold/__init__.py": "cc393ddf77b47d0522ebd4219b69667788d962d94f3d87453552f9a35b7695af",
+    "ADP/core/multi/ADP_multi_index.py": "465636b275cd8e9d290c9c4f38304eb7258a3d3729b12512090c02de89351fa5",
+    "ADP/core/multi/ADP_multi_index_result.py": "b0aa2d22b65c582a95b3214ffe225b5cb92c87013971cc0bb4a16b570ad56ef1",
+    "ADP/core/multi/ADP_multi_index_utils.py": "e128ce603f513ef48d53e1d823fdc0a1c0c350c1ddbd2d53ec660da040d91229",
+    "ADP/core/multi/__init__.py": "ec56c6b805208b2b558e999089d75d9458ebabdfda75c1d3072951d2f677bc3f",
+    "ADP/core/single/ADP_single_index.py": "d636b1b1eddc5cdbdfe61e567e899e92399c3e666b75f0efe85c2a8d43c91b95",
+    "ADP/core/single/ADP_single_index_result.py": "6f539f9f285911f4776261f2346ad6a51fc3a42faeaf80c067ef8c8df4eafaf1",
+    "ADP/core/single/ADP_single_index_utils.py": "982fb26681d3b6b4547d55c2520c17252ec93c9a4b9e997fc0c128c57c32650e",
+    "ADP/core/single/__init__.py": "38c5b31c28225e064dd22aed9abce4fbc929690d4091cb02d264a6ca1d7de48d",
+    "ADP/engine/__init__.py": "580333799aa34f8147779b45ddede43d88587212c001ae97f3e13d1f3910cc0a",
+    "ADP/engine/common/ADP_Statistic_engine.py": "74276b3a0a70e4efa36611c48fe53ed4305c02f7bda0414842d45cb71c42cc3b",
+    "ADP/engine/common/__init__.py": "a1e486353e43b9473fa1068a87b0e84481f17fadc06adc552de77d35672826d8",
+    "ADP/engine/common/box_kernel.py": "2776cf53404da905372be854fcb5c0001ef25453973b17bcd09b51fa6b6382ae",
+    "ADP/engine/common/calculus.py": "5d50b69edbfa9363b33d791da24c50fa47a29ccb4e2e4a791ad7ee8e80615c5e",
+    "ADP/engine/common/gpu_statistics.py": "564d95e8204dc728c83904d93ee446d4a992ac160a00abc72308aa51fe445edd",
+    "ADP/engine/common/index_fit.py": "f059a8f000cf81659f55133ebc3cbd86ec9b38244224abdfaf94d5cfc36e6b20",
+    "ADP/engine/common/initialize.py": "8146befd146847d4b88ac3b1f0c27c7eb68d00998ba44a3f334e114718b9b4bc",
+    "ADP/engine/common/logger.py": "05fd5d8bc3082c4410b33b585d054fdf693f3d39e51d1e21703201b43a2f377a",
+    "ADP/engine/common/statistic.py": "25f8b1e33c3e1280ae5a5959e51a747b2cc9c24661b64358ea7a9da585fa9fa1",
+    "ADP/engine/common/utils.py": "3dd3eafbaf8e246054589013eae17259b9abaf314f7be5100c65edaf0162f98a",
+    "ADP/engine/common/weights.py": "0cc5a04bbff3ae60e74da248ccd73b0128090072fdb1267c4334d78a7e7d006e",
+    "ADP/engine/manifol_engine/__init__.py": "657c1941611c974126b68da000053322261d7eae80c79f43360f9a029baa9d5c",
+    "ADP/engine/manifol_engine/fit.py": "75e3c45c0b73972493a907a3352a61333c7fc0bc0107ae8e8b58f2697b461e3c",
+    "ADP/engine/manifol_engine/graphs.py": "71f8b0b9a31260cb09e8158a022a793056b467adb6463fb9896e3067187d6c71",
+    "ADP/engine/manifol_engine/optimisation.py": "34b6030933da0eb77412ede4dca94c405c3f08d716e3c2239ba7e0e3cf732081",
+    "ADP/engine/manifol_engine/utils.py": "467f66dc6b93cf513aba8bce5d1cc96f90adf750b4c2a026574c1ebc0af65d55",
+    "ADP/engine/manifol_engine/weights.py": "7827aec7f53f1f1dadd7da388fe099f4cf702d357965eef80644cb0c114828a7",
+    "ADP/engine/multi_index/ADP_multi_index_engine.py": "19a86165375ed267b898f1fb18fb750d909a3d1da98a442592aa062fb072bb09",
+    "ADP/engine/multi_index/__init__.py": "ecffff79930f2262696edc0c8af9d884681dc0df1474dc451e9bfb64e52299d4",
+    "ADP/engine/single_index/ADP_single_index_engine.py": "4bcaad15ccbe249f6311d3660b0f9cc6268ce1af405e676af109babc6c0ef2ca",
+    "ADP/engine/single_index/__init__.py": "1a0d3013732cbf557046b6dcca340f140434f58b2bfda8924259df5af55dbc7b",
+    "ADP/gpu.py": "560d3de7bb1c84428b8b4f0d204094fe6d533b681ebff5ed6e9ecac4a19258da",
+    "ADP/solver/CG.py": "b30566dfd036b8e13c8f00758641ab65a904e00a3bb166664a9c40973ffd59d3",
+    "ADP/solver/HYBRID.py": "0ecdd86d1d0c700e93a681c2d5eae135f852fccb10d671c24d3f661905463c98",
+    "ADP/solver/LSMR.py": "00e1c2c02bce027cc836a2b4d814f2321d7d1f62bf963934381fd6409cc46702",
+    "ADP/solver/_multi_operator.py": "f10629519425fb042cef58b3d4f9b2ec5c0fe41f946a20f6117a0d57ea6cd2ae",
+    "ADP/solver/legacy_lsmr.py": "c97b0ff519ba43afdbe11d1eb48f68fa275a9aa32b37b804ff9c6684fac13016",
+    "benchmarks/fit_bottlenecks.py": "fde79d3f8ffd450f5556f9b9bbd3ce9cb2fdb22b3e2548b78810a46b2c26075e"
+  },
+  "source_sha256_after": {
+    "ADP/__init__.py": "39b3d44cf81c9a6df81571455f9ccd78e2ac6c52ce9bcbb9e76154189844cc26",
+    "ADP/cli/__init__.py": "2388754dbcbaf9a52f236f6c6d623e39efa28f4ccd41bfd850c2fae478fee6da",
+    "ADP/cli/__main__.py": "e4ff3ad1054fb5ad4c26c3915f8511c9d15bf0b2742c6c7e6eb4aed24b1a99ab",
+    "ADP/cli/experiment.py": "b65bf75576114eb3da0b9640e3a7a45de8d28a6b27525337bcdedabbf5eaa080",
+    "ADP/cli/experiment_plots.py": "02da062a1d82d43cd67002e19e56fd6c12d0c156e98b3f7694a8634f8ea2ebb2",
+    "ADP/cli/experiment_utils.py": "bedd3e77f51ee03ff587ee0098cb567e1cd2a51f55e1f13942893f856016f2ff",
+    "ADP/cli/main.py": "2024b8d8ece841aef23a1e7d0a4eaae34e645ca58e3ba91190b77936a3b019a4",
+    "ADP/cli.py": "6bea069301e4b6ca6014c2e9a286db9a913d9aed0d6c6b944ca9dbafa55cb6b6",
+    "ADP/core/ADP_Config.py": "d803afe7cf9e52ddc321bb711bb5adc3eb7721a217f94570dd8aafdc1685a4d3",
+    "ADP/core/ADP_Data.py": "faf02f014c6a6d05327b287eb5a05dae77d07f8a99d916aeeaf604e765ad3cdc",
+    "ADP/core/ADP_Solver.py": "0115893e242df9ba070b156839c4fc3cc77d407d1c9d8b6130f02d2b5334a209",
+    "ADP/core/ADP_Statistic.py": "be6f5e9d215180a0101dd25f1fb2a79f1e9afeb6652c5cc8dfa38ea48c77a8a5",
+    "ADP/core/__init__.py": "8459652afe34f924c5a479e6c215e5b72be6bf8d3447b0a217f07d1d6d009a38",
+    "ADP/core/manifold/ADP_Manifold.py": "973488ba5ffa521fb743a12d3ef0787b8cc978aed2ec03b3780c3aab219f53ad",
+    "ADP/core/manifold/ADP_Manifold_result.py": "630f39c6ee4c6757b7c0db19240e59aec2e406c30279b2ed69030485b316d5e3",
+    "ADP/core/manifold/ADP_Manifold_utils.py": "ff6ff4b9433cb123eeefa0b693119b9d0e6e159e9d306c83d31fdcd3ec8eb27e",
+    "ADP/core/manifold/__init__.py": "cc393ddf77b47d0522ebd4219b69667788d962d94f3d87453552f9a35b7695af",
+    "ADP/core/multi/ADP_multi_index.py": "465636b275cd8e9d290c9c4f38304eb7258a3d3729b12512090c02de89351fa5",
+    "ADP/core/multi/ADP_multi_index_result.py": "b0aa2d22b65c582a95b3214ffe225b5cb92c87013971cc0bb4a16b570ad56ef1",
+    "ADP/core/multi/ADP_multi_index_utils.py": "e128ce603f513ef48d53e1d823fdc0a1c0c350c1ddbd2d53ec660da040d91229",
+    "ADP/core/multi/__init__.py": "ec56c6b805208b2b558e999089d75d9458ebabdfda75c1d3072951d2f677bc3f",
+    "ADP/core/single/ADP_single_index.py": "d636b1b1eddc5cdbdfe61e567e899e92399c3e666b75f0efe85c2a8d43c91b95",
+    "ADP/core/single/ADP_single_index_result.py": "6f539f9f285911f4776261f2346ad6a51fc3a42faeaf80c067ef8c8df4eafaf1",
+    "ADP/core/single/ADP_single_index_utils.py": "982fb26681d3b6b4547d55c2520c17252ec93c9a4b9e997fc0c128c57c32650e",
+    "ADP/core/single/__init__.py": "38c5b31c28225e064dd22aed9abce4fbc929690d4091cb02d264a6ca1d7de48d",
+    "ADP/engine/__init__.py": "580333799aa34f8147779b45ddede43d88587212c001ae97f3e13d1f3910cc0a",
+    "ADP/engine/common/ADP_Statistic_engine.py": "74276b3a0a70e4efa36611c48fe53ed4305c02f7bda0414842d45cb71c42cc3b",
+    "ADP/engine/common/__init__.py": "a1e486353e43b9473fa1068a87b0e84481f17fadc06adc552de77d35672826d8",
+    "ADP/engine/common/box_kernel.py": "2776cf53404da905372be854fcb5c0001ef25453973b17bcd09b51fa6b6382ae",
+    "ADP/engine/common/calculus.py": "5d50b69edbfa9363b33d791da24c50fa47a29ccb4e2e4a791ad7ee8e80615c5e",
+    "ADP/engine/common/gpu_statistics.py": "564d95e8204dc728c83904d93ee446d4a992ac160a00abc72308aa51fe445edd",
+    "ADP/engine/common/index_fit.py": "f059a8f000cf81659f55133ebc3cbd86ec9b38244224abdfaf94d5cfc36e6b20",
+    "ADP/engine/common/initialize.py": "8146befd146847d4b88ac3b1f0c27c7eb68d00998ba44a3f334e114718b9b4bc",
+    "ADP/engine/common/logger.py": "05fd5d8bc3082c4410b33b585d054fdf693f3d39e51d1e21703201b43a2f377a",
+    "ADP/engine/common/statistic.py": "25f8b1e33c3e1280ae5a5959e51a747b2cc9c24661b64358ea7a9da585fa9fa1",
+    "ADP/engine/common/utils.py": "3dd3eafbaf8e246054589013eae17259b9abaf314f7be5100c65edaf0162f98a",
+    "ADP/engine/common/weights.py": "0cc5a04bbff3ae60e74da248ccd73b0128090072fdb1267c4334d78a7e7d006e",
+    "ADP/engine/manifol_engine/__init__.py": "657c1941611c974126b68da000053322261d7eae80c79f43360f9a029baa9d5c",
+    "ADP/engine/manifol_engine/fit.py": "75e3c45c0b73972493a907a3352a61333c7fc0bc0107ae8e8b58f2697b461e3c",
+    "ADP/engine/manifol_engine/graphs.py": "71f8b0b9a31260cb09e8158a022a793056b467adb6463fb9896e3067187d6c71",
+    "ADP/engine/manifol_engine/optimisation.py": "34b6030933da0eb77412ede4dca94c405c3f08d716e3c2239ba7e0e3cf732081",
+    "ADP/engine/manifol_engine/utils.py": "467f66dc6b93cf513aba8bce5d1cc96f90adf750b4c2a026574c1ebc0af65d55",
+    "ADP/engine/manifol_engine/weights.py": "7827aec7f53f1f1dadd7da388fe099f4cf702d357965eef80644cb0c114828a7",
+    "ADP/engine/multi_index/ADP_multi_index_engine.py": "19a86165375ed267b898f1fb18fb750d909a3d1da98a442592aa062fb072bb09",
+    "ADP/engine/multi_index/__init__.py": "ecffff79930f2262696edc0c8af9d884681dc0df1474dc451e9bfb64e52299d4",
+    "ADP/engine/single_index/ADP_single_index_engine.py": "4bcaad15ccbe249f6311d3660b0f9cc6268ce1af405e676af109babc6c0ef2ca",
+    "ADP/engine/single_index/__init__.py": "1a0d3013732cbf557046b6dcca340f140434f58b2bfda8924259df5af55dbc7b",
+    "ADP/gpu.py": "560d3de7bb1c84428b8b4f0d204094fe6d533b681ebff5ed6e9ecac4a19258da",
+    "ADP/solver/CG.py": "b30566dfd036b8e13c8f00758641ab65a904e00a3bb166664a9c40973ffd59d3",
+    "ADP/solver/HYBRID.py": "0ecdd86d1d0c700e93a681c2d5eae135f852fccb10d671c24d3f661905463c98",
+    "ADP/solver/LSMR.py": "00e1c2c02bce027cc836a2b4d814f2321d7d1f62bf963934381fd6409cc46702",
+    "ADP/solver/_multi_operator.py": "f10629519425fb042cef58b3d4f9b2ec5c0fe41f946a20f6117a0d57ea6cd2ae",
+    "ADP/solver/legacy_lsmr.py": "c97b0ff519ba43afdbe11d1eb48f68fa275a9aa32b37b804ff9c6684fac13016",
+    "benchmarks/fit_bottlenecks.py": "fde79d3f8ffd450f5556f9b9bbd3ce9cb2fdb22b3e2548b78810a46b2c26075e"
+  },
+  "python": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "blas": {
+    "Compilers": {
+      "c": {
+        "name": "gcc",
+        "linker": "ld.bfd",
+        "version": "16.1.1",
+        "commands": "cc",
+        "args": "-march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto, -ffat-lto-objects",
+        "linker args": "-Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now, -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto, -ffat-lto-objects"
+      },
+      "cython": {
+        "name": "cython",
+        "linker": "cython",
+        "version": "3.2.9",
+        "commands": "cython"
+      },
+      "c++": {
+        "name": "gcc",
+        "linker": "ld.bfd",
+        "version": "16.1.1",
+        "commands": "c++",
+        "args": "-march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -Wp,-D_GLIBCXX_ASSERTIONS, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto, -ffat-lto-objects",
+        "linker args": "-Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now, -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -Wp,-D_GLIBCXX_ASSERTIONS, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto, -ffat-lto-objects"
+      }
+    },
+    "Machine Information": {
+      "host": {
+        "cpu": "x86_64",
+        "family": "x86_64",
+        "endian": "little",
+        "system": "linux"
+      },
+      "build": {
+        "cpu": "x86_64",
+        "family": "x86_64",
+        "endian": "little",
+        "system": "linux"
+      }
+    },
+    "Build Dependencies": {
+      "blas": {
+        "name": "cblas",
+        "found": true,
+        "version": "3.12.0",
+        "detection method": "pkgconfig",
+        "include directory": "/usr/include",
+        "lib directory": "/usr/lib",
+        "openblas configuration": "unknown",
+        "pc file directory": "/usr/lib/pkgconfig"
+      },
+      "lapack": {
+        "name": "lapack",
+        "found": true,
+        "version": "3.12.0",
+        "detection method": "pkgconfig",
+        "include directory": "/usr/include",
+        "lib directory": "/usr/lib",
+        "openblas configuration": "unknown",
+        "pc file directory": "/usr/lib/pkgconfig"
+      }
+    },
+    "Python Information": {
+      "path": "/usr/bin/python",
+      "version": "3.14"
+    },
+    "SIMD Extensions": {
+      "found": [
+        "X86_V2",
+        "X86_V3"
+      ],
+      "not found": [
+        "X86_V4",
+        "AVX512_ICL",
+        "AVX512_SPR"
+      ]
+    }
+  },
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "rows": [
+    {
+      "case": "multi_base",
+      "profile_mode": "cprofile",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 50,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.10970693399940501,
+      "rss_pre_fit_bytes": 74637312,
+      "rss_peak_bytes": 82264064,
+      "rss_sampled_phase_peak_bytes": {
+        "pairwise_distance2": 75280384,
+        "initialize_basis_local_with_spectrum": 76509184,
+        "search_bandwidth": 76890112,
+        "calculate_statistics": 82481152,
+        "solver": 79941632,
+        "calculate_alpha_k": 79945728
+      },
+      "rss_samples": 51,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.0005999729983159341,
+        "initialize_basis_local_with_spectrum": 0.005302481000398984,
+        "search_bandwidth": 0.0011284319989499636,
+        "calculate_multi_weight": 3.253004251746461e-06,
+        "calculate_statistics": 0.011983035001321696,
+        "calculate_alpha_k": 0.0015985280006134417
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.0005999729983159341,
+        "initialize_basis_local_with_spectrum": 0.005302481000398984,
+        "search_bandwidth": 0.0011284319989499636,
+        "calculate_multi_weight": 3.253004251746461e-06,
+        "calculate_statistics": 0.011983035001321696,
+        "calculate_alpha_k": 0.0015985280006134417
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.006036094000592129
+          },
+          "bandwidth": {
+            "time_seconds": 0.0011352870023983996
+          },
+          "directions": {
+            "time_seconds": 0.0003276370043749921
+          },
+          "statistics": {
+            "time_seconds": 0.0120085780035879
+          },
+          "solver": {
+            "time_seconds": 0.08815406099893153
+          },
+          "update": {
+            "time_seconds": 0.0016080089990282431
+          }
+        },
+        "total_time_seconds": 0.1096752910016221
+      },
+      "basis": [
+        [
+          0.9976163977199698,
+          -0.0014378186174849178
+        ],
+        [
+          0.0015454497360667951,
+          0.9097520735370539
+        ],
+        [
+          0.04178471471588613,
+          0.05485638372199921
+        ],
+        [
+          -0.013252729510966158,
+          0.08383633549968533
+        ],
+        [
+          -0.038837491070823606,
+          0.12784769173377866
+        ],
+        [
+          -0.03313532620414435,
+          -0.025589076379093138
+        ],
+        [
+          0.013843497861931838,
+          0.31303521656759503
+        ],
+        [
+          -0.006292406024792649,
+          0.2175326721770127
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 13,
+          "normal_residual_ratio": 0.06308272515095158,
+          "normal_residual": 4.462453710989527e-10,
+          "correction_norm": 2.000821158072097e-07,
+          "gauge_error": 3.12987412993365e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 256,
+          "lsmr_solves_total": 18,
+          "accepted_steps": 13,
+          "converged": true,
+          "loss": 0.4767456472671285,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033,
+            0.47674572492020695,
+            0.4767456591133357,
+            0.476745649093764,
+            0.47674564755058557,
+            0.4767456473112132,
+            0.476745647273913,
+            0.4767456472680517,
+            0.4767456472671285
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125,
+            0.0125,
+            0.00625,
+            0.00625,
+            0.003125,
+            0.003125,
+            0.025,
+            0.025,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 9.825215376128998e-08,
+          "local_gradient": 1.4957822475220857e-14,
+          "orthogonality": 5.56917203919398e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 13,
+          "normal_residual_ratio": 0.04728121188515718,
+          "normal_residual": 1.8712726409587913e-09,
+          "correction_norm": 2.798552577469371e-07,
+          "gauge_error": 1.8525424126284885e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 568,
+          "lsmr_solves_total": 31,
+          "accepted_steps": 21,
+          "converged": true,
+          "loss": 0.7015958699142736,
+          "loss_history": [
+            0.8361513998296095,
+            0.709784013470509,
+            0.7030152869883242,
+            0.7019255296549995,
+            0.7016805212593117,
+            0.7016173787232337,
+            0.7016015330257612,
+            0.7015973484632689,
+            0.70159626319282,
+            0.701595974608037,
+            0.701595898233747,
+            0.7015958776421176,
+            0.7015958720584571,
+            0.7015958705171469,
+            0.7015958700871995,
+            0.7015958699646453,
+            0.7015958699292353,
+            0.7015958699188068,
+            0.7015958699156685,
+            0.7015958699146776,
+            0.7015958699143814,
+            0.7015958699142736
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125,
+            0.0125,
+            0.00625,
+            0.00625,
+            0.003125,
+            0.003125,
+            0.0015625,
+            0.003125,
+            0.003125,
+            0.00625,
+            0.0125,
+            0.025,
+            0.025,
+            0.1,
+            0.1
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 1.831008319677618e-08,
+          "local_gradient": 4.305777471823869e-15,
+          "orthogonality": 2.482905354052233e-16
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08293605155453716
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 13,
+            "normal_residual_ratio": 0.06308272515095158,
+            "normal_residual": 4.462453710989527e-10,
+            "correction_norm": 2.000821158072097e-07,
+            "gauge_error": 3.12987412993365e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 256,
+            "lsmr_solves_total": 18,
+            "accepted_steps": 13,
+            "converged": true,
+            "loss": 0.4767456472671285,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033,
+              0.47674572492020695,
+              0.4767456591133357,
+              0.476745649093764,
+              0.47674564755058557,
+              0.4767456473112132,
+              0.476745647273913,
+              0.4767456472680517,
+              0.4767456472671285
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125,
+              0.0125,
+              0.00625,
+              0.00625,
+              0.003125,
+              0.003125,
+              0.025,
+              0.025,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 9.825215376128998e-08,
+            "local_gradient": 1.4957822475220857e-14,
+            "orthogonality": 5.56917203919398e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 13,
+          "normal_residual_ratio": 0.06308272515095158,
+          "normal_residual": 4.462453710989527e-10,
+          "correction_norm": 2.000821158072097e-07,
+          "gauge_error": 3.12987412993365e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 256,
+          "lsmr_solves_total": 18,
+          "accepted_steps": 13,
+          "converged": true,
+          "loss": 0.4767456472671285,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033,
+            0.47674572492020695,
+            0.4767456591133357,
+            0.476745649093764,
+            0.47674564755058557,
+            0.4767456473112132,
+            0.476745647273913,
+            0.4767456472680517,
+            0.4767456472671285
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125,
+            0.0125,
+            0.00625,
+            0.00625,
+            0.003125,
+            0.003125,
+            0.025,
+            0.025,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 9.825215376128998e-08,
+          "local_gradient": 1.4957822475220857e-14,
+          "orthogonality": 5.56917203919398e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024779346645038985
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406283766031265,
+          "h_over_factor": 1.5678898104103105,
+          "err": 2.923680895876166,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.0056102802277918674
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 13,
+            "normal_residual_ratio": 0.04728121188515718,
+            "normal_residual": 1.8712726409587913e-09,
+            "correction_norm": 2.798552577469371e-07,
+            "gauge_error": 1.8525424126284885e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 568,
+            "lsmr_solves_total": 31,
+            "accepted_steps": 21,
+            "converged": true,
+            "loss": 0.7015958699142736,
+            "loss_history": [
+              0.8361513998296095,
+              0.709784013470509,
+              0.7030152869883242,
+              0.7019255296549995,
+              0.7016805212593117,
+              0.7016173787232337,
+              0.7016015330257612,
+              0.7015973484632689,
+              0.70159626319282,
+              0.701595974608037,
+              0.701595898233747,
+              0.7015958776421176,
+              0.7015958720584571,
+              0.7015958705171469,
+              0.7015958700871995,
+              0.7015958699646453,
+              0.7015958699292353,
+              0.7015958699188068,
+              0.7015958699156685,
+              0.7015958699146776,
+              0.7015958699143814,
+              0.7015958699142736
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125,
+              0.0125,
+              0.00625,
+              0.00625,
+              0.003125,
+              0.003125,
+              0.0015625,
+              0.003125,
+              0.003125,
+              0.00625,
+              0.0125,
+              0.025,
+              0.025,
+              0.1,
+              0.1
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 1.831008319677618e-08,
+            "local_gradient": 4.305777471823869e-15,
+            "orthogonality": 2.482905354052233e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 13,
+          "normal_residual_ratio": 0.04728121188515718,
+          "normal_residual": 1.8712726409587913e-09,
+          "correction_norm": 2.798552577469371e-07,
+          "gauge_error": 1.8525424126284885e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 568,
+          "lsmr_solves_total": 31,
+          "accepted_steps": 21,
+          "converged": true,
+          "loss": 0.7015958699142736,
+          "loss_history": [
+            0.8361513998296095,
+            0.709784013470509,
+            0.7030152869883242,
+            0.7019255296549995,
+            0.7016805212593117,
+            0.7016173787232337,
+            0.7016015330257612,
+            0.7015973484632689,
+            0.70159626319282,
+            0.701595974608037,
+            0.701595898233747,
+            0.7015958776421176,
+            0.7015958720584571,
+            0.7015958705171469,
+            0.7015958700871995,
+            0.7015958699646453,
+            0.7015958699292353,
+            0.7015958699188068,
+            0.7015958699156685,
+            0.7015958699146776,
+            0.7015958699143814,
+            0.7015958699142736
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125,
+            0.0125,
+            0.00625,
+            0.00625,
+            0.003125,
+            0.003125,
+            0.0015625,
+            0.003125,
+            0.003125,
+            0.00625,
+            0.0125,
+            0.025,
+            0.025,
+            0.1,
+            0.1
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 1.831008319677618e-08,
+          "local_gradient": 4.305777471823869e-15,
+          "orthogonality": 2.482905354052233e-16,
+          "k": 1,
+          "alpha": 0.7406283766031265,
+          "mean_mass": 30.00000034265555,
+          "distance_initial": 0.2923098141525151,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "cprofile_top_cumulative": [
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/core/multi/ADP_multi_index.py",
+          "line": 33,
+          "function": "fit",
+          "calls": 2,
+          "self_seconds": 0.000218318,
+          "cumulative_seconds": 0.10944532400000001
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/engine/common/index_fit.py",
+          "line": 187,
+          "function": "fit_index",
+          "calls": 2,
+          "self_seconds": 0.000292255,
+          "cumulative_seconds": 0.109189304
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 515,
+          "function": "_global_correction",
+          "calls": 49,
+          "self_seconds": 0.0009374860000000001,
+          "cumulative_seconds": 0.09681713
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/core/multi/ADP_multi_index.py",
+          "line": 60,
+          "function": "<lambda>",
+          "calls": 2,
+          "self_seconds": 1.3493000000000001e-05,
+          "cumulative_seconds": 0.087842049
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_isolve/lsmr.py",
+          "line": 29,
+          "function": "lsmr",
+          "calls": 49,
+          "self_seconds": 0.009731634000000001,
+          "cumulative_seconds": 0.046279604
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/core/ADP_Solver.py",
+          "line": 63,
+          "function": "fit_current",
+          "calls": 2,
+          "self_seconds": 3.4091e-05,
+          "cumulative_seconds": 0.041227520000000004
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 312,
+          "function": "_shared_matvec",
+          "calls": 1893,
+          "self_seconds": 0.0052655390000000005,
+          "cumulative_seconds": 0.038631962000000006
+        },
+        {
+          "file": "/usr/lib/python3.14/threading.py",
+          "line": 651,
+          "function": "wait",
+          "calls": 50,
+          "self_seconds": 0.0009299890000000001,
+          "cumulative_seconds": 0.038193829000000006
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/_core/einsumfunc.py",
+          "line": 1242,
+          "function": "einsum",
+          "calls": 208,
+          "self_seconds": 0.001131899,
+          "cumulative_seconds": 0.029118325
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 363,
+          "function": "matvec",
+          "calls": 873,
+          "self_seconds": 0.00039004100000000004,
+          "cumulative_seconds": 0.021781413000000003
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 647,
+          "function": "__matmul__",
+          "calls": 49,
+          "self_seconds": 0.000248103,
+          "cumulative_seconds": 0.021462922000000002
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 393,
+          "function": "rmatvec",
+          "calls": 1020,
+          "self_seconds": 0.00037651000000000004,
+          "cumulative_seconds": 0.017959764
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 40,
+          "function": "solve",
+          "calls": 2,
+          "self_seconds": 0.000250729,
+          "cumulative_seconds": 0.017241568000000002
+        },
+        {
+          "file": "/usr/lib/python3.14/threading.py",
+          "line": 337,
+          "function": "wait",
+          "calls": 50,
+          "self_seconds": 0.0011691330000000002,
+          "cumulative_seconds": 0.012230026000000001
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 599,
+          "function": "_stationarity",
+          "calls": 34,
+          "self_seconds": 0.001138114,
+          "cumulative_seconds": 0.0111161
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'readline' of '_io.TextIOWrapper' objects>",
+          "calls": 51,
+          "self_seconds": 0.00031614800000000004,
+          "cumulative_seconds": 0.010738582
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/benchmarks/fit_bottlenecks.py",
+          "line": 122,
+          "function": "measured",
+          "calls": 8,
+          "self_seconds": 8.215900000000001e-05,
+          "cumulative_seconds": 0.010468557
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 893,
+          "function": "_rmatvec",
+          "calls": 1020,
+          "self_seconds": 0.000379789,
+          "cumulative_seconds": 0.0101366
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 461,
+          "function": "_predict",
+          "calls": 187,
+          "self_seconds": 0.00024313,
+          "cumulative_seconds": 0.010049695
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 495,
+          "function": "rmatvec",
+          "calls": 1020,
+          "self_seconds": 0.00274505,
+          "cumulative_seconds": 0.009756811
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/linalg/_linalg.py",
+          "line": 2598,
+          "function": "norm",
+          "calls": 3044,
+          "self_seconds": 0.004309474000000001,
+          "cumulative_seconds": 0.009213139
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 890,
+          "function": "_matvec",
+          "calls": 873,
+          "self_seconds": 0.00039851400000000004,
+          "cumulative_seconds": 0.008510274
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'acquire' of '_thread.lock' objects>",
+          "calls": 202,
+          "self_seconds": 0.004998441,
+          "cumulative_seconds": 0.008504786
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 486,
+          "function": "matvec",
+          "calls": 873,
+          "self_seconds": 0.0022240520000000002,
+          "cumulative_seconds": 0.008101373
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/_multi_operator.py",
+          "line": 8,
+          "function": "forward",
+          "calls": 1060,
+          "self_seconds": 0.006158546,
+          "cumulative_seconds": 0.0064283840000000005
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/_multi_operator.py",
+          "line": 21,
+          "function": "adjoint",
+          "calls": 1020,
+          "self_seconds": 0.005909696000000001,
+          "cumulative_seconds": 0.0064263260000000004
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/_core/einsumfunc.py",
+          "line": 634,
+          "function": "einsum_path",
+          "calls": 172,
+          "self_seconds": 0.0023092290000000003,
+          "cumulative_seconds": 0.006371377
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/_external/array_api_compat/_internal.py",
+          "line": 33,
+          "function": "wrapped_f",
+          "calls": 1991,
+          "self_seconds": 0.0009630630000000001,
+          "cumulative_seconds": 0.005052506
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 400,
+          "function": "_local_refit",
+          "calls": 36,
+          "self_seconds": 0.0013844220000000002,
+          "cumulative_seconds": 0.004900087
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_isolve/lsqr.py",
+          "line": 62,
+          "function": "_sym_ortho",
+          "calls": 3296,
+          "self_seconds": 0.003518129,
+          "cumulative_seconds": 0.004548296
+        }
+      ],
+      "cprofile_top_self": [
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_isolve/lsmr.py",
+          "line": 29,
+          "function": "lsmr",
+          "calls": 49,
+          "self_seconds": 0.009731634000000001,
+          "cumulative_seconds": 0.046279604
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/_multi_operator.py",
+          "line": 8,
+          "function": "forward",
+          "calls": 1060,
+          "self_seconds": 0.006158546,
+          "cumulative_seconds": 0.0064283840000000005
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/_multi_operator.py",
+          "line": 21,
+          "function": "adjoint",
+          "calls": 1020,
+          "self_seconds": 0.005909696000000001,
+          "cumulative_seconds": 0.0064263260000000004
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 312,
+          "function": "_shared_matvec",
+          "calls": 1893,
+          "self_seconds": 0.0052655390000000005,
+          "cumulative_seconds": 0.038631962000000006
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'acquire' of '_thread.lock' objects>",
+          "calls": 202,
+          "self_seconds": 0.004998441,
+          "cumulative_seconds": 0.008504786
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/linalg/_linalg.py",
+          "line": 2598,
+          "function": "norm",
+          "calls": 3044,
+          "self_seconds": 0.004309474000000001,
+          "cumulative_seconds": 0.009213139
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_isolve/lsqr.py",
+          "line": 62,
+          "function": "_sym_ortho",
+          "calls": 3296,
+          "self_seconds": 0.003518129,
+          "cumulative_seconds": 0.004548296
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/linalg/_linalg.py",
+          "line": 1666,
+          "function": "svd",
+          "calls": 109,
+          "self_seconds": 0.0033901020000000003,
+          "cumulative_seconds": 0.0041516800000000005
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 495,
+          "function": "rmatvec",
+          "calls": 1020,
+          "self_seconds": 0.00274505,
+          "cumulative_seconds": 0.009756811
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/engine/common/statistic.py",
+          "line": 133,
+          "function": "_dense_moments",
+          "calls": 3,
+          "self_seconds": 0.002620334,
+          "cumulative_seconds": 0.002782183
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/_core/einsumfunc.py",
+          "line": 634,
+          "function": "einsum_path",
+          "calls": 172,
+          "self_seconds": 0.0023092290000000003,
+          "cumulative_seconds": 0.006371377
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 486,
+          "function": "matvec",
+          "calls": 873,
+          "self_seconds": 0.0022240520000000002,
+          "cumulative_seconds": 0.008101373
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'dot' of 'numpy.ndarray' objects>",
+          "calls": 2940,
+          "self_seconds": 0.0020715440000000002,
+          "cumulative_seconds": 0.002071655
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/engine/common/statistic.py",
+          "line": 215,
+          "function": "_normalized_residual",
+          "calls": 3,
+          "self_seconds": 0.0017510660000000001,
+          "cumulative_seconds": 0.001771308
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'reduce' of 'numpy.ufunc' objects>",
+          "calls": 800,
+          "self_seconds": 0.001461864,
+          "cumulative_seconds": 0.001461864
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.max>",
+          "calls": 4285,
+          "self_seconds": 0.0014264590000000001,
+          "cumulative_seconds": 0.0028189260000000002
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 400,
+          "function": "_local_refit",
+          "calls": 36,
+          "self_seconds": 0.0013844220000000002,
+          "cumulative_seconds": 0.004900087
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'reshape' of 'numpy.ndarray' objects>",
+          "calls": 4227,
+          "self_seconds": 0.001354846,
+          "cumulative_seconds": 0.001354846
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/_external/array_api_extra/_lib/_funcs.py",
+          "line": 223,
+          "function": "broadcast_shapes",
+          "calls": 1893,
+          "self_seconds": 0.001303527,
+          "cumulative_seconds": 0.003722177
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/_core/einsumfunc.py",
+          "line": 1144,
+          "function": "bmm_einsum",
+          "calls": 206,
+          "self_seconds": 0.001293358,
+          "cumulative_seconds": 0.002222355
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/linalg/_linalg.py",
+          "line": 2417,
+          "function": "lstsq",
+          "calls": 48,
+          "self_seconds": 0.001226848,
+          "cumulative_seconds": 0.0016345490000000001
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/_external/array_api_compat/common/_aliases.py",
+          "line": 448,
+          "function": "reshape",
+          "calls": 1893,
+          "self_seconds": 0.001226417,
+          "cumulative_seconds": 0.0038583970000000004
+        },
+        {
+          "file": "/usr/lib/python3.14/threading.py",
+          "line": 337,
+          "function": "wait",
+          "calls": 50,
+          "self_seconds": 0.0011691330000000002,
+          "cumulative_seconds": 0.012230026000000001
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/engine/common/calculus.py",
+          "line": 72,
+          "function": "enough",
+          "calls": 124,
+          "self_seconds": 0.001153593,
+          "cumulative_seconds": 0.0020706780000000003
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 599,
+          "function": "_stationarity",
+          "calls": 34,
+          "self_seconds": 0.001138114,
+          "cumulative_seconds": 0.0111161
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/_core/einsumfunc.py",
+          "line": 1242,
+          "function": "einsum",
+          "calls": 208,
+          "self_seconds": 0.001131899,
+          "cumulative_seconds": 0.029118325
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/_core/fromnumeric.py",
+          "line": 48,
+          "function": "_wrapfunc",
+          "calls": 2329,
+          "self_seconds": 0.001082691,
+          "cumulative_seconds": 0.002383919
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'ravel' of 'numpy.ndarray' objects>",
+          "calls": 5034,
+          "self_seconds": 0.001051665,
+          "cumulative_seconds": 0.001051665
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/_external/array_api_extra/_lib/_funcs.py",
+          "line": 266,
+          "function": "<genexpr>",
+          "calls": 5679,
+          "self_seconds": 0.001018779,
+          "cumulative_seconds": 0.001392467
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/core/ADP_Config.py",
+          "line": 10,
+          "function": "epanechnikov",
+          "calls": 232,
+          "self_seconds": 0.0009721590000000001,
+          "cumulative_seconds": 0.0009722950000000001
+        }
+      ],
+      "repeat": 0,
+      "warmup": true
+    },
+    {
+      "case": "multi_base",
+      "profile_mode": "cprofile",
+      "settings": {
+        "seed": 17,
+        "N_loc": 30,
+        "N_lin": 40,
+        "N_J": 48,
+        "N_phi": 16,
+        "outer_steps": 2,
+        "lambda_penalty": 0.05,
+        "local_ridge": 1e-08,
+        "kernel": "max(1-q**2,0), q=distance2/h**2",
+        "a": 1.4142135623730951,
+        "h_min": 0.3,
+        "batch_size": 32,
+        "index_init": "local",
+        "estimator": "new",
+        "direction_mode": "auto",
+        "multi_tensor": "orthogonal",
+        "select_step": "best",
+        "center_displacement": 0.0,
+        "training_set": "all",
+        "redraw_directions": true,
+        "smart_weights": false,
+        "gpu": false,
+        "gpu_solver": false,
+        "solver": {
+          "method": "LSMR",
+          "max_steps": 50,
+          "tol": 1e-06
+        }
+      },
+      "error": null,
+      "fit_seconds": 0.11424239800180658,
+      "rss_pre_fit_bytes": 74592256,
+      "rss_peak_bytes": 82305024,
+      "rss_sampled_phase_peak_bytes": {
+        "unattributed": 74764288,
+        "initialize_basis_local_with_spectrum": 76533760,
+        "search_bandwidth": 76681216,
+        "calculate_statistics": 82501632,
+        "solver": 79994880,
+        "calculate_alpha_k": 79998976
+      },
+      "rss_samples": 54,
+      "python_traced_peak_bytes": null,
+      "hook_seconds_inclusive": {
+        "pairwise_distance2": 0.0005655509994539898,
+        "initialize_basis_local_with_spectrum": 0.00522828999964986,
+        "search_bandwidth": 0.0010843509990081657,
+        "calculate_multi_weight": 3.263001417508349e-06,
+        "calculate_statistics": 0.012163950999820372,
+        "calculate_alpha_k": 0.0016415019999840297
+      },
+      "hook_seconds_top_level": {
+        "pairwise_distance2": 0.0005655509994539898,
+        "initialize_basis_local_with_spectrum": 0.00522828999964986,
+        "search_bandwidth": 0.0010843509990081657,
+        "calculate_multi_weight": 3.263001417508349e-06,
+        "calculate_statistics": 0.012163950999820372,
+        "calculate_alpha_k": 0.0016415019999840297
+      },
+      "hook_calls": {
+        "pairwise_distance2": 1,
+        "initialize_basis_local_with_spectrum": 1,
+        "search_bandwidth": 1,
+        "calculate_multi_weight": 2,
+        "calculate_statistics": 2,
+        "calculate_alpha_k": 1
+      },
+      "phases": {
+        "stages": {
+          "initialization": {
+            "time_seconds": 0.005924800996581325
+          },
+          "bandwidth": {
+            "time_seconds": 0.0010910249984590337
+          },
+          "directions": {
+            "time_seconds": 0.000329317004798213
+          },
+          "statistics": {
+            "time_seconds": 0.012188415003038244
+          },
+          "solver": {
+            "time_seconds": 0.09260571200138656
+          },
+          "update": {
+            "time_seconds": 0.0016513189984834753
+          }
+        },
+        "total_time_seconds": 0.1142076440009987
+      },
+      "basis": [
+        [
+          0.9976163977199698,
+          -0.0014378186174849178
+        ],
+        [
+          0.0015454497360667951,
+          0.9097520735370539
+        ],
+        [
+          0.04178471471588613,
+          0.05485638372199921
+        ],
+        [
+          -0.013252729510966158,
+          0.08383633549968533
+        ],
+        [
+          -0.038837491070823606,
+          0.12784769173377866
+        ],
+        [
+          -0.03313532620414435,
+          -0.025589076379093138
+        ],
+        [
+          0.013843497861931838,
+          0.31303521656759503
+        ],
+        [
+          -0.006292406024792649,
+          0.2175326721770127
+        ]
+      ],
+      "stop_reason": "outer_steps",
+      "solver": [
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 13,
+          "normal_residual_ratio": 0.06308272515095158,
+          "normal_residual": 4.462453710989527e-10,
+          "correction_norm": 2.000821158072097e-07,
+          "gauge_error": 3.12987412993365e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 256,
+          "lsmr_solves_total": 18,
+          "accepted_steps": 13,
+          "converged": true,
+          "loss": 0.4767456472671285,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033,
+            0.47674572492020695,
+            0.4767456591133357,
+            0.476745649093764,
+            0.47674564755058557,
+            0.4767456473112132,
+            0.476745647273913,
+            0.4767456472680517,
+            0.4767456472671285
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125,
+            0.0125,
+            0.00625,
+            0.00625,
+            0.003125,
+            0.003125,
+            0.025,
+            0.025,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 9.825215376128998e-08,
+          "local_gradient": 1.4957822475220857e-14,
+          "orthogonality": 5.56917203919398e-16
+        },
+        {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 13,
+          "normal_residual_ratio": 0.04728121188515718,
+          "normal_residual": 1.8712726409587913e-09,
+          "correction_norm": 2.798552577469371e-07,
+          "gauge_error": 1.8525424126284885e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 568,
+          "lsmr_solves_total": 31,
+          "accepted_steps": 21,
+          "converged": true,
+          "loss": 0.7015958699142736,
+          "loss_history": [
+            0.8361513998296095,
+            0.709784013470509,
+            0.7030152869883242,
+            0.7019255296549995,
+            0.7016805212593117,
+            0.7016173787232337,
+            0.7016015330257612,
+            0.7015973484632689,
+            0.70159626319282,
+            0.701595974608037,
+            0.701595898233747,
+            0.7015958776421176,
+            0.7015958720584571,
+            0.7015958705171469,
+            0.7015958700871995,
+            0.7015958699646453,
+            0.7015958699292353,
+            0.7015958699188068,
+            0.7015958699156685,
+            0.7015958699146776,
+            0.7015958699143814,
+            0.7015958699142736
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125,
+            0.0125,
+            0.00625,
+            0.00625,
+            0.003125,
+            0.003125,
+            0.0015625,
+            0.003125,
+            0.003125,
+            0.00625,
+            0.0125,
+            0.025,
+            0.025,
+            0.1,
+            0.1
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 1.831008319677618e-08,
+          "local_gradient": 4.305777471823869e-15,
+          "orthogonality": 2.482905354052233e-16
+        }
+      ],
+      "trace": [
+        {
+          "iteration": 0,
+          "h": 1.6422182842430137,
+          "factor_name": "alpha",
+          "factor": 1.0,
+          "h_over_factor": 1.6422182842430137,
+          "err": 4.733179914471109,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.08293605155453716
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 13,
+            "normal_residual_ratio": 0.06308272515095158,
+            "normal_residual": 4.462453710989527e-10,
+            "correction_norm": 2.000821158072097e-07,
+            "gauge_error": 3.12987412993365e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 256,
+            "lsmr_solves_total": 18,
+            "accepted_steps": 13,
+            "converged": true,
+            "loss": 0.4767456472671285,
+            "loss_history": [
+              0.5054210242186944,
+              0.4784486816728474,
+              0.47693218757013855,
+              0.4767703711765494,
+              0.47674916113156957,
+              0.47674616369112033,
+              0.47674572492020695,
+              0.4767456591133357,
+              0.476745649093764,
+              0.47674564755058557,
+              0.4767456473112132,
+              0.476745647273913,
+              0.4767456472680517,
+              0.4767456472671285
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125,
+              0.0125,
+              0.00625,
+              0.00625,
+              0.003125,
+              0.003125,
+              0.025,
+              0.025,
+              0.025
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 9.825215376128998e-08,
+            "local_gradient": 1.4957822475220857e-14,
+            "orthogonality": 5.56917203919398e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 13,
+          "normal_residual_ratio": 0.06308272515095158,
+          "normal_residual": 4.462453710989527e-10,
+          "correction_norm": 2.000821158072097e-07,
+          "gauge_error": 3.12987412993365e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 256,
+          "lsmr_solves_total": 18,
+          "accepted_steps": 13,
+          "converged": true,
+          "loss": 0.4767456472671285,
+          "loss_history": [
+            0.5054210242186944,
+            0.4784486816728474,
+            0.47693218757013855,
+            0.4767703711765494,
+            0.47674916113156957,
+            0.47674616369112033,
+            0.47674572492020695,
+            0.4767456591133357,
+            0.476745649093764,
+            0.47674564755058557,
+            0.4767456473112132,
+            0.476745647273913,
+            0.4767456472680517,
+            0.4767456472671285
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125,
+            0.0125,
+            0.00625,
+            0.00625,
+            0.003125,
+            0.003125,
+            0.025,
+            0.025,
+            0.025
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 9.825215376128998e-08,
+          "local_gradient": 1.4957822475220857e-14,
+          "orthogonality": 5.56917203919398e-16,
+          "k": 0,
+          "alpha": 1.0,
+          "mean_mass": 30.000000000000004,
+          "distance_initial": 0.024779346645038985
+        },
+        {
+          "iteration": 1,
+          "h": 1.161223684976772,
+          "factor_name": "alpha",
+          "factor": 0.7406283766031265,
+          "h_over_factor": 1.5678898104103105,
+          "err": 2.923680895876166,
+          "quality": null,
+          "eigenvalues": [
+            1.0,
+            0.0056102802277918674
+          ],
+          "tensor": "orthogonal",
+          "solver": {
+            "lsmr_stop": 2,
+            "lsmr_iterations": 13,
+            "normal_residual_ratio": 0.04728121188515718,
+            "normal_residual": 1.8712726409587913e-09,
+            "correction_norm": 2.798552577469371e-07,
+            "gauge_error": 1.8525424126284885e-16,
+            "global_rank": 2,
+            "lsmr_iterations_total": 568,
+            "lsmr_solves_total": 31,
+            "accepted_steps": 21,
+            "converged": true,
+            "loss": 0.7015958699142736,
+            "loss_history": [
+              0.8361513998296095,
+              0.709784013470509,
+              0.7030152869883242,
+              0.7019255296549995,
+              0.7016805212593117,
+              0.7016173787232337,
+              0.7016015330257612,
+              0.7015973484632689,
+              0.70159626319282,
+              0.701595974608037,
+              0.701595898233747,
+              0.7015958776421176,
+              0.7015958720584571,
+              0.7015958705171469,
+              0.7015958700871995,
+              0.7015958699646453,
+              0.7015958699292353,
+              0.7015958699188068,
+              0.7015958699156685,
+              0.7015958699146776,
+              0.7015958699143814,
+              0.7015958699142736
+            ],
+            "lambda_history": [
+              0.05,
+              0.05,
+              0.05,
+              0.05,
+              0.025,
+              0.025,
+              0.0125,
+              0.0125,
+              0.00625,
+              0.00625,
+              0.003125,
+              0.003125,
+              0.0015625,
+              0.003125,
+              0.003125,
+              0.00625,
+              0.0125,
+              0.025,
+              0.025,
+              0.1,
+              0.1
+            ],
+            "local_rank_loss": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "riemannian_gradient": 1.831008319677618e-08,
+            "local_gradient": 4.305777471823869e-15,
+            "orthogonality": 2.482905354052233e-16
+          },
+          "lsmr_stop": 2,
+          "lsmr_iterations": 13,
+          "normal_residual_ratio": 0.04728121188515718,
+          "normal_residual": 1.8712726409587913e-09,
+          "correction_norm": 2.798552577469371e-07,
+          "gauge_error": 1.8525424126284885e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 568,
+          "lsmr_solves_total": 31,
+          "accepted_steps": 21,
+          "converged": true,
+          "loss": 0.7015958699142736,
+          "loss_history": [
+            0.8361513998296095,
+            0.709784013470509,
+            0.7030152869883242,
+            0.7019255296549995,
+            0.7016805212593117,
+            0.7016173787232337,
+            0.7016015330257612,
+            0.7015973484632689,
+            0.70159626319282,
+            0.701595974608037,
+            0.701595898233747,
+            0.7015958776421176,
+            0.7015958720584571,
+            0.7015958705171469,
+            0.7015958700871995,
+            0.7015958699646453,
+            0.7015958699292353,
+            0.7015958699188068,
+            0.7015958699156685,
+            0.7015958699146776,
+            0.7015958699143814,
+            0.7015958699142736
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.025,
+            0.025,
+            0.0125,
+            0.0125,
+            0.00625,
+            0.00625,
+            0.003125,
+            0.003125,
+            0.0015625,
+            0.003125,
+            0.003125,
+            0.00625,
+            0.0125,
+            0.025,
+            0.025,
+            0.1,
+            0.1
+          ],
+          "local_rank_loss": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "riemannian_gradient": 1.831008319677618e-08,
+          "local_gradient": 4.305777471823869e-15,
+          "orthogonality": 2.482905354052233e-16,
+          "k": 1,
+          "alpha": 0.7406283766031265,
+          "mean_mass": 30.00000034265555,
+          "distance_initial": 0.2923098141525151,
+          "stop_reason": "outer_steps"
+        }
+      ],
+      "cprofile_top_cumulative": [
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/core/multi/ADP_multi_index.py",
+          "line": 33,
+          "function": "fit",
+          "calls": 2,
+          "self_seconds": 4.1351000000000004e-05,
+          "cumulative_seconds": 0.114213406
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/engine/common/index_fit.py",
+          "line": 187,
+          "function": "fit_index",
+          "calls": 2,
+          "self_seconds": 0.000263019,
+          "cumulative_seconds": 0.11418049100000001
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 515,
+          "function": "_global_correction",
+          "calls": 49,
+          "self_seconds": 0.001013416,
+          "cumulative_seconds": 0.09846822300000001
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/core/multi/ADP_multi_index.py",
+          "line": 60,
+          "function": "<lambda>",
+          "calls": 2,
+          "self_seconds": 2.8236000000000002e-05,
+          "cumulative_seconds": 0.092289121
+        },
+        {
+          "file": "/usr/lib/python3.14/threading.py",
+          "line": 651,
+          "function": "wait",
+          "calls": 53,
+          "self_seconds": 0.001283222,
+          "cumulative_seconds": 0.085735478
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_isolve/lsmr.py",
+          "line": 29,
+          "function": "lsmr",
+          "calls": 49,
+          "self_seconds": 0.010944546000000001,
+          "cumulative_seconds": 0.052277941
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 312,
+          "function": "_shared_matvec",
+          "calls": 1893,
+          "self_seconds": 0.004976137,
+          "cumulative_seconds": 0.038048394
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/core/ADP_Solver.py",
+          "line": 63,
+          "function": "fit_current",
+          "calls": 2,
+          "self_seconds": 3.1619e-05,
+          "cumulative_seconds": 0.028807331000000002
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 599,
+          "function": "_stationarity",
+          "calls": 34,
+          "self_seconds": 0.001230131,
+          "cumulative_seconds": 0.024419936000000003
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 363,
+          "function": "matvec",
+          "calls": 873,
+          "self_seconds": 0.00039214500000000005,
+          "cumulative_seconds": 0.020125187000000003
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 393,
+          "function": "rmatvec",
+          "calls": 1020,
+          "self_seconds": 0.000385081,
+          "cumulative_seconds": 0.018968372
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/_core/einsumfunc.py",
+          "line": 1242,
+          "function": "einsum",
+          "calls": 208,
+          "self_seconds": 0.001056864,
+          "cumulative_seconds": 0.016714211
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/benchmarks/fit_bottlenecks.py",
+          "line": 122,
+          "function": "measured",
+          "calls": 8,
+          "self_seconds": 8.102700000000001e-05,
+          "cumulative_seconds": 0.016709959
+        },
+        {
+          "file": "/usr/lib/python3.14/threading.py",
+          "line": 337,
+          "function": "wait",
+          "calls": 53,
+          "self_seconds": 0.001666261,
+          "cumulative_seconds": 0.014960220000000002
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 647,
+          "function": "__matmul__",
+          "calls": 49,
+          "self_seconds": 0.000152496,
+          "cumulative_seconds": 0.014945024000000001
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 893,
+          "function": "_rmatvec",
+          "calls": 1020,
+          "self_seconds": 0.000386196,
+          "cumulative_seconds": 0.010842062000000001
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 495,
+          "function": "rmatvec",
+          "calls": 1020,
+          "self_seconds": 0.002902,
+          "cumulative_seconds": 0.010455866000000001
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/linalg/_linalg.py",
+          "line": 2598,
+          "function": "norm",
+          "calls": 3044,
+          "self_seconds": 0.004570897,
+          "cumulative_seconds": 0.009597870000000001
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 890,
+          "function": "_matvec",
+          "calls": 873,
+          "self_seconds": 0.000408565,
+          "cumulative_seconds": 0.008893396000000001
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 486,
+          "function": "matvec",
+          "calls": 873,
+          "self_seconds": 0.002366822,
+          "cumulative_seconds": 0.008473998
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 461,
+          "function": "_predict",
+          "calls": 187,
+          "self_seconds": 0.000141218,
+          "cumulative_seconds": 0.008181422
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'acquire' of '_thread.lock' objects>",
+          "calls": 214,
+          "self_seconds": 0.0050337,
+          "cumulative_seconds": 0.007842837
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/_multi_operator.py",
+          "line": 21,
+          "function": "adjoint",
+          "calls": 1020,
+          "self_seconds": 0.006405975,
+          "cumulative_seconds": 0.006934731
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/_multi_operator.py",
+          "line": 8,
+          "function": "forward",
+          "calls": 1060,
+          "self_seconds": 0.006424563,
+          "cumulative_seconds": 0.006705193000000001
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/_core/einsumfunc.py",
+          "line": 634,
+          "function": "einsum_path",
+          "calls": 172,
+          "self_seconds": 0.0023923530000000003,
+          "cumulative_seconds": 0.006646652
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/_external/array_api_compat/_internal.py",
+          "line": 33,
+          "function": "wrapped_f",
+          "calls": 1991,
+          "self_seconds": 0.001014364,
+          "cumulative_seconds": 0.0052758020000000004
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 400,
+          "function": "_local_refit",
+          "calls": 36,
+          "self_seconds": 0.001404246,
+          "cumulative_seconds": 0.004725267
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_isolve/lsqr.py",
+          "line": 62,
+          "function": "_sym_ortho",
+          "calls": 3296,
+          "self_seconds": 0.003661674,
+          "cumulative_seconds": 0.004714907
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 565,
+          "function": "_gauge_fix",
+          "calls": 34,
+          "self_seconds": 0.000387912,
+          "cumulative_seconds": 0.0042168530000000004
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 541,
+          "function": "__mul__",
+          "calls": 49,
+          "self_seconds": 4.6342000000000005e-05,
+          "cumulative_seconds": 0.004208592000000001
+        }
+      ],
+      "cprofile_top_self": [
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_isolve/lsmr.py",
+          "line": 29,
+          "function": "lsmr",
+          "calls": 49,
+          "self_seconds": 0.010944546000000001,
+          "cumulative_seconds": 0.052277941
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/_multi_operator.py",
+          "line": 8,
+          "function": "forward",
+          "calls": 1060,
+          "self_seconds": 0.006424563,
+          "cumulative_seconds": 0.006705193000000001
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/_multi_operator.py",
+          "line": 21,
+          "function": "adjoint",
+          "calls": 1020,
+          "self_seconds": 0.006405975,
+          "cumulative_seconds": 0.006934731
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'acquire' of '_thread.lock' objects>",
+          "calls": 214,
+          "self_seconds": 0.0050337,
+          "cumulative_seconds": 0.007842837
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_interface.py",
+          "line": 312,
+          "function": "_shared_matvec",
+          "calls": 1893,
+          "self_seconds": 0.004976137,
+          "cumulative_seconds": 0.038048394
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/linalg/_linalg.py",
+          "line": 2598,
+          "function": "norm",
+          "calls": 3044,
+          "self_seconds": 0.004570897,
+          "cumulative_seconds": 0.009597870000000001
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/sparse/linalg/_isolve/lsqr.py",
+          "line": 62,
+          "function": "_sym_ortho",
+          "calls": 3296,
+          "self_seconds": 0.003661674,
+          "cumulative_seconds": 0.004714907
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/engine/common/statistic.py",
+          "line": 133,
+          "function": "_dense_moments",
+          "calls": 3,
+          "self_seconds": 0.003405865,
+          "cumulative_seconds": 0.0038446340000000004
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/linalg/_linalg.py",
+          "line": 1666,
+          "function": "svd",
+          "calls": 109,
+          "self_seconds": 0.0031892260000000003,
+          "cumulative_seconds": 0.003949027
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 495,
+          "function": "rmatvec",
+          "calls": 1020,
+          "self_seconds": 0.002902,
+          "cumulative_seconds": 0.010455866000000001
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/_core/einsumfunc.py",
+          "line": 634,
+          "function": "einsum_path",
+          "calls": 172,
+          "self_seconds": 0.0023923530000000003,
+          "cumulative_seconds": 0.006646652
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 486,
+          "function": "matvec",
+          "calls": 873,
+          "self_seconds": 0.002366822,
+          "cumulative_seconds": 0.008473998
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'dot' of 'numpy.ndarray' objects>",
+          "calls": 2940,
+          "self_seconds": 0.0021591360000000003,
+          "cumulative_seconds": 0.0021591360000000003
+        },
+        {
+          "file": "/usr/lib/python3.14/threading.py",
+          "line": 337,
+          "function": "wait",
+          "calls": 53,
+          "self_seconds": 0.001666261,
+          "cumulative_seconds": 0.014960220000000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'reduce' of 'numpy.ufunc' objects>",
+          "calls": 800,
+          "self_seconds": 0.001497319,
+          "cumulative_seconds": 0.001497319
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'reshape' of 'numpy.ndarray' objects>",
+          "calls": 4227,
+          "self_seconds": 0.001486179,
+          "cumulative_seconds": 0.001486179
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.max>",
+          "calls": 4288,
+          "self_seconds": 0.001464447,
+          "cumulative_seconds": 0.0028855290000000004
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 400,
+          "function": "_local_refit",
+          "calls": 36,
+          "self_seconds": 0.001404246,
+          "cumulative_seconds": 0.004725267
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/_external/array_api_extra/_lib/_funcs.py",
+          "line": 223,
+          "function": "broadcast_shapes",
+          "calls": 1893,
+          "self_seconds": 0.001382666,
+          "cumulative_seconds": 0.0038516180000000002
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/_core/einsumfunc.py",
+          "line": 1144,
+          "function": "bmm_einsum",
+          "calls": 206,
+          "self_seconds": 0.0013519760000000002,
+          "cumulative_seconds": 0.002345877
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/_external/array_api_compat/common/_aliases.py",
+          "line": 448,
+          "function": "reshape",
+          "calls": 1893,
+          "self_seconds": 0.001289041,
+          "cumulative_seconds": 0.004016214000000001
+        },
+        {
+          "file": "/usr/lib/python3.14/threading.py",
+          "line": 651,
+          "function": "wait",
+          "calls": 53,
+          "self_seconds": 0.001283222,
+          "cumulative_seconds": 0.085735478
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py",
+          "line": 599,
+          "function": "_stationarity",
+          "calls": 34,
+          "self_seconds": 0.001230131,
+          "cumulative_seconds": 0.024419936000000003
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/linalg/_linalg.py",
+          "line": 2417,
+          "function": "lstsq",
+          "calls": 48,
+          "self_seconds": 0.0012098480000000001,
+          "cumulative_seconds": 0.001612326
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/_core/fromnumeric.py",
+          "line": 48,
+          "function": "_wrapfunc",
+          "calls": 2329,
+          "self_seconds": 0.001109594,
+          "cumulative_seconds": 0.002445472
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'ravel' of 'numpy.ndarray' objects>",
+          "calls": 5034,
+          "self_seconds": 0.001086425,
+          "cumulative_seconds": 0.001086425
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/engine/common/calculus.py",
+          "line": 72,
+          "function": "enough",
+          "calls": 124,
+          "self_seconds": 0.0010801180000000001,
+          "cumulative_seconds": 0.001957547
+        },
+        {
+          "file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/engine/common/statistic.py",
+          "line": 215,
+          "function": "_normalized_residual",
+          "calls": 3,
+          "self_seconds": 0.001079029,
+          "cumulative_seconds": 0.001089813
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/numpy/_core/einsumfunc.py",
+          "line": 1242,
+          "function": "einsum",
+          "calls": 208,
+          "self_seconds": 0.001056864,
+          "cumulative_seconds": 0.016714211
+        },
+        {
+          "file": "/usr/lib/python3.14/site-packages/scipy/_external/array_api_extra/_lib/_funcs.py",
+          "line": 266,
+          "function": "<genexpr>",
+          "calls": 5679,
+          "self_seconds": 0.001034144,
+          "cumulative_seconds": 0.0014210820000000002
+        }
+      ],
+      "repeat": 1,
+      "warmup": false
+    }
+  ]
+}
