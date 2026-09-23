@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from importlib import import_module
 from typing import Any
 
 import numpy as np
 from scipy.sparse import linalg as sparse_linalg
 
+from ADP.gpu import array_module, to_numpy
 from ADP.solver._multi_operator import (
     adjoint as multi_adjoint,
     forward as multi_forward,
@@ -52,16 +54,23 @@ def solve(
     dense_max_bytes: int = 64 * 1024**2,
     hybrid_inner_rtol: float | None = None,
 ) -> HPAOResult:
-    """Решить dense-``U`` задачу HPAO-LSMR.
+    """Решить dense-``U`` задачу HPAO-LSMR на backend массива U.
 
     ``U`` имеет форму ``(J, p, d)``, ``I`` — ``(J, p)``. Single-index
     задаётся вектором ``(d,)``, multi-index — матрицей строк ``P`` формы
     ``(m, d)``. Штраф ``lambda_prox`` применяется к correction-шагу. Он не
     входит в статистический функционал. ``mass`` задаёт внешний множитель
     ``c_j``; при уже ненормированных ``U`` и ``I`` используйте ``mass=None``.
+    CuPy U включает GPU LSMR; I/U остаются на GPU внутри solve, результат
+    возвращается в NumPy. NUMERICAL: та же цель, cutoff и допуски float64.
     ``hybrid_inner_rtol`` включает отдельный APPROXIMATE-режим HYBRID:
     сертификат относительной ошибки коррекции; по умолчанию отключён.
     """
+    xp = array_module(U)
+    if xp is not np and linear_solver != "lsmr":
+        raise NotImplementedError(
+            "GPU solver supports LSMR; use CPU HYBRID with GPU statistics"
+        )
     index, U, I, mass = _validate_inputs(index_init, U, I, mass)
     _validate_settings(lambda_prox, max_steps, tol, theta, lsmr_maxiter)
     if linear_solver not in {"lsmr", "hybrid"}:
@@ -92,7 +101,7 @@ def solve(
     loss = _loss(I, U, index, coefficients, mass)
     loss_history = [loss]
     lambda_history: list[float] = []
-    rank_loss_history = [int(np.count_nonzero(local_ranks < m))]
+    rank_loss_history = [int(xp.count_nonzero(local_ranks < m))]
     lambda_current = float(lambda_prox)
     lambda_floor = lambda_current / 1e6
     lambda_cap = lambda_current * 1e6
@@ -100,8 +109,10 @@ def solve(
     certified_count = 0
     accepted_steps = 0
     accepted_correction_norm = math.inf
-    U_norm2 = np.einsum("jpd,jpd->j", U, U, optimize=True)
+    U_norm2 = xp.einsum("jpd,jpd->j", U, U, optimize=True)
     gradient = local_gradient = orthogonality = math.inf
+    lsmr_iterations_total = 0
+    lsmr_solves_total = 0
     hybrid_calls = 0
     hybrid_iterations = 0
     hybrid_screened = 0
@@ -170,8 +181,11 @@ def solve(
                     lsmr_maxiter,
                 )
             )
+            if workspace is None:
+                lsmr_iterations_total += step[2]
+                lsmr_solves_total += 1
             correction = step[0].reshape(prior.shape)
-            correction_norm = float(np.linalg.norm(correction) / math.sqrt(m))
+            correction_norm = float(xp.linalg.norm(correction) / math.sqrt(m))
             required_ratio = theta if hybrid_inner_rtol is None else hybrid_inner_rtol
             if step[3] > required_ratio or correction_norm > trust_radius:
                 if lambda_current == 0:
@@ -188,8 +202,8 @@ def solve(
             raw_fitted = _predict(U, raw_index, coefficients)
             gauge_fitted = _predict(U, candidate, gauge_coefficients)
             gauge_error = float(
-                np.linalg.norm(gauge_fitted - raw_fitted)
-                / max(1.0, np.linalg.norm(raw_fitted))
+                xp.linalg.norm(gauge_fitted - raw_fitted)
+                / max(1.0, xp.linalg.norm(raw_fitted))
             )
             candidate_coefficients, local_ranks = _local_refit(I, U, candidate)
             candidate_loss = _loss(I, U, candidate, candidate_coefficients, mass)
@@ -209,7 +223,7 @@ def solve(
             accepted_correction_norm = correction_norm
             lambda_history.append(lambda_current)
             loss_history.append(loss)
-            rank_loss_history.append(int(np.count_nonzero(local_ranks < m)))
+            rank_loss_history.append(int(xp.count_nonzero(local_ranks < m)))
             last = {
                 "lsmr_stop": step[1],
                 "lsmr_iterations": step[2],
@@ -263,6 +277,8 @@ def solve(
 
     diagnostics = {
         **last,
+        "lsmr_iterations_total": lsmr_iterations_total,
+        "lsmr_solves_total": lsmr_solves_total,
         "accepted_steps": accepted_steps,
         "converged": certified_count == 2,
         "loss": loss,
@@ -288,19 +304,24 @@ def solve(
             linear_adjoint_calls=hybrid_adjoint_calls,
             hybrid_inner_rtol=hybrid_inner_rtol,
         )
-    return HPAOResult(index, coefficients, diagnostics)
+    if xp is not np:
+        diagnostics["backend"] = "cupy"
+    return HPAOResult(to_numpy(index), to_numpy(coefficients), diagnostics)
 
 
-def _validate_inputs(index, U, I, mass):
+def _validate_inputs(
+    index, U, I, mass
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Проверить формы и конечность dense-статистик перед solver-ом."""
+    xp = array_module(U)
     for name, value in (("initial index", index), ("U", U), ("I", I)):
-        array = np.asarray(value)
-        if np.iscomplexobj(array) or not np.issubdtype(array.dtype, np.number):
+        array = xp.asarray(value)
+        if xp.iscomplexobj(array) or not np.issubdtype(array.dtype, np.number):
             raise TypeError(f"{name} must be a real numeric array")
 
-    index = np.asarray(index, dtype=float)
-    U = np.asarray(U, dtype=float)
-    I = np.asarray(I, dtype=float)
+    index = xp.asarray(index, dtype=float)
+    U = xp.asarray(U, dtype=float)
+    I = xp.asarray(I, dtype=float)
     if U.ndim != 3:
         raise ValueError("U must have shape (J, p, d)")
     if 0 in U.shape:
@@ -315,21 +336,21 @@ def _validate_inputs(index, U, I, mass):
         valid_index = False
     if not valid_index:
         raise ValueError("initial index must have shape (d,) or (m, d)")
-    if not all(np.all(np.isfinite(array)) for array in (index, U, I)):
+    if not all(xp.all(xp.isfinite(array)) for array in (index, U, I)):
         raise ValueError("initial index, U, and I must contain only finite values")
 
     if mass is None:
-        mass = np.ones(U.shape[0])
+        mass = xp.ones(U.shape[0])
     else:
-        mass_array = np.asarray(mass)
-        if np.iscomplexobj(mass_array) or not np.issubdtype(
+        mass_array = xp.asarray(mass)
+        if xp.iscomplexobj(mass_array) or not np.issubdtype(
             mass_array.dtype, np.number
         ):
             raise TypeError("mass must be a real numeric array")
-        mass = np.asarray(mass, dtype=float)
+        mass = xp.asarray(mass, dtype=float)
     if mass.shape != (U.shape[0],):
         raise ValueError("mass must have shape (J,)")
-    if not np.all(np.isfinite(mass)) or np.any(mass <= 0):
+    if not xp.all(xp.isfinite(mass)) or xp.any(mass <= 0):
         raise ValueError("mass must contain only finite positive values")
     return index, U, I, mass
 
@@ -357,14 +378,15 @@ def _validate_settings(lambda_prox, max_steps, tol, theta, lsmr_maxiter):
 
 def _normalize_index(index: np.ndarray) -> np.ndarray:
     """Нормировать single-index или ортонормировать строки multi-index."""
+    xp = array_module(index)
     if index.ndim == 1:
-        norm = np.linalg.norm(index)
+        norm = xp.linalg.norm(index)
         if not np.isfinite(norm) or norm == 0:
             raise ValueError("initial index must have a nonzero finite norm")
         return index / norm
-    if np.linalg.matrix_rank(index) < index.shape[0]:
+    if xp.linalg.matrix_rank(index) < index.shape[0]:
         raise ValueError("initial multi-index matrix must have full row rank")
-    basis, _ = np.linalg.qr(index.T, mode="reduced")
+    basis, _ = xp.linalg.qr(index.T, mode="reduced")
     return basis.T
 
 
@@ -379,22 +401,30 @@ def _local_refit(
     I: np.ndarray, U: np.ndarray, index: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
     """Найти minimum-norm локальные коэффициенты без normal equations."""
+    xp = array_module(U)
     if index.ndim == 1:
         projected = U @ index  # (J, p)
-        denominator = np.einsum("jp,jp->j", projected, projected, optimize=True)
-        numerator = np.einsum("jp,jp->j", I, projected, optimize=True)
-        coefficients = np.divide(
-            numerator,
-            denominator,
-            out=np.zeros_like(numerator),
-            where=denominator > 0,
-        )
+        denominator = xp.einsum("jp,jp->j", projected, projected, optimize=True)
+        numerator = xp.einsum("jp,jp->j", I, projected, optimize=True)
+        if xp is np:
+            coefficients = np.divide(
+                numerator,
+                denominator,
+                out=np.zeros_like(numerator),
+                where=denominator > 0,
+            )
+        else:
+            coefficients = xp.where(
+                denominator > 0,
+                numerator / xp.where(denominator > 0, denominator, 1.0),
+                0.0,
+            )
         return coefficients, (denominator > 0).astype(np.intp)
 
     J, P, _ = U.shape
     m = len(index)
-    coefficients = np.empty((J, m))
-    ranks = np.empty(J, dtype=np.intp)
+    coefficients = xp.empty((J, m))
+    ranks = xp.empty(J, dtype=np.intp)
     # NUMERICAL: minimum-norm SVD сохраняет cutoff исходного lstsq(rcond=None).
     # Пакеты убирают J вызовов Python; рабочие SVD-массивы ограничены 4 MiB
     # либо размером одного центра, если один центр превышает этот бюджет.
@@ -403,21 +433,26 @@ def _local_refit(
     for start in range(0, J, block_size):
         stop = min(J, start + block_size)
         projected = U[start:stop] @ index.T
-        left, singular, right = np.linalg.svd(projected, full_matrices=False)
+        left, singular, right = xp.linalg.svd(projected, full_matrices=False)
         keep = singular > rcond * singular[:, :1]
         coordinates = (left.swapaxes(1, 2) @ I[start:stop, :, None]).squeeze(-1)
-        np.divide(coordinates, singular, out=coordinates, where=keep)
-        coordinates[~keep] = 0
+        if xp is np:
+            np.divide(coordinates, singular, out=coordinates, where=keep)
+            coordinates[~keep] = 0
+        else:
+            coordinates = xp.where(
+                keep, coordinates / xp.where(keep, singular, 1.0), 0.0
+            )
         coefficients[start:stop] = (
             right.swapaxes(1, 2) @ coordinates[..., None]
         ).squeeze(-1)
-        ranks[start:stop] = np.count_nonzero(keep, axis=1)
+        ranks[start:stop] = xp.count_nonzero(keep, axis=1)
         # Вблизи потери ранга разные LAPACK-драйверы заметно расходятся
         # по слабым компонентам. Сохраняем исходный lstsq для таких центров.
         sensitive = singular[:, -1] <= math.sqrt(np.finfo(float).eps) * singular[:, 0]
-        for local in np.flatnonzero(sensitive):
+        for local in to_numpy(xp.flatnonzero(sensitive)):
             j = start + local
-            coefficients[j], _, ranks[j], _ = np.linalg.lstsq(
+            coefficients[j], _, ranks[j], _ = xp.linalg.lstsq(
                 projected[local], I[j], rcond=None
             )
     return coefficients, ranks
@@ -432,8 +467,9 @@ def _predict(U: np.ndarray, index: np.ndarray, coefficients: np.ndarray) -> np.n
 
 def _loss(I, U, index, coefficients, mass) -> float:
     """Вычислить взвешенную половину квадратичной ошибки ``I - fitted``."""
+    xp = array_module(U)
     residual = I - _predict(U, index, coefficients)
-    return 0.5 * float(np.einsum("j,jp,jp->", mass, residual, residual))
+    return 0.5 * float(xp.einsum("j,jp,jp->", mass, residual, residual))
 
 
 def _linear_operator(
@@ -443,6 +479,7 @@ def _linear_operator(
     index_shape: tuple[int, ...],
 ) -> sparse_linalg.LinearOperator:
     """Построить глобальный оператор; adjoint задан явно."""
+    xp = array_module(U)
     rows = U.shape[0] * U.shape[1]
     size = math.prod(index_shape)
 
@@ -459,7 +496,7 @@ def _linear_operator(
         """Применить adjoint action того же оператора."""
         data = vector.reshape(U.shape[:2])
         if len(index_shape) == 1:
-            return np.einsum(
+            return xp.einsum(
                 "j,j,jpd,jp->d",
                 sqrt_mass,
                 coefficients,
@@ -470,6 +507,8 @@ def _linear_operator(
         return multi_adjoint(U, sqrt_mass[:, None] * data, coefficients).ravel()
 
     linear_operator: Any = sparse_linalg.LinearOperator
+    if xp is not np:
+        linear_operator = import_module("cupyx.scipy.sparse.linalg").LinearOperator
     return linear_operator((rows, size), matvec=matvec, rmatvec=rmatvec, dtype=float)
 
 
@@ -484,10 +523,13 @@ def _global_correction(
     maxiter,
 ):
     """Решить matrix-free ridge correction и вернуть residual certificate."""
-    operator = _linear_operator(U, coefficients, np.sqrt(mass), index.shape)
-    residual = np.sqrt(mass)[:, None] * (I - _predict(U, index, coefficients))
+    xp = array_module(U)
+    operator = _linear_operator(U, coefficients, xp.sqrt(mass), index.shape)
+    residual = xp.sqrt(mass)[:, None] * (I - _predict(U, index, coefficients))
     krylov_tol = min(1e-10, tol * 0.1)
     lsmr_method: Any = sparse_linalg.lsmr
+    if xp is not np:
+        lsmr_method = import_module("cupyx.scipy.sparse.linalg").lsmr
     result = lsmr_method(
         operator,
         residual.ravel(),
@@ -497,17 +539,17 @@ def _global_correction(
         maxiter=maxiter or max(50, 5 * index.size),
     )
     correction = result[0]
-    if not np.all(np.isfinite(correction)):
+    if not xp.all(xp.isfinite(correction)):
         raise RuntimeError("LSMR returned a non-finite correction")
 
     # Сертификат (33) пересчитывается в исходных координатах correction.
     normal_residual = operator.rmatvec(residual.ravel()) - (
         operator.rmatvec(operator @ correction) + lambda_prox * correction
     )
-    normal_norm = float(np.linalg.norm(normal_residual))
-    initial_normal = float(np.linalg.norm(operator.rmatvec(residual.ravel())))
+    normal_norm = float(xp.linalg.norm(normal_residual))
+    initial_normal = float(xp.linalg.norm(operator.rmatvec(residual.ravel())))
     denominator = (
-        lambda_prox * float(np.linalg.norm(correction))
+        lambda_prox * float(xp.linalg.norm(correction))
         if lambda_prox > 0
         else initial_normal
     )
@@ -522,58 +564,61 @@ def _global_correction(
 
 def _gauge_fix(raw_index, coefficients, prior):
     """Ортонормировать индекс, сохранив все fitted values."""
+    xp = array_module(raw_index)
     if raw_index.ndim == 1:
-        norm = np.linalg.norm(raw_index)
+        norm = xp.linalg.norm(raw_index)
         if norm == 0:
-            return prior.copy(), np.zeros_like(coefficients), 0
+            return prior.copy(), xp.zeros_like(coefficients), 0
         index = raw_index / norm
         gauge_coefficients = norm * coefficients
-        if np.dot(index, prior) < 0:
+        if xp.dot(index, prior) < 0:
             index = -index
             gauge_coefficients = -gauge_coefficients
         return index, gauge_coefficients, 1
 
-    basis, factor = np.linalg.qr(raw_index.T, mode="reduced")
+    basis, factor = xp.linalg.qr(raw_index.T, mode="reduced")
     index = basis.T
     gauge_coefficients = coefficients @ factor.T
-    left, _, right_transpose = np.linalg.svd(prior @ index.T)
+    left, _, right_transpose = xp.linalg.svd(prior @ index.T)
     rotation = left @ right_transpose
     index = rotation @ index
     gauge_coefficients = gauge_coefficients @ rotation.T
-    return index, gauge_coefficients, int(np.linalg.matrix_rank(raw_index))
+    return index, gauge_coefficients, int(xp.linalg.matrix_rank(raw_index))
 
 
 def _index_distance(index: np.ndarray, prior: np.ndarray) -> float:
     """Измерить sign-invariant distance для линии или projector-distance для basis."""
+    xp = array_module(index)
     if index.ndim == 1:
-        return float(min(np.linalg.norm(index - prior), np.linalg.norm(index + prior)))
+        return float(min(xp.linalg.norm(index - prior), xp.linalg.norm(index + prior)))
     # NUMERICAL: для ортонормальных строк это ||P*P-Q*Q||_F/sqrt(2).
     # Остаток проекции не вычитает близкие traces и требует (m,d), не (d,d).
-    return float(np.linalg.norm(index - (index @ prior.T) @ prior, ord="fro"))
+    return float(xp.linalg.norm(index - (index @ prior.T) @ prior, ord="fro"))
 
 
 def _stationarity(I, U, index, coefficients, mass, loss, *, U_norm2=None):
     """Посчитать Riemannian/local stationarity и ортонормированность индекса."""
+    xp = array_module(U)
     residual = I - _predict(U, index, coefficients)
-    transposed_residual = np.einsum("jpd,jp->jd", U, residual, optimize=True)
+    transposed_residual = xp.einsum("jpd,jp->jd", U, residual, optimize=True)
     if U_norm2 is None:
-        U_norm2 = np.einsum("jpd,jpd->j", U, U, optimize=True)
+        U_norm2 = xp.einsum("jpd,jpd->j", U, U, optimize=True)
 
     if index.ndim == 1:
-        gradient = -np.einsum(
+        gradient = -xp.einsum(
             "j,j,jd->d", mass, coefficients, transposed_residual, optimize=True
         )
-        riemannian = gradient - np.dot(gradient, index) * index
+        riemannian = gradient - xp.dot(gradient, index) * index
         projected = U @ index
-        local = -mass * np.einsum("jp,jp->j", projected, residual, optimize=True)
-        local_scale = np.maximum(
-            1.0, np.linalg.norm(projected, axis=1) * np.linalg.norm(I, axis=1)
+        local = -mass * xp.einsum("jp,jp->j", projected, residual, optimize=True)
+        local_scale = xp.maximum(
+            1.0, xp.linalg.norm(projected, axis=1) * xp.linalg.norm(I, axis=1)
         )
-        local_score = float(np.max(np.abs(local) / local_scale))
-        operator_norm2 = float(np.sum(mass * np.square(coefficients) * U_norm2))
-        orthogonality = abs(float(np.dot(index, index)) - 1.0)
+        local_score = float(xp.max(xp.abs(local) / local_scale))
+        operator_norm2 = float(xp.sum(mass * xp.square(coefficients) * U_norm2))
+        orthogonality = abs(float(xp.dot(index, index)) - 1.0)
     else:
-        gradient = -np.einsum(
+        gradient = -xp.einsum(
             "j,jm,jd->md",
             mass,
             coefficients,
@@ -582,26 +627,26 @@ def _stationarity(I, U, index, coefficients, mass, loss, *, U_norm2=None):
         )
         product = gradient @ index.T
         riemannian = gradient - (0.5 * (product + product.T)) @ index
-        projected = np.einsum("jpd,md->jpm", U, index, optimize=True)
-        local = -mass[:, None] * np.einsum(
+        projected = xp.einsum("jpd,md->jpm", U, index, optimize=True)
+        local = -mass[:, None] * xp.einsum(
             "jpm,jp->jm", projected, residual, optimize=True
         )
-        local_scale = np.maximum(
+        local_scale = xp.maximum(
             1.0,
-            np.linalg.norm(projected, axis=(1, 2)) * np.linalg.norm(I, axis=1),
+            xp.linalg.norm(projected, axis=(1, 2)) * xp.linalg.norm(I, axis=1),
         )
-        local_score = float(np.max(np.linalg.norm(local, axis=1) / local_scale))
-        coefficient_norm2 = np.einsum(
+        local_score = float(xp.max(xp.linalg.norm(local, axis=1) / local_scale))
+        coefficient_norm2 = xp.einsum(
             "jm,jm->j", coefficients, coefficients, optimize=True
         )
-        operator_norm2 = float(np.sum(mass * coefficient_norm2 * U_norm2))
+        operator_norm2 = float(xp.sum(mass * coefficient_norm2 * U_norm2))
         orthogonality = float(
-            np.linalg.norm(index @ index.T - np.eye(index.shape[0]), ord="fro")
+            xp.linalg.norm(index @ index.T - xp.eye(index.shape[0]), ord="fro")
         )
 
     gradient_scale = max(1.0, math.sqrt(operator_norm2 * 2.0 * loss))
     return (
-        float(np.linalg.norm(riemannian) / gradient_scale),
+        float(xp.linalg.norm(riemannian) / gradient_scale),
         local_score,
         orthogonality,
     )

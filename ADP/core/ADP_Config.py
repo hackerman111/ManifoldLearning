@@ -45,6 +45,7 @@ class ADP_Config:
     # Совместимость для перенесённых single/multi моделей.
     smart_weights: bool = False
     gpu: bool = False
+    gpu_solver: bool = False
 
     def __post_init__(self) -> None:
         """Проверить границы конфигурации до запуска численного алгоритма.
@@ -105,3 +106,7 @@ class ADP_Config:
             raise TypeError("smart_weights must be boolean")
         if not isinstance(self.gpu, (bool, np.bool_)):
             raise TypeError("gpu must be boolean")
+        if not isinstance(self.gpu_solver, (bool, np.bool_)):
+            raise TypeError("gpu_solver must be boolean")
+        if self.gpu_solver and not self.gpu:
+            raise ValueError("gpu_solver requires gpu=True")

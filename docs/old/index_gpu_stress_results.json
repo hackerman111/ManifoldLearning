@@ -1,0 +1,900 @@
+{
+  "protocol": {
+    "commit": "31b7ae783adc882b586ba62a82aa89e8dedb8229",
+    "dirty": " M ADP/cli/main.py\n M ADP/core/ADP_Config.py\n M ADP/core/ADP_Solver.py\n M ADP/core/multi/ADP_multi_index.py\n M ADP/core/single/ADP_single_index.py\n M ADP/engine/common/logger.py\n M ADP/engine/common/statistic.py\n M ADP/gpu.py\n M ADP/solver/LSMR.py\n M pyproject.toml\n M uv.lock\n?? ADP/engine/common/gpu_statistics.py\n?? ADP/engine/common/index_fit.py\n?? benchmarks/index_gpu.py\n?? benchmarks/index_matrix_audit.py\n?? docs/index_gpu.md\n?? docs/index_gpu_initial_results.json\n?? docs/index_gpu_pilot_results.json\n?? docs/index_gpu_results.json\n?? docs/index_gpu_stress_attempt.json\n?? docs/index_gpu_stress_results.json\n?? docs/index_matrix_audit_results.json\n?? docs/index_matrix_gpu_audit.md\n?? docs/index_models.md\n?? prompt.txt\n?? tests/test_gpu_index.py\n?? tests/test_index_models.py\n",
+    "adp_source_sha256": "478f96b51cdd37f83671cd3fb6faca6ef5d59bdc3118a1324a82f5ab536f7a19",
+    "python": "3.13.12",
+    "numpy": "2.5.2",
+    "scipy": "1.18.1",
+    "cupy": "14.2.0",
+    "gpu": "NVIDIA GeForce RTX 5060",
+    "cuda_runtime": 13020,
+    "cuda_driver": 13030,
+    "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+    "blas_config": "{\n  \"Compilers\": {\n    \"c\": {\n      \"name\": \"gcc\",\n      \"linker\": \"ld.bfd\",\n      \"version\": \"14.2.1\",\n      \"commands\": \"cc\"\n    },\n    \"cython\": {\n      \"name\": \"cython\",\n      \"linker\": \"cython\",\n      \"version\": \"3.2.9\",\n      \"commands\": \"cython\"\n    },\n    \"c++\": {\n      \"name\": \"gcc\",\n      \"linker\": \"ld.bfd\",\n      \"version\": \"14.2.1\",\n      \"commands\": \"c++\"\n    }\n  },\n  \"Machine Information\": {\n    \"host\": {\n      \"cpu\": \"x86_64\",\n      \"family\": \"x86_64\",\n      \"endian\": \"little\",\n      \"system\": \"linux\"\n    },\n    \"build\": {\n      \"cpu\": \"x86_64\",\n      \"family\": \"x86_64\",\n      \"endian\": \"little\",\n      \"system\": \"linux\"\n    }\n  },\n  \"Build Dependencies\": {\n    \"blas\": {\n      \"name\": \"scipy-openblas\",\n      \"found\": true,\n      \"version\": \"0.3.34.0.0\",\n      \"detection method\": \"pkgconfig\",\n      \"include directory\": \"/opt/_internal/cpython-3.13.14/lib/python3.13/site-packages/scipy_openblas64/include\",\n      \"lib directory\": \"/opt/_internal/cpython-3.13.14/lib/python3.13/site-packages/scipy_openblas64/lib\",\n      \"openblas configuration\": \"OpenBLAS 0.3.34.0.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64\",\n      \"pc file directory\": \"/project/.openblas\"\n    },\n    \"lapack\": {\n      \"name\": \"scipy-openblas\",\n      \"found\": true,\n      \"version\": \"0.3.34.0.0\",\n      \"detection method\": \"pkgconfig\",\n      \"include directory\": \"/opt/_internal/cpython-3.13.14/lib/python3.13/site-packages/scipy_openblas64/include\",\n      \"lib directory\": \"/opt/_internal/cpython-3.13.14/lib/python3.13/site-packages/scipy_openblas64/lib\",\n      \"openblas configuration\": \"OpenBLAS 0.3.34.0.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64\",\n      \"pc file directory\": \"/project/.openblas\"\n    }\n  },\n  \"Python Information\": {\n    \"path\": \"/tmp/build-env-odhcdjhd/bin/python\",\n    \"version\": \"3.13\"\n  },\n  \"SIMD Extensions\": {\n    \"baseline\": [\n      \"X86_V2\"\n    ],\n    \"found\": [\n      \"X86_V3\"\n    ],\n    \"not found\": [\n      \"X86_V4\",\n      \"AVX512_ICL\",\n      \"AVX512_SPR\"\n    ]\n  }\n}\n",
+    "dtype": "float64",
+    "warmup": "one fit per shape/backend/mode; excluded, recorded separately",
+    "timing": "perf_counter + CUDA stream synchronize; includes transfers and profiler",
+    "memory": "host tracemalloc stage high-water; GPU allocator pool peak used/reserved; excludes CUDA library workspaces",
+    "seed_scheme": "SeedSequence(seed).spawn(2): data/method; each splits again; paired CPU/GPU inputs and NumPy directions",
+    "kernel": "max(1-t**2,0), t=localization squared distance/h**2 (see weights.py)",
+    "bandwidth": "current search_bandwidth target N_loc; h/a per outer step; rho/alpha from current CPU mass search",
+    "directions": "auto: single localized, multi isotropic; redraw every outer step",
+    "centers": "uniform without replacement, no displacement, training_set=all",
+    "solver": "HPAO LSMR, max_steps=1, tol=1e-6, theta=0.1, krylov_tol=1e-10, default trust radius, maxiter=max(50,5*index.size)",
+    "config_defaults": {
+      "seed": 42,
+      "N_loc": 10,
+      "N_lin": null,
+      "N_J": null,
+      "N_phi": null,
+      "outer_steps": null,
+      "lambda_penalty": 0.05,
+      "local_ridge": 1e-08,
+      "a": 1.4142135623730951,
+      "h_min": 1.0,
+      "batch_size": 32,
+      "index_init": "local",
+      "estimator": "new",
+      "direction_mode": "auto",
+      "multi_tensor": "orthogonal",
+      "select_step": "best",
+      "center_displacement": 0.0,
+      "training_set": "all",
+      "redraw_directions": true,
+      "smart_weights": false,
+      "gpu": false,
+      "gpu_solver": false
+    },
+    "config_overrides": {
+      "N_loc": 20,
+      "N_lin": "2*d",
+      "N_J": "J",
+      "N_phi": "P",
+      "outer_steps": 1,
+      "select_step": "last",
+      "seed": "model_seed",
+      "gpu": "backend != cpu",
+      "gpu_solver": "backend == gpu_solver"
+    },
+    "index_init": "random",
+    "repeats": 1,
+    "threads": {
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1"
+    },
+    "threadpools": [
+      {
+        "user_api": "blas",
+        "internal_api": "openblas",
+        "num_threads": 1,
+        "prefix": "libscipy_openblas",
+        "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+        "version": "0.3.34.0.0",
+        "threading_layer": "pthreads",
+        "architecture": "Haswell"
+      },
+      {
+        "user_api": "blas",
+        "internal_api": "openblas",
+        "num_threads": 1,
+        "prefix": "libscipy_openblas",
+        "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+        "version": "0.3.31.dev",
+        "threading_layer": "pthreads",
+        "architecture": "Haswell"
+      }
+    ]
+  },
+  "rows": [
+    {
+      "backend": "cpu",
+      "shape": [
+        10000,
+        1000,
+        1000,
+        20,
+        1
+      ],
+      "seed": 0,
+      "error": null,
+      "seconds": 31.802873874999932,
+      "quality": 0.010464863803000466,
+      "stages": {
+        "initialization": {
+          "time_seconds": 0.4549521900007676,
+          "time_fraction": 0.014308152926591508,
+          "memory_bytes": 264018160.0,
+          "memory_fraction": 0.20365854302827707
+        },
+        "bandwidth": {
+          "time_seconds": 0.35924676599825034,
+          "time_fraction": 0.011298236999975158,
+          "memory_bytes": 160000848.0,
+          "memory_fraction": 0.12342158428408416
+        },
+        "directions": {
+          "time_seconds": 0.32656455599862966,
+          "time_fraction": 0.010270388208538936,
+          "memory_bytes": 480488672.0,
+          "memory_fraction": 0.3706397426643368
+        },
+        "statistics": {
+          "time_seconds": 7.84017325899913,
+          "time_fraction": 0.2465718385937292,
+          "memory_bytes": 371867912.0,
+          "memory_fraction": 0.28685177245719595
+        },
+        "solver": {
+          "time_seconds": 22.81577328200001,
+          "time_fraction": 0.7175513832711652,
+          "memory_bytes": 20000961.0,
+          "memory_fraction": 0.015428357566106027
+        }
+      },
+      "host_traced_peak_bytes": 619912554,
+      "iterations": 1700,
+      "solves": 16,
+      "loss": [
+        388.4661952478864
+      ],
+      "residual_ratio": [
+        3.5377275638460576e-09
+      ],
+      "h": [
+        43.092437421606725
+      ],
+      "factor": [
+        1.0
+      ],
+      "stop_reason": "outer_steps",
+      "gpu_pool_peak_used_bytes": 0,
+      "gpu_pool_reserved_bytes": 0,
+      "case": "stress",
+      "repeat": 0,
+      "data_seed": 3757552657,
+      "model_seed": 673228719,
+      "subspace_error_vs_cpu": 2.1768996491985708e-16
+    },
+    {
+      "backend": "gpu_statistics",
+      "shape": [
+        10000,
+        1000,
+        1000,
+        20,
+        1
+      ],
+      "seed": 0,
+      "error": null,
+      "seconds": 25.87250704699909,
+      "quality": 0.010464863803017706,
+      "stages": {
+        "initialization": {
+          "time_seconds": 0.4986637799993332,
+          "time_fraction": 0.019278450696001342,
+          "memory_bytes": 264018128.0,
+          "memory_fraction": 0.23765200737073539
+        },
+        "bandwidth": {
+          "time_seconds": 0.3535487400004058,
+          "time_fraction": 0.013668271541077909,
+          "memory_bytes": 160000776.0,
+          "memory_fraction": 0.1440223286382645
+        },
+        "directions": {
+          "time_seconds": 0.3292056140016939,
+          "time_fraction": 0.012727160970838891,
+          "memory_bytes": 480488672.0,
+          "memory_fraction": 0.43250476126282833
+        },
+        "statistics": {
+          "time_seconds": 2.644603607997851,
+          "time_fraction": 0.10224095334800938,
+          "memory_bytes": 186435700.0,
+          "memory_fraction": 0.167817333931586
+        },
+        "solver": {
+          "time_seconds": 22.04036077300043,
+          "time_fraction": 0.8520851634440725,
+          "memory_bytes": 20000961.0,
+          "memory_fraction": 0.01800356879658578
+        }
+      },
+      "host_traced_peak_bytes": 568543886,
+      "iterations": 1701,
+      "solves": 16,
+      "loss": [
+        388.4661952478915
+      ],
+      "residual_ratio": [
+        3.5377101573020293e-09
+      ],
+      "h": [
+        43.092437421606725
+      ],
+      "factor": [
+        1.0
+      ],
+      "stop_reason": "outer_steps",
+      "gpu_pool_peak_used_bytes": 141557248,
+      "gpu_pool_reserved_bytes": 278087168,
+      "case": "stress",
+      "repeat": 0,
+      "data_seed": 3757552657,
+      "model_seed": 673228719,
+      "subspace_error_vs_cpu": 1.9229982493456862e-13
+    },
+    {
+      "backend": "gpu_solver",
+      "shape": [
+        10000,
+        1000,
+        1000,
+        20,
+        1
+      ],
+      "seed": 0,
+      "error": null,
+      "seconds": 8.284747810001136,
+      "quality": 0.010464863803016563,
+      "stages": {
+        "initialization": {
+          "time_seconds": 0.49373370700050145,
+          "time_fraction": 0.05963688204136946,
+          "memory_bytes": 264018128.0,
+          "memory_fraction": 0.28364511633926276
+        },
+        "bandwidth": {
+          "time_seconds": 0.341939022000588,
+          "time_fraction": 0.041301974791787086,
+          "memory_bytes": 160000776.0,
+          "memory_fraction": 0.17189516139169173
+        },
+        "directions": {
+          "time_seconds": 0.3219917379974504,
+          "time_fraction": 0.03889259134019381,
+          "memory_bytes": 480488672.0,
+          "memory_fraction": 0.5162079827682812
+        },
+        "statistics": {
+          "time_seconds": 2.6050964950009075,
+          "time_fraction": 0.3146632084784852,
+          "memory_bytes": 26267668.0,
+          "memory_fraction": 0.028220394570107436
+        },
+        "solver": {
+          "time_seconds": 4.516238377000263,
+          "time_fraction": 0.5455053433481644,
+          "memory_bytes": 29176.0,
+          "memory_fraction": 3.13449306568613e-05
+        }
+      },
+      "host_traced_peak_bytes": 568543846,
+      "iterations": 1703,
+      "solves": 16,
+      "loss": [
+        388.46619524789185
+      ],
+      "residual_ratio": [
+        3.537709392854204e-09
+      ],
+      "h": [
+        43.092437421606725
+      ],
+      "factor": [
+        1.0
+      ],
+      "stop_reason": "outer_steps",
+      "gpu_pool_peak_used_bytes": 560281600,
+      "gpu_pool_reserved_bytes": 758247424,
+      "case": "stress",
+      "repeat": 0,
+      "data_seed": 3757552657,
+      "model_seed": 673228719,
+      "subspace_error_vs_cpu": 1.7690745127063433e-13
+    },
+    {
+      "backend": "cpu",
+      "shape": [
+        10000,
+        1000,
+        1000,
+        20,
+        3
+      ],
+      "seed": 0,
+      "error": null,
+      "seconds": 43.67082168900015,
+      "quality": 0.0025703644586788556,
+      "stages": {
+        "initialization": {
+          "time_seconds": 0.4355554729991127,
+          "time_fraction": 0.009975120696131023,
+          "memory_bytes": 264018096.0,
+          "memory_fraction": 0.20403496354810108
+        },
+        "bandwidth": {
+          "time_seconds": 0.3266142579996085,
+          "time_fraction": 0.0074801416733202425,
+          "memory_bytes": 160000776.0,
+          "memory_fraction": 0.12364967778128316
+        },
+        "directions": {
+          "time_seconds": 0.31608561699977145,
+          "time_fraction": 0.007239014029999773,
+          "memory_bytes": 480488672.0,
+          "memory_fraction": 0.3713248832640453
+        },
+        "statistics": {
+          "time_seconds": 7.672285434000514,
+          "time_fraction": 0.17571119630834953,
+          "memory_bytes": 369476072.0,
+          "memory_fraction": 0.28553359797888844
+        },
+        "solver": {
+          "time_seconds": 34.91363995999927,
+          "time_fraction": 0.7995945272921995,
+          "memory_bytes": 20000961.0,
+          "memory_fraction": 0.015456877427682045
+        }
+      },
+      "host_traced_peak_bytes": 617568594,
+      "iterations": 2676,
+      "solves": 16,
+      "loss": [
+        776.1675447498279
+      ],
+      "residual_ratio": [
+        4.972125288525268e-09
+      ],
+      "h": [
+        43.092437421606725
+      ],
+      "factor": [
+        1.0
+      ],
+      "stop_reason": "outer_steps",
+      "gpu_pool_peak_used_bytes": 0,
+      "gpu_pool_reserved_bytes": 0,
+      "case": "stress",
+      "repeat": 0,
+      "data_seed": 3757552657,
+      "model_seed": 673228719,
+      "subspace_error_vs_cpu": 8.497732239744329e-16
+    },
+    {
+      "backend": "gpu_statistics",
+      "shape": [
+        10000,
+        1000,
+        1000,
+        20,
+        3
+      ],
+      "seed": 0,
+      "error": null,
+      "seconds": 38.910760128997936,
+      "quality": 0.0025703644586182297,
+      "stages": {
+        "initialization": {
+          "time_seconds": 0.4832775160029996,
+          "time_fraction": 0.012422115992202458,
+          "memory_bytes": 264018096.0,
+          "memory_fraction": 0.22506112273093745
+        },
+        "bandwidth": {
+          "time_seconds": 0.33686555000167573,
+          "time_fraction": 0.008658757747529723,
+          "memory_bytes": 160000776.0,
+          "memory_fraction": 0.13639199293514043
+        },
+        "directions": {
+          "time_seconds": 0.3148239840011229,
+          "time_fraction": 0.008092203582599456,
+          "memory_bytes": 480488672.0,
+          "memory_fraction": 0.40959056071602434
+        },
+        "statistics": {
+          "time_seconds": 2.6376400219996867,
+          "time_fraction": 0.0677976301689818,
+          "memory_bytes": 248586576.0,
+          "memory_fraction": 0.21190658798781545
+        },
+        "solver": {
+          "time_seconds": 35.13199793300009,
+          "time_fraction": 0.9030292925086866,
+          "memory_bytes": 20000961.0,
+          "memory_fraction": 0.017049735630082316
+        }
+      },
+      "host_traced_peak_bytes": 568591846,
+      "iterations": 2683,
+      "solves": 16,
+      "loss": [
+        776.1675447497405
+      ],
+      "residual_ratio": [
+        4.69173896395996e-09
+      ],
+      "h": [
+        43.092437421606725
+      ],
+      "factor": [
+        1.0
+      ],
+      "stop_reason": "outer_steps",
+      "gpu_pool_peak_used_bytes": 141557248,
+      "gpu_pool_reserved_bytes": 278087168,
+      "case": "stress",
+      "repeat": 0,
+      "data_seed": 3757552657,
+      "model_seed": 673228719,
+      "subspace_error_vs_cpu": 1.7935726671805814e-11
+    },
+    {
+      "backend": "gpu_solver",
+      "shape": [
+        10000,
+        1000,
+        1000,
+        20,
+        3
+      ],
+      "seed": 0,
+      "error": null,
+      "seconds": 12.02674631300033,
+      "quality": 0.0025703644588821037,
+      "stages": {
+        "initialization": {
+          "time_seconds": 0.4922604970015527,
+          "time_fraction": 0.04094970728467003,
+          "memory_bytes": 264018128.0,
+          "memory_fraction": 0.26579969189970976
+        },
+        "bandwidth": {
+          "time_seconds": 0.3335018600009789,
+          "time_fraction": 0.02774304180229602,
+          "memory_bytes": 160000776.0,
+          "memory_fraction": 0.1610804427963919
+        },
+        "directions": {
+          "time_seconds": 0.3148086039982445,
+          "time_fraction": 0.026188004649869465,
+          "memory_bytes": 480488672.0,
+          "memory_fraction": 0.4837309541824366
+        },
+        "statistics": {
+          "time_seconds": 2.6672594229967217,
+          "time_fraction": 0.2218814901648489,
+          "memory_bytes": 88427676.0,
+          "memory_fraction": 0.08902437576637676
+        },
+        "solver": {
+          "time_seconds": 8.213268901999982,
+          "time_fraction": 0.6832377560983156,
+          "memory_bytes": 362092.0,
+          "memory_fraction": 0.0003645353550849724
+        }
+      },
+      "host_traced_peak_bytes": 568591838,
+      "iterations": 2680,
+      "solves": 16,
+      "loss": [
+        776.1675447504638
+      ],
+      "residual_ratio": [
+        5.754816338853076e-09
+      ],
+      "h": [
+        43.092437421606725
+      ],
+      "factor": [
+        1.0
+      ],
+      "stop_reason": "outer_steps",
+      "gpu_pool_peak_used_bytes": 560313344,
+      "gpu_pool_reserved_bytes": 758247424,
+      "case": "stress",
+      "repeat": 0,
+      "data_seed": 3757552657,
+      "model_seed": 673228719,
+      "subspace_error_vs_cpu": 5.712859650222032e-11
+    }
+  ],
+  "warmups": [
+    {
+      "backend": "cpu",
+      "shape": [
+        10000,
+        1000,
+        1000,
+        20,
+        1
+      ],
+      "seed": 4091952314,
+      "error": null,
+      "seconds": 31.028499407999334,
+      "quality": 0.024943351947326203,
+      "stages": {
+        "initialization": {
+          "time_seconds": 0.4562470149976434,
+          "time_fraction": 0.014707554359827285,
+          "memory_bytes": 264018205.0,
+          "memory_fraction": 0.2036580266410006
+        },
+        "bandwidth": {
+          "time_seconds": 0.34719599800155265,
+          "time_fraction": 0.01119219161170555,
+          "memory_bytes": 160002000.0,
+          "memory_fraction": 0.12342213893399276
+        },
+        "directions": {
+          "time_seconds": 0.3289976010019018,
+          "time_fraction": 0.010605549059895178,
+          "memory_bytes": 480489472.0,
+          "memory_fraction": 0.3706393568174449
+        },
+        "statistics": {
+          "time_seconds": 7.033069132998207,
+          "time_fraction": 0.2267176402031447,
+          "memory_bytes": 371869239.0,
+          "memory_fraction": 0.28685201985685277
+        },
+        "solver": {
+          "time_seconds": 22.8557602639994,
+          "time_fraction": 0.7367770647654273,
+          "memory_bytes": 20001145.0,
+          "memory_fraction": 0.015428457750708956
+        }
+      },
+      "host_traced_peak_bytes": 619916910,
+      "iterations": 1701,
+      "solves": 15,
+      "loss": [
+        358.1435484826577
+      ],
+      "residual_ratio": [
+        7.415543876971095e-09
+      ],
+      "h": [
+        43.1033478530971
+      ],
+      "factor": [
+        1.0
+      ],
+      "stop_reason": "outer_steps",
+      "gpu_pool_peak_used_bytes": 0,
+      "gpu_pool_reserved_bytes": 0,
+      "case": "stress"
+    },
+    {
+      "backend": "gpu_statistics",
+      "shape": [
+        10000,
+        1000,
+        1000,
+        20,
+        1
+      ],
+      "seed": 4091952314,
+      "error": null,
+      "seconds": 26.85907991500062,
+      "quality": 0.02494335194731305,
+      "stages": {
+        "initialization": {
+          "time_seconds": 0.526544168998953,
+          "time_fraction": 0.019609584794591312,
+          "memory_bytes": 264018096.0,
+          "memory_fraction": 0.23711989366289676
+        },
+        "bandwidth": {
+          "time_seconds": 0.3415945400010969,
+          "time_fraction": 0.012721681279380465,
+          "memory_bytes": 160000776.0,
+          "memory_fraction": 0.14369987347799434
+        },
+        "directions": {
+          "time_seconds": 0.3341892479984381,
+          "time_fraction": 0.012445893016961902,
+          "memory_bytes": 480488736.0,
+          "memory_fraction": 0.43153647311561427
+        },
+        "statistics": {
+          "time_seconds": 2.779179457000282,
+          "time_fraction": 0.10350234307037146,
+          "memory_bytes": 188928766.0,
+          "memory_fraction": 0.16968067561468325
+        },
+        "solver": {
+          "time_seconds": 22.86986014500144,
+          "time_fraction": 0.8517204978386949,
+          "memory_bytes": 20000765.0,
+          "memory_fraction": 0.017963084128811334
+        }
+      },
+      "host_traced_peak_bytes": 568564791,
+      "iterations": 1697,
+      "solves": 15,
+      "loss": [
+        358.1435484826345
+      ],
+      "residual_ratio": [
+        7.4085229329225e-09
+      ],
+      "h": [
+        43.1033478530971
+      ],
+      "factor": [
+        1.0
+      ],
+      "stop_reason": "outer_steps",
+      "gpu_pool_peak_used_bytes": 146435584,
+      "gpu_pool_reserved_bytes": 223974912,
+      "case": "stress"
+    },
+    {
+      "backend": "gpu_solver",
+      "shape": [
+        10000,
+        1000,
+        1000,
+        20,
+        1
+      ],
+      "seed": 4091952314,
+      "error": null,
+      "seconds": 8.809248894998746,
+      "quality": 0.024943351947323052,
+      "stages": {
+        "initialization": {
+          "time_seconds": 0.5022009879976395,
+          "time_fraction": 0.05704980431389812,
+          "memory_bytes": 264018096.0,
+          "memory_fraction": 0.28331241516803285
+        },
+        "bandwidth": {
+          "time_seconds": 0.3365189530013595,
+          "time_fraction": 0.03822840033268846,
+          "memory_bytes": 160000776.0,
+          "memory_fraction": 0.17169355799505284
+        },
+        "directions": {
+          "time_seconds": 0.3292773169996508,
+          "time_fraction": 0.03740575376949233,
+          "memory_bytes": 480488672.0,
+          "memory_fraction": 0.5156025597775721
+        },
+        "statistics": {
+          "time_seconds": 2.620002478997776,
+          "time_fraction": 0.29763109253272446,
+          "memory_bytes": 26277627.0,
+          "memory_fraction": 0.028197983710384417
+        },
+        "solver": {
+          "time_seconds": 5.014852333002636,
+          "time_fraction": 0.5696849490511966,
+          "memory_bytes": 1112204.0,
+          "memory_fraction": 0.0011934833489578185
+        }
+      },
+      "host_traced_peak_bytes": 568544022,
+      "iterations": 1701,
+      "solves": 15,
+      "loss": [
+        358.1435484826487
+      ],
+      "residual_ratio": [
+        7.412215677142759e-09
+      ],
+      "h": [
+        43.1033478530971
+      ],
+      "factor": [
+        1.0
+      ],
+      "stop_reason": "outer_steps",
+      "gpu_pool_peak_used_bytes": 560281600,
+      "gpu_pool_reserved_bytes": 704135168,
+      "case": "stress"
+    },
+    {
+      "backend": "cpu",
+      "shape": [
+        10000,
+        1000,
+        1000,
+        20,
+        3
+      ],
+      "seed": 4091952314,
+      "error": null,
+      "seconds": 43.925907616001496,
+      "quality": 0.0020712803455707105,
+      "stages": {
+        "initialization": {
+          "time_seconds": 0.4431766109992168,
+          "time_fraction": 0.010090570278917868,
+          "memory_bytes": 264018096.0,
+          "memory_fraction": 0.20403484923045903
+        },
+        "bandwidth": {
+          "time_seconds": 0.31415125200146576,
+          "time_fraction": 0.007152826227412146,
+          "memory_bytes": 160000776.0,
+          "memory_fraction": 0.12364960850227648
+        },
+        "directions": {
+          "time_seconds": 0.31733954599985736,
+          "time_fraction": 0.007225419644713853,
+          "memory_bytes": 480488672.0,
+          "memory_fraction": 0.3713246752164423
+        },
+        "statistics": {
+          "time_seconds": 6.972492075001355,
+          "time_fraction": 0.15875481592624793,
+          "memory_bytes": 369476797.0,
+          "memory_fraction": 0.2855339982833901
+        },
+        "solver": {
+          "time_seconds": 35.8727180599999,
+          "time_fraction": 0.8167763679227081,
+          "memory_bytes": 20000961.0,
+          "memory_fraction": 0.015456868767432104
+        }
+      },
+      "host_traced_peak_bytes": 617569319,
+      "iterations": 2731,
+      "solves": 16,
+      "loss": [
+        834.3195833502308
+      ],
+      "residual_ratio": [
+        6.002480636298212e-09
+      ],
+      "h": [
+        43.1033478530971
+      ],
+      "factor": [
+        1.0
+      ],
+      "stop_reason": "outer_steps",
+      "gpu_pool_peak_used_bytes": 0,
+      "gpu_pool_reserved_bytes": 0,
+      "case": "stress"
+    },
+    {
+      "backend": "gpu_statistics",
+      "shape": [
+        10000,
+        1000,
+        1000,
+        20,
+        3
+      ],
+      "seed": 4091952314,
+      "error": null,
+      "seconds": 39.479482152000855,
+      "quality": 0.0020712803455728147,
+      "stages": {
+        "initialization": {
+          "time_seconds": 0.48138216299776104,
+          "time_fraction": 0.01219520090802677,
+          "memory_bytes": 264018096.0,
+          "memory_fraction": 0.22506113193985366
+        },
+        "bandwidth": {
+          "time_seconds": 0.3147883570018166,
+          "time_fraction": 0.007974760080926938,
+          "memory_bytes": 160000776.0,
+          "memory_fraction": 0.13639199851594633
+        },
+        "directions": {
+          "time_seconds": 0.3180612879987166,
+          "time_fraction": 0.008057675598229744,
+          "memory_bytes": 480488672.0,
+          "memory_fraction": 0.4095905774754056
+        },
+        "statistics": {
+          "time_seconds": 2.571285316000285,
+          "time_fraction": 0.0651402221162657,
+          "memory_bytes": 248586576.0,
+          "memory_fraction": 0.21190659665848233
+        },
+        "solver": {
+          "time_seconds": 35.787564674999885,
+          "time_fraction": 0.9066321412965508,
+          "memory_bytes": 20000913.0,
+          "memory_fraction": 0.017049695410312083
+        }
+      },
+      "host_traced_peak_bytes": 568591942,
+      "iterations": 2726,
+      "solves": 16,
+      "loss": [
+        834.3195833501858
+      ],
+      "residual_ratio": [
+        6.002329863900596e-09
+      ],
+      "h": [
+        43.1033478530971
+      ],
+      "factor": [
+        1.0
+      ],
+      "stop_reason": "outer_steps",
+      "gpu_pool_peak_used_bytes": 146435584,
+      "gpu_pool_reserved_bytes": 223974912,
+      "case": "stress"
+    },
+    {
+      "backend": "gpu_solver",
+      "shape": [
+        10000,
+        1000,
+        1000,
+        20,
+        3
+      ],
+      "seed": 4091952314,
+      "error": null,
+      "seconds": 12.697405126000376,
+      "quality": 0.0020712803455724487,
+      "stages": {
+        "initialization": {
+          "time_seconds": 0.49823001500044484,
+          "time_fraction": 0.039257008214359235,
+          "memory_bytes": 264018096.0,
+          "memory_fraction": 0.2656647768787836
+        },
+        "bandwidth": {
+          "time_seconds": 0.3162324629993236,
+          "time_fraction": 0.024916885823509483,
+          "memory_bytes": 160000776.0,
+          "memory_fraction": 0.16099870084841547
+        },
+        "directions": {
+          "time_seconds": 0.31351547600206686,
+          "time_fraction": 0.024702806427129638,
+          "memory_bytes": 480488672.0,
+          "memory_fraction": 0.4834854798728003
+        },
+        "statistics": {
+          "time_seconds": 2.6286517759981507,
+          "time_fraction": 0.20711920449625512,
+          "memory_bytes": 88427676.0,
+          "memory_fraction": 0.08897919941991161
+        },
+        "solver": {
+          "time_seconds": 8.934862507001526,
+          "time_fraction": 0.7040040950387465,
+          "memory_bytes": 866439.0,
+          "memory_fraction": 0.0008718429800890482
+        }
+      },
+      "host_traced_peak_bytes": 568591902,
+      "iterations": 2722,
+      "solves": 16,
+      "loss": [
+        834.3195833501917
+      ],
+      "residual_ratio": [
+        6.00219726540157e-09
+      ],
+      "h": [
+        43.1033478530971
+      ],
+      "factor": [
+        1.0
+      ],
+      "stop_reason": "outer_steps",
+      "gpu_pool_peak_used_bytes": 560313344,
+      "gpu_pool_reserved_bytes": 704135168,
+      "case": "stress"
+    }
+  ],
+  "active": null,
+  "process_rss_high_water_kib": 1806400
+}

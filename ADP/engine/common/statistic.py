@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -138,6 +139,7 @@ def _dense_moments(
     normalized: bool,
     *,
     include_eta: bool,
+    xp: Any = np,
 ) -> _DenseMoments:
     """Рассчитать общий GEMM-путь для плотных локальных весов.
 
@@ -151,7 +153,7 @@ def _dense_moments(
     Q = (Phi.reshape(-1, Xc.shape[1]) @ Xc.T).reshape(*Phi.shape[:2], len(Xc))
     Q -= Phi @ mean[..., None]
     residual = (Q @ A[..., None]).squeeze(-1)
-    eta = _normalized_residual(A, Q, residual) if include_eta else None
+    eta = _normalized_residual(A, Q, residual, xp=xp) if include_eta else None
     # После вычисления eta буфер Q используется под H.
     Q -= residual[..., None]
     Q *= A[:, None, :]
@@ -162,7 +164,7 @@ def _dense_moments(
     if not normalized:
         I *= mass[:, None]
         U *= mass[:, None, None]
-    n_eff = 1.0 / np.square(A).sum(axis=1)
+    n_eff = 1.0 / xp.square(A).sum(axis=1)
     return _DenseMoments(I, U, mean, n_eff, eta, y_bar)
 
 
@@ -210,9 +212,15 @@ def _local_block(
     return I, U, mean, n_eff, eta, y_bar
 
 
-def _normalized_residual(A, Q, residual):
+def _normalized_residual(A, Q, residual, *, xp: Any = np):
     """Вернуть отношение абсолютного residual к абсолютному projection mass."""
-    denominator = (np.abs(Q) @ A[..., None]).squeeze(-1)
+    denominator = (xp.abs(Q) @ A[..., None]).squeeze(-1)
+    if xp is not np:
+        return xp.where(
+            denominator != 0,
+            xp.abs(residual) / xp.where(denominator != 0, denominator, 1.0),
+            0.0,
+        )
     return np.divide(
         np.abs(residual),
         denominator,

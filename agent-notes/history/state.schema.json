@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-notes/history/state.schema.json",
+  "title": "Current agent handoff state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "status",
+    "updated_utc",
+    "plan",
+    "human_state",
+    "current_step",
+    "next_action",
+    "relevant_notes",
+    "relevant_sources",
+    "evidence",
+    "blockers",
+    "head",
+    "dirty"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "task_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "idle",
+        "planning",
+        "active",
+        "blocked",
+        "done"
+      ]
+    },
+    "updated_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "plan": {
+      "type": "string"
+    },
+    "human_state": {
+      "type": "string"
+    },
+    "current_step": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "next_action": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relevant_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "relevant_sources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "head": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dirty": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    }
+  }
+}

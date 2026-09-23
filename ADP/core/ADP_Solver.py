@@ -13,9 +13,10 @@ from ..engine.common.calculus import (
 )
 from ..engine.common.statistic import calculate_statistics
 from ..engine.common.weights import calculate_weight_from_adp
-from ..solver.LSMR import lsmr
+from ..solver.LSMR import HPAOResult, lsmr, solve as solve_lsmr
 from .ADP_Config import ADP_Config
 from .ADP_Data import ADP_Data
+from .ADP_Statistic import ADP_Statistics
 
 
 @dataclass(slots=True)
@@ -28,7 +29,7 @@ class ADP_SolverResult:
 
 
 class ADP_solver:
-    """Настраиваемый адаптер legacy solver API внутри ``core``."""
+    """Настраиваемый адаптер текущего HPAO и явного legacy solver API."""
 
     def __init__(self, method: Callable, **settings: object) -> None:
         """Создать адаптер метода solver с фиксированными настройками."""
@@ -57,6 +58,41 @@ class ADP_solver:
         if not np.all(np.isfinite(index)):
             raise RuntimeError("solver returned a non-finite index")
         result.index = index
+        return result
+
+    def fit_current(
+        self,
+        statistics: ADP_Statistics,
+        initial_index: np.ndarray,
+        *,
+        normalized: bool,
+        lambda_prox: float,
+    ) -> HPAOResult:
+        """Вызвать HPAO solver; multi-index передаётся строками (m,d).
+
+        Нормированные I/U требуют внешней mass. Старый ``fit`` оставлен
+        для явного legacy API; модели используют только этот контракт.
+        """
+        if (
+            hasattr(statistics.U, "__cuda_array_interface__")
+            and self.method is not solve_lsmr
+        ):
+            raise NotImplementedError("GPU statistics require LSMR or transfer to CPU")
+        overlap = self.settings.keys() & {"mass", "lambda_prox"}
+        if overlap:
+            raise ValueError(f"duplicate solver settings: {', '.join(sorted(overlap))}")
+        result = self.method(
+            initial_index,
+            statistics.U,
+            statistics.I,
+            mass=statistics.mass if normalized else None,
+            lambda_prox=lambda_prox,
+            **self.settings,
+        )
+        if not isinstance(result, HPAOResult):
+            raise TypeError(
+                "current index models require a solver returning HPAOResult"
+            )
         return result
 
 
