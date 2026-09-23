@@ -172,6 +172,7 @@ def run_experiment(
                         build,
                         order_index,
                     )
+                    fit_started = perf_counter()
                     try:
                         row.update(
                             _fit(
@@ -186,6 +187,7 @@ def run_experiment(
                         row.update(
                             status="numerical_failure",
                             error=_error_text(error),
+                            fit_time_sec=perf_counter() - fit_started,
                             **_outcome_fields(
                                 "numerical_failure",
                                 False,

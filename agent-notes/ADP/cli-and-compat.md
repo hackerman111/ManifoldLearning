@@ -14,6 +14,8 @@ CLI валидирует комбинации до запуска: single тре
 
 `experiment_utils.py` централизует проверки точек/конфигураций и метрик. `experiment_plots.py` читает `runs.csv`/manifest, сохраняет summary, trace summary, failure/phase/boundary CSV и Markdown; когда plots включены — формирует PNG для качества, runtime, memory, failures, trajectories и paired deltas. В фазовом recovery-отчете отдельно считает convergence, quality pass и итог recovery; numerical failures не смешиваются с качественными провалами. Источники: **SRC-CLI-EXP-VALIDATION**, **SRC-CLI-REPORT**, **SRC-CLI-RECOVERY**.
 
+`python -m experiments.diagnostic` — отдельный парный benchmark поверх `Experiment.run`: базовая точка и локальные варианты параметров на общих seed, сценарии base/noise/correlation/scarce, отдельные seed для отбора и проверки. Выходы: `run.json`, `diagnostics.{csv,json,md}` и обычные `series/*/{series.json,runs.csv,...}`; `--analyze` пересобирает отчёт по сохранённым series без повторного fit. Выбор параметра является предварительным и относится только к проверенному сценарию. При ошибке fit общий `experiments/runner.py` записывает его wall-clock время; traced peak остаётся пустым, если fit не вернул профиль. Источник: `experiments/diagnostic.py`, `experiments/runner.py:run_experiment`.
+
 ## Legacy и aliases
 
 - `ADP/__init__.py` экспортирует публичные классы и helper-функции, а старые имена модулей подключает через `sys.modules` aliases (source: **SRC-API-ALIASES**).
@@ -52,6 +54,6 @@ CLI валидирует комбинации до запуска: single тре
 | SRC-BOX-SEARCH | sparse bandwidth/scale and initializer utilities | `rtk proxy sed -n '895,1100p' ADP/engine/common/box_kernel.py` |
 | SRC-GPU-BACKEND | CuPy availability, backend dispatch and conversion | `rtk proxy sed -n '9,36p' ADP/gpu.py` |
 
-Команда experiment CLI ссылается на top-level `experiments/`, не раскрытый в этом наборе заметок. Внешние source files, которые потребуется читать дальше: `experiments/models.py`, `experiments/registry.py`, `experiments/data.py`, `experiments/runner.py`, `experiments/single.py`, `experiments/multi.py`, `experiments/manifold.py`.
+Команда experiment CLI ссылается на top-level `experiments/`, не раскрытый в этом наборе заметок. Внешние source files, которые потребуется читать дальше: `experiments/models.py`, `experiments/registry.py`, `experiments/data.py`, `experiments/runner.py`, `experiments/single.py`, `experiments/multi.py`, `experiments/manifold.py`, `experiments/diagnostic.py`.
 
 Полная карта ADP source paths находится в [README.md](README.md#каталог-исходников). Исторические алиасы — интерфейс совместимости, не доказательство, что файл и модуль имеют одинаковую реализацию.

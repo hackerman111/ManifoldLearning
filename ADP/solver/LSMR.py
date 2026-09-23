@@ -482,29 +482,31 @@ def _linear_operator(
     xp = array_module(U)
     rows = U.shape[0] * U.shape[1]
     size = math.prod(index_shape)
+    weighted_coefficients = (
+        coefficients * sqrt_mass
+        if len(index_shape) == 1
+        else coefficients * sqrt_mass[:, None]
+    )
 
     def matvec(vector):
         """Применить scaled forward action глобального least-squares оператора."""
         if len(index_shape) == 1:
-            data = coefficients[:, None] * (U @ vector)
-            return (sqrt_mass[:, None] * data).ravel()
+            return (weighted_coefficients[:, None] * (U @ vector)).ravel()
         matrix = vector.reshape(index_shape)
-        data = multi_forward(U, matrix, coefficients)
-        return (sqrt_mass[:, None] * data).ravel()
+        return multi_forward(U, matrix, weighted_coefficients).ravel()
 
     def rmatvec(vector):
         """Применить adjoint action того же оператора."""
         data = vector.reshape(U.shape[:2])
         if len(index_shape) == 1:
             return xp.einsum(
-                "j,j,jpd,jp->d",
-                sqrt_mass,
-                coefficients,
+                "j,jpd,jp->d",
+                weighted_coefficients,
                 U,
                 data,
                 optimize=True,
             )
-        return multi_adjoint(U, sqrt_mass[:, None] * data, coefficients).ravel()
+        return multi_adjoint(U, data, weighted_coefficients).ravel()
 
     linear_operator: Any = sparse_linalg.LinearOperator
     if xp is not np:
@@ -543,11 +545,12 @@ def _global_correction(
         raise RuntimeError("LSMR returned a non-finite correction")
 
     # Сертификат (33) пересчитывается в исходных координатах correction.
-    normal_residual = operator.rmatvec(residual.ravel()) - (
+    normal_rhs = operator.rmatvec(residual.ravel())
+    normal_residual = normal_rhs - (
         operator.rmatvec(operator @ correction) + lambda_prox * correction
     )
     normal_norm = float(xp.linalg.norm(normal_residual))
-    initial_normal = float(xp.linalg.norm(operator.rmatvec(residual.ravel())))
+    initial_normal = float(xp.linalg.norm(normal_rhs))
     denominator = (
         lambda_prox * float(xp.linalg.norm(correction))
         if lambda_prox > 0

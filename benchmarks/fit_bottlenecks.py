@@ -187,7 +187,7 @@ def _manifold_hooks(model: ADP_Manifold, hooks: HookTimes) -> None:
         setattr(model, name, hooks.wrap(name, getattr(model, name)))
 
 
-def _one(case: str, profile: str) -> dict:
+def _one(case: str, profile: str, variant: str = "current") -> dict:
     model_name, n, d, J, P, m = CASES[case]
     X, Y = _data(n, d, model_name)
     if model_name == "multi":
@@ -230,13 +230,39 @@ def _one(case: str, profile: str) -> dict:
         }
         settings["kernel"] = "max(1-q**2,0), q=distance2/h**2"
 
-    row: dict = {"case": case, "profile_mode": profile, "settings": settings}
+    row: dict = {
+        "case": case,
+        "profile_mode": profile,
+        "variant": variant,
+        "settings": settings,
+    }
     rss_before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
     sampler = RssSampler() if profile != "off" else None
     hooks = HookTimes(sampler) if sampler is not None else None
     python_peak = None
     profiler = cProfile.Profile() if profile == "cprofile" else None
     with ExitStack() as stack:
+        if variant == "reference":
+            from benchmarks.optimization_candidates import (
+                hpao_operator_reference,
+                penalty_reference,
+                recover_reference,
+            )
+
+            if model_name == "multi":
+                solver_module = importlib.import_module("ADP.solver.LSMR")
+                stack.enter_context(
+                    patch.object(
+                        solver_module, "_linear_operator", hpao_operator_reference
+                    )
+                )
+            else:
+                stack.enter_context(
+                    patch.object(model, "_penalty_action", penalty_reference)
+                )
+                stack.enter_context(
+                    patch.object(model, "_recover_projector", recover_reference)
+                )
         if model_name == "multi":
             module = importlib.import_module("ADP.core.multi.ADP_multi_index")
             if profile == "off":
@@ -332,12 +358,15 @@ def main() -> None:
     parser.add_argument(
         "--profile", choices=("off", "time", "traced", "cprofile"), default="time"
     )
+    parser.add_argument(
+        "--variant", choices=("current", "reference"), default="current"
+    )
     parser.add_argument("--runs", type=int, default=10)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--child", action="store_true")
     args = parser.parse_args()
     if args.child:
-        print(json.dumps(_one(args.case, args.profile)))
+        print(json.dumps(_one(args.case, args.profile, args.variant)))
         return
     if args.runs < 1 or args.output is None or args.output.exists():
         parser.error("--runs must be positive and --output must be a new path")
@@ -357,6 +386,8 @@ def main() -> None:
         args.case,
         "--profile",
         args.profile,
+        "--variant",
+        args.variant,
     ]
     rows = []
     for repeat in range(args.runs + 1):
@@ -378,6 +409,7 @@ def main() -> None:
         "command": command,
         "case_shape": CASES[args.case],
         "profile_mode": args.profile,
+        "variant": args.variant,
         "warmup_count": 1,
         "timed_repeats": args.runs,
         "git_head": subprocess.check_output(

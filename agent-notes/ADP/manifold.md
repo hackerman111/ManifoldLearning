@@ -39,6 +39,8 @@
 
 Ни один из этих этапов не требует d-by-d projector matrix. При `solver="cg"` B решается matrix-free preconditioned CG на normal operator и проверяется исходный residual. При `solver="hybrid"` используется ограниченный dense SVD или block-PCG; если block-PCG не сертифицируется, есть augmented LSMR ветка. Параметр `lambda_manifold` входит в геометрический penalty, а не в ADP statistic. Источники: **SRC-MAN-STEP**, **SRC-MAN-B-SYSTEM**, **SRC-MAN-RECOVER**, **SRC-MAN-HYBRID**.
 
+Для `m=1` live-код применяет точное rank-one действие penalty `v−Σ_j normalized_weight_j (v·p_j)p_j` и восстанавливает projector нормированием `B` после прежних rank/finiteness checks; `m>1` сохраняет факторный SVD. Этот частный путь не меняет цель, CG или spectrum `[1]`. Источники: **SRC-MAN-PENALTY**, **SRC-MAN-RECOVER**.
+
 ## Transform / predict
 
 Query привязывается к ближайшему center через пакетную Gram distance. Локальная coordinate равна row-projector, умноженному на смещение query-center. Прогноз — center response плюс скалярное произведение coordinate со slope `projector @ gradient`. Следовательно, transform/predict используют один chart и не интерполируют между соседними центрами.
@@ -53,9 +55,10 @@ Query привязывается к ближайшему center через па�
 | SRC-MAN-QUERY | nearest chart, local coordinates, prediction | `rtk proxy sed -n '214,234p' ADP/engine/manifol_engine/fit.py` |
 | SRC-MAN-WEIGHTS | kernel block, bandwidth/alpha, full gradients, statistics | `rtk proxy sed -n '16,224p' ADP/engine/manifol_engine/weights.py` |
 | SRC-MAN-GRAPH | CSR orientation and projectors initialization | `rtk proxy sed -n '14,67p' ADP/engine/manifol_engine/graphs.py` |
-| SRC-MAN-STEP | all-target synchronous update / solver dispatch | `rtk proxy sed -n '38,131p' ADP/engine/manifol_engine/optimisation.py` |
-| SRC-MAN-B-SYSTEM | matrix-free B normal operator and preconditioned CG | `rtk proxy sed -n '153,252p' ADP/engine/manifol_engine/optimisation.py` |
-| SRC-MAN-RECOVER | m-by-m spectrum and factor SVD recovery | `rtk proxy sed -n '253,301p' ADP/engine/manifol_engine/optimisation.py` |
+| SRC-MAN-PENALTY | exact rank-one penalty action and general low-rank path | `rtk proxy sed -n '16,35p' ADP/engine/manifol_engine/optimisation.py` |
+| SRC-MAN-STEP | all-target synchronous update / solver dispatch | `rtk proxy sed -n '43,136p' ADP/engine/manifol_engine/optimisation.py` |
+| SRC-MAN-B-SYSTEM | matrix-free B normal operator and preconditioned CG | `rtk proxy sed -n '158,257p' ADP/engine/manifol_engine/optimisation.py` |
+| SRC-MAN-RECOVER | rank-one normalization and general m-by-m factor SVD recovery | `rtk proxy sed -n '258,319p' ADP/engine/manifol_engine/optimisation.py` |
 | SRC-MAN-UTIL-ENGINE | feasible boundary, trace, chart coordinate math | `rtk proxy sed -n '15,127p' ADP/engine/manifol_engine/utils.py` |
 | SRC-MAN-HYBRID | manifold dense/PCG/augmented LSMR | `rtk proxy sed -n '435,703p' ADP/solver/HYBRID.py` |
 | SRC-MAN-CHECKS | rank, residual, projector and config failure conditions | `rtk proxy sed -n '125,269p' ADP/core/manifold/ADP_Manifold_utils.py` |

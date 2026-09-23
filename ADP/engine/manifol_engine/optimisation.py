@@ -19,6 +19,11 @@ def penalty_action(
     normalized_weights: np.ndarray,
 ) -> np.ndarray:
     """Применить штраф согласованности локальных проекторов к ``B``."""
+    if B.shape[0] == 1:
+        # EXACT: E = sum_j w_j p_j.T p_j для rank-one проекторов.
+        rows = source_projectors[:, 0, :]
+        projected = (normalized_weights * (rows @ B[0])) @ rows
+        return B - projected[None, :]
     coordinates = B @ source_projectors.swapaxes(1, 2)  # (K, m, m)
     coordinates *= normalized_weights[:, None, None]
     # Только (m,K*m), без промежуточных (K,m,d) или (d,d).
@@ -257,6 +262,19 @@ def recover_projector(
     target: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Извлечь ``P/Lambda`` из rank-``m`` фактора без ``d x d``."""
+    if B.shape[0] == 1:
+        # Единственное правое сингулярное направление sqrt(M)B равно B/||B||.
+        value = float(np.dot(gamma, np.square(slopes[:, 0])))
+        tolerance = 256.0 * np.finfo(float).eps * max(1.0, abs(value))
+        model_utils.require_slope_matrix(np.asarray([value]), tolerance, target)
+        norm = float(np.linalg.norm(B))
+        singular = np.asarray([math.sqrt(max(0.0, value)) * norm])
+        model_utils.require_identified(singular, B.shape, 1, target)
+        projector = orient_rows(B / norm)
+        spectrum = np.ones(1)
+        orthogonality = np.linalg.norm(projector @ projector.T - np.eye(1), ord="fro")
+        model_utils.require_projector(orthogonality, spectrum, target)
+        return projector, spectrum
     M = np.einsum("j,ja,jb->ab", gamma, slopes, slopes, optimize=True)
     values, vectors = np.linalg.eigh(M)
     tolerance = 256.0 * np.finfo(float).eps * max(1.0, float(np.linalg.norm(M, ord=2)))

@@ -15,6 +15,49 @@ sys.modules[SPEC.name] = LSMR
 SPEC.loader.exec_module(LSMR)
 
 
+@pytest.mark.parametrize("m", [1, 2])
+@pytest.mark.parametrize("ridge", [0.0, 0.2])
+def test_mass_scaled_operator_and_correction_match_direct_ridge(
+    m: int, ridge: float
+) -> None:
+    rng = np.random.default_rng(281)
+    J, P, d = 7, 6, 4
+    U = rng.normal(size=(J, P, d))
+    I = rng.normal(size=(J, P))
+    mass = np.geomspace(0.1, 10.0, J)
+    index = np.linalg.qr(rng.normal(size=(d, m)))[0].T
+    coefficients = rng.normal(size=(J, m))
+    if m == 1:
+        index = index[0]
+        coefficients = coefficients[:, 0]
+    root = np.sqrt(mass)
+    operator = LSMR._linear_operator(U, coefficients, root, index.shape)
+    if m == 1:
+        design = ((root * coefficients)[:, None, None] * U).reshape(I.size, d)
+    else:
+        design = (
+            root[:, None, None, None]
+            * coefficients[:, None, :, None]
+            * U[:, :, None, :]
+        ).reshape(I.size, index.size)
+    np.testing.assert_allclose(
+        np.column_stack([operator @ e for e in np.eye(index.size)]),
+        design,
+        rtol=1e-13,
+        atol=1e-13,
+    )
+    residual = (root[:, None] * (I - LSMR._predict(U, index, coefficients))).ravel()
+    correction, _, _, ratio, _ = LSMR._global_correction(
+        I, U, index, coefficients, mass, ridge, 1e-8, 200
+    )
+    augmented = np.vstack((design, np.sqrt(ridge) * np.eye(index.size)))
+    expected = np.linalg.lstsq(
+        augmented, np.concatenate((residual, np.zeros(index.size))), rcond=None
+    )[0]
+    np.testing.assert_allclose(correction, expected, rtol=1e-8, atol=1e-9)
+    assert ratio < 1e-6
+
+
 def test_dense_hpao_contract() -> None:
     rng = np.random.default_rng(7)
     J, p, d, m = 9, 5, 4, 2

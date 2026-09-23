@@ -10,7 +10,7 @@
 
 При фиксированных статистиках solver минимизирует weighted least-squares по локальным коэффициентам и индексу. Для заданного индекса локальные коэффициенты refit-ятся отдельно по каждому j: у single используется скалярное решение, у multi — minimum-norm SVD решения малой задачи. Затем global correction строится LinearOperator-ом со строго парным forward/adjoint и решается LSMR как ridge least squares с `damp=sqrt(lambda_prox)`. Не материализуется матрица размера `(J*P) x (m*d)`.
 
-Каждая correction ограничивается trust radius и проверяется нормальным residual certificate в исходных координатах. Кандидат QR/SVD gauge-fix-ится до unit single vector или ортонормированного multi basis с согласованной ротацией коэффициентов, так что prediction сохраняется. После refit candidate принимается только если objective не вырос сверх roundoff. Проксимальный lambda удваивается для слишком большого/неуспешного шага и постепенно уменьшается после последовательности достаточно малых принятых шагов. Convergence требует одновременно малого relative loss change, шага, riemannian gradient, local gradient и orthogonality; сертификат должен выполниться два шага подряд.
+Каждая correction ограничивается trust radius и проверяется нормальным residual certificate в исходных координатах. CPU/GPU operator предварительно умножает локальные coefficients на `sqrt(mass)` и использует их и в forward, и в adjoint; это точная перестановка скалярного множителя, без `(J,P)` массива масштабированных residual на каждом действии. В пределах correction `Aᵀr` вычисляется один раз и переиспользуется при certificate. Кандидат QR/SVD gauge-fix-ится до unit single vector или ортонормированного multi basis с согласованной ротацией коэффициентов, так что prediction сохраняется. После refit candidate принимается только если objective не вырос сверх roundoff. Проксимальный lambda удваивается для слишком большого/неуспешного шага и постепенно уменьшается после последовательности достаточно малых принятых шагов. Convergence требует одновременно малого relative loss change, шага, riemannian gradient, local gradient и orthogonality; сертификат должен выполниться два шага подряд.
 
 В diagnostics попадают stop/iterations, normal residual, correction norm, gauge error, rank loss, objective history, lambdas и stationarity. Для multi basis расстояние вычисляется sign/basis-invariant через projector residual. Источники: **SRC-HPAO-ENTRY**, **SRC-HPAO-GAUGE**.
 
@@ -43,8 +43,8 @@ Manifold `one_step` на каждом target строит local slopes и реш
 |---|---|---|
 | SRC-HPAO-ENTRY | HPAO input contract, checks, outer AO loop, line search | `rtk proxy sed -n '40,311p' ADP/solver/LSMR.py` |
 | SRC-HPAO-LOCAL | local refit, shapes и rank-sensitive fallback | `rtk proxy sed -n '400,460p' ADP/solver/LSMR.py` |
-| SRC-HPAO-OP | matrix-free global operator, adjoint, damped LSMR/certificate | `rtk proxy sed -n '468,564p' ADP/solver/LSMR.py` |
-| SRC-HPAO-GAUGE | gauge fix, invariant distance и stationarity | `rtk proxy sed -n '565,652p' ADP/solver/LSMR.py` |
+| SRC-HPAO-OP | preweighted matrix-free global operator, adjoint, damped LSMR/certificate | `rtk proxy sed -n '475,567p' ADP/solver/LSMR.py` |
+| SRC-HPAO-GAUGE | gauge fix, invariant distance и stationarity | `rtk proxy sed -n '568,655p' ADP/solver/LSMR.py` |
 | SRC-CG-AO | alternating CG solve and objective checks | `rtk proxy sed -n '34,130p' ADP/solver/CG.py` |
 | SRC-CG-OP | normal operator, Jacobi preconditioner, CG residual | `rtk proxy sed -n '155,276p' ADP/solver/CG.py` |
 | SRC-HYBRID-INDEX | dense/augmented linear solvers and RidgeWorkspace | `rtk proxy sed -n '29,420p' ADP/solver/HYBRID.py` |

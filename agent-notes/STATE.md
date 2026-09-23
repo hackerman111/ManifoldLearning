@@ -2,27 +2,20 @@
 
 ## Task
 
-- ID: optimize-manifold-projectors-hpao-lsmr-2026-09-23
-- Status: active; plan written, mathematical work not started
-- Goal: после математического вывода точных более эффективных вариантов ускорить manifold projector update и current HPAO/LSMR
-- Plan: `PLAN.md`; next step M1
+- ID: diagnostic-adp-benchmarks-2026-09-23
+- Status: done; D1–D3 complete.
+- Goal: парные диагностические бенчмарки single/multi/manifold с отдельными seed для выбора и проверки параметров.
+- Plan: `PLAN.md`; previous completed CPU optimization plan archived at `agent-notes/history/plans/optimize-manifold-projectors-hpao-lsmr-2026-09-23-complete.md`.
 
 ## Established facts
 
-- `docs/adp_fit_bottlenecks.md` измерил manifold projector update как 56–58% полного CPU fit и HPAO/LSMR как 65–73% сходящегося multi-index fit на указанных там формах. Это исходные, а не универсальные оценки.
-- Manifold `_one_step` включает slopes, B-system, CG, recovery и objective; HPAO/LSMR включает matrix-free ridge correction и строгий normal residual certificate. Точные read routes и математические инварианты записаны в `PLAN.md`.
-- Production-код для этой оптимизации еще не менялся. Сначала завершить M1–M3 и математический gate G; затем отдельно менять код каждого принятого варианта.
-- Предыдущий план инструкций сохранен в `agent-notes/history/plans/optional-agent-json-2026-09-23.md`; более ранний план профилирования — в `agent-notes/history/plans/bottlenecks-multi-manifold-2026-09-23.md`. Существующие незакоммиченные изменения и экспериментальные данные сохранены.
-
-## Last verified evidence
-
-- План составлен по live-фрагментам `SRC-MAN-STEP`, `SRC-MAN-B-SYSTEM`, `SRC-MAN-RECOVER`, `SRC-HPAO-ENTRY`, `SRC-HPAO-OP` и отчету `docs/adp_fit_bottlenecks.md`.
-- Математический вывод новых вариантов, новые benchmark-запуски и кодовая верификация еще не выполнялись.
-
-## Open questions / blockers
-
-- Неизвестно, какой точный вариант даст устойчивый выигрыш полного `fit` при ограниченной памяти. Это предмет M2/M3, а не предположение плана.
+- `experiments/diagnostic.py` runs base/noise/correlation/scarce scenarios with local one-factor estimator variants and paired data/initialization seeds. Full default: 12 seed per variant, 1440 fits across all modes/scenarios; smoke: 48 fits. `--dry-run` and `--analyze` are available.
+- Report files under `benchmark_outputs/diagnostic/<run>/` are `run.json`, `diagnostics.{csv,json,md}` and normal `series/*` artifacts. New runs record a code SHA-256 and reject source changes during execution. Selection uses the first half of seed; validation uses the rest. Numerical failures remain in recovery denominators and now retain fit wall-clock time in `experiments/runner.py`.
+- Full base run (360 fits, 12 seed per variant) is at `docs/experiments/diagnostic_2026-09-23/20260923T184703547414-all/`. Its report was regenerated with the final selection rule; its numeric fits preceded the code-hash field, so this initial artifact has Git/dirty provenance in `series.json` but no run-time code hash. Single baseline: 6/6 validation recoveries; faster unregularized candidate failed one validation trust certificate, so baseline retained. Multi `solver_max_steps=80`: 6/6 selection, 5/6 validation recoveries versus baseline 5/6 and 4/6; preliminary only, with wide Wilson intervals. Manifold: 0 validation recoveries for every variant, frequent rank-deficient local slopes, no recommendation.
+- 48-fit smoke across all three modes and four scenarios completed before the final failure-timing change; it is a functionality check, not scientific evidence for stressed regimes. Fresh 4-fit manifold smoke with seed 4 confirmed all numerical failures have fit time and empty traced memory; fresh run/analysis code SHA-256 matched.
+- Scientific classification: tested parameter changes are explicit experimental `ESTIMATOR` variants; production estimator/defaults unchanged. Details and limits are in `experiments/README.md`; selection decision is recorded in `agent-notes/DECISIONS.md`.
+- Ruff, Pyright (new diagnostic and runner), and `git diff --check` passed. No existing historical artifacts were overwritten. Earlier dirty CPU optimization work remains intact.
 
 ## Next action
 
-M1: проверить текущий checkout, зафиксировать точные локальные задачи и воспроизвести парные baseline/reference для manifold и HPAO без правок production-кода.
+No required work remains. The full noise/correlation/scarce scenarios are available for a later, separately budgeted run; no parameter recommendation should be inferred from their smoke results.

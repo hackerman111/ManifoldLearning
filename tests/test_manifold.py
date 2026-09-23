@@ -184,6 +184,37 @@ def test_low_rank_recovery_matches_dense_edr_matrix() -> None:
     np.testing.assert_allclose(spectrum, expected_spectrum, rtol=1e-12, atol=1e-12)
 
 
+def test_rank_one_penalty_and_recovery_match_dense_and_reject_zero_rank() -> None:
+    rng = np.random.default_rng(218)
+    K, d = 8, 6
+    B = rng.normal(size=(1, d))
+    slopes = rng.normal(size=(K, 1))
+    gamma = rng.uniform(0.2, 2.0, size=K)
+    weights = rng.uniform(0.1, 1.0, size=K)
+    weights /= weights.sum()
+    projectors = _projectors(rng, K, 1, d)
+    average = sum(w * P.T @ P for w, P in zip(weights, projectors, strict=True))
+    np.testing.assert_allclose(
+        ADP_Manifold._penalty_action(B, projectors, weights),
+        B @ (np.eye(d) - average),
+        rtol=1e-14,
+        atol=1e-14,
+    )
+
+    projector, spectrum = ADP_Manifold._recover_projector(B, slopes, gamma, 0)
+    expected = B / np.linalg.norm(B)
+    np.testing.assert_allclose(
+        projector.T @ projector, expected.T @ expected, atol=1e-14
+    )
+    np.testing.assert_array_equal(spectrum, np.ones(1))
+    for failed_B, failed_slopes in (
+        (np.zeros_like(B), slopes),
+        (B, np.zeros_like(slopes)),
+    ):
+        with pytest.raises(RuntimeError, match="local EDR rank"):
+            ADP_Manifold._recover_projector(failed_B, failed_slopes, gamma, 0)
+
+
 def test_fit_is_reproducible_chunk_invariant_and_recovers_subspace() -> None:
     rng = np.random.default_rng(7)
     X = rng.uniform(-1.0, 1.0, size=(120, 4))
