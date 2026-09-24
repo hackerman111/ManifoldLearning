@@ -37,6 +37,7 @@ from ADP.cli.experiment_plots import (
     build_report,
 )
 from ADP.engine.utils import _prepare_xy
+from experiments import multi as multi_experiments, multiv2
 
 
 def test_catalog_has_all_main_experiments() -> None:
@@ -83,23 +84,23 @@ def test_catalog_has_all_main_experiments() -> None:
     assert CATALOG["2"].full_runs == 25
     assert CATALOG["2"].quality_threshold == 0.9
     assert CATALOG["2"].report_fields == ("d", "n_over_d")
-    assert len(CATALOG["manifold"].full) == 3
+    assert len(CATALOG["manifold"].full) == 7
     assert CATALOG["manifold"].quality_threshold == 0.2
     assert CATALOG["manifold"].smoke.mode == "manifold"
     manifold_points = {
-        "manifold": 3,
-        "manifold-n": 4,
-        "manifold-d": 6,
-        "manifold-noise": 6,
-        "manifold-scale": 4,
-        "manifold-corr": 5,
-        "manifold-nlin": 5,
-        "manifold-nloc": 5,
-        "manifold-centers": 5,
-        "manifold-nphi": 6,
-        "manifold-neighbors": 5,
-        "manifold-lambda": 5,
-        "manifold-sync": 4,
+        "manifold": 7,
+        "manifold-n": 7,
+        "manifold-d": 7,
+        "manifold-noise": 7,
+        "manifold-scale": 7,
+        "manifold-corr": 7,
+        "manifold-nlin": 7,
+        "manifold-nloc": 7,
+        "manifold-centers": 7,
+        "manifold-nphi": 7,
+        "manifold-neighbors": 7,
+        "manifold-lambda": 7,
+        "manifold-sync": 7,
     }
     assert {
         selector: len(CATALOG[selector].full) for selector in manifold_points
@@ -161,6 +162,27 @@ def test_catalog_has_all_main_experiments() -> None:
         method in selector.lower()
         for selector in CATALOG
         for method in ("mave", "sir", "ade")
+    )
+
+
+def test_multiv2_keeps_remaining_multi_series_with_seven_point_grids() -> None:
+    excluded = {"mi-3", "mi-5"}
+    source = tuple(
+        item for item in multi_experiments.catalog() if item.selector not in excluded
+    )
+    variant = multiv2.catalog()
+
+    assert tuple(item.selector for item in variant) == tuple(
+        f"multiv2-{item.selector}" for item in source
+    )
+    assert all(len(set(item.full)) >= 7 for item in variant)
+    assert not any(
+        item.selector in {f"multiv2-{name}" for name in excluded} for item in variant
+    )
+    assert all(item.points("overview") == item.full for item in variant)
+    assert all(
+        set(original.full).issubset(v2.full)
+        for original, v2 in zip(source, variant, strict=True)
     )
 
 

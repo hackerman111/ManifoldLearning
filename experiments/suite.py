@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
 from time import perf_counter
@@ -27,12 +28,31 @@ class PlannedSeries:
     quality_threshold: float | None
 
 
-def select_suite(mode: ModelMode, selector: str | None) -> tuple[Experiment, ...]:
+def select_suite(
+    mode: ModelMode,
+    selector: str | None,
+    *,
+    catalog_override: Mapping[str, Experiment] | None = None,
+    default_selectors: tuple[str, ...] | None = None,
+) -> tuple[Experiment, ...]:
     """Выбрать семейство и явно задать критерий восстановления для всех серий."""
     module = {"single": single, "multi": multi, "manifold": manifold}[mode]
-    selected = _selected_experiments(
-        selector or ",".join(module.DEFAULT_SELECTORS), custom=CATALOG["custom"]
-    )
+    if catalog_override is None:
+        selected = _selected_experiments(
+            selector or ",".join(module.DEFAULT_SELECTORS), custom=CATALOG["custom"]
+        )
+    else:
+        value = selector or ",".join(default_selectors or ())
+        if value == "all":
+            selected = tuple(catalog_override.values())
+        else:
+            names = tuple(name.strip() for name in value.split(","))
+            if not names or any(not name for name in names):
+                raise ValueError("--experiment содержит пустой селектор")
+            unknown = tuple(name for name in names if name not in catalog_override)
+            if unknown:
+                raise ValueError("неизвестные селекторы: " + ", ".join(unknown))
+            selected = tuple(catalog_override[name] for name in names)
     if any(point.mode != mode for item in selected for point in item.full):
         raise ValueError(f"--experiment должен содержать только режим {mode}")
     threshold = {"single": 0.9, "multi": 0.95, "manifold": 0.2}[mode]
@@ -75,7 +95,14 @@ def select_suite(mode: ModelMode, selector: str | None) -> tuple[Experiment, ...
     return tuple(result)
 
 
-def main(mode: ModelMode, argv: list[str] | None = None) -> int:
+def main(
+    mode: ModelMode,
+    argv: list[str] | None = None,
+    *,
+    catalog_override: Mapping[str, Experiment] | None = None,
+    default_selectors: tuple[str, ...] | None = None,
+    run_label: str | None = None,
+) -> int:
     parser = argparse.ArgumentParser(description=f"ADP {mode}: исследовательский набор")
     parser.add_argument(
         "--profile", choices=("smoke", "overview", "full"), default="overview"
@@ -107,7 +134,8 @@ def main(mode: ModelMode, argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     if args.list:
-        for item in CATALOG.values():
+        catalog = catalog_override or CATALOG
+        for item in catalog.values():
             if item.smoke.mode == mode:
                 print(
                     f"{item.selector:>24}  points={len(item.full):>5} "
@@ -115,7 +143,12 @@ def main(mode: ModelMode, argv: list[str] | None = None) -> int:
                 )
         return 0
     try:
-        experiments = select_suite(mode, args.experiment)
+        experiments = select_suite(
+            mode,
+            args.experiment,
+            catalog_override=catalog_override,
+            default_selectors=default_selectors,
+        )
         if args.threads < 1:
             raise ValueError("--threads должен быть положительным")
         build = Build(
@@ -156,7 +189,7 @@ def main(mode: ModelMode, argv: list[str] | None = None) -> int:
     except (ImportError, TypeError, ValueError) as error:
         parser.error(str(error))
 
-    experiment_id = f"{_experiment_id()}-{mode}"
+    experiment_id = f"{_experiment_id()}-{run_label or mode}"
     root = args.output_dir / experiment_id
     root.mkdir(parents=True)
     manifest: dict[str, object] = {

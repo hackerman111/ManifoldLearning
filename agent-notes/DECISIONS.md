@@ -69,3 +69,43 @@ Use this form:
 - **Alternatives rejected:** Replacing the default globally would silently change every `m=1` estimator based on two tested designs. Keeping dense Hessian arrays would violate the plan's working-memory invariant. Relabeling scheduled completion as fixed-point convergence is unsupported by the trace.
 - **Affected:** `ADP/core/manifold/ADP_Manifold.py`, `ADP/engine/manifol_engine/{fit.py,weights.py}`, `agent-notes/ADP/manifold.md`, `docs/experiments/manifold_recovery_2026-09-23/`.
 - **Status:** active
+
+## 2026-09-24 — Expand manifold dimension coverage
+
+- **Decision:** Keep five joint points at `d=3,4,6,8,10` in the primary `manifold` series and retain all five in `overview`. Use a separate one-factor `manifold-d` grid with 10 values and five distributed overview values.
+- **Reason/evidence:** The prior default overview exposed only three dimension values in each series. Dry-run confirms five primary points, five dimension-sweep overview points, and 10 full dimension-sweep points. The primary series co-varies sample size and noise, so `manifold-d` remains the isolated dimension comparison.
+- **Alternatives rejected:** Extending only the full `manifold-d` grid leaves the primary series unchanged.
+- **Affected:** `experiments/manifold.py`, `experiments/profiles.py`, `experiments/README.md`, `tests/test_experiment.py`.
+- **Status:** active
+
+## 2026-09-24 — Make every manifold scenario a seven-level boundary probe
+
+- **Decision:** Use exactly seven valid levels in each of the 13 manifold series and retain every level in `overview`. Put configuration sweeps near their feasibility limits and extend noise, correlation, scale, penalty, and iteration axes into stressed regimes.
+- **Reason/evidence:** The requested `--runs 30 --solver hybrid` dry-run now schedules 210 fits per series and 2730 total. The chosen feasibility-edge values satisfy the live manifold limits; reports retain per-fit recovery, quality, convergence, and failures. Actual failure thresholds remain to be measured by running the suite.
+- **Alternatives rejected:** The generic overview's three-point reduction hides transitions; interior-only levels do not probe the known feasibility edges.
+- **Affected:** `experiments/manifold.py`, `experiments/profiles.py`, `experiments/README.md`, `tests/test_experiment.py`.
+- **Status:** active; supersedes 2026-09-24 — Expand manifold dimension coverage
+
+## 2026-09-24 — Probe effective manifold limits without hidden center changes
+
+- **Decision:** In the sample-size sweep, hold `N_J=36`; start the local-mass sweep at `N_loc=10` and the center-count sweep at `N_J=12`. These values keep the runner's automatic minimum-center adjustment from merging adjacent levels.
+- **Reason/evidence:** `_effective_config()` raises `N_J` to at least `ceil(n/N_loc)`. With `n=240` and `N_loc=1`, the nominal local-mass change also raises effective `N_J` from 24 to 240; values from 10 preserve 24 centers. For the center sweep, 12 is `ceil(240/20)`. `N_J=36` is feasible for every sample size 61–720 and stays fixed.
+- **Alternatives rejected:** Using nominal minima 1/7 or leaving `N_J=24` in the sample-size sweep would conflate factors through the effective configuration.
+- **Affected:** `experiments/manifold.py`, `experiments/README.md`, `PLAN.md`.
+- **Status:** active; supersedes the effective-boundary choices in 2026-09-24 — Make every manifold scenario a seven-level boundary probe
+
+## 2026-09-24 — Isolate all multi series in a seven-point v2 suite
+
+- **Decision:** Expose every source `multi.catalog()` series under a `multiv2-*` selector and keep its full grid in v2 `overview`. Expand each short binary comparison over four noise levels; expand the link comparison over four frequencies for both link functions. Keep v2 outputs separately labeled and leave the original multi catalog/profile unchanged.
+- **Reason/evidence:** The source catalog has 38 series, eight with two points. The v2 dry-runs show a minimum of seven distinct points, 2255 fits for its 24-series default, and 9812 fits for all series at one run. The original multi dry-run remains 930 fits.
+- **Alternatives rejected:** Mutating original selectors would alter established `multi` output grids. Keeping generic three-point overview reduction would violate the requested v2 coverage. Adding unsupported values to binary factors would not represent valid estimator settings.
+- **Affected:** `experiments/multiv2.py`, `experiments/suite.py`, `experiments/profiles.py`, `experiments/README.md`, `tests/test_experiment.py`.
+- **Status:** active
+
+## 2026-09-24 — Exclude two expensive sweeps from Multi v2
+
+- **Decision:** Remove `mi-3` and `mi-5` from the v2 catalog and default selector list; retain the original experiments in `experiments.multi`.
+- **Reason/evidence:** At 30 repetitions they add 8640 fits (48 and 240 points). Removing them reduces the v2 default to 4890 fits while preserving every other v2 grid and the original multi suite.
+- **Alternatives rejected:** Hiding them only from defaults would leave the same expensive series in `--experiment all`, contrary to the request to remove them from v2.
+- **Affected:** `experiments/multiv2.py`, `experiments/README.md`, `tests/test_experiment.py`.
+- **Status:** active; supersedes 2026-09-24 — Isolate all multi series in a seven-point v2 suite

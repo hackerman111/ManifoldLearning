@@ -2,25 +2,29 @@
 
 ## Task
 
-- ID: repair-manifold-recovery-2026-09-23.
-- Status: done; M1–M5 acceptance evidence is linked from `PLAN.md`.
-- Goal: repair manifold recovery to full-center RMS sine `<=0.2` on the radial base scenario, then validate at least 16/20 independent seed without numerical errors.
+- ID: improve-multiindex-quality-2026-09-24.
+- Status: active; plan is written in `PLAN.md`.
+- Goal: diagnose and improve Multi-index recovery on representative v2 points using paired configuration experiments and untouched validation seeds.
 
 ## Established facts
 
-- M1 artifact: `docs/experiments/manifold_recovery_2026-09-23/diagnostics.md` and `baseline_selection/{manifest.json,runs.json,centers.csv}`. Reproduce with `python -m experiments.manifold_recovery_probe --seeds 0:10 --out ...` using one BLAS thread and `UV_CACHE_DIR=/tmp/adp-uv-cache`.
-- Baseline matches old seed-0 quality exactly (`0.48095653044126213`). Selection 0–9 gives 0/10 recovered, six rank-0 slope failures. No algorithm code changed in M1.
-- Across 240 selected centers, pilot-gradient RMS sine is 0.266, graph-SVD initialization is 0.479; all initial per-seed errors exceed 0.2. Radius-near-zero centers are worst. Successful ADP updates do not fix the global bias.
-- Global mean observation mass 20 allows center mass and `n_eff` as low as one; rank failures arise before B solve. Successful linear solves have certified small residuals. M3 confirmed that a per-center mass floor removes these failures, while narrow graph locality and a quadratic moment correction are jointly needed for quality on the selected radial design.
-- `ADP/cli/main.py` still sets manifold `converged=True` after successful `fit`. The current scale schedule has no outer stationarity certificate. For this research, distinguish scheduled completion with certified inner solves from true convergence.
-- `tex/manifold-ade.tex:214-225` includes `W_l` in the penalty; `:334-353` omits it. Current code and `tests/test_manifold.py:397-420` choose the latter normalized penalty. This is an unresolved estimator interpretation.
-- M2 artifact: `docs/experiments/manifold_recovery_2026-09-23/reference.md` and `oracle_*_selection/`. Direct moments, objective gradient, augmented LS minimizer, adjoint and projector reference pass all 13 focused tests. No confirmed EXACT/NUMERICAL defect in those components.
-- With true initial projectors and true directional moments, the first graph/objective update raises aggregate RMS sine from 0 to 0.223; final median among successful fits is 0.243 and zero recoveries. Broad neighborhood bias and low per-center observation mass survive the oracle probes. Manuscript does not specify an explicit `h_M` recurrence; varying it is an ESTIMATOR experiment.
-- M3 selection artifact: `docs/experiments/manifold_recovery_2026-09-23/selection.md` and per-variant directories. Explicit local quadratic moment correction + self-only graph + per-center mass floor six recovers 10/10 selection with zero errors (RMS 0.034–0.076). Component variants fail or leave rank errors. This is an ESTIMATOR change specialized to `m=1`, not a confirmed defect in the existing normal operator.
-- Production option `ADP_Manifold(estimator="local_quadratic")` is implemented in `ADP/core/manifold/ADP_Manifold.py` and `ADP/engine/manifol_engine/{fit.py,weights.py}`; default remains `estimator="manifold"` because the new estimator assumes a locally quadratic scalar response and removes neighbor pooling. `production_selection/` matches the probe per seed within `1e-12` and reproduces the baseline. Updated route: `agent-notes/ADP/manifold.md`.
-- M4 held-out artifact: `docs/experiments/manifold_recovery_2026-09-23/validation.md` and `production_validation/`. Candidate 20/20 recovered on seed 100–119, zero errors, worst RMS 0.1485, all `h_min`, maximum inner residual 5.42e-7. Baseline 0/20 and ten errors. A different noiseless varying geometry gives 5/5 candidate recovery; CG/hybrid selection quality differs by ≤1.34e-9.
-- M5 packed the quadratic coefficients into `(J,d(d+1)/2)` without changing the estimator; a second run on the same held-out inputs confirmed max quality drift 1.10e-15 and identical outcomes. Cost and checks: `docs/experiments/manifold_recovery_2026-09-23/completion.md`. Fixed-shape median wall time baseline 0.0708 s, candidate 0.0981 s; traced peaks about 0.646 MiB. Final suite 309 passed, 28 CUDA skips; Ruff on affected trees, format, `uv lock --check`, `git diff --check` pass. Pyright 0 errors, one existing legacy warning. Repository-wide Ruff has ten pre-existing issues only in untouched `test/`.
+- The inspected Multi v2 artifact `benchmark_outputs/experiments/20260924T012524585775-multiv2/` planned 22 series but records only 7 completed series (1590 fits). None formally converged; 197 passed `trace_score >= 0.95`; all complete runs stopped at `outer_steps`. The suite manifest still says `running`; no runner process was found at inspection. The multiplicative-frequency folder has 24 rows for its first point and is incomplete.
+- The recorded Multi v2 setup uses `outer_steps=3`, LSMR, and `solver_max_steps=5`. The d=10 point passes the quality threshold in 30/30 runs; the n=1000,d=100 point has median trace score about 0.575. These are candidate sentinel conditions, not generalization evidence.
+- A prior paired diagnostic at d=6,n=240 found a preliminary benefit from `solver_max_steps=80` (5/6 validation recovery vs 4/6 baseline). It does not validate transfer to the high-dimensional v2 points. See `agent-notes/DECISIONS.md`.
+- Quality, convergence, recovery, and numerical failure remain separate outcomes. The primary metric is schema-9 `trace_score`, higher is better; recovery requires convergence and passing the unchanged 0.95 threshold.
+- The prior completed catalog-trimming plan is archived at `agent-notes/history/plans/multiv2-complete-multi-catalog-7points-2026-09-24-complete.md`. Preserve all other dirty workspace changes.
+
+## Current hypothesis
+
+The five-step inner solver cap and three-step outer loop may explain the lack of formal convergence. Inspect the recorded inner solver statuses first; test solver and outer budgets independently before tuning estimator parameters.
+
+## Active routes
+
+- `agent-notes/ADP/multi-index.md`, `agent-notes/ADP/index-pipeline.md`, `agent-notes/ADP/solvers.md`.
+- `experiments/diagnostic.py`, `experiments/multiv2.py`, `experiments/multi.py`, `experiments/runner.py`, `experiments/data.py`.
+- `ADP/engine/common/index_fit.py`, `ADP/solver/LSMR.py`; focused tests under `tests/`.
+- Artifact root: `benchmark_outputs/experiments/20260924T012524585775-multiv2/`.
 
 ## Next action
 
-No required work remains in this plan. If broader manifold recovery is requested later, design a new study for non-quadratic links and `m>1` before changing the default.
+Execute T1 from `PLAN.md`: inspect per-run traces and freeze exact sentinel configurations. Do not run fits or edit estimator code before that diagnosis.

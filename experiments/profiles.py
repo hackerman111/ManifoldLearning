@@ -8,11 +8,16 @@ from .models import Experiment, ExperimentPoint
 
 
 def overview_points(experiment: Experiment) -> tuple[ExperimentPoint, ...]:
-    """Оставить крайние и средний уровни числовых факторов, все категории.
+    """Собрать overview точки; boundary-серии используют полные сетки.
 
     Отбираем целые исходные точки. Связанные N_lin(d), N_J(n) и seed-протокол
-    сохраняются; smoke-точки не используются для научного сравнения.
+    сохраняются; smoke-точки не используются для научного сравнения. Каждый
+    manifold selector и каждая Multi v2 серия сохраняют сетку: сокращение до
+    трёх точек скрыло бы уровни возможного отказа.
     """
+    if experiment.selector.startswith(("manifold", "multiv2-")):
+        return experiment.full
+
     names = experiment.report_fields or tuple(
         field.name
         for field in fields(ExperimentPoint)
