@@ -115,6 +115,12 @@ def test_dense_hpao_contract() -> None:
     np.testing.assert_allclose(result.index @ result.index.T, np.eye(m), atol=1e-12)
     assert result.diagnostics["accepted_steps"] >= 1
     assert result.diagnostics["normal_residual_ratio"] <= 0.1
+    history = result.diagnostics["loss_history"]
+    assert result.diagnostics["relative_loss_change"] == pytest.approx(
+        abs(history[-2] - history[-1]) / max(1.0, history[-2])
+    )
+    assert result.diagnostics["aligned_step"] >= 0
+    assert sum(result.diagnostics["rejected_trials"].values()) >= 0
 
     beta = rng.normal(size=d)
     beta /= np.linalg.norm(beta)
@@ -135,6 +141,11 @@ def test_dense_hpao_contract() -> None:
     )
     np.testing.assert_allclose(np.linalg.norm(beta_result.index), 1.0, atol=1e-12)
     assert LSMR.lsmr(beta, U, I, mass=mass, max_steps=1).shape == (d,)
+
+    one_step = LSMR.solve(P, U, I, mass=mass, max_steps=1, tol=100.0)
+    assert not one_step.diagnostics["converged"]
+    assert one_step.diagnostics["consecutive_certified_steps"] == 1
+    assert one_step.diagnostics["certificate_failures"] == ("consecutive_steps",)
 
     unregularized = LSMR.solve(
         beta,

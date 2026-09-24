@@ -14,11 +14,32 @@
 
 В diagnostics попадают stop/iterations, normal residual, correction norm, gauge error, rank loss, objective history, lambdas и stationarity. Для multi basis расстояние вычисляется sign/basis-invariant через projector residual. Источники: **SRC-HPAO-ENTRY**, **SRC-HPAO-GAUGE**.
 
+Для разбора достижения лимита HPAO также сохраняет `relative_loss_change`, `aligned_step`, `consecutive_certified_steps`, `certificate_failures` и счётчики `rejected_trials` по screening/normal residual/trust radius/objective. Это только diagnostics: на S1 итоговые loss, число принятых шагов и convergence точно совпали с прежним selection для 18/18 вызовов.
+
 ## HYBRID для single/multi
 
 `HYBRID.solve` не меняет внешний HPAO алгоритм: он передает `linear_solver="hybrid"` в current `LSMR.solve`. Для маленькой joint least-squares системы (с учетом лимитов числа unknowns и bytes) строится bounded design и делается cached dense SVD. В большой системе применяются forward/adjoint matrix-free действия и scaled augmented LSMR. Повторные проверки trust radius могут использовать проецированное Krylov-пространство, но отбраковка проверяет lower bound в исходных A/A*; она не заменяет финальную correction.
 
 По умолчанию `hybrid_inner_rtol=None`: остается строгая LSMR tolerance. Положительный `hybrid_inner_rtol` — отдельный opt-in APPROXIMATE режим multi-index: допускается меньшая точность inner correction, но проверяется сертификат `||normal residual||/(lambda*||correction||)` и запускается refinement при необходимости. CLI запрещает эту опцию вне `mode=multi, solver=hybrid`. Не описывать ее как точный ускоренный режим. Источники: **SRC-HYBRID-HPAO**, **SRC-HYBRID-INDEX**, **SRC-CLI-CHECKS**, **SRC-CLI-INDEX**.
+
+## Изолированные эксперименты повторного поиска 2026-09-24
+
+`experiments/reduced_gauss_newton.py` содержит ограниченный CPU-прототип
+для прежнего reduced objective. Он использует полный residual Jacobian
+усечённого локального refit, матрично-свободный augmented LSMR, исходные
+rank/cutoff guards и общий итоговый certificate. Это APPROXIMATE-метод с
+условным математическим выводом; он не зарегистрирован в моделях/CLI.
+Источник и проверка: `docs/experiments/multi_solver_retry_2026-09-24/`
+`proof_reduced_gn.md`, `h7.md`; `tests/test_reduced_gauss_newton.py`.
+
+Вторая попытка уточнить точность существующего опционального HYBRID
+(`hybrid_inner_rtol=0.01`) уменьшила отказы linear certificate, но на
+трудной frozen точке замедлила выполнение и не изменила AO-сходимость.
+Код отклонённой поправки архивирован в `h6_rejected.patch`, не применяется
+к live `ADP/solver/HYBRID.py`. На трёх худших reduced-L-BFGS endpoints
+ограниченный диагностический Hessian имеет положительный спектр; это
+свидетельство иных локальных областей, а не общей гарантии для всех входов.
+Итог, условия измерений и границы интерпретации: `completion.md` той же папки.
 
 ## Отдельный CG для single/multi
 
@@ -41,10 +62,10 @@ Manifold `one_step` на каждом target строит local slopes и реш
 
 | ID | Фрагмент | Команда sed |
 |---|---|---|
-| SRC-HPAO-ENTRY | HPAO input contract, checks, outer AO loop, line search | `rtk proxy sed -n '40,311p' ADP/solver/LSMR.py` |
-| SRC-HPAO-LOCAL | local refit, shapes и rank-sensitive fallback | `rtk proxy sed -n '400,460p' ADP/solver/LSMR.py` |
-| SRC-HPAO-OP | preweighted matrix-free global operator, adjoint, damped LSMR/certificate | `rtk proxy sed -n '475,567p' ADP/solver/LSMR.py` |
-| SRC-HPAO-GAUGE | gauge fix, invariant distance и stationarity | `rtk proxy sed -n '568,655p' ADP/solver/LSMR.py` |
+| SRC-HPAO-ENTRY | HPAO input contract, checks, outer AO loop, line search and convergence diagnostics | `rtk proxy sed -n '40,340p' ADP/solver/LSMR.py` |
+| SRC-HPAO-LOCAL | local refit, shapes и rank-sensitive fallback | `rtk proxy sed -n '429,489p' ADP/solver/LSMR.py` |
+| SRC-HPAO-OP | preweighted matrix-free global operator, adjoint, damped LSMR/certificate | `rtk proxy sed -n '504,596p' ADP/solver/LSMR.py` |
+| SRC-HPAO-GAUGE | gauge fix, invariant distance и stationarity | `rtk proxy sed -n '597,700p' ADP/solver/LSMR.py` |
 | SRC-CG-AO | alternating CG solve and objective checks | `rtk proxy sed -n '34,130p' ADP/solver/CG.py` |
 | SRC-CG-OP | normal operator, Jacobi preconditioner, CG residual | `rtk proxy sed -n '155,276p' ADP/solver/CG.py` |
 | SRC-HYBRID-INDEX | dense/augmented linear solvers and RidgeWorkspace | `rtk proxy sed -n '29,420p' ADP/solver/HYBRID.py` |

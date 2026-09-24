@@ -109,6 +109,13 @@ def solve(
     certified_count = 0
     accepted_steps = 0
     accepted_correction_norm = math.inf
+    relative_change = aligned_step = math.inf
+    rejected_trials = {
+        "screening": 0,
+        "normal_residual": 0,
+        "trust_radius": 0,
+        "objective": 0,
+    }
     U_norm2 = xp.einsum("jpd,jpd->j", U, U, optimize=True)
     gradient = local_gradient = orthogonality = math.inf
     lsmr_iterations_total = 0
@@ -163,6 +170,7 @@ def solve(
                     lambda_current, trust_radius * math.sqrt(m), lsmr_maxiter
                 )
             ):
+                rejected_trials["screening"] += 1
                 lambda_current *= 2.0
                 continue
             step = (
@@ -188,6 +196,10 @@ def solve(
             correction_norm = float(xp.linalg.norm(correction) / math.sqrt(m))
             required_ratio = theta if hybrid_inner_rtol is None else hybrid_inner_rtol
             if step[3] > required_ratio or correction_norm > trust_radius:
+                reason = (
+                    "normal_residual" if step[3] > required_ratio else "trust_radius"
+                )
+                rejected_trials[reason] += 1
                 if lambda_current == 0:
                     raise RuntimeError(
                         "unregularized HPAO step failed the trust certificate"
@@ -209,6 +221,7 @@ def solve(
             candidate_loss = _loss(I, U, candidate, candidate_coefficients, mass)
             rounding = 64 * np.finfo(float).eps * max(1.0, old_loss)
             if candidate_loss > old_loss + rounding:
+                rejected_trials["objective"] += 1
                 if lambda_current == 0:
                     raise RuntimeError(
                         "unregularized HPAO step did not decrease the objective"
@@ -281,6 +294,22 @@ def solve(
         "lsmr_solves_total": lsmr_solves_total,
         "accepted_steps": accepted_steps,
         "converged": certified_count == 2,
+        "relative_loss_change": relative_change,
+        "aligned_step": aligned_step,
+        "consecutive_certified_steps": certified_count,
+        "certificate_failures": tuple(
+            name
+            for name, failed in (
+                ("relative_loss_change", relative_change >= tol),
+                ("aligned_step", aligned_step >= tol),
+                ("riemannian_gradient", gradient >= tol),
+                ("local_gradient", local_gradient >= tol),
+                ("orthogonality", orthogonality >= tol),
+                ("consecutive_steps", certified_count < 2),
+            )
+            if failed
+        ),
+        "rejected_trials": rejected_trials,
         "loss": loss,
         "loss_history": tuple(loss_history),
         "lambda_history": tuple(lambda_history),

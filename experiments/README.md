@@ -30,6 +30,28 @@ breaking-сетку на 8960 точек.
 
 ## Диагностика параметров и слабых режимов
 
+Для двух зафиксированных точек Multi v2 есть отдельный парный протокол:
+
+```bash
+python -m experiments.multiv2_quality --stage inner --dry-run
+python -m experiments.multiv2_quality --stage inner
+python -m experiments.multiv2_quality --stage outer --inner-steps 80 --dry-run
+python -m experiments.multiv2_quality --stage validation --candidate-file candidate.json --dry-run
+```
+
+`inner` сравнивает лимиты HPAO 5/50/80 при трёх outer шагах; `outer`
+сравнивает 3/6/9 outer шагов с указанным лимитом HPAO. `factor` принимает
+`--inner-steps`, `--outer-steps` и один `--factor FIELD=VALUE` для
+`N_loc`, `N_phi`, `N_J`, `lambda_penalty` или `index_init`. Все эти режимы
+используют только selection seed 1000–1009. `validation` отдельно сравнивает
+исходный baseline 5/3 с замороженным кандидатом на seed 2000–2019 сразу
+на обеих точках. Файл кандидата содержит ровно `d10` и `n1000`, например
+`{"d10":{"solver_max_steps":80},"n1000":{"solver_max_steps":80}}`.
+Validation не выбирает победителя. `--dry-run` показывает точный бюджет
+без создания результата. `run.json`, `summary.json`, `series.json` и
+`runs.csv` хранят конфигурации, seed, outcomes и solver traces; анализ
+отклоняет неполные или непарные наборы строк.
+
 Отдельный парный бенчмарк сравнивает базовую конфигурацию с локальными
 однофакторными вариантами для single, multi и manifold:
 

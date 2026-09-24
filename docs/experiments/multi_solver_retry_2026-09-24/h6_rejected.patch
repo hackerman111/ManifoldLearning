@@ -1,0 +1,136 @@
+diff --git a/ADP/solver/HYBRID.py b/ADP/solver/HYBRID.py
+index ba07462..f2bdef0 100644
+--- a/ADP/solver/HYBRID.py
++++ b/ADP/solver/HYBRID.py
+@@ -354,7 +354,7 @@ class RidgeWorkspace:
+                 )
+                 if denominator > 0:
+                     requested_tol = max(
+-                        krylov_tol,
++                        np.finfo(float).eps,
+                         min(1e-3, 0.1 * relative_tol * ridge * lower / denominator),
+                     )
+             limit = maxiter or max(50, 5 * columns)
+@@ -369,19 +369,24 @@ class RidgeWorkspace:
+             )
+             correction = scale * result[0]
+             stop, iterations = int(result[1]), int(result[2])
+-            if (
+-                relative_tol is not None
+-                and requested_tol > krylov_tol
+-                and iterations < limit
+-            ):
+-                ratio, _ = self._certificate(correction, ridge)
+-                if ratio > relative_tol:
++            if relative_tol is not None and ridge > 0:
++                # APPROXIMATE: backward-error stop не гарантирует исходный
++                # certificate. Уточняем ту же augmented задачу при той же
++                # lambda, сохраняя центр penalty и суммарный Krylov budget.
++                for _ in range(2):
++                    ratio, _ = self._certificate(correction, ridge)
++                    if ratio <= relative_tol or iterations >= limit:
++                        break
++                    requested_tol = max(
++                        np.finfo(float).eps,
++                        requested_tol * min(0.1, 0.1 * relative_tol / ratio),
++                    )
+                     self.refinements += 1
+                     result = _lsmr_method(
+                         operator,
+                         rhs,
+-                        atol=krylov_tol,
+-                        btol=krylov_tol,
++                        atol=requested_tol,
++                        btol=requested_tol,
+                         maxiter=limit - iterations,
+                         x0=result[0],
+                     )
+diff --git a/tests/test_hybrid_recycling.py b/tests/test_hybrid_recycling.py
+index f76d08f..4a9580d 100644
+--- a/tests/test_hybrid_recycling.py
++++ b/tests/test_hybrid_recycling.py
+@@ -109,6 +109,41 @@ def test_iteration_failure_is_not_hidden_by_optional_accuracy(
+     assert workspace.refinements == 0
+ 
+ 
++def test_relative_precision_may_be_tighter_than_old_backward_error_floor(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    """Большой несогласованный residual не оправдывает повышение ridge."""
++    rng = np.random.default_rng(20260924)
++    U = rng.normal(size=(9, 7, 4))
++    B = np.linalg.qr(rng.normal(size=(4, 2)))[0].T
++    c = rng.normal(size=(9, 2))
++    A = HYBRID.design_matrix(U, c, np.ones(9))
++    left, _, _ = np.linalg.svd(A, full_matrices=True)
++    residual = 100 * left[:, -1] + 1e-5 * (A @ rng.normal(size=8))
++    I = residual.reshape(9, 7) + HYBRID.forward(U, B, c)
++    workspace = HYBRID.RidgeWorkspace(
++        U, I, B, c, np.ones(9), max_unknowns=0, max_bytes=0
++    )
++    original = HYBRID._lsmr_method
++    seen = []
++
++    def record(operator, rhs, **settings):
++        seen.append(settings["atol"])
++        return original(operator, rhs, **settings)
++
++    monkeypatch.setattr(HYBRID, "_lsmr_method", record)
++    ridge = 0.1
++    result = workspace.correction(ridge, 1e-6, 200, relative_tol=0.01)
++    assert min(seen) < 1e-10
++    assert result[3] <= 0.01
++    expected = np.linalg.lstsq(
++        np.vstack((A, np.sqrt(ridge) * np.eye(8))),
++        np.concatenate((workspace.residual, np.zeros(8))),
++        rcond=None,
++    )[0]
++    assert np.linalg.norm(result[0] - expected) <= 0.01 * np.linalg.norm(result[0])
++
++
+ def test_optional_accuracy_preserves_descent_and_is_reported() -> None:
+     workspace = _workspace()
+     result = HYBRID.solve(
+--- a/experiments/multi_solver_frozen.py
++++ b/experiments/multi_solver_frozen.py
+@@ -10,13 +10,14 @@
+ import signal
+ import subprocess
+ import sys
++from functools import partial
+ from pathlib import Path
+ from time import perf_counter
+ from typing import Any
+ 
+ import numpy as np
+ 
+-from ADP.solver import LSMR
++from ADP.solver import HYBRID, LSMR
+ 
+ from . import reduced_gauss_newton, reduced_lbfgs, warm_reduced
+ from .multi_solver_certificate import evaluate
+@@ -27,6 +28,15 @@
+     "reduced-lbfgs": (reduced_lbfgs.solve, 320),
+     "warm-reduced": (warm_reduced.solve, 320),
+     "reduced-gn": (reduced_gauss_newton.solve, 160),
++    "certified-hpao": (
++        partial(
++            HYBRID.solve,
++            hybrid_inner_rtol=0.01,
++            dense_max_unknowns=0,
++            dense_max_bytes=0,
++        ),
++        80,
++    ),
+ }
+ 
+ 
+@@ -58,7 +68,7 @@
+             reduced_gauss_newton
+             if method_name == "reduced-gn"
+             else LSMR
+-            if method_name == "lsmr"
++            if method_name in {"lsmr", "certified-hpao"}
+             else reduced_lbfgs,
+         )
+     )

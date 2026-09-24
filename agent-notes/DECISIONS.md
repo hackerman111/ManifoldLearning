@@ -109,3 +109,73 @@ Use this form:
 - **Alternatives rejected:** Hiding them only from defaults would leave the same expensive series in `--experiment all`, contrary to the request to remove them from v2.
 - **Affected:** `experiments/multiv2.py`, `experiments/README.md`, `tests/test_experiment.py`.
 - **Status:** active; supersedes 2026-09-24 — Isolate all multi series in a seven-point v2 suite
+
+## 2026-09-24 — Stop Multi v2 tuning at the inner HPAO convergence gate
+
+- **Decision:** Keep current Multi-index defaults. Stop the planned outer-step and estimator sweeps, and leave validation seed 2000–2019 untouched because no candidate passed the inner convergence and hard-point quality gates.
+- **Reason/evidence:** On paired selection seed 1000–1009, HPAO limit 80 recovered 8/10 at `d=10`, but 0/10 at `d=100,n=1000`. At the hard point, 16/30 inner HPAO calls exhausted 80 steps and 13 of those retained riemannian gradient above `1e-6`. All accepted linear corrections passed the normal-residual certificate; no numerical failure occurred. All 10 hard-point fits missed `trace_score >= 0.95` at every tested limit. See `docs/experiments/multi_quality_2026-09-24/selection_inner.md` and the recorded `summary.json`/`runs.csv`.
+- **Alternatives rejected:** Increasing outer steps or tuning localization before inner HPAO convergence would confound the diagnosis. Treating the automatic selection ranking as a recommended candidate would ignore zero hard-point recoveries and the untouched validation gate.
+- **Affected:** `PLAN.md`, `agent-notes/STATE.md`, `experiments/multiv2_quality.py`, `experiments/README.md`; no ADP estimator/default code changed.
+- **Status:** active; closes the current plan at its prespecified stop condition.
+
+## 2026-09-24 — Plan solver search around common stationarity and frozen statistics
+
+- **Decision:** Compare existing HYBRID and at most two mathematically justified reduced-objective solvers on frozen multi-index tasks before full-fit selection and independent validation. Preserve the objective and use a common external convergence evaluator.
+- **Reason/evidence:** Prior cap-80 hard-point runs certified only 14/30 HPAO calls despite accepted linear-correction certificates. Faster linear solves alone may not address slow nonlinear progress. Reduced-objective methods remain hypotheses, especially near changing local rank.
+- **Alternatives rejected:** Selecting by raw iteration count, timing only successful runs, or immediately changing estimator settings would confound numerical efficiency and statistical quality.
+- **Affected:** PLAN.md, agent-notes/STATE.md; prior completed plan archived. No solver implementation changed in this planning task.
+- **Status:** planned; experiments and candidate decisions await execution of S1–S7.
+
+## 2026-09-24 — Require proofs and adaptive hypotheses in solver search
+
+- **Decision:** Per user request, require a written proof with explicit assumptions and a separate audit before candidate implementation. Empirical/reference checks remain necessary but do not substitute for proof. Reassess and record new falsifiable hypotheses during selection-stage research.
+- **Reason:** Correct formulas, rank-truncation behavior and convergence claims require justification beyond observed fits; intermediate evidence may invalidate the initial candidate list.
+- **Constraints:** New candidates pass the same gate; hypothesis predictions and bounded budgets are recorded before trials. Validation is never reused for tuning.
+- **Affected:** PLAN.md and agent-notes/STATE.md; documentation only.
+- **Status:** active planning requirement.
+
+## 2026-09-24 — Admit structural local rank in reduced-solver proofs
+
+- **Decision:** The reduced-objective proof must cover constant structural rank below `m` and guard the nonzero singular spectrum. A blanket full-rank assumption for every local projected system is not an admissible domain for the 12 frozen selection tasks.
+- **Reason/evidence:** S1 found 1–21 rank-deficient projected centers per frozen task, and each had `rank(U_j)<2`; some `U_j` are zero. No observed projected rank loss came from a full-rank `U_j`. See `docs/experiments/multi_solver_search_2026-09-24/s1.md` and the frozen manifest.
+- **Alternatives rejected:** Dropping these centers or changing their mass would alter the objective; treating `rcond=None` as an exact pseudoinverse theorem would hide numerical rank transitions.
+- **Affected:** `PLAN.md`, `agent-notes/STATE.md`, S2 proof/guards and common certificate. The production estimator is unchanged.
+- **Status:** active for S2; differentiability beyond the guarded domain remains to be proved.
+
+## 2026-09-24 — Reject existing HYBRID for this solver-search selection
+
+- **Decision:** Do not advance existing HYBRID to full-fit selection on the two planned points; proceed to the proof gate for a reduced-objective nonlinear method.
+- **Reason/evidence:** All 24 frozen trials passed, but median paired HYBRID/LSMR time was 1.037 on d100 and 1.919 on d10, with unchanged certification (3/6 and 6/6) and AO counts. HYBRID reduced Krylov iterations on d100 but not wall time. See `docs/experiments/multi_solver_search_2026-09-24/s2_hybrid.md`.
+- **Alternatives rejected:** Promote a solver by iteration count alone; rerun or tune HYBRID after its prespecified hypothesis failed.
+- **Affected:** S2/S4 candidate selection and `hypotheses.md`; production default remains unchanged.
+- **Status:** active selection decision; no universal claim about HYBRID.
+
+## 2026-09-24 — Admit one guarded reduced L-BFGS prototype
+
+- **Decision:** Implement one isolated reduced-objective Riemannian L-BFGS solver after the S2 proof gate; do not select Gauss–Newton yet. Require rank/cutoff and exact-objective error guards, external stationarity checks, and explicit failure at the boundary.
+- **Reason/evidence:** The proof and independent audit in `docs/experiments/multi_solver_search_2026-09-24/proofs/` derive the truncated objective gradient, geometry and conditional stationarity convergence. Synthetic reference tests pass; on 12/12 frozen inputs rank stayed stable under small tangent perturbations and finite-difference errors decreased. Existing HYBRID did not improve the nonlinear certification count.
+- **Alternatives rejected:** An unguarded full-rank-only derivation excludes actual structural rank-deficient centers; promoting HYBRID by Krylov count alone did not meet wall-time criteria; a second prototype lacks current evidence.
+- **Affected:** S3 implementation, `hypotheses.md`, proof/audit documents; estimator and default remain unchanged.
+- **Status:** active, conditional on S3 focused checks.
+
+## 2026-09-24 — Close the bounded multi-index solver search without changing the default
+
+- **Decision:** Reject HYBRID, pure guarded reduced L-BFGS, and one-step HPAO plus guarded reduced as replacements on the selected multi-index points. Stop before full-fit selection and held-out validation; keep the public HPAO solver/default and statistical estimator unchanged. Retain both reduced methods as isolated research prototypes with explicit limitations.
+- **Reason/evidence:** HYBRID had median paired wall ratio 1.037 on d100 with no certification gain. Pure reduced certified 6/6 d100 frozen tasks but had median ratio 0.883, 4.244× d10 slowdown and three materially worse d100 objectives. The preregistered second/last prototype H5 certified only 5/6, had median ratio 0.971 and objective +1.214274 versus cap80 / +1.292610 versus cap320 on the distinguishing task. See `docs/experiments/multi_solver_search_2026-09-24/{s2_hybrid,s4_initial,s4_final}.md` and their raw artifacts. All 67 relevant regression tests and Ruff checks passed.
+- **Alternatives rejected:** Promoting a method by certificate count alone, tuning HPAO warm-start length or reduced parameters after seeing six frozen trials, and using held-out seed to select a method would violate the predeclared objective/speed gate and budget.
+- **Affected:** `PLAN.md`, `agent-notes/STATE.md`, `hypotheses.md`, S4 report; no public API/default or estimator change. Seed 3000–3019 and 2000–2019 remain unused.
+- **Status:** final for this bounded plan; a distinct hypothesis requires a new plan and independent selection evidence.
+
+## 2026-09-24 — Reopen solver search after causal failure diagnostics
+
+- **Decision:** User-authorized retry starts with certificate-directed precision in the existing explicit HYBRID relative mode; no change to defaults. No warm-length sweep.
+- **Evidence:** `docs/experiments/multi_solver_retry_2026-09-24/r1.md`: same-lambda tighter solves remove four normal rejects; three worse reduced endpoints have positive local curvature, and the slow reference evaluator costs 8–10x more than a diagnostic batched envelope.
+- **Scope:** H6 proof/audit precedes implementation, bounded frozen gate retained; possible H7 requires a separate proof. Prior negative results remain valid for their methods.
+
+## 2026-09-24 — Close the solver retry after both frozen gates failed
+
+- **Decision:** Do not promote certificate-directed HYBRID or the reduced Gauss–Newton prototype. Restore the pre-retry production HYBRID path, preserve its rejected change as `docs/experiments/multi_solver_retry_2026-09-24/h6_rejected.patch`, and keep GN only as an explicit experiment. Do not run full fits or held-out validation for these candidates.
+- **Reason/evidence:** R1 established that some normal-residual rejects came from LSMR stopping accuracy at unchanged lambda, but H6 halved rejects with no d100 AO/certificate improvement and 1.264× median wall. H7's full residual Jacobian passed dense/adjoint tests but gave only 4/6 d100 certificates, 3.883× median spent wall, 1.748× RSS, one worse certified objective and one line-search failure near rank cutoff. See `docs/experiments/multi_solver_retry_2026-09-24/completion.md` and linked raw artifacts.
+- **Alternatives rejected:** Relaxing the original rank/cutoff guard, promoting by certificate count while ignoring objective/time/failure, or retuning warm length/tolerance on the same selection data. These would change the mathematical contract or exceed the preregistered search.
+- **Affected:** Research-only `experiments/reduced_gauss_newton.py`, diagnostic/test/report files, `PLAN.md`, `STATE.md`, solver route. Public solver/default and estimator unchanged; held-out seed3000–3019 unused.
+- **Status:** final for this bounded retry; another attempt needs a distinct derived hypothesis and fresh selection gate.

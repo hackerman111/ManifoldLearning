@@ -2,29 +2,48 @@
 
 ## Task
 
-- ID: improve-multiindex-quality-2026-09-24.
-- Status: active; plan is written in `PLAN.md`.
-- Goal: diagnose and improve Multi-index recovery on representative v2 points using paired configuration experiments and untouched validation seeds.
+- `multi-index-solver-retry-2026-09-24` завершён отрицательным результатом.
+- `PLAN.md` done, R1–R3/R5 done, R4 skipped by frozen gate.
+- Старый завершённый план архивирован в
+  `agent-notes/history/plans/multi-index-solver-search-2026-09-24-complete.md`.
+- Полный итог `docs/experiments/multi_solver_retry_2026-09-24/completion.md`;
+  связанные `r1.md`, `h6.md`, `h7.md`, `hypotheses.md`, proofs и raw paths там.
 
-## Established facts
+## Проверенные факты
 
-- The inspected Multi v2 artifact `benchmark_outputs/experiments/20260924T012524585775-multiv2/` planned 22 series but records only 7 completed series (1590 fits). None formally converged; 197 passed `trace_score >= 0.95`; all complete runs stopped at `outer_steps`. The suite manifest still says `running`; no runner process was found at inspection. The multiplicative-frequency folder has 24 rows for its first point and is incomplete.
-- The recorded Multi v2 setup uses `outer_steps=3`, LSMR, and `solver_max_steps=5`. The d=10 point passes the quality threshold in 30/30 runs; the n=1000,d=100 point has median trace score about 0.575. These are candidate sentinel conditions, not generalization evidence.
-- A prior paired diagnostic at d=6,n=240 found a preliminary benefit from `solver_max_steps=80` (5/6 validation recovery vs 4/6 baseline). It does not validate transfer to the high-dimensional v2 points. See `agent-notes/DECISIONS.md`.
-- Quality, convergence, recovery, and numerical failure remain separate outcomes. The primary metric is schema-9 `trace_score`, higher is better; recovery requires convergence and passing the unchanged 0.95 threshold.
-- The prior completed catalog-trimming plan is archived at `agent-notes/history/plans/multiv2-complete-multi-catalog-7points-2026-09-24-complete.md`. Preserve all other dirty workspace changes.
+- Frozen selection: 12 hash-verified float64 задач d10/d100, seed1000–1002,
+  outer0/2, CPU/1 BLAS thread. Held-out seed3000–3019 не использованы.
+- HPAO normal rejects на четырёх сохранённых системах действительно устранимы
+  ужесточением LSMR atol при прежней lambda; backward-error и исходный normal
+  certificate имеют разные критерии. Это не объяснило медленные AO шаги.
+- Три худших reduced-L-BFGS endpoints имели положительную проверенную
+  касательную кривизну; их иной basin вероятен, но глобальная оптимальность
+  не доказана. Медленный SVD-reference стоил8–10× batched envelope evaluation.
+- H6 уменьшил d100 normal rejects206→103, но AO и certificates3/6 не изменил;
+  median time ratio1.264. Его production patch отменён, архивирован как
+  `docs/experiments/multi_solver_retry_2026-09-24/h6_rejected.patch`.
+- H7 (`experiments/reduced_gauss_newton.py`) остался только явным CPU
+  APPROXIMATE прототипом. Полный Jacobian/adjoint и плотный ridge reference
+  проверены; d100 4/6 certificates, median spent time3.883×,
+  peakRSS1.748×, objective+0.160 на сертифицированной задаче и одна явная
+  line-search failure у cutoff. В публичный ADP/CLI не подключён.
+- Ни один кандидат не прошёл frozen gate; full fits и recovery не проверялись.
+  Прежние dirty changes/артефакты сохранены.
 
-## Current hypothesis
+## Проверка и текущие границы
 
-The five-step inner solver cap and three-step outer loop may explain the lack of formal convergence. Inspect the recorded inner solver statuses first; test solver and outer budgets independently before tuning estimator parameters.
-
-## Active routes
-
-- `agent-notes/ADP/multi-index.md`, `agent-notes/ADP/index-pipeline.md`, `agent-notes/ADP/solvers.md`.
-- `experiments/diagnostic.py`, `experiments/multiv2.py`, `experiments/multi.py`, `experiments/runner.py`, `experiments/data.py`.
-- `ADP/engine/common/index_fit.py`, `ADP/solver/LSMR.py`; focused tests under `tests/`.
-- Artifact root: `benchmark_outputs/experiments/20260924T012524585775-multiv2/`.
-
-## Next action
-
-Execute T1 from `PLAN.md`: inspect per-run traces and freeze exact sentinel configurations. Do not run fits or edit estimator code before that diagnosis.
+- 74 профильных теста, целевой Ruff/Pyright и форматирование прошли;
+  `uv lock --check`, `git apply --check` архивного H6 patch прошли.
+- Общий pytest: 321 passed, 28 GPU skipped, 14 failed в manifold контуре.
+  Изолированный повтор тех же tests: те же14; там есть конфликт
+  `local_quadratic`/`index_dim=2`, три пороговых recovery assertion и другие
+  manifold assertions. Их исходники в этой solver-попытке не менялись.
+  `validation_manifold.txt` в папке отчёта.
+- Общий Pyright: 12 ошибок в других experiment-файлах, 1 warning legacy;
+  три затронутых solver experiment-файла:0 errors. Общий Ruff затрагивает
+  только отдельный каталог `test/` (10 замечаний); целевой
+  `ADP/ experiments/ tests/` прошёл. Staged diff check видит CRLF в ранее
+  подготовленных manifold CSV; unstaged diff check прошёл. JSON диагностики
+  и CPU/1thread окружение сохранены в папке отчёта.
+- Маршрут источников `agent-notes/ADP/solvers.md` обновлён. Дальнейший
+  solver-поиск требует новой гипотезы/плана, не retune на этих frozen данных.

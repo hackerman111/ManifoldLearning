@@ -1,0 +1,352 @@
+[
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 75,
+      "row": 26
+    },
+    "filename": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/test/test_ADP_box_kernel.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "from functools import partial\n\nimport numpy as np\nimport pytest\n\nfrom ADP import (\n    ADP_Config,\n    ADP_multi_index,\n    ADP_single_index,\n    ADP_solver,\n    ADP_SolverResult,\n)\nfrom ADP.ADP_Statistic import calculate_statistics, calculate_statistics_gpu\nfrom ADP.engine.box_kernel import (\n    NeighborhoodEngine,\n    SparseNeighborhoodBlock,\n    SparseStatisticsCache,\n    box_kernel,\n    initialize_basis_local_sparse,\n    make_plateau_kernel,\n    plateau_kernel,\n    search_sparse_bandwidth,\n    search_sparse_scale,\n    sparse_kernel_parameters,\n)\nfrom ADP.engine.calculus import initialize_basis_local, pairwise_distance2\n\n\n",
+          "end_location": {
+            "column": 1,
+            "row": 29
+          },
+          "location": {
+            "column": 1,
+            "row": 1
+          }
+        }
+      ],
+      "message": "Organize imports"
+    },
+    "location": {
+      "column": 1,
+      "row": 1
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 1,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 73,
+      "row": 8
+    },
+    "filename": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/test/test_ADP_gpu.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "import sys\nfrom dataclasses import replace\nfrom types import SimpleNamespace\n\nimport numpy as np\nimport pytest\n\nfrom ADP import ADP_Config, ADP_solver, ADP_SolverResult, ADP_Statistics\n\n\n",
+          "end_location": {
+            "column": 1,
+            "row": 11
+          },
+          "location": {
+            "column": 1,
+            "row": 1
+          }
+        }
+      ],
+      "message": "Organize imports"
+    },
+    "location": {
+      "column": 1,
+      "row": 1
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 1,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "C408",
+    "end_location": {
+      "column": 81,
+      "row": 131
+    },
+    "filename": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/test/test_ADP_gpu.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "{\"lambda_penalty\": 3.0, \"local_ridge\": 1e-6, \"max_steps\": 2, \"tol\": 1e-8}",
+          "end_location": {
+            "column": 81,
+            "row": 131
+          },
+          "location": {
+            "column": 16,
+            "row": 131
+          }
+        }
+      ],
+      "message": "Rewrite as a literal"
+    },
+    "location": {
+      "column": 16,
+      "row": 131
+    },
+    "message": "Unnecessary `dict()` call (rewrite as a literal)",
+    "name": "unnecessary-collection-call",
+    "noqa_row": 131,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unnecessary-collection-call"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 48,
+      "row": 10
+    },
+    "filename": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/test/test_ADP_multi_index.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "import numpy as np\n\nfrom ADP import ADP_Config, ADP_solver, ADP_SolverResult\nfrom ADP.ADP_Statistic import ADP_Statistics\nfrom ADP.engine.calculus import (\n    calculate_multi_weight,\n    initialize_basis_local,\n    initialize_basis_random,\n)\nfrom ADP.single_index.solvers.LSMR import solve\n\n\n",
+          "end_location": {
+            "column": 1,
+            "row": 13
+          },
+          "location": {
+            "column": 1,
+            "row": 1
+          }
+        }
+      ],
+      "message": "Organize imports"
+    },
+    "location": {
+      "column": 1,
+      "row": 1
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 1,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E731",
+    "end_location": {
+      "column": 34,
+      "row": 79
+    },
+    "filename": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/test/test_ADP_multi_index.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "def kernel(q):\n        return np.exp(-q)",
+          "end_location": {
+            "column": 34,
+            "row": 79
+          },
+          "location": {
+            "column": 5,
+            "row": 79
+          }
+        }
+      ],
+      "message": "Rewrite `kernel` as a `def`"
+    },
+    "location": {
+      "column": 5,
+      "row": 79
+    },
+    "message": "Do not assign a `lambda` expression, use a `def`",
+    "name": "lambda-assignment",
+    "noqa_row": 79,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/lambda-assignment"
+  },
+  {
+    "cell": null,
+    "code": "C408",
+    "end_location": {
+      "column": 6,
+      "row": 32
+    },
+    "filename": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/test/test_ADP_smart.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "{\n        \"X\": X,\n        \"centers\": centers,\n        \"beta\": beta,\n        \"h\": 2.1,\n        \"rho\": 0.6,\n        \"kernel\": epanechnikov,\n        \"block_size\": 3,\n        \"distance2\": distance2,\n    }",
+          "end_location": {
+            "column": 6,
+            "row": 32
+          },
+          "location": {
+            "column": 14,
+            "row": 23
+          }
+        }
+      ],
+      "message": "Rewrite as a literal"
+    },
+    "location": {
+      "column": 14,
+      "row": 23
+    },
+    "message": "Unnecessary `dict()` call (rewrite as a literal)",
+    "name": "unnecessary-collection-call",
+    "noqa_row": 23,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unnecessary-collection-call"
+  },
+  {
+    "cell": null,
+    "code": "C408",
+    "end_location": {
+      "column": 6,
+      "row": 51
+    },
+    "filename": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/test/test_ADP_smart.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "{\n        \"X\": X,\n        \"centers\": centers,\n        \"basis\": basis,\n        \"eigenvalues\": np.array([1.0, 0.35]),\n        \"h\": 2.1,\n        \"alpha\": 0.6,\n        \"kernel\": epanechnikov,\n        \"block_size\": 3,\n        \"distance2\": distance2,\n    }",
+          "end_location": {
+            "column": 6,
+            "row": 51
+          },
+          "location": {
+            "column": 13,
+            "row": 41
+          }
+        }
+      ],
+      "message": "Rewrite as a literal"
+    },
+    "location": {
+      "column": 13,
+      "row": 41
+    },
+    "message": "Unnecessary `dict()` call (rewrite as a literal)",
+    "name": "unnecessary-collection-call",
+    "noqa_row": 41,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unnecessary-collection-call"
+  },
+  {
+    "cell": null,
+    "code": "C408",
+    "end_location": {
+      "column": 6,
+      "row": 96
+    },
+    "filename": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/test/test_ADP_smart.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "{\n        \"X\": shifted_X,\n        \"centers\": shifted_centers,\n        \"beta\": np.array([1.0, 0.0]),\n        \"h\": np.sqrt(6.0),\n        \"rho\": 1.0,\n        \"kernel\": epanechnikov,\n        \"distance2\": cancelled_distance2,\n    }",
+          "end_location": {
+            "column": 6,
+            "row": 96
+          },
+          "location": {
+            "column": 15,
+            "row": 88
+          }
+        }
+      ],
+      "message": "Rewrite as a literal"
+    },
+    "location": {
+      "column": 15,
+      "row": 88
+    },
+    "message": "Unnecessary `dict()` call (rewrite as a literal)",
+    "name": "unnecessary-collection-call",
+    "noqa_row": 88,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unnecessary-collection-call"
+  },
+  {
+    "cell": null,
+    "code": "SIM300",
+    "end_location": {
+      "column": 38,
+      "row": 32
+    },
+    "filename": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/test/test_ADP_statistic.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "result[\"eta\"] >= 0",
+          "end_location": {
+            "column": 38,
+            "row": 32
+          },
+          "location": {
+            "column": 20,
+            "row": 32
+          }
+        }
+      ],
+      "message": "Rewrite as `result[\"eta\"] >= 0`"
+    },
+    "location": {
+      "column": 20,
+      "row": 32
+    },
+    "message": "Yoda condition detected",
+    "name": "yoda-conditions",
+    "noqa_row": 32,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/yoda-conditions"
+  },
+  {
+    "cell": null,
+    "code": "E731",
+    "end_location": {
+      "column": 34,
+      "row": 59
+    },
+    "filename": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/test/test_ADP_statistic.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "def kernel(q):\n        return np.exp(-q)",
+          "end_location": {
+            "column": 34,
+            "row": 59
+          },
+          "location": {
+            "column": 5,
+            "row": 59
+          }
+        }
+      ],
+      "message": "Rewrite `kernel` as a `def`"
+    },
+    "location": {
+      "column": 5,
+      "row": 59
+    },
+    "message": "Do not assign a `lambda` expression, use a `def`",
+    "name": "lambda-assignment",
+    "noqa_row": 59,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/lambda-assignment"
+  }
+]
