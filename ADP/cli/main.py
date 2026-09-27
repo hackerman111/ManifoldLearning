@@ -271,6 +271,7 @@ def _run(
     *,
     data: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, dict[str, float]], dict[str, object]]:
+    _validate_solver_mode(args.mode, args.solver)
     if args.hybrid_inner_rtol is not None:
         if args.mode != "multi" or args.solver != "hybrid":
             raise ValueError("hybrid_inner_rtol requires multi mode with hybrid solver")

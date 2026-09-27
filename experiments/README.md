@@ -30,6 +30,24 @@ breaking-сетку на 8960 точек.
 
 ## Диагностика параметров и слабых режимов
 
+Отдельное исследование информативных центров multi-index остановлено на C2:
+пилот C1 прошёл gate неоднородности, но зафиксированное правило с покрытием
+`>=0.99` не нашло `J<500` для 11/20 selection задач. Full fits и held-out
+не выполнялись, public estimator не менялся. Протокол, raw paths и точная
+причина остановки: `docs/experiments/multi_center_selection_2026-09-25/`
+(`c1_protocol.md`, `c1_result.md`, `c2_rule.md`, `c2_result.md`).
+Для воспроизведения из корня репозитория с одним BLAS-потоком:
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.multi_center_diagnostic
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.multi_center_select
+```
+
+Модули отказываются перезаписывать существующий output-dir; для повтора
+укажите новый `--output-dir`.
+
 Для двух зафиксированных точек Multi v2 есть отдельный парный протокол:
 
 ```bash
@@ -249,3 +267,13 @@ manifold `local_projector_distance <= 0.2`. Уже заданные пороги
 ```bash
 uv run python -m ADP.cli.experiment --experiment manifold-basic --profile smoke
 ```
+
+## Proof-first скетч H1
+
+Изолированный `experiments.proof_first_h1` сравнивает ортогональные блоки
+направлений с исходными изотропными направлениями multi и оригинального
+manifold estimator. Доказательство, reference, замороженный протокол,
+66 selection fit и отрицательный результат находятся в
+`docs/experiments/proof_first_shared_2026-09-26/` (`r2_protocol.md`,
+`r3_result.md`, `selection/runs.jsonl`). Ни один случай не прошёл gate
+качества/стоимости; held-out seed не запускались, public defaults не менялись.

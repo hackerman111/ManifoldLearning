@@ -186,7 +186,8 @@ def _parent(
             name: _sha256(Path(name))
             for name in (
                 "ADP/solver/LSMR.py",
-                "ADP/solver/HYBRID.py",
+                "ADP/solver/HYBRID/HYBRID.py",
+                "ADP/solver/HYBRID/HYBRID_multi.py",
                 "experiments/reduced_lbfgs.py",
                 "experiments/reduced_gauss_newton.py",
                 "experiments/warm_reduced.py",

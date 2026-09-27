@@ -31,12 +31,12 @@ CLI валидирует комбинации до запуска: single тре
 
 | ID | Фрагмент | Команда sed |
 |---|---|---|
-| SRC-CLI-PARSER | аргументы synthetic runner | `rtk proxy sed -n '42,185p' ADP/cli/main.py` |
-| SRC-CLI-CHECKS | сбор config и mode/solver/input validation | `rtk proxy sed -n '186,248p' ADP/cli/main.py` |
-| SRC-CLI-DATA | synthetic sample and reproducible data generation | `rtk proxy sed -n '249,268p' ADP/cli/main.py` |
-| SRC-CLI-INDEX | single/multi run, solver dispatch and shared fit | `rtk proxy sed -n '269,364p' ADP/cli/main.py` |
-| SRC-CLI-MANIFOLD | manifold run and diagnostics | `rtk proxy sed -n '365,497p' ADP/cli/main.py` |
-| SRC-CLI-OUTPUT | quality/report/profile and main | `rtk proxy sed -n '498,607p' ADP/cli/main.py` |
+| SRC-CLI-PARSER | аргументы synthetic runner | `rtk proxy sed -n '43,188p' ADP/cli/main.py` |
+| SRC-CLI-CHECKS | сбор config и mode/solver/input validation | `rtk proxy sed -n '189,253p' ADP/cli/main.py` |
+| SRC-CLI-DATA | synthetic sample and reproducible data generation | `rtk proxy sed -n '254,273p' ADP/cli/main.py` |
+| SRC-CLI-INDEX | single/multi run, solver dispatch and shared fit | `rtk proxy sed -n '274,373p' ADP/cli/main.py` |
+| SRC-CLI-MANIFOLD | manifold run and diagnostics | `rtk proxy sed -n '374,506p' ADP/cli/main.py` |
+| SRC-CLI-OUTPUT | quality/report/profile and main | `rtk proxy sed -n '507,616p' ADP/cli/main.py` |
 | SRC-CLI-EXP-WRAPPER | experiment parser, runner handoff and exit status | `rtk proxy sed -n '1,111p' ADP/cli/experiment.py` |
 | SRC-CLI-EXP-VALIDATION | validation helpers and point/config invariants | `rtk proxy sed -n '1,348p' ADP/cli/experiment_utils.py` |
 | SRC-CLI-REPORT | runs/manifest aggregation and report outputs | `rtk proxy sed -n '153,268p' ADP/cli/experiment_plots.py` |

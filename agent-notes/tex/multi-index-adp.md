@@ -20,11 +20,19 @@ U_j    = rows(u_j,sᵀ) ∈ R^(P×d),  I_j ∈ R^P.
 
 Taylor-разложение `f(PX_i)≈c_j+g_jᵀP(X_i−x_j)` и взвешенное центрирование дают `I_j≈U_jPᵀg_j`; константа `c_j` сокращается. Поэтому ADP не подгоняет полную локальную поверхность ответа, а связывает локальные directional derivatives с одним общим подпространством.
 
-Рукописная цель с массой:
+Рукописная цель с массой (minimizers указаны с точностью до постоянного множителя):
 
 ```text
 min_{P Pᵀ=I, {g_j}}  Σ_j N_j ||I_j − U_j Pᵀg_j||².
 ```
+
+Точная нормировка `[X-MI-PRE]`: исходная auxiliary-цель равна
+`1/2 Σ N_j (||I_j-i_j||²+||i_j-U_j P.T g_j||²)`; исключение i даёт
+`1/4 Σ N_j ||I_j-U_j P.T g_j||²`. Live `LSMR._loss` имеет множитель
+`1/2`. Масштаб не меняет unregularized minimizers, но важен для objective,
+gradient/certificate и относительной силы штрафа. AO `[X-MI-AO]` отдельно
+задаёт unhalved SSE плюс lambda squared distance. Полный сверенный вывод:
+`docs/experiments/beta_functional_2026-09-27/report.md`.
 
 ## Один AO-шаг
 

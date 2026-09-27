@@ -179,3 +179,91 @@ Use this form:
 - **Alternatives rejected:** Relaxing the original rank/cutoff guard, promoting by certificate count while ignoring objective/time/failure, or retuning warm length/tolerance on the same selection data. These would change the mathematical contract or exceed the preregistered search.
 - **Affected:** Research-only `experiments/reduced_gauss_newton.py`, diagnostic/test/report files, `PLAN.md`, `STATE.md`, solver route. Public solver/default and estimator unchanged; held-out seed3000–3019 unused.
 - **Status:** final for this bounded retry; another attempt needs a distinct derived hypothesis and fresh selection gate.
+
+## 2026-09-24 — Start a separate multi-index center-selection study
+
+- **Decision:** Seek fewer, more informative centers as an explicit `ESTIMATOR` variant, with random `J₀` and random same-`J` controls. Keep solver/default fixed. Gate promotion on paired external `trace_score` and recovery, including all failures and total selection cost.
+- **Reason:** The completed solver retry found no passing candidate. Live center selection is random, and changing its output also changes initialization, localization and outer-step SSE; a solver objective cannot certify quality across different center sets.
+- **Alternatives rejected:** Selecting by oracle projector/recovery, comparing raw losses across different `J`, or claiming universal non-degradation from a surrogate score.
+- **Affected:** `PLAN.md`, `agent-notes/STATE.md`; previous solver plan archived. No numerical code changed in this planning task.
+- **Status:** planned; H1/H2 and acceptance gate await C1–C4 evidence.
+
+## 2026-09-25 — Continue center selection after C1 pilot
+
+- **Decision:** Proceed to C2 with one frozen, training-only selection rule; do not infer EDR quality from C1.
+- **Evidence:** The precommitted neighborhood-heterogeneity gate passed on 10/10 selection seeds at both d10 and d100, with 20/20 complete pilots, 8.636 s total wall and 97.40 MiB peak RSS. See `docs/experiments/multi_center_selection_2026-09-25/c1_result.md` and raw CSV.
+- **Alternatives rejected:** Stopping for lack of structural variation, or promoting a center rule from neighborhood metrics alone.
+- **Affected:** `PLAN.md`, `agent-notes/STATE.md`, C1 experiment artifacts; solver and public estimator unchanged.
+- **Status:** active; H2 and full-fit recovery await C3.
+
+## 2026-09-25 — Stop the center-selection branch at C2
+
+- **Decision:** Reject the frozen coverage/logdet center rule and end this plan before C3/C4. Keep random center selection and all public defaults.
+- **Evidence:** C2 reference test passed and 20/20 selection jobs completed without numerical failures, but only 0/10 d10 and 9/10 d100 yielded `J<500`. The precommitted absolute coverage threshold 0.99 was unreachable for the feasible center pool in 11 jobs; direct recomputation confirmed d10 seed4000 feasible coverage 0.959 and d100 seed4008 0.989. See `docs/experiments/multi_center_selection_2026-09-25/c2_result.md` and raw CSV.
+- **Alternatives rejected:** Relaxing the threshold after viewing these selection results, proceeding to paired fits with missing candidates, or treating an internal logdet ratio as recovery evidence.
+- **Affected:** `PLAN.md`, `agent-notes/STATE.md`, `experiments/README.md`; isolated experiment scripts and tests only. No `ADP/` production edits.
+- **Status:** done with a negative result; H2, full-fit recovery and held-out validation remain untested.
+
+## 2026-09-26 — Start proof-first search for a shared multi/manifold ADP idea
+
+- **Decision:** Begin with a bounded ADP-specific proof of orthogonal directional blocks (H1) for multi and manifold. If its mathematical or full-cost gate fails, consider one variance-reduced stochastic solver (H2) for a fixed objective. Do not implement or run candidate full fits before the proof and independent audit; keep all production defaults unchanged.
+- **Reason/evidence:** Both live paths use directional `I/U` moments, giving a possible common mechanism. Previous multi solver retries and center-selection failed their frozen gates; neither tested this mechanism. Existing orthogonal-feature and Riemannian-stochastic literature supplies ideas, not an ADP theorem or a performance claim.
+- **Alternatives rejected:** Retune rejected solver/center rules on their selection data; infer EDR recovery from a sketch-variance or inner-solver theorem; transfer manifold `m=1` validation to `m>1`.
+- **Affected:** `PLAN.md`, `agent-notes/STATE.md`, archived prior plan; research documentation only.
+- **Status:** active research plan; H1/H2 remain unproved hypotheses.
+
+## 2026-09-26 — Add a SPINN-inspired separable neural estimator hypothesis
+
+- **Decision:** Add H3 to the active proof-first search: jointly learn an EDR basis and a low-rank separable response surrogate, then form gradient-based projectors. Evaluate a multi-index version first; admit local manifold charts only with a separate derivative-error theorem and full training-cost argument. At R0 choose at most two ideas for full proof and one eventual prototype. H2 remains a reserve.
+- **Reason/evidence:** The user specified Separable Physics-Informed Neural Networks. Its per-axis factorization suggests a candidate approximation family, while ADP observations are irregular and have no governing PDE. The existing MLP pilot only initializes a basis; freezing that basis in H3 could not repair its span. Prediction fit alone cannot certify derivative or EDR quality.
+- **Alternatives rejected:** Import the PDE residual or paper's grid speedup as an ADP claim; train factors on a frozen pilot projection and call the resulting projector improved; add a neural default before a gradient-error and eigengap proof.
+- **Affected:** `PLAN.md`, `agent-notes/STATE.md`; research documentation only, no estimator code or public API change.
+- **Status:** active hypothesis, unproved and untested.
+
+## 2026-09-26 — R0 selects isotropic orthogonal blocks only
+
+- **Decision:** Take H1 into R1 for normalized multi-index with independent isotropic redraw and for the original manifold estimator. Treat the changed joint direction law as an `ESTIMATOR` variant. Do not advance H3 or H2 in this cycle.
+- **Evidence:** Exact fixed-weight ADP moment factorization and live objectives are recorded in `docs/experiments/proof_first_shared_2026-09-26/r0.md`. The two selected paths use independent unit-Gaussian directions, so one common orthogonal-block argument is possible. SPINN's Cartesian-grid evaluation saving has no analogous coordinate reuse on irregular projected ADP samples, and response MSE alone cannot control gradients.
+- **Alternatives rejected:** An anisotropic-multi variance claim without a separate proof; freezing a pilot basis in H3; starting a neural training implementation without derivative-error control; mixing stochastic H2 and estimator H1 in one comparison.
+- **Affected:** `PLAN.md`, `STATE.md`, R0 dossier, manifold ADP/TeX route correction. No production algorithm or API change.
+- **Status:** R0 done; H1 proof and independent audit pending.
+
+## 2026-09-26 — Admit isotropic H1 to one isolated CPU prototype
+
+- **Decision:** Pass R1 only for pointwise fixed-weight variance reduction and conditional stability of one certified quadratic step. Build one CPU prototype of H1 and a small dense reference. Consider compact full-block representation only as a separately verified numerical representation of the same H1 Gram.
+- **Evidence:** `docs/experiments/proof_first_shared_2026-09-26/h1_proof.md` derives Haar-block expectation/variance for `P=kd+r`, correctly aggregates shared manifold sketches, and bounds a fixed quadratic step and projector under a positive gap. Independent read-only audit in `r1_audit.md` confirmed those formulas and forced explicit limits on multi rank, HPAO endpoint, manifold sync reuse and `P≥d` memory.
+- **Alternatives rejected:** Treating pointwise variance as full-fit recovery, claiming exact numerical equivalence of compressed rows across rank cutoffs, testing anisotropic multi without a theorem, or using `P=d=1000` at prohibitive memory cost.
+- **Affected:** Research dossier, PLAN/STATE; production defaults/API unchanged.
+- **Status:** R1 done; R2 reference, stress and frozen protocol pending.
+
+## 2026-09-26 — Freeze H1 full-fit gate after R2 reference
+
+- **Decision:** Run only the isolated compact-H1 estimator against original isotropic multi and explicit original manifold baselines, with six paired selection seeds, same-row iid controls where compacting occurs, and the precommitted per-fit quality/convergence/completion/failure and full wall/RSS gates in `r2_protocol.md`. Hold validation seeds unused unless a case passes.
+- **Evidence:** Five small reference/gate tests, Ruff, Pyright and 64 MB direction-generation stress passed. The R0 manifold CLI timing was actually the `local_quadratic` default, so it was corrected and excluded. Original manifold m=2 repeatedly failed local rank on diagnostic seeds despite larger neighborhoods; keep this failure as a stress instead of tuning it away.
+- **Alternatives rejected:** Compare H1 to the different `local_quadratic` estimator, weaken quality tolerance after selection, tune m=2 further on diagnostic rank failures, infer full-fit recovery from the variance theorem, or use held-out seeds for selection.
+- **Affected:** `experiments/proof_first_h1.py`, `tests/test_proof_first_h1.py`, `docs/experiments/proof_first_shared_2026-09-26/{r0,r2_protocol}.md`, `PLAN.md`, `STATE.md`; no production algorithm/default/API changes.
+- **Status:** R2 done; R3 paired selection authorized by plan.
+
+## 2026-09-26 — Stop orthogonal directional H1 after negative R3
+
+- **Decision:** Reject H1 as a full-fit improvement under the frozen quality/cost gate; do not add a production option or run held-out validation. Preserve the mathematical result and raw negative selection evidence. H2/H3, if revisited, require a separate proof and fresh protocol.
+- **Evidence:** All 66 prespecified fits were recorded on seed 61000–61005 with the frozen fingerprint. Quality regressed on 2/6 multi d10, 1/6 multi d100, 2/6 manifold m1 and 2/3 completed manifold m2 pairs; m2 had three rank failures per variant. Median H1/baseline wall ratios were 0.820, 1.028, 1.009 and 1.000 (m2 only three completed), with zero certified recoveries. Same-row iid control at d10 had comparable cost and better quality than H1 on five of six seeds. See `docs/experiments/proof_first_shared_2026-09-26/r3_result.md` and raw `selection/` artifacts.
+- **Alternatives rejected:** Relaxing per-fit tolerance or the 0.8 speed bar after looking at selection, discarding failed m2 fits, treating nonconverged multi quality as recovery, or reusing held-out seed 62000–62019 for tuning.
+- **Affected:** Research report and `PLAN.md`/`STATE.md`/`experiments/README.md`; no production ADP/default/API changes.
+- **Status:** final negative result for this bounded H1 cycle.
+
+## 2026-09-27 — Formalize β functional and retain exact compression as isolated research
+
+- **Decision:** Preserve current estimator/solver/default and document a conditional exact row compression using thin QR of [U,I], without rank truncation. Do not substitute gradient-PCA or a common-metric spectral solve for arbitrary local metrics. Keep tested NumPy variants in an isolated benchmark.
+- **Evidence:** `docs/experiments/beta_functional_2026-09-27/report.md` derives the original/constrained objective, fixed-C proximal subproblem, full cross-block Hessian and QR residual isometry. Frozen d10/P40 compresses to 11 rows with fixed-C ridge errors <=7.63e-17; d100/P40 cannot reduce. Proportional local metrics are disproved. Final profiles/9 paired repetitions in `audit_final.json` show existing matmul actions dominate d100; substitutions give no compelling general trajectory gain. High-mass local-gradient stress exposes threshold-dependent rounding changes.
+- **Alternatives rejected:** Independent per-β solves that discard cross terms; gradient averaging without local metrics; automatic direct solve(B,V,y) with changed P-dependent cutoff; reporting reduced design allocation or faster stationarity kernel as full-fit acceleration; discarding the existing manifold regression failure.
+- **Affected:** PLAN/STATE, solver and multi-index TeX routing notes, isolated `benchmarks/beta_functional_audit.py`, 8 new reference tests, report/raw artifacts. Previous dirty work preserved; production `ADP/` unchanged.
+- **Status:** completed formalization and bounded audit. Future QR integration needs original numerical cutoffs/normalizations and a separate trajectory/full-cost verification protocol.
+
+## 2026-09-27 — Split HYBRID by solver route
+
+- **Decision:** Move the original implementation into `ADP/solver/HYBRID/`; keep shared linear helpers in `HYBRID.py`, the multi-index workspace and HPAO route in `HYBRID_multi.py`, the manifold linear solver in `HYBRID_manifold.py`, and an explicit single route in `HYBRID_single.py` that delegates to current HPAO-LSMR. Preserve the package facade and public imports.
+- **Reason/evidence:** Current HYBRID HPAO accepts only a multi-index basis; single-index uses the current LSMR solver, while manifold solves a separate B-subproblem. Separating these paths expresses the existing contracts without changing their objectives or tolerances.
+- **Alternatives rejected:** Keep a mixed 700-line module or duplicate the single-index HPAO algorithm inside HYBRID.
+- **Affected:** `ADP/solver/HYBRID/`, CLI/import callers, focused solver tests, `agent-notes/ADP/` routing.
+- **Status:** active

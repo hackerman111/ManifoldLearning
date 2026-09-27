@@ -73,9 +73,13 @@ Manifold — другая модель, с отдельной оркестрац
 | SRC-MAN-UTIL-ENGINE | `ADP/engine/manifol_engine/utils.py` — scale boundary, chart query и trace | `rtk proxy sed -n '1,127p' ADP/engine/manifol_engine/utils.py` |
 | SRC-MAN-WEIGHT | `ADP/engine/manifol_engine/weights.py` — manifold weights, bandwidth и I/U | `rtk proxy sed -n '1,224p' ADP/engine/manifol_engine/weights.py` |
 | SRC-CG | `ADP/solver/CG.py` — отдельный current proximal-CG solver | `rtk proxy sed -n '1,276p' ADP/solver/CG.py` |
-| SRC-HYBRID | `ADP/solver/HYBRID.py` — HPAO HYBRID и manifold линейная подзадача | `rtk proxy sed -n '1,703p' ADP/solver/HYBRID.py` |
+| SRC-HYBRID | `ADP/solver/HYBRID/__init__.py` — совместимый фасад и public exports HYBRID | `rtk proxy sed -n '1,31p' ADP/solver/HYBRID/__init__.py` |
+| SRC-HYBRID-CORE | `ADP/solver/HYBRID/HYBRID.py` — общие dense/augmented linear helpers | `rtk proxy sed -n '1,106p' ADP/solver/HYBRID/HYBRID.py` |
+| SRC-HYBRID-SINGLE | `ADP/solver/HYBRID/HYBRID_single.py` — single-index route через current LSMR | `rtk proxy sed -n '1,21p' ADP/solver/HYBRID/HYBRID_single.py` |
+| SRC-HYBRID-MULTI | `ADP/solver/HYBRID/HYBRID_multi.py` — multi-index workspace и HPAO delegation | `rtk proxy sed -n '1,338p' ADP/solver/HYBRID/HYBRID_multi.py` |
+| SRC-HYBRID-MANIFOLD | `ADP/solver/HYBRID/HYBRID_manifold.py` — manifold dense/PCG/LSMR subproblem | `rtk proxy sed -n '1,291p' ADP/solver/HYBRID/HYBRID_manifold.py` |
 | SRC-LEGACY-LSMR | `ADP/solver/legacy_lsmr.py` — прежний solver-контракт | `rtk proxy sed -n '1,350p' ADP/solver/legacy_lsmr.py` |
-| SRC-LSMR | `ADP/solver/LSMR.py` — текущий HPAO-LSMR, local refit/correction/certificates | `rtk proxy sed -n '1,652p' ADP/solver/LSMR.py` |
+| SRC-LSMR | `ADP/solver/LSMR.py` — текущий HPAO-LSMR, local refit/correction/certificates | `rtk proxy sed -n '1,684p' ADP/solver/LSMR.py` |
 | SRC-MULTIOP | `ADP/solver/_multi_operator.py` — joint multi forward/adjoint | `rtk proxy sed -n '1,29p' ADP/solver/_multi_operator.py` |
 | SRC-CLI-INIT | `ADP/cli/__init__.py` — ленивые CLI exports | `rtk proxy sed -n '1,22p' ADP/cli/__init__.py` |
 | SRC-CLI-MAIN-ENTRY | `ADP/cli/__main__.py` — `python -m ADP.cli` entry | `rtk proxy sed -n '1,5p' ADP/cli/__main__.py` |
@@ -99,6 +103,6 @@ Manifold — другая модель, с отдельной оркестрац
 2. `ADP/core/ADP_Solver.py::ADP_Solver.fit` — legacy orchestration поверх `ADP_Data`; не считайте его текущей реализацией моделей.
 3. `ADP/engine/common/ADP_Statistic_engine.py` умеет принимать `SparseNeighborhoodBlock` и отдельно содержит CUDA-путь. `fit_index` по умолчанию вызывает другой модуль, `engine/common/statistic.py`; GPU для текущего fit проходит через `GPUStatistics`.
 4. `engine/common/box_kernel.py` экспортирует sparse compact-support engine, но текущий `fit_index` не выбирает его по `ADP_Config.smart_weights`. По live-ссылкам `smart_weights` валидируется и сохраняется в metadata, но в `fit_index`/`weights.py` не читается. Не предполагайте sparse execution без отдельного явного вызова.
-5. `ADP/solver/legacy_lsmr.py` — не то же самое, что актуальный `ADP/solver/LSMR.py`, несмотря на схожее название.
+5. `ADP/solver/LSMR.py` — current HPAO outer solver с LSMR linear correction; `legacy_lsmr.py` — отдельный прежний solver с legacy statistics/settings/result contract. Нужен только для обратной совместимости, если старый контракт ещё используется внешним кодом.
 
 Утверждение о неиспользовании `smart_weights` основано на поиске по `ADP/`; перед изменением wiring повторите поиск, так как дерево меняется (source: **SRC-CFG**, **SRC-IFIT**, **SRC-WEIGHT**, **SRC-BOX**).

@@ -5,7 +5,13 @@ import pytest
 
 from ADP import ADP_Manifold
 from ADP.solver import HYBRID
-from ADP.solver.HYBRID import PenaltyRoot, RidgeWorkspace, solve, solve_manifold
+from ADP.solver.HYBRID import (
+    HYBRID_manifold,
+    PenaltyRoot,
+    RidgeWorkspace,
+    solve,
+    solve_manifold,
+)
 
 
 @pytest.mark.parametrize("dense", [False, True])
@@ -63,8 +69,8 @@ def test_manifold_augmented_matches_dense_and_adjoint(
         ((np.sqrt(mass * weights)[:, None] * I).ravel(), np.zeros(m * d))
     )
     expected = np.linalg.lstsq(design, rhs, rcond=None)[0]
-    original = HYBRID.solve_augmented
-    original_cg = HYBRID._cg_method
+    original = HYBRID_manifold.solve_augmented
+    original_cg = HYBRID_manifold._cg_method
 
     def checked_cg(operator, target, **settings):
         x = rng.normal(size=m * d)
@@ -76,7 +82,7 @@ def test_manifold_augmented_matches_dense_and_adjoint(
             return np.zeros_like(target), 1
         return original_cg(operator, target, **settings)
 
-    monkeypatch.setattr(HYBRID, "_cg_method", checked_cg)
+    monkeypatch.setattr(HYBRID_manifold, "_cg_method", checked_cg)
 
     def checked(operator, target, start, diagonal, **settings):
         x = rng.normal(size=m * d)
@@ -88,7 +94,7 @@ def test_manifold_augmented_matches_dense_and_adjoint(
         )
         return original(operator, target, start, diagonal, **settings)
 
-    monkeypatch.setattr(HYBRID, "solve_augmented", checked)
+    monkeypatch.setattr(HYBRID_manifold, "solve_augmented", checked)
     result = solve_manifold(
         U,
         I,

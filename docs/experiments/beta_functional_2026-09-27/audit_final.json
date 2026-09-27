@@ -1,0 +1,1548 @@
+{
+  "python": "3.13.12",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "blas": [
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 1,
+      "prefix": "libscipy_openblas",
+      "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+      "version": "0.3.34.0.0",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    },
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 1,
+      "prefix": "libscipy_openblas",
+      "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+      "version": "0.3.31.dev",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    }
+  ],
+  "commit": "84eb9bf323b09b2a64e13f2d47dce0241b4dbb59",
+  "dirty": " M PLAN.md\n M agent-notes/ADP/manifold.md\n M agent-notes/DECISIONS.md\n M agent-notes/STATE.md\n M agent-notes/tex/manifold-adp.md\n M experiments/README.md\n?? agent-notes/history/plans/multi-index-informative-centers-2026-09-25-complete.md\n?? agent-notes/history/plans/multi-index-solver-retry-2026-09-24-complete.md\n?? agent-notes/history/plans/proof-first-shared-2026-09-26-complete.md\n?? benchmarks/beta_functional_audit.py\n?? docs/experiments/beta_functional_2026-09-27/\n?? docs/experiments/multi_center_selection_2026-09-25/\n?? docs/experiments/proof_first_shared_2026-09-26/\n?? experiments/multi_center_diagnostic.py\n?? experiments/multi_center_select.py\n?? experiments/proof_first_h1.py\n?? tests/test_beta_functional_audit.py\n?? tests/test_multi_center_diagnostic.py\n?? tests/test_proof_first_h1.py\n",
+  "source_sha256": {
+    "ADP/solver/LSMR.py": "ccae647907f851b63fbca1ecf45ad409835da0b8e1678545e53de6035fc9d242",
+    "ADP/solver/HYBRID.py": "0ecdd86d1d0c700e93a681c2d5eae135f852fccb10d671c24d3f661905463c98",
+    "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/benchmarks/beta_functional_audit.py": "5d8fc97b3d68e6667eabceb56e6e3a4222201c226d6f6092a492fcc8baaa160a"
+  },
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "python_actual": "3.13.12",
+  "dtype": "float64",
+  "repeats": 9,
+  "results": [
+    {
+      "shape_J_P_d_m": [
+        500,
+        40,
+        10,
+        2
+      ],
+      "stationarity_reference_absolute_error": 8.151361824820041e-17,
+      "stationarity": {
+        "seconds": [
+          [
+            0.0004705339997599367,
+            0.0006463220015575644,
+            0.0006428019987652078,
+            0.00044107099893153645,
+            0.0004272190017218236,
+            0.00042345200199633837,
+            0.00041309199878014624,
+            0.00041994899947894737,
+            0.0004320459993323311
+          ],
+          [
+            0.00033208999957423657,
+            0.00042306300019845366,
+            0.00042536600085441023,
+            0.00031907200173009187,
+            0.0003109719982603565,
+            0.0003048110011150129,
+            0.0003102749979007058,
+            0.00031177399796433747,
+            0.0003089790006924886
+          ]
+        ],
+        "median_seconds": [
+          0.0004320459993323311,
+          0.00031177399796433747
+        ],
+        "candidate_baseline_ratio": 0.7216222310729463,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          854656,
+          854256
+        ]
+      },
+      "actions_einsum_vs_matmul": {
+        "seconds": [
+          [
+            0.00011099499897682108,
+            0.00010450500121805817,
+            0.00010903599832090549,
+            0.00010621299952617846,
+            0.00010253800064674579,
+            0.00010295399988535792,
+            0.00010144800035050139,
+            0.00010412800111225806,
+            0.00010319699867977761
+          ],
+          [
+            0.0001820699981180951,
+            0.00018009599807555787,
+            0.00018007700055022724,
+            0.00017901200044434518,
+            0.00017928500164998695,
+            0.0001819079989218153,
+            0.00017908799782162532,
+            0.0001789679990906734,
+            0.0001792659968486987
+          ]
+        ],
+        "median_seconds": [
+          0.00010412800111225806,
+          0.00017928500164998695
+        ],
+        "candidate_baseline_ratio": 1.7217751203800005,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          161008,
+          241739
+        ]
+      },
+      "design": {
+        "seconds": [
+          [
+            0.000538046002475312,
+            0.0005595369984803256,
+            0.0005344890014384873,
+            0.0005666990000463556,
+            0.0005804289976367727,
+            0.0005553299997700378,
+            0.0005341059986676555,
+            0.0005376289991545491,
+            0.0005418090004241094
+          ],
+          [
+            0.0006249340003705584,
+            0.0006175820017233491,
+            0.0006179999982123263,
+            0.000629415997536853,
+            0.0006537230001413263,
+            0.0006322510016616434,
+            0.0006214820023160428,
+            0.0006070560011721682,
+            0.0006123210005171131
+          ]
+        ],
+        "median_seconds": [
+          0.0005418090004241094,
+          0.0006214820023160428
+        ],
+        "candidate_baseline_ratio": 1.1470499785525308,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          4869664,
+          3333664
+        ]
+      },
+      "trajectory": {
+        "measurement": {
+          "seconds": [
+            [
+              0.03441677099908702,
+              0.037571385997580364,
+              0.03745868500118377,
+              0.03543413399893325,
+              0.03387577199828229,
+              0.03520610200212104,
+              0.03537599599803798,
+              0.03631234299973585,
+              0.036173478001728654
+            ],
+            [
+              0.03571786400061683,
+              0.03405844300141325,
+              0.035493024999595946,
+              0.03567555799963884,
+              0.032429465998575324,
+              0.03341552300116746,
+              0.03292925400091917,
+              0.032481535999977496,
+              0.035414632002357394
+            ]
+          ],
+          "median_seconds": [
+            0.03543413399893325,
+            0.03405844300141325
+          ],
+          "candidate_baseline_ratio": 0.9611761078297719,
+          "tracemalloc_peak_bytes_excluding_inputs": [
+            6985313,
+            6987857
+          ]
+        },
+        "settings": {
+          "lambda_prox": 0.05,
+          "max_steps": 3,
+          "tol": 1e-06
+        },
+        "diagnostics": {
+          "lsmr_stop": 0,
+          "lsmr_iterations": 0,
+          "normal_residual_ratio": 9.704748008713667e-10,
+          "normal_residual": 4.483905801783986e-14,
+          "correction_norm": 0.001306824327966621,
+          "gauge_error": 5.147423423034136e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 0,
+          "lsmr_solves_total": 0,
+          "accepted_steps": 3,
+          "converged": false,
+          "relative_loss_change": 3.136947063204676e-05,
+          "aligned_step": 0.0017778482869247123,
+          "consecutive_certified_steps": 0,
+          "certificate_failures": [
+            "relative_loss_change",
+            "aligned_step",
+            "riemannian_gradient",
+            "consecutive_steps"
+          ],
+          "rejected_trials": {
+            "screening": 0,
+            "normal_residual": 0,
+            "trust_radius": 0,
+            "objective": 0
+          },
+          "loss": 92.93244036858557,
+          "loss_history": [
+            94.62668451694185,
+            93.00184681634174,
+            92.93535570149693,
+            92.93244036858557
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            6,
+            6,
+            6,
+            6
+          ],
+          "riemannian_gradient": 0.00026197114879191765,
+          "local_gradient": 9.741031746247943e-15,
+          "orthogonality": 3.146975116901409e-16,
+          "linear_solver": "hybrid",
+          "linear_backends": [
+            "cached-svd",
+            "cached-svd",
+            "cached-svd"
+          ],
+          "linear_solves_total": 3,
+          "linear_iterations_total": 0,
+          "linear_screened_trials": 0,
+          "linear_screening_matvecs": 0,
+          "linear_recycled_solves": 0,
+          "linear_projected_solves": 0,
+          "linear_refinements": 0,
+          "linear_forward_calls": 3,
+          "linear_adjoint_calls": 6,
+          "hybrid_inner_rtol": null
+        },
+        "max_index_absolute_error": 0.0,
+        "max_coefficient_absolute_error": 0.0
+      },
+      "profile_baseline": "         4111 function calls in 0.041 seconds\n\n   Ordered by: cumulative time\n   List reduced from 168 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.041    0.041 beta_functional_audit.py:183(solve_baseline)\n        1    0.000    0.000    0.041    0.041 HYBRID.py:421(solve)\n        1    0.001    0.001    0.041    0.041 LSMR.py:40(solve)\n        3    0.001    0.000    0.028    0.009 HYBRID.py:123(__init__)\n        3    0.000    0.000    0.021    0.007 _decomp_svd.py:37(svd)\n        3    0.021    0.007    0.021    0.007 {built-in method scipy.linalg._batched_linalg._svd}\n        4    0.001    0.000    0.005    0.001 LSMR.py:429(_local_refit)\n        3    0.005    0.002    0.005    0.002 HYBRID.py:37(design_matrix)\n       11    0.004    0.000    0.004    0.000 _linalg.py:1666(svd)\n        3    0.000    0.000    0.003    0.001 LSMR.py:631(_stationarity)\n       20    0.000    0.000    0.002    0.000 einsumfunc.py:1242(einsum)\n       16    0.001    0.000    0.001    0.000 _multi_operator.py:8(forward)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:289(correction)\n       13    0.000    0.000    0.001    0.000 LSMR.py:490(_predict)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:399(_certificate)\n       19    0.001    0.000    0.001    0.000 einsumfunc.py:1144(bmm_einsum)\n        6    0.001    0.000    0.001    0.000 HYBRID.py:190(rmatvec)\n       16    0.000    0.000    0.001    0.000 einsumfunc.py:634(einsum_path)\n\n\n         4111 function calls in 0.041 seconds\n\n   Ordered by: internal time\n   List reduced from 168 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        3    0.021    0.007    0.021    0.007 {built-in method scipy.linalg._batched_linalg._svd}\n        3    0.005    0.002    0.005    0.002 HYBRID.py:37(design_matrix)\n       11    0.004    0.000    0.004    0.000 _linalg.py:1666(svd)\n       16    0.001    0.000    0.001    0.000 _multi_operator.py:8(forward)\n        1    0.001    0.001    0.041    0.041 LSMR.py:40(solve)\n        4    0.001    0.000    0.005    0.001 LSMR.py:429(_local_refit)\n        3    0.001    0.000    0.028    0.009 HYBRID.py:123(__init__)\n       19    0.001    0.000    0.001    0.000 einsumfunc.py:1144(bmm_einsum)\n        6    0.001    0.000    0.001    0.000 HYBRID.py:190(rmatvec)\n        3    0.000    0.000    0.000    0.000 HYBRID.py:180(matvec)\n       36    0.000    0.000    0.001    0.000 _linalg.py:2598(norm)\n       24    0.000    0.000    0.001    0.000 _linalg.py:2417(lstsq)\n       16    0.000    0.000    0.001    0.000 einsumfunc.py:634(einsum_path)\n       38    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n        3    0.000    0.000    0.003    0.001 LSMR.py:631(_stationarity)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:399(_certificate)\n        4    0.000    0.000    0.000    0.000 _linalg.py:976(qr)\n       10    0.000    0.000    0.000    0.000 {built-in method numpy._core._multiarray_umath.c_einsum}\n\n\n",
+      "profile_candidate": "         2739 function calls in 0.037 seconds\n\n   Ordered by: cumulative time\n   List reduced from 171 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.037    0.037 beta_functional_audit.py:186(solve_candidate)\n        1    0.000    0.000    0.037    0.037 beta_functional_audit.py:183(solve_baseline)\n        1    0.000    0.000    0.037    0.037 HYBRID.py:421(solve)\n        1    0.001    0.001    0.037    0.037 LSMR.py:40(solve)\n        3    0.001    0.000    0.026    0.009 HYBRID.py:123(__init__)\n        3    0.000    0.000    0.021    0.007 _decomp_svd.py:37(svd)\n        3    0.020    0.007    0.020    0.007 {built-in method scipy.linalg._batched_linalg._svd}\n        4    0.001    0.000    0.005    0.001 LSMR.py:429(_local_refit)\n        3    0.004    0.001    0.004    0.001 beta_functional_audit.py:43(design_without_temporary)\n       11    0.003    0.000    0.004    0.000 _linalg.py:1666(svd)\n        3    0.001    0.000    0.001    0.000 beta_functional_audit.py:58(stationarity_matmul)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:289(correction)\n       16    0.001    0.000    0.001    0.000 _multi_operator.py:8(forward)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:399(_certificate)\n       13    0.000    0.000    0.001    0.000 LSMR.py:490(_predict)\n        6    0.001    0.000    0.001    0.000 HYBRID.py:190(rmatvec)\n        3    0.000    0.000    0.001    0.000 LSMR.py:597(_gauge_fix)\n       36    0.000    0.000    0.001    0.000 _linalg.py:2598(norm)\n\n\n         2739 function calls in 0.037 seconds\n\n   Ordered by: internal time\n   List reduced from 171 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        3    0.020    0.007    0.020    0.007 {built-in method scipy.linalg._batched_linalg._svd}\n        3    0.004    0.001    0.004    0.001 beta_functional_audit.py:43(design_without_temporary)\n       11    0.003    0.000    0.004    0.000 _linalg.py:1666(svd)\n        1    0.001    0.001    0.037    0.037 LSMR.py:40(solve)\n        4    0.001    0.000    0.005    0.001 LSMR.py:429(_local_refit)\n       16    0.001    0.000    0.001    0.000 _multi_operator.py:8(forward)\n        6    0.001    0.000    0.001    0.000 HYBRID.py:190(rmatvec)\n        3    0.001    0.000    0.026    0.009 HYBRID.py:123(__init__)\n        3    0.001    0.000    0.001    0.000 beta_functional_audit.py:58(stationarity_matmul)\n        3    0.000    0.000    0.000    0.000 HYBRID.py:180(matvec)\n       36    0.000    0.000    0.001    0.000 _linalg.py:2598(norm)\n       24    0.000    0.000    0.001    0.000 _linalg.py:2417(lstsq)\n       41    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n        3    0.000    0.000    0.001    0.000 HYBRID.py:399(_certificate)\n        4    0.000    0.000    0.000    0.000 _linalg.py:976(qr)\n        4    0.000    0.000    0.000    0.000 LSMR.py:368(<genexpr>)\n        4    0.000    0.000    0.000    0.000 {built-in method numpy._core._multiarray_umath.c_einsum}\n        3    0.000    0.000    0.001    0.000 HYBRID.py:289(correction)\n\n\n",
+      "first_two_active_gram_cosine": 0.6709029479203503,
+      "row_compression": {
+        "shape": [
+          500,
+          11,
+          10
+        ],
+        "setup_seconds": 0.005394625000917586,
+        "input_bytes": 1760000,
+        "compressed_bytes": 484000,
+        "correction_absolute_error": 5.2909066017292616e-17,
+        "normal_residual_ratios": [
+          4.960994362989217e-12,
+          3.897825554743021e-12
+        ],
+        "workspace_and_one_correction": {
+          "seconds": [
+            [
+              0.008729582998057595,
+              0.008386110999708762,
+              0.008946732999902451,
+              0.008141458998579765,
+              0.008023170001251856,
+              0.008343074998265365,
+              0.008135677002428565,
+              0.009762659999978496,
+              0.007967409001139458
+            ],
+            [
+              0.0024310189983225428,
+              0.001624597000045469,
+              0.0023039059997245204,
+              0.0015614760013704654,
+              0.0023395460011670366,
+              0.0015944250008033123,
+              0.002321923999261344,
+              0.0015961839999363292,
+              0.002952928996819537
+            ]
+          ],
+          "median_seconds": [
+            0.008343074998265365,
+            0.0023039059997245204
+          ],
+          "candidate_baseline_ratio": 0.2761459054609401,
+          "tracemalloc_peak_bytes_excluding_inputs": [
+            6637593,
+            1867093
+          ]
+        }
+      },
+      "file": "benchmark_outputs/diagnostic/multi_solver_search_s1_20260924/d10-seed1000-outer0.npz",
+      "sha256": "692a082149e4503011579aebe224cfda0844e78ccc410c8837d8f30278ffcd8f"
+    },
+    {
+      "shape_J_P_d_m": [
+        500,
+        40,
+        10,
+        2
+      ],
+      "stationarity_reference_absolute_error": 9.697783035691602e-17,
+      "stationarity": {
+        "seconds": [
+          [
+            0.0004377750010462478,
+            0.0004325840018282179,
+            0.0004307210001570638,
+            0.00042643999768188223,
+            0.0004154390007897746,
+            0.00041837399840005673,
+            0.0004458699986571446,
+            0.00042634700002963655,
+            0.00041332700129714794
+          ],
+          [
+            0.0003350240003783256,
+            0.0003179539999109693,
+            0.00032373800058849156,
+            0.0003163580004184041,
+            0.00032360000113840215,
+            0.0003110939978796523,
+            0.00032226899929810315,
+            0.00031442600084119476,
+            0.00032155400185729377
+          ]
+        ],
+        "median_seconds": [
+          0.00042643999768188223,
+          0.00032155400185729377
+        ],
+        "candidate_baseline_ratio": 0.7540427811773139,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          854600,
+          854256
+        ]
+      },
+      "actions_einsum_vs_matmul": {
+        "seconds": [
+          [
+            0.00010643999848980457,
+            0.00010444200233905576,
+            0.00010386799840489402,
+            0.00010628599920892157,
+            0.00010865099829970859,
+            0.00010455699884914793,
+            0.00010394099808763713,
+            0.00010594600098556839,
+            0.00010143899999093264
+          ],
+          [
+            0.0001849370019044727,
+            0.0001792760012904182,
+            0.00018007299877353944,
+            0.00017939299868885428,
+            0.00017977400057134219,
+            0.00017946099978871644,
+            0.00017938899691216648,
+            0.0001817699994717259,
+            0.00017986400052905083
+          ]
+        ],
+        "median_seconds": [
+          0.00010455699884914793,
+          0.00017977400057134219
+        ],
+        "candidate_baseline_ratio": 1.7193875355079324,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          161008,
+          241739
+        ]
+      },
+      "design": {
+        "seconds": [
+          [
+            0.0005279030010569841,
+            0.0005559189994528424,
+            0.0005680649992427789,
+            0.0005320650016074069,
+            0.0005303159996401519,
+            0.0005277989985188469,
+            0.0005314219997671898,
+            0.0005276509982650168,
+            0.0005448970005090814
+          ],
+          [
+            0.0005794719982077368,
+            0.0005793599993921816,
+            0.0005999299974064343,
+            0.0005877010007679928,
+            0.0005774500023107976,
+            0.0005744410009356216,
+            0.0005737390019930899,
+            0.0005877969997527543,
+            0.0005754620033258107
+          ]
+        ],
+        "median_seconds": [
+          0.0005314219997671898,
+          0.0005793599993921816
+        ],
+        "candidate_baseline_ratio": 1.0902070287756114,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          4869664,
+          3333664
+        ]
+      },
+      "trajectory": {
+        "measurement": {
+          "seconds": [
+            [
+              0.033836760001577204,
+              0.033385672999429516,
+              0.03284511200035922,
+              0.03375101300116512,
+              0.0324231279992091,
+              0.03584889999910956,
+              0.03533153199896333,
+              0.041072457999689505,
+              0.038942775998293655
+            ],
+            [
+              0.03346450499884668,
+              0.03185156499966979,
+              0.03287552300025709,
+              0.03333905499675893,
+              0.033662330999504775,
+              0.033256528000492835,
+              0.03786971099907532,
+              0.038012365999748,
+              0.03899819599973853
+            ]
+          ],
+          "median_seconds": [
+            0.033836760001577204,
+            0.03346450499884668
+          ],
+          "candidate_baseline_ratio": 0.9889985033226238,
+          "tracemalloc_peak_bytes_excluding_inputs": [
+            6985241,
+            6987785
+          ]
+        },
+        "settings": {
+          "lambda_prox": 0.05,
+          "max_steps": 3,
+          "tol": 1e-06
+        },
+        "diagnostics": {
+          "lsmr_stop": 0,
+          "lsmr_iterations": 0,
+          "normal_residual_ratio": 2.8038563435054415e-10,
+          "normal_residual": 3.764255677494002e-14,
+          "correction_norm": 0.0037972426395401085,
+          "gauge_error": 5.410492839447254e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 0,
+          "lsmr_solves_total": 0,
+          "accepted_steps": 3,
+          "converged": false,
+          "relative_loss_change": 0.00044202313076956504,
+          "aligned_step": 0.005353448418677986,
+          "consecutive_certified_steps": 0,
+          "certificate_failures": [
+            "relative_loss_change",
+            "aligned_step",
+            "riemannian_gradient",
+            "consecutive_steps"
+          ],
+          "rejected_trials": {
+            "screening": 0,
+            "normal_residual": 0,
+            "trust_radius": 0,
+            "objective": 0
+          },
+          "loss": 59.56028115040219,
+          "loss_history": [
+            61.65550611515978,
+            59.72844789485836,
+            59.586619814644635,
+            59.56028115040219
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            19,
+            19,
+            19,
+            19
+          ],
+          "riemannian_gradient": 0.002138185475087472,
+          "local_gradient": 1.4504483408870998e-14,
+          "orthogonality": 6.28038533581626e-16,
+          "linear_solver": "hybrid",
+          "linear_backends": [
+            "cached-svd",
+            "cached-svd",
+            "cached-svd"
+          ],
+          "linear_solves_total": 3,
+          "linear_iterations_total": 0,
+          "linear_screened_trials": 0,
+          "linear_screening_matvecs": 0,
+          "linear_recycled_solves": 0,
+          "linear_projected_solves": 0,
+          "linear_refinements": 0,
+          "linear_forward_calls": 3,
+          "linear_adjoint_calls": 6,
+          "hybrid_inner_rtol": null
+        },
+        "max_index_absolute_error": 0.0,
+        "max_coefficient_absolute_error": 0.0
+      },
+      "profile_baseline": "         6243 function calls in 0.040 seconds\n\n   Ordered by: cumulative time\n   List reduced from 168 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.040    0.040 beta_functional_audit.py:183(solve_baseline)\n        1    0.000    0.000    0.040    0.040 HYBRID.py:421(solve)\n        1    0.001    0.001    0.040    0.040 LSMR.py:40(solve)\n        3    0.001    0.000    0.028    0.009 HYBRID.py:123(__init__)\n        3    0.000    0.000    0.022    0.007 _decomp_svd.py:37(svd)\n        3    0.021    0.007    0.021    0.007 {built-in method scipy.linalg._batched_linalg._svd}\n        4    0.001    0.000    0.006    0.001 LSMR.py:429(_local_refit)\n        3    0.004    0.001    0.004    0.001 HYBRID.py:37(design_matrix)\n       11    0.003    0.000    0.003    0.000 _linalg.py:1666(svd)\n        3    0.000    0.000    0.002    0.001 LSMR.py:631(_stationarity)\n       20    0.000    0.000    0.002    0.000 einsumfunc.py:1242(einsum)\n       76    0.001    0.000    0.001    0.000 _linalg.py:2417(lstsq)\n       16    0.001    0.000    0.001    0.000 _multi_operator.py:8(forward)\n       13    0.000    0.000    0.001    0.000 LSMR.py:490(_predict)\n       19    0.001    0.000    0.001    0.000 einsumfunc.py:1144(bmm_einsum)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:289(correction)\n        6    0.001    0.000    0.001    0.000 HYBRID.py:190(rmatvec)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:399(_certificate)\n\n\n         6243 function calls in 0.040 seconds\n\n   Ordered by: internal time\n   List reduced from 168 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        3    0.021    0.007    0.021    0.007 {built-in method scipy.linalg._batched_linalg._svd}\n        3    0.004    0.001    0.004    0.001 HYBRID.py:37(design_matrix)\n       11    0.003    0.000    0.003    0.000 _linalg.py:1666(svd)\n       16    0.001    0.000    0.001    0.000 _multi_operator.py:8(forward)\n        1    0.001    0.001    0.040    0.040 LSMR.py:40(solve)\n        4    0.001    0.000    0.006    0.001 LSMR.py:429(_local_refit)\n        3    0.001    0.000    0.028    0.009 HYBRID.py:123(__init__)\n       19    0.001    0.000    0.001    0.000 einsumfunc.py:1144(bmm_einsum)\n        6    0.001    0.000    0.001    0.000 HYBRID.py:190(rmatvec)\n       76    0.001    0.000    0.001    0.000 _linalg.py:2417(lstsq)\n        3    0.000    0.000    0.000    0.000 HYBRID.py:180(matvec)\n       16    0.000    0.000    0.001    0.000 einsumfunc.py:634(einsum_path)\n       38    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n       36    0.000    0.000    0.000    0.000 _linalg.py:2598(norm)\n        3    0.000    0.000    0.002    0.001 LSMR.py:631(_stationarity)\n        4    0.000    0.000    0.000    0.000 _linalg.py:976(qr)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:399(_certificate)\n       20    0.000    0.000    0.002    0.000 einsumfunc.py:1242(einsum)\n\n\n",
+      "profile_candidate": "         4871 function calls in 0.040 seconds\n\n   Ordered by: cumulative time\n   List reduced from 171 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.040    0.040 beta_functional_audit.py:186(solve_candidate)\n        1    0.000    0.000    0.040    0.040 beta_functional_audit.py:183(solve_baseline)\n        1    0.000    0.000    0.040    0.040 HYBRID.py:421(solve)\n        1    0.001    0.001    0.040    0.040 LSMR.py:40(solve)\n        3    0.001    0.000    0.028    0.009 HYBRID.py:123(__init__)\n        3    0.000    0.000    0.022    0.007 _decomp_svd.py:37(svd)\n        3    0.022    0.007    0.022    0.007 {built-in method scipy.linalg._batched_linalg._svd}\n        4    0.001    0.000    0.006    0.001 LSMR.py:429(_local_refit)\n       11    0.003    0.000    0.003    0.000 _linalg.py:1666(svd)\n        3    0.003    0.001    0.003    0.001 beta_functional_audit.py:43(design_without_temporary)\n       76    0.001    0.000    0.001    0.000 _linalg.py:2417(lstsq)\n        3    0.001    0.000    0.001    0.000 beta_functional_audit.py:58(stationarity_matmul)\n       16    0.001    0.000    0.001    0.000 _multi_operator.py:8(forward)\n       13    0.000    0.000    0.001    0.000 LSMR.py:490(_predict)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:289(correction)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:399(_certificate)\n        3    0.000    0.000    0.001    0.000 LSMR.py:597(_gauge_fix)\n        6    0.001    0.000    0.001    0.000 HYBRID.py:190(rmatvec)\n\n\n         4871 function calls in 0.040 seconds\n\n   Ordered by: internal time\n   List reduced from 171 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        3    0.022    0.007    0.022    0.007 {built-in method scipy.linalg._batched_linalg._svd}\n        3    0.003    0.001    0.003    0.001 beta_functional_audit.py:43(design_without_temporary)\n       11    0.003    0.000    0.003    0.000 _linalg.py:1666(svd)\n       16    0.001    0.000    0.001    0.000 _multi_operator.py:8(forward)\n        3    0.001    0.000    0.028    0.009 HYBRID.py:123(__init__)\n        4    0.001    0.000    0.006    0.001 LSMR.py:429(_local_refit)\n        1    0.001    0.001    0.040    0.040 LSMR.py:40(solve)\n        6    0.001    0.000    0.001    0.000 HYBRID.py:190(rmatvec)\n       76    0.001    0.000    0.001    0.000 _linalg.py:2417(lstsq)\n        3    0.001    0.000    0.001    0.000 beta_functional_audit.py:58(stationarity_matmul)\n        3    0.000    0.000    0.000    0.000 HYBRID.py:180(matvec)\n       41    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n       36    0.000    0.000    0.000    0.000 _linalg.py:2598(norm)\n        4    0.000    0.000    0.000    0.000 LSMR.py:368(<genexpr>)\n        4    0.000    0.000    0.000    0.000 _linalg.py:976(qr)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:399(_certificate)\n       91    0.000    0.000    0.000    0.000 _linalg.py:201(_commonType)\n        4    0.000    0.000    0.000    0.000 {built-in method numpy._core._multiarray_umath.c_einsum}\n\n\n",
+      "first_two_active_gram_cosine": 0.591388253570942,
+      "row_compression": {
+        "shape": [
+          500,
+          11,
+          10
+        ],
+        "setup_seconds": 0.007848172001104103,
+        "input_bytes": 1760000,
+        "compressed_bytes": 484000,
+        "correction_absolute_error": 7.37257477290143e-17,
+        "normal_residual_ratios": [
+          2.1392043384442445e-12,
+          1.4161384058995448e-12
+        ],
+        "workspace_and_one_correction": {
+          "seconds": [
+            [
+              0.009680962000857107,
+              0.00967104799929075,
+              0.010088659000757616,
+              0.010472433001268655,
+              0.009824319000472315,
+              0.010530838000704534,
+              0.010160401001485297,
+              0.009412076000444358,
+              0.010566601999016711
+            ],
+            [
+              0.002532850001443876,
+              0.0017824799979280215,
+              0.0025748780026333407,
+              0.0017951730005734134,
+              0.0024829200010572094,
+              0.0016691929995431565,
+              0.0024862270001904108,
+              0.0016374439983337652,
+              0.002587648999906378
+            ]
+          ],
+          "median_seconds": [
+            0.010088659000757616,
+            0.0024829200010572094
+          ],
+          "candidate_baseline_ratio": 0.24611001331998164,
+          "tracemalloc_peak_bytes_excluding_inputs": [
+            6637593,
+            1867093
+          ]
+        }
+      },
+      "file": "benchmark_outputs/diagnostic/multi_solver_search_s1_20260924/d10-seed1001-outer0.npz",
+      "sha256": "f67219852c2e490da9584588a027c95a870fe6ab294dd561deb056de6426df7a"
+    },
+    {
+      "shape_J_P_d_m": [
+        500,
+        40,
+        10,
+        2
+      ],
+      "stationarity_reference_absolute_error": 9.450865295239268e-17,
+      "stationarity": {
+        "seconds": [
+          [
+            0.00045405399941955693,
+            0.00043639499926939607,
+            0.00042339499850641005,
+            0.00044519599759951234,
+            0.0004993250004190486,
+            0.0005050769977970049,
+            0.00045741199937765487,
+            0.0004411000008985866,
+            0.0004310689982958138
+          ],
+          [
+            0.00032877900230232626,
+            0.0003134679973300081,
+            0.00034286400114069693,
+            0.0003337939997436479,
+            0.0005201570020290092,
+            0.00041218399928766303,
+            0.0003255640003771987,
+            0.0003212689989595674,
+            0.0003180620005878154
+          ]
+        ],
+        "median_seconds": [
+          0.00044519599759951234,
+          0.00032877900230232626
+        ],
+        "candidate_baseline_ratio": 0.7385039489912216,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          854600,
+          854256
+        ]
+      },
+      "actions_einsum_vs_matmul": {
+        "seconds": [
+          [
+            0.00010805000056279823,
+            0.00010665100126061589,
+            0.00010836699948413298,
+            0.00011764499868149869,
+            0.00010698600090108812,
+            0.00010555000335443765,
+            0.00010475800081621855,
+            0.00010752799789770506,
+            0.00011720900147338398
+          ],
+          [
+            0.00018791999900713563,
+            0.00018204400112153962,
+            0.0001978840009542182,
+            0.000183524996828055,
+            0.00018097500287694857,
+            0.00018198399993707426,
+            0.0001805299980333075,
+            0.00018411799828754738,
+            0.0001819240023905877
+          ]
+        ],
+        "median_seconds": [
+          0.00010752799789770506,
+          0.00018204400112153962
+        ],
+        "candidate_baseline_ratio": 1.6929916364175597,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          161008,
+          241739
+        ]
+      },
+      "design": {
+        "seconds": [
+          [
+            0.0005040979995101225,
+            0.0005687170014425647,
+            0.0005308309991960414,
+            0.0005897509981878102,
+            0.0006181860007927753,
+            0.0007481530010409188,
+            0.0005866350002179388,
+            0.0005352799998945557,
+            0.0005067019992566202
+          ],
+          [
+            0.0006617409999307711,
+            0.0006369900002027862,
+            0.0006682530001853593,
+            0.0006460659969889093,
+            0.000729158000467578,
+            0.0006420259996957611,
+            0.0006373970027198084,
+            0.0006334720019367523,
+            0.0006420300014724489
+          ]
+        ],
+        "median_seconds": [
+          0.0005687170014425647,
+          0.0006420300014724489
+        ],
+        "candidate_baseline_ratio": 1.1289094573292588,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          4869664,
+          3333664
+        ]
+      },
+      "trajectory": {
+        "measurement": {
+          "seconds": [
+            [
+              0.04018052399987937,
+              0.03665100299986079,
+              0.0385900990004302,
+              0.034314591001020744,
+              0.0346417599976121,
+              0.03553694099900895,
+              0.03418084499935503,
+              0.034733001000859076,
+              0.0348306859996228
+            ],
+            [
+              0.034844452999095665,
+              0.03390043000035803,
+              0.032777865999378264,
+              0.03214090199981001,
+              0.03297873599876766,
+              0.03341979999822797,
+              0.03303746199890156,
+              0.03318696600035764,
+              0.03317977799815708
+            ]
+          ],
+          "median_seconds": [
+            0.0348306859996228,
+            0.03317977799815708
+          ],
+          "candidate_baseline_ratio": 0.9526019096642655,
+          "tracemalloc_peak_bytes_excluding_inputs": [
+            6985257,
+            6987801
+          ]
+        },
+        "settings": {
+          "lambda_prox": 0.05,
+          "max_steps": 3,
+          "tol": 1e-06
+        },
+        "diagnostics": {
+          "lsmr_stop": 0,
+          "lsmr_iterations": 0,
+          "normal_residual_ratio": 6.263248018504641e-10,
+          "normal_residual": 6.460760823334306e-14,
+          "correction_norm": 0.002917622151514155,
+          "gauge_error": 2.841096219682856e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 0,
+          "lsmr_solves_total": 0,
+          "accepted_steps": 3,
+          "converged": false,
+          "relative_loss_change": 0.00010303011938335477,
+          "aligned_step": 0.00408057706472169,
+          "consecutive_certified_steps": 0,
+          "certificate_failures": [
+            "relative_loss_change",
+            "aligned_step",
+            "riemannian_gradient",
+            "consecutive_steps"
+          ],
+          "rejected_trials": {
+            "screening": 0,
+            "normal_residual": 0,
+            "trust_radius": 0,
+            "objective": 0
+          },
+          "loss": 88.47700438828748,
+          "loss_history": [
+            90.13909642725356,
+            88.58240701270921,
+            88.48612112391065,
+            88.47700438828748
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.025
+          ],
+          "local_rank_loss": [
+            18,
+            18,
+            18,
+            18
+          ],
+          "riemannian_gradient": 0.0005238597283592843,
+          "local_gradient": 1.2361336401480191e-14,
+          "orthogonality": 4.945385356076115e-16,
+          "linear_solver": "hybrid",
+          "linear_backends": [
+            "cached-svd",
+            "cached-svd",
+            "cached-svd"
+          ],
+          "linear_solves_total": 3,
+          "linear_iterations_total": 0,
+          "linear_screened_trials": 0,
+          "linear_screening_matvecs": 0,
+          "linear_recycled_solves": 0,
+          "linear_projected_solves": 0,
+          "linear_refinements": 0,
+          "linear_forward_calls": 3,
+          "linear_adjoint_calls": 6,
+          "hybrid_inner_rtol": null
+        },
+        "max_index_absolute_error": 0.0,
+        "max_coefficient_absolute_error": 0.0
+      },
+      "profile_baseline": "         6079 function calls in 0.036 seconds\n\n   Ordered by: cumulative time\n   List reduced from 168 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.036    0.036 beta_functional_audit.py:183(solve_baseline)\n        1    0.000    0.000    0.036    0.036 HYBRID.py:421(solve)\n        1    0.001    0.001    0.036    0.036 LSMR.py:40(solve)\n        3    0.001    0.000    0.024    0.008 HYBRID.py:123(__init__)\n        3    0.000    0.000    0.019    0.006 _decomp_svd.py:37(svd)\n        3    0.019    0.006    0.019    0.006 {built-in method scipy.linalg._batched_linalg._svd}\n        4    0.001    0.000    0.006    0.001 LSMR.py:429(_local_refit)\n        3    0.004    0.001    0.004    0.001 HYBRID.py:37(design_matrix)\n       11    0.003    0.000    0.004    0.000 _linalg.py:1666(svd)\n        3    0.000    0.000    0.002    0.001 LSMR.py:631(_stationarity)\n       20    0.000    0.000    0.002    0.000 einsumfunc.py:1242(einsum)\n       72    0.001    0.000    0.001    0.000 _linalg.py:2417(lstsq)\n       16    0.001    0.000    0.001    0.000 _multi_operator.py:8(forward)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:289(correction)\n       13    0.000    0.000    0.001    0.000 LSMR.py:490(_predict)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:399(_certificate)\n       19    0.001    0.000    0.001    0.000 einsumfunc.py:1144(bmm_einsum)\n       16    0.000    0.000    0.001    0.000 einsumfunc.py:634(einsum_path)\n\n\n         6079 function calls in 0.036 seconds\n\n   Ordered by: internal time\n   List reduced from 168 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        3    0.019    0.006    0.019    0.006 {built-in method scipy.linalg._batched_linalg._svd}\n        3    0.004    0.001    0.004    0.001 HYBRID.py:37(design_matrix)\n       11    0.003    0.000    0.004    0.000 _linalg.py:1666(svd)\n        1    0.001    0.001    0.036    0.036 LSMR.py:40(solve)\n        4    0.001    0.000    0.006    0.001 LSMR.py:429(_local_refit)\n       16    0.001    0.000    0.001    0.000 _multi_operator.py:8(forward)\n        3    0.001    0.000    0.024    0.008 HYBRID.py:123(__init__)\n       72    0.001    0.000    0.001    0.000 _linalg.py:2417(lstsq)\n        6    0.001    0.000    0.001    0.000 HYBRID.py:190(rmatvec)\n       19    0.001    0.000    0.001    0.000 einsumfunc.py:1144(bmm_einsum)\n        3    0.000    0.000    0.000    0.000 HYBRID.py:180(matvec)\n       36    0.000    0.000    0.001    0.000 _linalg.py:2598(norm)\n       16    0.000    0.000    0.001    0.000 einsumfunc.py:634(einsum_path)\n       38    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n        3    0.000    0.000    0.002    0.001 LSMR.py:631(_stationarity)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:399(_certificate)\n        4    0.000    0.000    0.000    0.000 _linalg.py:976(qr)\n       87    0.000    0.000    0.000    0.000 _linalg.py:201(_commonType)\n\n\n",
+      "profile_candidate": "         4707 function calls in 0.035 seconds\n\n   Ordered by: cumulative time\n   List reduced from 171 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.035    0.035 beta_functional_audit.py:186(solve_candidate)\n        1    0.000    0.000    0.034    0.034 beta_functional_audit.py:183(solve_baseline)\n        1    0.000    0.000    0.034    0.034 HYBRID.py:421(solve)\n        1    0.001    0.001    0.034    0.034 LSMR.py:40(solve)\n        3    0.000    0.000    0.024    0.008 HYBRID.py:123(__init__)\n        3    0.000    0.000    0.019    0.006 _decomp_svd.py:37(svd)\n        3    0.019    0.006    0.019    0.006 {built-in method scipy.linalg._batched_linalg._svd}\n        4    0.001    0.000    0.006    0.001 LSMR.py:429(_local_refit)\n       11    0.003    0.000    0.004    0.000 _linalg.py:1666(svd)\n        3    0.003    0.001    0.003    0.001 beta_functional_audit.py:43(design_without_temporary)\n        3    0.001    0.000    0.001    0.000 beta_functional_audit.py:58(stationarity_matmul)\n       72    0.001    0.000    0.001    0.000 _linalg.py:2417(lstsq)\n       16    0.001    0.000    0.001    0.000 _multi_operator.py:8(forward)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:289(correction)\n        3    0.000    0.000    0.001    0.000 HYBRID.py:399(_certificate)\n       13    0.000    0.000    0.001    0.000 LSMR.py:490(_predict)\n        3    0.000    0.000    0.001    0.000 LSMR.py:597(_gauge_fix)\n        6    0.001    0.000    0.001    0.000 HYBRID.py:190(rmatvec)\n\n\n         4707 function calls in 0.035 seconds\n\n   Ordered by: internal time\n   List reduced from 171 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        3    0.019    0.006    0.019    0.006 {built-in method scipy.linalg._batched_linalg._svd}\n       11    0.003    0.000    0.004    0.000 _linalg.py:1666(svd)\n        3    0.003    0.001    0.003    0.001 beta_functional_audit.py:43(design_without_temporary)\n        4    0.001    0.000    0.006    0.001 LSMR.py:429(_local_refit)\n        1    0.001    0.001    0.034    0.034 LSMR.py:40(solve)\n       16    0.001    0.000    0.001    0.000 _multi_operator.py:8(forward)\n       72    0.001    0.000    0.001    0.000 _linalg.py:2417(lstsq)\n        3    0.001    0.000    0.001    0.000 beta_functional_audit.py:58(stationarity_matmul)\n        6    0.001    0.000    0.001    0.000 HYBRID.py:190(rmatvec)\n        3    0.000    0.000    0.024    0.008 HYBRID.py:123(__init__)\n        3    0.000    0.000    0.000    0.000 HYBRID.py:180(matvec)\n       36    0.000    0.000    0.001    0.000 _linalg.py:2598(norm)\n       41    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n        3    0.000    0.000    0.001    0.000 HYBRID.py:399(_certificate)\n        4    0.000    0.000    0.000    0.000 _linalg.py:976(qr)\n       87    0.000    0.000    0.000    0.000 _linalg.py:201(_commonType)\n        4    0.000    0.000    0.000    0.000 {built-in method numpy._core._multiarray_umath.c_einsum}\n        4    0.000    0.000    0.000    0.000 LSMR.py:497(_loss)\n\n\n",
+      "first_two_active_gram_cosine": 0.34081184889695637,
+      "row_compression": {
+        "shape": [
+          500,
+          11,
+          10
+        ],
+        "setup_seconds": 0.005376529999921331,
+        "input_bytes": 1760000,
+        "compressed_bytes": 484000,
+        "correction_absolute_error": 7.632783294297951e-17,
+        "normal_residual_ratios": [
+          6.0269244912978985e-12,
+          4.83720824450845e-12
+        ],
+        "workspace_and_one_correction": {
+          "seconds": [
+            [
+              0.007665928002097644,
+              0.0091873579985986,
+              0.008936495003581513,
+              0.007914069999969797,
+              0.008937331997003639,
+              0.008204207002563635,
+              0.008609851000073832,
+              0.008622446999652311,
+              0.008421701000770554
+            ],
+            [
+              0.0021920950021012686,
+              0.0015428949991473928,
+              0.0024120790003507864,
+              0.0016901579983823467,
+              0.0023035689991957042,
+              0.0015771319995110389,
+              0.002402824000455439,
+              0.0015410689993586857,
+              0.002179580998927122
+            ]
+          ],
+          "median_seconds": [
+            0.008609851000073832,
+            0.002179580998927122
+          ],
+          "candidate_baseline_ratio": 0.2531496769117644,
+          "tracemalloc_peak_bytes_excluding_inputs": [
+            6637593,
+            1867093
+          ]
+        }
+      },
+      "file": "benchmark_outputs/diagnostic/multi_solver_search_s1_20260924/d10-seed1002-outer0.npz",
+      "sha256": "972341206aaa9489cb29f80c6113eef55ab96b7e4b4de064d6f60f19b143302d"
+    },
+    {
+      "shape_J_P_d_m": [
+        500,
+        40,
+        100,
+        2
+      ],
+      "stationarity_reference_absolute_error": 3.99177558510173e-17,
+      "stationarity": {
+        "seconds": [
+          [
+            0.002869697000278393,
+            0.002282791003381135,
+            0.004047327001899248,
+            0.0030993270011094864,
+            0.002489604001311818,
+            0.002508716999727767,
+            0.002320166000572499,
+            0.0022556990006705746,
+            0.002203979001933476
+          ],
+          [
+            0.0021775850000267383,
+            0.0019253940008638892,
+            0.0026391879982838873,
+            0.0021120399978826754,
+            0.002093441999022616,
+            0.0026560359983704984,
+            0.0023792410029273015,
+            0.002647933000844205,
+            0.004157142000622116
+          ]
+        ],
+        "median_seconds": [
+          0.002489604001311818,
+          0.0023792410029273015
+        ],
+        "candidate_baseline_ratio": 0.9556704607132843,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          1217480,
+          1217136
+        ]
+      },
+      "actions_einsum_vs_matmul": {
+        "seconds": [
+          [
+            0.001357037999696331,
+            0.0008358919985766988,
+            0.0007543750034528784,
+            0.0011077560011472087,
+            0.0015451899998879526,
+            0.0008168360000126995,
+            0.0007842319973860867,
+            0.0016945700008363929,
+            0.00210328699904494
+          ],
+          [
+            0.0015443449992744718,
+            0.0011428540019551292,
+            0.0010843829986697529,
+            0.0010804529993038159,
+            0.0012379129984765314,
+            0.0010527909980737604,
+            0.001086853000742849,
+            0.0011150110003654845,
+            0.0019259369983046781
+          ]
+        ],
+        "median_seconds": [
+          0.0011077560011472087,
+          0.0011150110003654845
+        ],
+        "candidate_baseline_ratio": 1.0065492754819314,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          162448,
+          962640
+        ]
+      },
+      "trajectory": {
+        "measurement": {
+          "seconds": [
+            [
+              0.130555348998314,
+              0.127625672997965,
+              0.12831117499808897,
+              0.12969266700019944,
+              0.12616223800068838,
+              0.12453846000062185,
+              0.1261939899995923,
+              0.12880251699971268,
+              0.1279173839975556
+            ],
+            [
+              0.13412348999918322,
+              0.12392863499917439,
+              0.13604725500044879,
+              0.14409461700051907,
+              0.1265749769991089,
+              0.12598656499903882,
+              0.1274110020021908,
+              0.12914150200231234,
+              0.12763424100194243
+            ]
+          ],
+          "median_seconds": [
+            0.1279173839975556,
+            0.12763424100194243
+          ],
+          "candidate_baseline_ratio": 0.9977865166815906,
+          "tracemalloc_peak_bytes_excluding_inputs": [
+            2215256,
+            2217720
+          ]
+        },
+        "settings": {
+          "lambda_prox": 0.05,
+          "max_steps": 3,
+          "tol": 1e-06
+        },
+        "diagnostics": {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 26,
+          "normal_residual_ratio": 2.955154248184942e-08,
+          "normal_residual": 4.835516349531417e-07,
+          "correction_norm": 0.05649600667313173,
+          "gauge_error": 3.694615592243772e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 0,
+          "lsmr_solves_total": 0,
+          "accepted_steps": 3,
+          "converged": false,
+          "relative_loss_change": 0.009308982940524865,
+          "aligned_step": 0.07948336716776071,
+          "consecutive_certified_steps": 0,
+          "certificate_failures": [
+            "relative_loss_change",
+            "aligned_step",
+            "riemannian_gradient",
+            "consecutive_steps"
+          ],
+          "rejected_trials": {
+            "screening": 11,
+            "normal_residual": 0,
+            "trust_radius": 0,
+            "objective": 0
+          },
+          "loss": 327.427778086539,
+          "loss_history": [
+            385.7444342922308,
+            338.2514800446681,
+            330.5044382641073,
+            327.427778086539
+          ],
+          "lambda_history": [
+            102.4,
+            204.8,
+            204.8
+          ],
+          "local_rank_loss": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "riemannian_gradient": 0.00381431348589867,
+          "local_gradient": 4.319169847890694e-15,
+          "orthogonality": 4.635629580936695e-16,
+          "linear_solver": "hybrid",
+          "linear_backends": [
+            "scaled-lsmr",
+            "scaled-lsmr",
+            "scaled-lsmr"
+          ],
+          "linear_solves_total": 3,
+          "linear_iterations_total": 53,
+          "linear_screened_trials": 11,
+          "linear_screening_matvecs": 44,
+          "linear_recycled_solves": 1,
+          "linear_projected_solves": 0,
+          "linear_refinements": 0,
+          "linear_forward_calls": 101,
+          "linear_adjoint_calls": 106,
+          "hybrid_inner_rtol": null
+        },
+        "max_index_absolute_error": 0.0,
+        "max_coefficient_absolute_error": 0.0
+      },
+      "profile_baseline": "         10437 function calls in 0.137 seconds\n\n   Ordered by: cumulative time\n   List reduced from 202 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.137    0.137 beta_functional_audit.py:183(solve_baseline)\n        1    0.000    0.000    0.137    0.137 HYBRID.py:421(solve)\n        1    0.000    0.000    0.137    0.137 LSMR.py:40(solve)\n        3    0.000    0.000    0.063    0.021 HYBRID.py:289(correction)\n        3    0.002    0.001    0.060    0.020 lsmr.py:29(lsmr)\n      110    0.001    0.000    0.056    0.001 _interface.py:312(_shared_matvec)\n      106    0.050    0.000    0.050    0.000 HYBRID.py:190(rmatvec)\n      101    0.045    0.000    0.045    0.000 HYBRID.py:180(matvec)\n       12    0.001    0.000    0.042    0.004 HYBRID.py:200(rejects_trust)\n       56    0.000    0.000    0.028    0.001 _interface.py:393(rmatvec)\n       54    0.000    0.000    0.028    0.001 _interface.py:363(matvec)\n       56    0.000    0.000    0.027    0.000 _interface.py:893(_rmatvec)\n       56    0.000    0.000    0.027    0.000 HYBRID.py:325(rmatvec)\n       54    0.000    0.000    0.027    0.000 _interface.py:890(_matvec)\n       54    0.001    0.000    0.027    0.000 HYBRID.py:320(matvec)\n       23    0.000    0.000    0.009    0.000 einsumfunc.py:1242(einsum)\n       16    0.009    0.001    0.009    0.001 _multi_operator.py:8(forward)\n        3    0.000    0.000    0.009    0.003 LSMR.py:631(_stationarity)\n\n\n         10437 function calls in 0.137 seconds\n\n   Ordered by: internal time\n   List reduced from 202 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n      106    0.050    0.000    0.050    0.000 HYBRID.py:190(rmatvec)\n      101    0.045    0.000    0.045    0.000 HYBRID.py:180(matvec)\n       16    0.009    0.001    0.009    0.001 _multi_operator.py:8(forward)\n       19    0.006    0.000    0.006    0.000 einsumfunc.py:1144(bmm_einsum)\n        4    0.005    0.001    0.008    0.002 LSMR.py:429(_local_refit)\n       11    0.003    0.000    0.003    0.000 _linalg.py:1666(svd)\n       13    0.003    0.000    0.003    0.000 {built-in method numpy._core._multiarray_umath.c_einsum}\n        3    0.002    0.001    0.060    0.020 lsmr.py:29(lsmr)\n       12    0.001    0.000    0.042    0.004 HYBRID.py:200(rejects_trust)\n       12    0.001    0.000    0.001    0.000 {built-in method scipy.linalg._batched_linalg._svd}\n       54    0.001    0.000    0.027    0.000 HYBRID.py:320(matvec)\n      302    0.001    0.000    0.002    0.000 _linalg.py:2598(norm)\n        4    0.001    0.000    0.001    0.000 LSMR.py:368(<genexpr>)\n      110    0.001    0.000    0.056    0.001 _interface.py:312(_shared_matvec)\n      293    0.001    0.000    0.001    0.000 {method 'dot' of 'numpy.ndarray' objects}\n        3    0.000    0.000    0.006    0.002 HYBRID.py:123(__init__)\n       50    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n        1    0.000    0.000    0.137    0.137 LSMR.py:40(solve)\n\n\n",
+      "profile_candidate": "         9065 function calls in 0.128 seconds\n\n   Ordered by: cumulative time\n   List reduced from 205 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.128    0.128 beta_functional_audit.py:186(solve_candidate)\n        1    0.000    0.000    0.128    0.128 beta_functional_audit.py:183(solve_baseline)\n        1    0.000    0.000    0.128    0.128 HYBRID.py:421(solve)\n        1    0.000    0.000    0.128    0.128 LSMR.py:40(solve)\n        3    0.000    0.000    0.057    0.019 HYBRID.py:289(correction)\n        3    0.002    0.001    0.053    0.018 lsmr.py:29(lsmr)\n      110    0.001    0.000    0.050    0.000 _interface.py:312(_shared_matvec)\n      106    0.048    0.000    0.048    0.000 HYBRID.py:190(rmatvec)\n       12    0.002    0.000    0.044    0.004 HYBRID.py:200(rejects_trust)\n      101    0.043    0.000    0.043    0.000 HYBRID.py:180(matvec)\n       56    0.000    0.000    0.026    0.000 _interface.py:393(rmatvec)\n       56    0.000    0.000    0.025    0.000 _interface.py:893(_rmatvec)\n       56    0.000    0.000    0.025    0.000 HYBRID.py:325(rmatvec)\n       54    0.000    0.000    0.024    0.000 _interface.py:363(matvec)\n       54    0.000    0.000    0.023    0.000 _interface.py:890(_matvec)\n       54    0.001    0.000    0.023    0.000 HYBRID.py:320(matvec)\n        4    0.005    0.001    0.008    0.002 LSMR.py:429(_local_refit)\n       16    0.008    0.000    0.008    0.000 _multi_operator.py:8(forward)\n\n\n         9065 function calls in 0.128 seconds\n\n   Ordered by: internal time\n   List reduced from 205 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n      106    0.048    0.000    0.048    0.000 HYBRID.py:190(rmatvec)\n      101    0.043    0.000    0.043    0.000 HYBRID.py:180(matvec)\n       16    0.008    0.000    0.008    0.000 _multi_operator.py:8(forward)\n        4    0.005    0.001    0.008    0.002 LSMR.py:429(_local_refit)\n        3    0.004    0.001    0.006    0.002 beta_functional_audit.py:58(stationarity_matmul)\n       11    0.003    0.000    0.003    0.000 _linalg.py:1666(svd)\n        3    0.002    0.001    0.053    0.018 lsmr.py:29(lsmr)\n        7    0.002    0.000    0.002    0.000 {built-in method numpy._core._multiarray_umath.c_einsum}\n       12    0.002    0.000    0.044    0.004 HYBRID.py:200(rejects_trust)\n       12    0.001    0.000    0.001    0.000 {built-in method scipy.linalg._batched_linalg._svd}\n       54    0.001    0.000    0.023    0.000 HYBRID.py:320(matvec)\n      302    0.001    0.000    0.002    0.000 _linalg.py:2598(norm)\n        4    0.001    0.000    0.001    0.000 LSMR.py:368(<genexpr>)\n      110    0.001    0.000    0.050    0.000 _interface.py:312(_shared_matvec)\n      293    0.001    0.000    0.001    0.000 {method 'dot' of 'numpy.ndarray' objects}\n        1    0.001    0.001    0.001    0.001 einsumfunc.py:1144(bmm_einsum)\n       53    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n        1    0.000    0.000    0.128    0.128 LSMR.py:40(solve)\n\n\n",
+      "first_two_active_gram_cosine": 0.19039124249236825,
+      "file": "benchmark_outputs/diagnostic/multi_solver_search_s1_20260924/n1000-seed1000-outer0.npz",
+      "sha256": "e040ec350a513cadaa752bc5fbe328065f98728b83200aca216ad4e4967d1954"
+    },
+    {
+      "shape_J_P_d_m": [
+        500,
+        40,
+        100,
+        2
+      ],
+      "stationarity_reference_absolute_error": 5.948178073172664e-16,
+      "stationarity": {
+        "seconds": [
+          [
+            0.0021344109991332516,
+            0.0020989529984944966,
+            0.002098732002195902,
+            0.002158181003323989,
+            0.002399209999566665,
+            0.0020834030001424253,
+            0.00249719600105891,
+            0.0021277849991747644,
+            0.002042383002844872
+          ],
+          [
+            0.0018475180004315916,
+            0.0017902960025821812,
+            0.0024547020002501085,
+            0.0023038639992591925,
+            0.001910383998620091,
+            0.0017864840010588523,
+            0.002455797999573406,
+            0.001818066000851104,
+            0.00178497500019148
+          ]
+        ],
+        "median_seconds": [
+          0.0021277849991747644,
+          0.0018475180004315916
+        ],
+        "candidate_baseline_ratio": 0.8682822752994918,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          1217480,
+          1217136
+        ]
+      },
+      "actions_einsum_vs_matmul": {
+        "seconds": [
+          [
+            0.0007948489983391482,
+            0.0007628599996678531,
+            0.0006870729994261637,
+            0.0007321119992411695,
+            0.0006702500031678937,
+            0.0011720869988494087,
+            0.0008023760019568726,
+            0.0007603949998156168,
+            0.0007140779998735525
+          ],
+          [
+            0.0013178259978303686,
+            0.0011507439994602464,
+            0.001053754000167828,
+            0.001033356998959789,
+            0.0011125399978482164,
+            0.0017270800017286092,
+            0.0011316790005366784,
+            0.0010409930000605527,
+            0.0010509450003155507
+          ]
+        ],
+        "median_seconds": [
+          0.0007603949998156168,
+          0.0011125399978482164
+        ],
+        "candidate_baseline_ratio": 1.4631079874512445,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          162448,
+          962640
+        ]
+      },
+      "trajectory": {
+        "measurement": {
+          "seconds": [
+            [
+              0.16970299700187752,
+              0.17105809100030456,
+              0.16574416599905817,
+              0.15260966699861456,
+              0.1481982439981948,
+              0.14955308700155,
+              0.14636121999865281,
+              0.14998530600132653,
+              0.14933268299864721
+            ],
+            [
+              0.17153355900154565,
+              0.16340052799932892,
+              0.16372513600072125,
+              0.14942248599982122,
+              0.14107303399941884,
+              0.16590815899689915,
+              0.165781412000797,
+              0.14445911099755904,
+              0.17005077299836557
+            ]
+          ],
+          "median_seconds": [
+            0.14998530600132653,
+            0.16372513600072125
+          ],
+          "candidate_baseline_ratio": 1.0916078405658831,
+          "tracemalloc_peak_bytes_excluding_inputs": [
+            2215368,
+            2217832
+          ]
+        },
+        "settings": {
+          "lambda_prox": 0.05,
+          "max_steps": 3,
+          "tol": 1e-06
+        },
+        "diagnostics": {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 33,
+          "normal_residual_ratio": 1.45262595824577e-07,
+          "normal_residual": 6.899978620359837e-07,
+          "correction_norm": 0.06560077733711153,
+          "gauge_error": 3.0800921916139825e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 0,
+          "lsmr_solves_total": 0,
+          "accepted_steps": 3,
+          "converged": false,
+          "relative_loss_change": 0.007788075863750186,
+          "aligned_step": 0.09263249948364395,
+          "consecutive_certified_steps": 0,
+          "certificate_failures": [
+            "relative_loss_change",
+            "aligned_step",
+            "riemannian_gradient",
+            "consecutive_steps"
+          ],
+          "rejected_trials": {
+            "screening": 9,
+            "normal_residual": 0,
+            "trust_radius": 0,
+            "objective": 0
+          },
+          "loss": 296.82409823210173,
+          "loss_history": [
+            347.4134066209948,
+            304.7994815070116,
+            299.15393174749033,
+            296.82409823210173
+          ],
+          "lambda_history": [
+            25.6,
+            51.2,
+            51.2
+          ],
+          "local_rank_loss": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "riemannian_gradient": 0.002866298708857723,
+          "local_gradient": 3.376935638458051e-15,
+          "orthogonality": 1.5708162371141485e-16,
+          "linear_solver": "hybrid",
+          "linear_backends": [
+            "scaled-lsmr",
+            "scaled-lsmr",
+            "scaled-lsmr"
+          ],
+          "linear_solves_total": 3,
+          "linear_iterations_total": 84,
+          "linear_screened_trials": 9,
+          "linear_screening_matvecs": 42,
+          "linear_recycled_solves": 1,
+          "linear_projected_solves": 0,
+          "linear_refinements": 0,
+          "linear_forward_calls": 130,
+          "linear_adjoint_calls": 135,
+          "hybrid_inner_rtol": null
+        },
+        "max_index_absolute_error": 0.0,
+        "max_coefficient_absolute_error": 0.0
+      },
+      "profile_baseline": "         13696 function calls in 0.157 seconds\n\n   Ordered by: cumulative time\n   List reduced from 202 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.157    0.157 beta_functional_audit.py:183(solve_baseline)\n        1    0.000    0.000    0.157    0.157 HYBRID.py:421(solve)\n        1    0.000    0.000    0.157    0.157 LSMR.py:40(solve)\n        3    0.000    0.000    0.086    0.029 HYBRID.py:289(correction)\n        3    0.003    0.001    0.083    0.028 lsmr.py:29(lsmr)\n      172    0.001    0.000    0.077    0.000 _interface.py:312(_shared_matvec)\n      135    0.060    0.000    0.061    0.000 HYBRID.py:190(rmatvec)\n      130    0.056    0.000    0.056    0.000 HYBRID.py:180(matvec)\n       10    0.002    0.000    0.043    0.004 HYBRID.py:200(rejects_trust)\n       87    0.000    0.000    0.039    0.000 _interface.py:393(rmatvec)\n       85    0.000    0.000    0.038    0.000 _interface.py:363(matvec)\n       87    0.000    0.000    0.038    0.000 _interface.py:893(_rmatvec)\n       87    0.000    0.000    0.038    0.000 HYBRID.py:325(rmatvec)\n       85    0.000    0.000    0.037    0.000 _interface.py:890(_matvec)\n       85    0.002    0.000    0.037    0.000 HYBRID.py:320(matvec)\n       23    0.000    0.000    0.008    0.000 einsumfunc.py:1242(einsum)\n        4    0.004    0.001    0.008    0.002 LSMR.py:429(_local_refit)\n        3    0.000    0.000    0.008    0.003 LSMR.py:631(_stationarity)\n\n\n         13696 function calls in 0.157 seconds\n\n   Ordered by: internal time\n   List reduced from 202 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n      135    0.060    0.000    0.061    0.000 HYBRID.py:190(rmatvec)\n      130    0.056    0.000    0.056    0.000 HYBRID.py:180(matvec)\n       16    0.007    0.000    0.007    0.000 _multi_operator.py:8(forward)\n       19    0.005    0.000    0.005    0.000 einsumfunc.py:1144(bmm_einsum)\n        4    0.004    0.001    0.008    0.002 LSMR.py:429(_local_refit)\n       11    0.003    0.000    0.003    0.000 _linalg.py:1666(svd)\n        3    0.003    0.001    0.083    0.028 lsmr.py:29(lsmr)\n       13    0.002    0.000    0.002    0.000 {built-in method numpy._core._multiarray_umath.c_einsum}\n       10    0.002    0.000    0.043    0.004 HYBRID.py:200(rejects_trust)\n       85    0.002    0.000    0.037    0.000 HYBRID.py:320(matvec)\n       10    0.001    0.000    0.001    0.000 {built-in method scipy.linalg._batched_linalg._svd}\n      389    0.001    0.000    0.002    0.000 _linalg.py:2598(norm)\n      172    0.001    0.000    0.077    0.000 _interface.py:312(_shared_matvec)\n      380    0.001    0.000    0.001    0.000 {method 'dot' of 'numpy.ndarray' objects}\n        4    0.001    0.000    0.001    0.000 LSMR.py:368(<genexpr>)\n       87    0.000    0.000    0.038    0.000 HYBRID.py:325(rmatvec)\n      336    0.000    0.000    0.001    0.000 lsqr.py:62(_sym_ortho)\n       48    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n\n\n",
+      "profile_candidate": "         12324 function calls in 0.155 seconds\n\n   Ordered by: cumulative time\n   List reduced from 205 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.155    0.155 beta_functional_audit.py:186(solve_candidate)\n        1    0.000    0.000    0.155    0.155 beta_functional_audit.py:183(solve_baseline)\n        1    0.000    0.000    0.155    0.155 HYBRID.py:421(solve)\n        1    0.000    0.000    0.155    0.155 LSMR.py:40(solve)\n        3    0.000    0.000    0.083    0.028 HYBRID.py:289(correction)\n        3    0.003    0.001    0.080    0.027 lsmr.py:29(lsmr)\n      172    0.001    0.000    0.075    0.000 _interface.py:312(_shared_matvec)\n      135    0.057    0.000    0.057    0.000 HYBRID.py:190(rmatvec)\n      130    0.052    0.000    0.052    0.000 HYBRID.py:180(matvec)\n       10    0.001    0.000    0.039    0.004 HYBRID.py:200(rejects_trust)\n       87    0.000    0.000    0.038    0.000 _interface.py:393(rmatvec)\n       87    0.000    0.000    0.037    0.000 _interface.py:893(_rmatvec)\n       87    0.000    0.000    0.037    0.000 HYBRID.py:325(rmatvec)\n       85    0.000    0.000    0.037    0.000 _interface.py:363(matvec)\n       85    0.000    0.000    0.035    0.000 _interface.py:890(_matvec)\n       85    0.001    0.000    0.035    0.000 HYBRID.py:320(matvec)\n       16    0.010    0.001    0.010    0.001 _multi_operator.py:8(forward)\n        4    0.005    0.001    0.009    0.002 LSMR.py:429(_local_refit)\n\n\n         12324 function calls in 0.155 seconds\n\n   Ordered by: internal time\n   List reduced from 205 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n      135    0.057    0.000    0.057    0.000 HYBRID.py:190(rmatvec)\n      130    0.052    0.000    0.052    0.000 HYBRID.py:180(matvec)\n       16    0.010    0.001    0.010    0.001 _multi_operator.py:8(forward)\n        3    0.006    0.002    0.008    0.003 beta_functional_audit.py:58(stationarity_matmul)\n        4    0.005    0.001    0.009    0.002 LSMR.py:429(_local_refit)\n       11    0.003    0.000    0.003    0.000 _linalg.py:1666(svd)\n        3    0.003    0.001    0.080    0.027 lsmr.py:29(lsmr)\n        7    0.002    0.000    0.002    0.000 {built-in method numpy._core._multiarray_umath.c_einsum}\n       85    0.001    0.000    0.035    0.000 HYBRID.py:320(matvec)\n        4    0.001    0.000    0.002    0.000 LSMR.py:368(<genexpr>)\n       10    0.001    0.000    0.039    0.004 HYBRID.py:200(rejects_trust)\n       10    0.001    0.000    0.001    0.000 {built-in method scipy.linalg._batched_linalg._svd}\n      389    0.001    0.000    0.002    0.000 _linalg.py:2598(norm)\n      172    0.001    0.000    0.075    0.000 _interface.py:312(_shared_matvec)\n      380    0.001    0.000    0.001    0.000 {method 'dot' of 'numpy.ndarray' objects}\n       87    0.000    0.000    0.037    0.000 HYBRID.py:325(rmatvec)\n      336    0.000    0.000    0.001    0.000 lsqr.py:62(_sym_ortho)\n       51    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n\n\n",
+      "first_two_active_gram_cosine": 0.37033074963208135,
+      "file": "benchmark_outputs/diagnostic/multi_solver_search_s1_20260924/n1000-seed1001-outer0.npz",
+      "sha256": "4b7cd110a9b543f1c3959b1b25847e1af0675b253f8513ef861a56d96e0b7697"
+    },
+    {
+      "shape_J_P_d_m": [
+        500,
+        40,
+        100,
+        2
+      ],
+      "stationarity_reference_absolute_error": 2.676988670880858e-16,
+      "stationarity": {
+        "seconds": [
+          [
+            0.002194070999394171,
+            0.0022140729997772723,
+            0.0022597009992750827,
+            0.0022751520009478554,
+            0.0023107659981178585,
+            0.0039304089987126645,
+            0.003060876999370521,
+            0.002170165000279667,
+            0.0021813899984408636
+          ],
+          [
+            0.0019212949991924688,
+            0.0018789250025292858,
+            0.0019964950006396975,
+            0.0019012180018762592,
+            0.0019758869966608472,
+            0.002233112998510478,
+            0.0022933430009288713,
+            0.001897993999591563,
+            0.0019198699992557522
+          ]
+        ],
+        "median_seconds": [
+          0.0022597009992750827,
+          0.0019212949991924688
+        ],
+        "candidate_baseline_ratio": 0.8502430187926742,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          1217480,
+          1217136
+        ]
+      },
+      "actions_einsum_vs_matmul": {
+        "seconds": [
+          [
+            0.0008501589982188307,
+            0.0008356750004168134,
+            0.0007440910012519453,
+            0.0020514700008789077,
+            0.0013515770006051753,
+            0.0007998069995664991,
+            0.0007408380006381776,
+            0.000806749001640128,
+            0.0007606680010212585
+          ],
+          [
+            0.0011807940027210861,
+            0.0010969889990519732,
+            0.0014325180018204264,
+            0.0028863320003438275,
+            0.0011940879994654097,
+            0.001056542998412624,
+            0.0010661230007826816,
+            0.0010565530028543435,
+            0.0010448180000821594
+          ]
+        ],
+        "median_seconds": [
+          0.000806749001640128,
+          0.0010969889990519732
+        ],
+        "candidate_baseline_ratio": 1.359764929143742,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          162448,
+          962640
+        ]
+      },
+      "trajectory": {
+        "measurement": {
+          "seconds": [
+            [
+              0.149509847000445,
+              0.14574082200124394,
+              0.1431809929999872,
+              0.14929796899741632,
+              0.1471568050001224,
+              0.14338033999956679,
+              0.1436447380001482,
+              0.15893224899991765,
+              0.1452269299988984
+            ],
+            [
+              0.14841594999961671,
+              0.14197783500276273,
+              0.1557594549994974,
+              0.14134889300112263,
+              0.14046232100008638,
+              0.14242608700078563,
+              0.14198307300102897,
+              0.15701281200017547,
+              0.14579425099873333
+            ]
+          ],
+          "median_seconds": [
+            0.14574082200124394,
+            0.14242608700078563
+          ],
+          "candidate_baseline_ratio": 0.9772559605816549,
+          "tracemalloc_peak_bytes_excluding_inputs": [
+            2215368,
+            2217832
+          ]
+        },
+        "settings": {
+          "lambda_prox": 0.05,
+          "max_steps": 3,
+          "tol": 1e-06
+        },
+        "diagnostics": {
+          "lsmr_stop": 2,
+          "lsmr_iterations": 36,
+          "normal_residual_ratio": 0.00021436606349371244,
+          "normal_residual": 5.817733802751275e-07,
+          "correction_norm": 0.03838069287664357,
+          "gauge_error": 3.019298529468854e-16,
+          "global_rank": 2,
+          "lsmr_iterations_total": 0,
+          "lsmr_solves_total": 0,
+          "accepted_steps": 3,
+          "converged": false,
+          "relative_loss_change": 0.003213530816630403,
+          "aligned_step": 0.053969150565316634,
+          "consecutive_certified_steps": 0,
+          "certificate_failures": [
+            "relative_loss_change",
+            "aligned_step",
+            "riemannian_gradient",
+            "consecutive_steps"
+          ],
+          "rejected_trials": {
+            "screening": 0,
+            "normal_residual": 0,
+            "trust_radius": 0,
+            "objective": 0
+          },
+          "loss": 227.16898301861235,
+          "loss_history": [
+            256.2800462895389,
+            230.84453460286113,
+            227.9013510333096,
+            227.16898301861235
+          ],
+          "lambda_history": [
+            0.05,
+            0.05,
+            0.05
+          ],
+          "local_rank_loss": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "riemannian_gradient": 0.0017103009367257162,
+          "local_gradient": 4.078196272276566e-15,
+          "orthogonality": 1.2610149580133523e-16,
+          "linear_solver": "hybrid",
+          "linear_backends": [
+            "scaled-lsmr",
+            "scaled-lsmr",
+            "scaled-lsmr"
+          ],
+          "linear_solves_total": 3,
+          "linear_iterations_total": 83,
+          "linear_screened_trials": 0,
+          "linear_screening_matvecs": 33,
+          "linear_recycled_solves": 1,
+          "linear_projected_solves": 0,
+          "linear_refinements": 0,
+          "linear_forward_calls": 120,
+          "linear_adjoint_calls": 125,
+          "hybrid_inner_rtol": null
+        },
+        "max_index_absolute_error": 0.0,
+        "max_coefficient_absolute_error": 0.0
+      },
+      "profile_baseline": "         12799 function calls in 0.153 seconds\n\n   Ordered by: cumulative time\n   List reduced from 202 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.153    0.153 beta_functional_audit.py:183(solve_baseline)\n        1    0.000    0.000    0.153    0.153 HYBRID.py:421(solve)\n        1    0.000    0.000    0.153    0.153 LSMR.py:40(solve)\n        3    0.000    0.000    0.092    0.031 HYBRID.py:289(correction)\n        3    0.003    0.001    0.089    0.030 lsmr.py:29(lsmr)\n      170    0.001    0.000    0.084    0.000 _interface.py:312(_shared_matvec)\n      125    0.059    0.000    0.059    0.000 HYBRID.py:190(rmatvec)\n      120    0.052    0.000    0.052    0.000 HYBRID.py:180(matvec)\n       86    0.000    0.000    0.043    0.001 _interface.py:393(rmatvec)\n       86    0.000    0.000    0.042    0.000 _interface.py:893(_rmatvec)\n       86    0.000    0.000    0.042    0.000 HYBRID.py:325(rmatvec)\n       84    0.000    0.000    0.041    0.000 _interface.py:363(matvec)\n       84    0.000    0.000    0.039    0.000 _interface.py:890(_matvec)\n       84    0.002    0.000    0.039    0.000 HYBRID.py:320(matvec)\n        1    0.001    0.001    0.030    0.030 HYBRID.py:200(rejects_trust)\n       23    0.000    0.000    0.010    0.000 einsumfunc.py:1242(einsum)\n        3    0.000    0.000    0.009    0.003 LSMR.py:631(_stationarity)\n        4    0.004    0.001    0.008    0.002 LSMR.py:429(_local_refit)\n\n\n         12799 function calls in 0.153 seconds\n\n   Ordered by: internal time\n   List reduced from 202 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n      125    0.059    0.000    0.059    0.000 HYBRID.py:190(rmatvec)\n      120    0.052    0.000    0.052    0.000 HYBRID.py:180(matvec)\n       16    0.008    0.000    0.008    0.000 _multi_operator.py:8(forward)\n       19    0.006    0.000    0.006    0.000 einsumfunc.py:1144(bmm_einsum)\n        4    0.004    0.001    0.008    0.002 LSMR.py:429(_local_refit)\n       11    0.003    0.000    0.003    0.000 _linalg.py:1666(svd)\n        3    0.003    0.001    0.089    0.030 lsmr.py:29(lsmr)\n       13    0.002    0.000    0.002    0.000 {built-in method numpy._core._multiarray_umath.c_einsum}\n       84    0.002    0.000    0.039    0.000 HYBRID.py:320(matvec)\n      359    0.001    0.000    0.002    0.000 _linalg.py:2598(norm)\n      170    0.001    0.000    0.084    0.000 _interface.py:312(_shared_matvec)\n        1    0.001    0.001    0.030    0.030 HYBRID.py:200(rejects_trust)\n      350    0.001    0.000    0.001    0.000 {method 'dot' of 'numpy.ndarray' objects}\n       86    0.000    0.000    0.042    0.000 HYBRID.py:325(rmatvec)\n        4    0.000    0.000    0.001    0.000 LSMR.py:368(<genexpr>)\n      332    0.000    0.000    0.001    0.000 lsqr.py:62(_sym_ortho)\n        3    0.000    0.000    0.006    0.002 HYBRID.py:123(__init__)\n       39    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n\n\n",
+      "profile_candidate": "         11427 function calls in 0.150 seconds\n\n   Ordered by: cumulative time\n   List reduced from 205 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.150    0.150 beta_functional_audit.py:186(solve_candidate)\n        1    0.000    0.000    0.150    0.150 beta_functional_audit.py:183(solve_baseline)\n        1    0.000    0.000    0.150    0.150 HYBRID.py:421(solve)\n        1    0.000    0.000    0.150    0.150 LSMR.py:40(solve)\n        3    0.000    0.000    0.090    0.030 HYBRID.py:289(correction)\n        3    0.003    0.001    0.087    0.029 lsmr.py:29(lsmr)\n      170    0.001    0.000    0.081    0.000 _interface.py:312(_shared_matvec)\n      125    0.058    0.000    0.058    0.000 HYBRID.py:190(rmatvec)\n      120    0.052    0.000    0.052    0.000 HYBRID.py:180(matvec)\n       86    0.000    0.000    0.042    0.000 _interface.py:393(rmatvec)\n       86    0.000    0.000    0.041    0.000 _interface.py:893(_rmatvec)\n       86    0.000    0.000    0.041    0.000 HYBRID.py:325(rmatvec)\n       84    0.000    0.000    0.039    0.000 _interface.py:363(matvec)\n       84    0.000    0.000    0.038    0.000 _interface.py:890(_matvec)\n       84    0.002    0.000    0.038    0.000 HYBRID.py:320(matvec)\n        1    0.001    0.001    0.031    0.031 HYBRID.py:200(rejects_trust)\n        4    0.005    0.001    0.009    0.002 LSMR.py:429(_local_refit)\n       16    0.009    0.001    0.009    0.001 _multi_operator.py:8(forward)\n\n\n         11427 function calls in 0.150 seconds\n\n   Ordered by: internal time\n   List reduced from 205 to 18 due to restriction <18>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n      125    0.058    0.000    0.058    0.000 HYBRID.py:190(rmatvec)\n      120    0.052    0.000    0.052    0.000 HYBRID.py:180(matvec)\n       16    0.009    0.001    0.009    0.001 _multi_operator.py:8(forward)\n        4    0.005    0.001    0.009    0.002 LSMR.py:429(_local_refit)\n        3    0.005    0.002    0.007    0.002 beta_functional_audit.py:58(stationarity_matmul)\n       11    0.003    0.000    0.004    0.000 _linalg.py:1666(svd)\n        3    0.003    0.001    0.087    0.029 lsmr.py:29(lsmr)\n        7    0.002    0.000    0.002    0.000 {built-in method numpy._core._multiarray_umath.c_einsum}\n       84    0.002    0.000    0.038    0.000 HYBRID.py:320(matvec)\n      359    0.001    0.000    0.002    0.000 _linalg.py:2598(norm)\n        1    0.001    0.001    0.031    0.031 HYBRID.py:200(rejects_trust)\n      170    0.001    0.000    0.081    0.000 _interface.py:312(_shared_matvec)\n      350    0.001    0.000    0.001    0.000 {method 'dot' of 'numpy.ndarray' objects}\n        4    0.001    0.000    0.001    0.000 LSMR.py:368(<genexpr>)\n       86    0.000    0.000    0.041    0.000 HYBRID.py:325(rmatvec)\n        1    0.000    0.000    0.000    0.000 einsumfunc.py:1144(bmm_einsum)\n      332    0.000    0.000    0.001    0.000 lsqr.py:62(_sym_ortho)\n       42    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n\n\n",
+      "first_two_active_gram_cosine": 0.31660431341374085,
+      "file": "benchmark_outputs/diagnostic/multi_solver_search_s1_20260924/n1000-seed1002-outer0.npz",
+      "sha256": "5abc7fb6942370f5aed786ce41db3f66dff6fa06e056116ac271ea2a6c01865c"
+    },
+    {
+      "synthetic_seed": 71000,
+      "shape_J_P_d_m": [
+        100,
+        20,
+        1000,
+        2
+      ],
+      "stationarity": {
+        "seconds": [
+          [
+            0.0030183019989635795,
+            0.004537641001661541,
+            0.0029219360003480688,
+            0.0026132159982807934,
+            0.0026962919982906897,
+            0.0030426650009758305,
+            0.002850165001291316,
+            0.002602523996756645,
+            0.0040471639986208174
+          ],
+          [
+            0.0021258359993225895,
+            0.0023274330014828593,
+            0.0021008210023865104,
+            0.0019880360014212783,
+            0.00214843299909262,
+            0.002746262001892319,
+            0.0021578269988822285,
+            0.0018930679980257992,
+            0.0032219830027315766
+          ]
+        ],
+        "median_seconds": [
+          0.0029219360003480688,
+          0.00214843299909262
+        ],
+        "candidate_baseline_ratio": 0.7352772267553748,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          917624,
+          916336
+        ]
+      }
+    },
+    {
+      "synthetic_seed": 71000,
+      "shape_J_P_d_m": [
+        100,
+        20,
+        1000,
+        10
+      ],
+      "stationarity": {
+        "seconds": [
+          [
+            0.004075171000295086,
+            0.003629763999924762,
+            0.003579437001462793,
+            0.004021790002298076,
+            0.003633008000178961,
+            0.0037662579998141155,
+            0.003663208997750189,
+            0.0040964550025819335,
+            0.004939540998748271
+          ],
+          [
+            0.00345253799969214,
+            0.0033097369996539783,
+            0.0031539730007352773,
+            0.004591490000166232,
+            0.0038348410016624257,
+            0.0033423669992771465,
+            0.003173544002493145,
+            0.003344402000948321,
+            0.003150963002553908
+          ]
+        ],
+        "median_seconds": [
+          0.0037662579998141155,
+          0.0033423669992771465
+        ],
+        "candidate_baseline_ratio": 0.887450355085103,
+        "tracemalloc_peak_bytes_excluding_inputs": [
+          1308792,
+          1307504
+        ]
+      }
+    }
+  ],
+  "memory_method": "separate tracemalloc; process ru_maxrss high-water includes inputs and all cases",
+  "peak_process_rss_bytes": 131215360
+}

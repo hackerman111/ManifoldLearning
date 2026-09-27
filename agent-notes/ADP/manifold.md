@@ -33,7 +33,7 @@
 
 ## Локальный projector update
 
-Для target l CSR-строка графа задает source neighbors j и веса. Сначала оцениваются slopes `s_j` как LS по `U_j P_l.T` к `I_j`; rank должен быть m. Затем обновляется фактор `B_l` `(m,d)` по data fit соседей с весами `gamma_j=mass_j*graph_weight_j` и manifold penalty, который притягивает row-space B к взвешенным source projectors. Шаг даёт новую локальную EDR-структуру:
+Для target l CSR-строка графа задает source neighbors j и веса. Сначала оцениваются slopes `s_j` как LS по `U_j P_l.T` к `I_j`; rank должен быть m. Затем обновляется фактор `B_l` `(m,d)` по data fit соседей с весами `gamma_j=mass_j*graph_weight_j` и manifold penalty, который притягивает row-space B к взвешенным source projectors. Live penalty равен `lambda_manifold * tr(B_l.T @ B_l @ (I-E_l))`, где `E_l` усредняет source projectors с нормированными **graph weights**; множителя `W_l=sum_j graph_weight_j` перед penalty нет, в отличие от relaxed формулы в `tex/manifold-ade.tex` `[A-ONESTEP]`. Шаг даёт новую локальную EDR-структуру:
 
 1. строится rank-m матрица `M = sum_j gamma_j*s_j*s_j.T` размера `m x m`;
 2. из M берется малый спектральный square root, умножается на B;
@@ -63,7 +63,7 @@ Query привязывается к ближайшему center через па�
 | SRC-MAN-B-SYSTEM | matrix-free B normal operator and preconditioned CG | `rtk proxy sed -n '158,257p' ADP/engine/manifol_engine/optimisation.py` |
 | SRC-MAN-RECOVER | rank-one normalization and general m-by-m factor SVD recovery | `rtk proxy sed -n '258,319p' ADP/engine/manifol_engine/optimisation.py` |
 | SRC-MAN-UTIL-ENGINE | feasible boundary, trace, chart coordinate math | `rtk proxy sed -n '15,127p' ADP/engine/manifol_engine/utils.py` |
-| SRC-MAN-HYBRID | manifold dense/PCG/augmented LSMR | `rtk proxy sed -n '435,703p' ADP/solver/HYBRID.py` |
+| SRC-MAN-HYBRID | manifold dense/PCG/augmented LSMR | `rtk proxy sed -n '1,291p' ADP/solver/HYBRID/HYBRID_manifold.py` |
 | SRC-MAN-CHECKS | rank, residual, projector and config failure conditions | `rtk proxy sed -n '125,269p' ADP/core/manifold/ADP_Manifold_utils.py` |
 
 Полные файлы и дополнительные модули — в [README.md](README.md#каталог-исходников). Не переносите в эту ветку автоматические ожидания глобального basis из multi-index.

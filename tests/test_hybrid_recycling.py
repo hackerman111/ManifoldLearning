@@ -5,6 +5,7 @@ import pytest
 
 from ADP.cli.main import _run, build_parser
 from ADP.solver import HYBRID
+from ADP.solver.HYBRID import HYBRID_multi
 
 
 def _workspace(*, budget: int = 64 * 1024**2) -> HYBRID.RidgeWorkspace:
@@ -77,7 +78,7 @@ def test_failed_coarse_solve_refines_without_exceeding_iteration_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workspace = _workspace(budget=0)
-    original = HYBRID._lsmr_method
+    original = HYBRID_multi._lsmr_method
     settings_seen = []
 
     def inaccurate_first(operator, rhs, **settings):
@@ -86,7 +87,7 @@ def test_failed_coarse_solve_refines_without_exceeding_iteration_budget(
             return np.zeros(operator.shape[1]), 2, 1
         return original(operator, rhs, **settings)
 
-    monkeypatch.setattr(HYBRID, "_lsmr_method", inaccurate_first)
+    monkeypatch.setattr(HYBRID_multi, "_lsmr_method", inaccurate_first)
     result = workspace.correction(1e5, 1e-8, 300, relative_tol=1e-3)
     assert len(settings_seen) == 2
     assert settings_seen[1]["atol"] < settings_seen[0]["atol"]
@@ -103,7 +104,7 @@ def test_iteration_failure_is_not_hidden_by_optional_accuracy(
     def failed(operator, rhs, **settings):
         return np.ones(operator.shape[1]), 7, settings["maxiter"]
 
-    monkeypatch.setattr(HYBRID, "_lsmr_method", failed)
+    monkeypatch.setattr(HYBRID_multi, "_lsmr_method", failed)
     result = workspace.correction(100, 1e-8, 1, relative_tol=1e-3)
     assert result[1] == 7 and result[2] == 1 and np.isinf(result[3])
     assert workspace.refinements == 0
