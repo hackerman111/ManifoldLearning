@@ -100,18 +100,26 @@ def _generate_data(
         )
         noise_index = index
     elif point.mode == "multi":
-        basis_pool_dim = point.basis_pool_dim or point.index_dim
-        basis_pool, _ = np.linalg.qr(
-            np.random.default_rng(seeds.beta).normal(size=(point.d, basis_pool_dim)),
-            mode="reduced",
-        )
-        beta = _orient_columns(basis_pool)[:, : point.index_dim]
+        if point.link.startswith("spokoini_m"):
+            beta = _spokoini_basis(point.d, point.index_dim)
+        else:
+            basis_pool_dim = point.basis_pool_dim or point.index_dim
+            basis_pool, _ = np.linalg.qr(
+                np.random.default_rng(seeds.beta).normal(
+                    size=(point.d, basis_pool_dim)
+                ),
+                mode="reduced",
+            )
+            beta = _orient_columns(basis_pool)[:, : point.index_dim]
         projected = X @ beta
-        signal_values = _multi_link(
-            projected / link_divisor,
-            point.link,
-            point.link_scale,
-        )
+        if point.link.startswith("spokoini_m"):
+            signal_values = _spokoini_link(projected, point.index_dim)
+        else:
+            signal_values = _multi_link(
+                projected / link_divisor,
+                point.link,
+                point.link_scale,
+            )
         noise_index = np.linalg.norm(projected, axis=1)
     else:
         radial = X[:, :2]
@@ -122,7 +130,11 @@ def _generate_data(
         beta[:, :2, 0] = radial / radii[:, None]
         signal_values = 0.5 * point.link_scale * np.square(radii)
         noise_index = radii
-    signal = _standardize(signal_values, f"{point.link} link")
+    signal = (
+        np.asarray(signal_values, dtype=float)
+        if point.link.startswith("spokoini_m")
+        else _standardize(signal_values, f"{point.link} link")
+    )
     noise = _noise(point, noise_index, seeds.noise)
     noise = _outliers(point, noise, seeds.outliers, seeds.outlier_noise)
     Y = signal + noise
@@ -139,7 +151,11 @@ def _generate_data(
 def _features(point: ExperimentPoint, seed: int) -> np.ndarray:
     rng = np.random.default_rng(seed)
     shape = (point.n, point.d)
-    if point.tau is not None:
+    if point.x_distribution == "beta1_tau":
+        if point.tau is None or point.tau <= 0:
+            raise ValueError("beta1_tau features require a positive tau shape")
+        values = 2.0 * rng.beta(1.0, point.tau, size=shape) - 1.0
+    elif point.tau is not None:
         # ESTIMATOR/data design: точная формула из TeX, без переименования tau в corr.
         common = rng.normal(size=(point.n, 1))
         values = point.tau * common + (1 - point.tau) * rng.normal(size=shape)
@@ -253,6 +269,40 @@ def _multi_link(
         # ESTIMATOR/data design: каждая дополнительная координата участвует явно.
         denominators = np.arange(3, projected.shape[1] + 1)
         values = values + np.sum(projected[:, 2:] ** 2 / denominators, axis=1)
+    return np.asarray(values)
+
+
+def _spokoini_basis(d: int, index_dim: int) -> np.ndarray:
+    """Фиксированный ортонормированный столбцовый basis из Spokoiny.md."""
+    basis = np.zeros((d, index_dim), dtype=float)
+    if index_dim == 1:
+        basis[:2, 0] = (1.0, 2.0)
+        basis[:, 0] /= math.sqrt(5.0)
+    elif index_dim == 2:
+        basis[:2, 0] = (1.0, 1.0)
+        basis[:2, 1] = (1.0, -1.0)
+        basis /= math.sqrt(2.0)
+    elif index_dim == 3:
+        basis[:3, 0] = (1.0, 1.0, 1.0)
+        basis[:3, 1] = (1.0, -1.0, 0.0)
+        basis[:3, 2] = (1.0, 1.0, -2.0)
+        basis[:, 0] /= math.sqrt(3.0)
+        basis[:, 1] /= math.sqrt(2.0)
+        basis[:, 2] /= math.sqrt(6.0)
+    else:
+        raise ValueError("Spokoini index_dim must be 1, 2, or 3")
+    return basis
+
+
+def _spokoini_link(projected: np.ndarray, index_dim: int) -> np.ndarray:
+    """Не нормировать f(X): исходный протокол добавляет шум с абсолютным sigma."""
+    u1 = projected[:, 0]
+    if index_dim == 1:
+        return u1 * np.sin(math.sqrt(5.0) * u1)
+    u2 = projected[:, 1]
+    values = (u1**3 + u2) * (u1 - u2**3)
+    if index_dim == 3:
+        values = values + projected[:, 2]
     return np.asarray(values)
 
 

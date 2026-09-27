@@ -6,7 +6,7 @@
 
 Публичный класс хранит конфигурацию, вызывает `engine.manifol_engine.fit`, затем публикует centers, projectors, eigenvalues, gradients, center response, bandwidths, scale factors, trace и `ADP_Manifold_result`. `transform` возвращает координаты в локальном chart ближайшего центра. `predict` применяет affine chart этого же ближайшего центра. Источники: **SRC-MAN-API**, **SRC-MAN-QUERY**.
 
-`estimator="manifold"` сохраняет исходный алгоритм по умолчанию. Явный экспериментальный `estimator="local_quadratic"` доступен только при `m=1`: до 60 ближайших наблюдений задают локальный полином второй степени, его квадратичный directional moment вычитается из `I_j`, недостаточная масса наблюдений локально доводится до шести, а manifold-граф содержит только собственное ребро центра. Это отдельный ESTIMATOR для быстро меняющейся геометрии, без соседского penalty. Симметричные коэффициенты квадратичной части хранятся как `(J,d(d+1)/2)`, без плотных `(J,d,d)` матриц; полный ранг пилота проверяется явно. Результат на радиальном сценарии и границы применимости — в `docs/experiments/manifold_recovery_2026-09-23/`. Источники: **SRC-MAN-API**, **SRC-MAN-QUAD**, **SRC-MAN-FIT-ORCH**.
+`estimator="manifold"` явно выбирает исходный алгоритм; live-default конструктора — `local_quadratic` (только `m=1`). Для `m>1` estimator необходимо указать явно. Явный экспериментальный `estimator="local_quadratic"` доступен только при `m=1`: до 60 ближайших наблюдений задают локальный полином второй степени, его квадратичный directional moment вычитается из `I_j`, недостаточная масса наблюдений локально доводится до шести, а manifold-граф содержит только собственное ребро центра. Это отдельный ESTIMATOR для быстро меняющейся геометрии, без соседского penalty. Симметричные коэффициенты квадратичной части хранятся как `(J,d(d+1)/2)`, без плотных `(J,d,d)` матриц; полный ранг пилота проверяется явно. Результат на радиальном сценарии и границы применимости — в `docs/experiments/manifold_recovery_2026-09-23/`. Источники: **SRC-MAN-API**, **SRC-MAN-QUAD**, **SRC-MAN-FIT-ORCH**.
 
 ## Эффективные параметры
 
@@ -67,3 +67,20 @@ Query привязывается к ближайшему center через па�
 | SRC-MAN-CHECKS | rank, residual, projector and config failure conditions | `rtk proxy sed -n '125,269p' ADP/core/manifold/ADP_Manifold_utils.py` |
 
 Полные файлы и дополнительные модули — в [README.md](README.md#каталог-исходников). Не переносите в эту ветку автоматические ожидания глобального basis из multi-index.
+
+## Эксперименты
+
+`experiments/manifold_generalization.py` — отдельный замороженный протокол
+для m=1,2,3, плоской и меняющейся геометрии, двух уровней шума и двух
+режимов поддержки. Truth — row(Dz) аналитического full-rank map; fit не
+получает truth. Проверяются все центры и 512 независимых queries через
+ближайший chart; oracle query error отделяет дискретизацию от ошибки fit.
+Непрерывное восстановление и идентифицируемость по одному scalar Y не
+утверждаются. Protocol/results: docs/experiments/manifold_generalization_2026-09-28/.
+
+`experiments/manifold_grid.py` реализует независимую сетку из `Manifold exp.md`
+с сериями dimension, sample-size, noise, intrinsic-dimension, curvature,
+hd-fixed-n, hd-fixed-n-over-d и noiseless-sanity. Повторяющиеся конфигурации
+между сериями объединяются в один fit. В текущем коде 22 уникальные точки;
+см. CLI `--dry-run` и `experiments/README.md` о расхождениях числа точек и
+допустимой адаптации `N_lin`.

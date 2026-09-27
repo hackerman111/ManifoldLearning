@@ -75,6 +75,7 @@ def _selected_experiments(
     )
     detailed_nd = ("mi-boundary-nd", "si-nloc-nd")
     parameter_scaling = tuple(name for name in catalog if name.startswith("scale-"))
+    spokoini = tuple(name for name in catalog if name.startswith("mi-spokoini-"))
     manifold_basic = tuple(
         name for name in catalog if name == "manifold" or name.startswith("manifold-")
     )
@@ -101,6 +102,7 @@ def _selected_experiments(
         "parameter-scaling-mi": tuple(
             name for name in parameter_scaling if name.startswith("scale-mi-")
         ),
+        "spokoini": spokoini,
         "nd-detail": detailed_nd,
         "manifold-basic": manifold_basic,
         "tex-tuning": (

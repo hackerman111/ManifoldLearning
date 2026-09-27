@@ -34,8 +34,11 @@ LinkName = Literal[
     "manifold_radial",
     "multi_additive",
     "multi_multiplicative",
+    "spokoini_m1",
+    "spokoini_m2",
+    "spokoini_m3",
 ]
-FeatureDistribution = Literal["gaussian", "uniform", "student_t5"]
+FeatureDistribution = Literal["gaussian", "uniform", "student_t5", "beta1_tau"]
 NoiseDistribution = Literal["gaussian", "student_t5", "student_t3"]
 ModelMode = Literal["single", "multi", "manifold"]
 

@@ -204,6 +204,10 @@ def run_experiment(
     from ADP.cli.experiment_plots import build_report
 
     build_report(series_dir, plots=plots)
+    if experiment.selector.startswith("mi-spokoini-"):
+        from .spokoini import write_checkpoint_summary
+
+        write_checkpoint_summary(runs_path)
     return series_dir
 
 
@@ -558,6 +562,7 @@ def _write_manifest(
     seed: int,
     experiment_id: str,
 ) -> None:
+    spokoini_grid = experiment.selector.startswith("mi-spokoini-")
     manifest = {
         "schema_version": 10,
         "created_at": datetime.now().astimezone().isoformat(),
@@ -621,9 +626,35 @@ def _write_manifest(
         },
         "seed_design": "split-components-paired-builds-and-condition-levels-v4",
         "feature_formula": (
-            "sigma_x * (tau * z0 + (1 - tau) * zi)"
-            if any(point.tau is not None for point in experiment.full)
-            else "catalog-specific legacy design"
+            "X_ij = sigma_x * (2 * Beta_ij(1, tau) - 1)"
+            if any(point.x_distribution == "beta1_tau" for point in experiment.full)
+            else (
+                "sigma_x * (tau * z0 + (1 - tau) * zi)"
+                if any(point.tau is not None for point in experiment.full)
+                else "catalog-specific legacy design"
+            )
+        ),
+        **(
+            {
+                "response_formula": (
+                    "Y_i = g_m(theta_1^T X_i, ..., theta_m^T X_i) "
+                    "+ Normal(0, sigma_eps^2)"
+                ),
+                "spokoini_link_formulas": {
+                    "m=1": "u * sin(sqrt(5) * u)",
+                    "m=2": "(u1^3 + u2) * (u1 - u2^3)",
+                    "m=3": "(u1^3 + u2) * (u1 - u2^3) + u3",
+                },
+                "spokoini_basis_formulas": {
+                    "m=1": "(1, 2, 0, ...) / sqrt(5)",
+                    "m=2": "columns (1, 1, 0, ...)/sqrt(2), "
+                    "(1, -1, 0, ...)/sqrt(2)",
+                    "m=3": "columns (1, 1, 1, 0, ...)/sqrt(3), "
+                    "(1, -1, 0, ...)/sqrt(2), (1, 1, -2, 0, ...)/sqrt(6)",
+                },
+            }
+            if spokoini_grid
+            else {}
         ),
         "multi_link_extension": "sum_{r=3}^m z_r^2 / r",
         "manifold_link": "0.5 * (x_1^2 + x_2^2)",

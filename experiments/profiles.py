@@ -15,7 +15,7 @@ def overview_points(experiment: Experiment) -> tuple[ExperimentPoint, ...]:
     manifold selector и каждая Multi v2 серия сохраняют сетку: сокращение до
     трёх точек скрыло бы уровни возможного отказа.
     """
-    if experiment.selector.startswith(("manifold", "multiv2-")):
+    if experiment.selector.startswith(("manifold", "multiv2-", "mi-spokoini-")):
         return experiment.full
 
     names = experiment.report_fields or tuple(

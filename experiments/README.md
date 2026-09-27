@@ -312,3 +312,96 @@ manifold estimator. Доказательство, reference, заморожен�
 `docs/experiments/proof_first_shared_2026-09-26/` (`r2_protocol.md`,
 `r3_result.md`, `selection/runs.jsonl`). Ни один случай не прошёл gate
 качества/стоимости; held-out seed не запускались, public defaults не менялись.
+
+### Manifold при m>1
+
+Отдельный эксперимент `manifold_generalization` сравнивает m=1,2,3 при d=8,
+n=600, кривизне 0/0.35/0.8, шуме 0/0.1 и двух фиксированных режимах
+поддержки. Все 180 fits (5 seed) сохраняются, включая numerical failures.
+Используется явный `estimator="manifold"`; default `local_quadratic` m>1
+не поддерживает. Аналитическая геометрия, ограничения интерпретации и
+результаты — в `docs/experiments/manifold_generalization_2026-09-28/report.md`.
+
+```bash
+UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.manifold_generalization --self-check
+UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.manifold_generalization --profile smoke --out /tmp/manifold-generalization-smoke
+UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.manifold_generalization --profile main --out /tmp/manifold-generalization-main
+```
+
+Каталог вывода должен быть новым. Manifest фиксируется до fits, JSONL и
+summary обновляются после каждого fit. По исчерпании бюджета 600 s серия
+помечается incomplete (бюджет проверяется между fits). Recovery требует
+RMS и максимальную principal sine <=0.2 на всех центрах и independent
+queries; center-only и query-only успех также показаны отдельно. Solver
+residuals/stop reason не входят в recovery.
+
+Отдельное парное exploratory сравнение использует существующую опцию
+`--scale-boundary stop`; default эксперимента остаётся `raise`.
+Их результаты сохраняются в разных каталогах и не смешиваются.
+
+### Единая сетка manifold
+
+`experiments.manifold_grid` реализует таблицу из `Manifold exp.md`: Gaussian
+признаки, вращённую квадратичную геометрию, стандартизованный безшумный
+сигнал с добавочным Gaussian noise и текущий estimator `manifold`. Серии
+выбираются через `--series`; одинаковые конфигурации между сериями выполняются
+один раз и остаются помечены всеми именами серий. `development` использует
+30 seed на конфигурацию, `full` — 250; `--runs` переопределяет число повторов.
+
+```bash
+uv run python -m experiments.manifold_grid --profile development --dry-run
+uv run python -m experiments.manifold_grid --profile full --dry-run
+uv run python -m experiments.manifold_grid --profile full
+uv run python -m experiments.manifold_grid --series hd-fixed-n,hd-fixed-n-over-d --profile full --dry-run
+```
+
+Выводы записываются в новый каталог `benchmark_outputs/experiments/`:
+`manifest.json` фиксирует генератор, конфигурацию и окружение, `runs.jsonl`
+содержит каждую оценку и ошибку, `summary.json` обновляется после каждого fit.
+Recovery требует RMS и максимум principal sine не выше 0.2 одновременно на
+центрах и 512 независимых запросах; oracle-ошибка ближайшего истинного chart
+сохраняется отдельно.
+
+В таблице 26 строк, но строго одинаковых конфигураций 22, поэтому полная
+сетка после дедупликации составляет 5,500 fits, а не указанные в документе
+5,750. Также `N_lin=200` не проходит live-валидацию для `n<=200` или `d=200`;
+поэтому текущий runner применяет ближайшую допустимую целевую массу
+`max(d+2, min(200, n-1))` для таких крайних точек. Остальные параметры
+совпадают со спецификацией; estimator и production defaults не меняются.
+
+### Сетка Spokoini для multi-index
+
+`mi-spokoini-*` запускает только текущий multi-index ADP на генеративных
+моделях из `Spokoiny.md`; ADE, SIR II и PHD в этот эксперимент не входят.
+Для воспроизведения полного числа повторов:
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.multi \
+  --experiment spokoini --profile full --threads 1 --dry-run
+```
+
+Убрать `--dry-run`, чтобы выполнить запланированные 5450 fits. Полная сетка
+содержит m=1 (7 точек), m=2 (13 точек в четырёх sweeps) и m=3 (3 точки):
+обычно 250 повторов на точку, 100 при m=2 и d>10. `--profile smoke` проверяет
+по одному сокращённому fit на selector; `overview` сохраняет все точки с пятью
+повторами. Каждый fit использует независимый seed; все численные ошибки
+остаются в `runs.csv`.
+
+Данные генерируются точно по описанию: независимые координаты
+`X=2*Beta(1,tau)-1`, фиксированные ортонормированные направления, исходные
+link-функции и ненормированный отклик плюс гауссов шум с заданным sigma.
+Существующее значение `tau` для других экспериментов не меняется. Текущий
+движок начинает multi anisotropy factor с 1 и получает `a` из опубликованного
+`a_h`; он не предоставляет независимые `rho_min`, `a_rho`, `h_1` и `h_max`,
+поэтому это grid текущей реализации на заданном дизайне, а не побитовая
+репликация параметризации кода 2001 года. В полной сетке явно фиксируются
+`N_loc=10`, `N_lin=2d`, `N_J=n`, `N_phi=max(m+1,min(10,d))`,
+`index_init=local`, выбор последнего шага и лимит solver в 5 шагов; другие
+параметры остаются текущими ADP defaults. Полный эффективный конфиг записывается
+в каждой строке `runs.csv`.
+
+`checkpoint_summary.csv` в каждой серии содержит среднее и IQR геометрической
+ошибки `m * (1 - trace_score)` на шагах 1, 2, 4, 8 и на последнем доступном
+шаге. В нём отдельно указаны число fit-ов с trace и численные ошибки; строки
+`runs.csv`/`trace_summary.csv` остаются первичными данными.

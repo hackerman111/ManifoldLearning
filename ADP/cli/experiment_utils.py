@@ -72,9 +72,15 @@ def validate_experiment_point(point: ExperimentPoint) -> None:
         if point.mode != "multi":
             raise ValueError("basis_pool_dim is supported only in multi mode")
     if point.tau is not None and (
-        not np.isfinite(point.tau) or not 0 <= point.tau <= 1
+        not np.isfinite(point.tau)
+        or (
+            point.tau <= 0
+            if point.x_distribution == "beta1_tau"
+            else not 0 <= point.tau <= 1
+        )
     ):
-        raise ValueError("tau must lie in [0, 1] or be None")
+        requirement = "positive" if point.x_distribution == "beta1_tau" else "in [0, 1]"
+        raise ValueError(f"tau must be {requirement} or be None")
     positive("link_scale", point.link_scale)
     links = {
         "linear",
@@ -95,18 +101,46 @@ def validate_experiment_point(point: ExperimentPoint) -> None:
         "manifold_radial",
         "multi_additive",
         "multi_multiplicative",
+        "spokoini_m1",
+        "spokoini_m2",
+        "spokoini_m3",
     }
     if point.link not in links:
         raise ValueError(f"unknown link: {point.link}")
     allowed_links = {
         "single": links - {"multi_additive", "multi_multiplicative", "manifold_radial"},
-        "multi": {"multi_additive", "multi_multiplicative"},
+        "multi": {
+            "multi_additive",
+            "multi_multiplicative",
+            "spokoini_m1",
+            "spokoini_m2",
+            "spokoini_m3",
+        },
         "manifold": {"manifold_radial"},
     }
     if point.link not in allowed_links[point.mode]:
         raise ValueError(f"{point.link} is incompatible with {point.mode} mode")
-    if point.x_distribution not in {"gaussian", "uniform", "student_t5"}:
+    if point.x_distribution not in {
+        "gaussian",
+        "uniform",
+        "student_t5",
+        "beta1_tau",
+    }:
         raise ValueError(f"unknown feature distribution: {point.x_distribution}")
+    if point.x_distribution == "beta1_tau" and point.tau is None:
+        raise ValueError("beta1_tau features require a positive tau shape")
+    spokoini_dimension = {
+        "spokoini_m1": 1,
+        "spokoini_m2": 2,
+        "spokoini_m3": 3,
+    }.get(point.link)
+    if spokoini_dimension is not None:
+        if point.index_dim != spokoini_dimension:
+            raise ValueError("Spokoini link must match index_dim")
+        if point.x_distribution != "beta1_tau":
+            raise ValueError("Spokoini links require beta1_tau features")
+        if point.d < spokoini_dimension:
+            raise ValueError("Spokoini link requires d >= index_dim")
     if point.noise_distribution not in {"gaussian", "student_t5", "student_t3"}:
         raise ValueError(f"unknown noise distribution: {point.noise_distribution}")
     if not isinstance(point.heteroscedastic, bool):

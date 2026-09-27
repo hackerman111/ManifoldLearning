@@ -580,7 +580,6 @@ def _nd_catalog() -> tuple[Experiment, ...]:
             (10, 15, 20, 25, 30, 35, 40, 50, 60),
         )
     )
-
     return (
         Experiment(
             "mi-boundary-nd",
@@ -598,6 +597,149 @@ def _nd_catalog() -> tuple[Experiment, ...]:
     )
 
 
+def _spokoini_point(
+    index_dim: int,
+    d: int,
+    n: int,
+    *,
+    tau: float = 1.0,
+    sigma_eps: float = 0.1,
+) -> ExperimentPoint:
+    return ExperimentPoint(
+        d=d,
+        n_over_d=n / d,
+        n_samples=n,
+        sigma_eps=sigma_eps,
+        tau=tau,
+        x_distribution="beta1_tau",
+        link=f"spokoini_m{index_dim}",
+        mode="multi",
+        index_dim=index_dim,
+        N_loc=10,
+        N_lin=2 * d,
+        N_J=n,
+        N_phi=max(index_dim + 1, min(10, d)),
+        a=math.exp(1.0 / (2 * max(4, d))),
+        index_init="local",
+        select_step="last",
+        solver_max_steps=5,
+    )
+
+
+def _spokoini_smoke(point: ExperimentPoint) -> ExperimentPoint:
+    d = max(4, point.index_dim + 1)
+    n = 48
+    return replace(
+        point,
+        d=d,
+        n_over_d=n / d,
+        n_samples=n,
+        N_loc=6,
+        N_lin=2 * d,
+        N_J=8,
+        N_phi=max(point.index_dim + 1, min(4, d)),
+        outer_steps=1,
+        solver_max_steps=2,
+    )
+
+
+def _spokoini_catalog() -> tuple[Experiment, ...]:
+    """The original HJPS design evaluated with the current multi-index ADP."""
+    m1 = tuple(
+        _spokoini_point(1, d, n)
+        for d, n in (
+            (3, 200),
+            (4, 200),
+            (6, 200),
+            (10, 100),
+            (10, 200),
+            (10, 400),
+            (10, 800),
+        )
+    )
+    m2_n = tuple(_spokoini_point(2, 10, n) for n in (200, 400, 800))
+    m2_d10 = tuple(_spokoini_point(2, 10, n) for n in (400, 800))
+    m2_dhigh = tuple(_spokoini_point(2, d, 800) for d in (20, 50))
+    m2_noise = tuple(
+        _spokoini_point(2, 10, 400, sigma_eps=sigma)
+        for sigma in (0.05, 0.1, 0.2)
+    )
+    m2_tau = tuple(
+        _spokoini_point(2, 10, 400, tau=tau) for tau in (0.75, 1.0, 1.5)
+    )
+    m3_tau = tuple(
+        _spokoini_point(3, 10, 800, tau=tau) for tau in (0.75, 1.0, 1.5)
+    )
+
+    def make(
+        selector: str,
+        title: str,
+        points: tuple[ExperimentPoint, ...],
+        report_fields: tuple[str, ...],
+        runs: int,
+    ) -> Experiment:
+        return Experiment(
+            selector=selector,
+            title=title,
+            smoke=_spokoini_smoke(points[0]),
+            full=points,
+            report_fields=report_fields,
+            full_runs=runs,
+            quality_threshold=0.95,
+        )
+
+    return (
+        make(
+            "mi-spokoini-m1",
+            "Spokoini: m=1, размерность и объём выборки",
+            m1,
+            ("d", "n_samples"),
+            250,
+        ),
+        make(
+            "mi-spokoini-m2-n",
+            "Spokoini: m=2, зависимость от n",
+            m2_n,
+            ("n_samples",),
+            250,
+        ),
+        make(
+            "mi-spokoini-m2-d10",
+            "Spokoini: m=2, d=10 контроль размерности",
+            m2_d10,
+            ("n_samples",),
+            250,
+        ),
+        make(
+            "mi-spokoini-m2-dhigh",
+            "Spokoini: m=2, высокая размерность",
+            m2_dhigh,
+            ("d",),
+            100,
+        ),
+        make(
+            "mi-spokoini-m2-noise",
+            "Spokoini: m=2, зависимость от шума",
+            m2_noise,
+            ("sigma_eps",),
+            250,
+        ),
+        make(
+            "mi-spokoini-m2-tau",
+            "Spokoini: m=2, распределение признаков",
+            m2_tau,
+            ("tau",),
+            250,
+        ),
+        make(
+            "mi-spokoini-m3-tau",
+            "Spokoini: m=3, распределение признаков",
+            m3_tau,
+            ("tau",),
+            250,
+        ),
+    )
+
 def catalog() -> tuple[Experiment, ...]:
     """Исходные сетки семейства, включая дорогие полные сетки."""
     return (
@@ -605,6 +747,7 @@ def catalog() -> tuple[Experiment, ...]:
         *_report_catalog(),
         *_parameter_scaling_catalog("multi"),
         *_nd_catalog(),
+        *_spokoini_catalog(),
     )
 
 

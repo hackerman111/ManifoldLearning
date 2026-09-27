@@ -283,3 +283,45 @@ Use this form:
 - **Alternatives rejected:** Counting a high-quality estimate as unrecovered solely because an iterative solver stopped by its native status; judging manifold recovery by an average over centers without checking the worst center.
 - **Affected:** `experiments/runner.py`, experiment report/analysis code, recovery study gates, manifold validation, `PLAN.md`, and `STATE.md`; no ADP estimation formula or solver is changed.
 - **Status:** adopted; the existing 105/108 selection snapshot retains its old protocol and is incomplete.
+
+## 2026-09-28 — Manifold generalization experiment at m>1
+
+Use standalone analytic full-rank row(Dz) geometry with m=1,2,3,
+flat/curved controls, noise and fixed local/broad support. Explicit
+estimator=manifold is required because live default local_quadratic
+is m=1-only. Record all-center and independent-query geometry separately
+from solver debug; finite queries/scalar response do not prove universal
+identifiability or continuum recovery.
+
+Strict raise protocol failed180/180 (149 mass,31 rank); exploratory existing
+stop option yields flat recovery17/20,9/20,2/20 for m1,m2,m3, and curved
+m>1 0/80. This does not justify default changes. Preserve both protocols
+and failures rather than weaken gates. Source/report:
+experiments/manifold_generalization.py and
+docs/experiments/manifold_generalization_2026-09-28/report.md.
+Prior unfinished single/multi study plan/state archived in that directory.
+Status: active experiment interpretation; no algorithm decision/promoted variant.
+
+## 2026-09-28 — Spokoiny multi-index grid uses isolated current-ADP data design
+
+- **Decision:** Add named `mi-spokoini-*` series to the existing multi-index experiment runner. Generate independent `2*Beta(1,tau)-1` coordinates, fixed m=1/2/3 truth bases and links, and unstandardized signal plus Gaussian noise. Preserve all fit traces/errors and summarize geometric loss at iterations 1, 2, 4, 8, and last. Do not implement ADE/SIR II/PHD comparisons.
+- **Reason/evidence:** The existing `tau` generator is a common Gaussian factor and existing responses are standardized, so changing them would alter established experiments. An isolated feature distribution and named links preserve old semantics. Full-profile dry-run exposes the expected 7 series / 5,450 fits, and an existing-selector dry-run confirms `mi-boundary-nd` remains 63 points / 630 fits.
+- **Alternatives rejected:** Reuse the old `tau` path or claim exact reproduction of historical algorithm settings. The current engine maps only `a_h` to `a`; it lacks separate `rho_min`, `a_rho`, `h_1`, and `h_max` controls, so its other bandwidth behavior remains current.
+- **Affected:** `experiments/{data,multi,models,registry,profiles,runner,spokoini}.py`, `ADP/cli/experiment_utils.py`, `experiments/README.md`, `PLAN.md`, and `STATE.md`; no estimator or solver behavior changed.
+- **Status:** implementation accepted; full grid execution is pending.
+
+## 2026-09-28 — Implement the unified manifold grid with feasible live settings
+
+- **Decision:** Add a separate `experiments.manifold_grid` runner, preserve the existing `manifold_generalization` protocol, deduplicate configurations by `(n,d,m,c,sigma)`, and use `N_lin=max(d+2,min(200,n-1))` so every listed cell passes the current API's size constraints.
+- **Reason/evidence:** The specification lists 26 rows but four exact cross-series overlaps, leaving 22 unique configurations. Live `effective_config` requires `d+1 < N_lin < n`; fixed 200 is invalid for `n=100`, `n=200`, and `d=200`. Full-profile preflight therefore plans 22*250=5,500 unique fits.
+- **Alternatives considered:** Repeat an identical configuration to reach the stated 23/5,750 total, or preserve invalid `N_lin=200` and record guaranteed pre-fit validation failures. Neither changes the specified data model; the runner records the selected feasible values per fit and in its manifest.
+- **Affected:** `experiments/manifold_grid.py`, `experiments/README.md`, `agent-notes/ADP/manifold.md`, `PLAN.md`, and `STATE.md`; no production estimator/default or comparison code changed.
+- **Status:** implemented; user clarification may revise the point count or boundary configuration.
+
+## 2026-09-28 — Preserve strict manifold scale-boundary failures in the grid
+
+- **Decision:** Keep `scale_boundary="raise"` in the specified grid and record each infeasible function-mass boundary as a failed fit. Treat `scale_boundary="stop"` only as a separate diagnostic variant.
+- **Reason/evidence:** `Manifold exp.md` fixes the strict mode and explicitly excludes `stop` from the main grid. The user's partial full-profile run recorded the same infeasibility for 41 independent seeds in the first cell after four successful projector updates; the runner retains every per-seed outcome.
+- **Alternatives rejected:** Automatically skip remaining seeds after repeated errors or switch the main grid to `stop`, which would censor the failure rate or change the specified estimator protocol.
+- **Affected:** Interpretation of `experiments/manifold_grid.py` outputs and future run instructions; no estimator, solver, or runner behavior changed.
+- **Status:** adopted for this grid.
