@@ -113,7 +113,7 @@ def test_analysis_requires_complete_paired_rows_and_validation_does_not_select(
                     "effective_config": json.dumps(config),
                     "requested_config": "{}",
                     "status": "nonconverged",
-                    "failure_mode": "nonconverged",
+                    "failure_mode": "quality_not_recovered",
                     "stop_reason": "outer_steps",
                     "quality": "0.8",
                     "initial_quality": "0.7",

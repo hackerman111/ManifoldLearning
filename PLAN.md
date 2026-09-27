@@ -1,39 +1,47 @@
+task_id: manifold-generalization-2026-09-28
+status: active
+change_class: experiment only (no estimator/solver change)
 ---
-task_id: hybrid-package-decomposition-2026-09-27
-status: done
-change_class: EXACT
----
 
-# HYBRID solver package decomposition
+# Manifold beyond m=1
 
-## Goal and scope
-Keep the original HYBRID implementation and move it into
-`ADP/solver/HYBRID/`: shared core, explicit single/multi routes, and separate
-manifold solver. Remove the parallel experimental solver and its integrations
-and artifacts. Explain current and legacy LSMR contracts.
+Goal: runnable frozen experiment with m=1,2,3, flat/varying geometry,
+noiseless/noisy responses, all-center and independent-query recovery.
+Non-goals: estimator fixes, defaults, tuning, universal identifiability claim.
+Previous active single/multi study is preserved in previous_plan.md and
+previous_state.md under docs/experiments/manifold_generalization_2026-09-28/.
 
-## Invariants and known evidence
-Current HYBRID HPAO is multi-index-only and delegates outer iterations to
-`LSMR.solve`; manifold is an independent linear subproblem. Single-index uses
-current HPAO-LSMR. Preserve objectives, tolerances, certificates, diagnostics,
-shapes, existing import paths, and original HYBRID's own workspace recycling.
+Evidence: old radial protocol is m=1; local_quadratic rejects m>1.
+Live default is local_quadratic (routing note incorrectly says manifold).
+Explicit estimator=manifold is necessary; fix that note.
+Hypothesis: m>1 works on flat controls and moderately varying geometry;
+curvature/noise may expose support/rank/locality limitations.
 
-## Read set
-`agent-notes/ADP/solvers.md`, `ADP/solver/HYBRID/`,
-`ADP/solver/LSMR.py`, `ADP/solver/legacy_lsmr.py`, import callers,
-`tests/test_hybrid*.py`, `ADP/cli/main.py`, `pyproject.toml`, and
-`agent-notes/WORKFLOW.md`.
+Invariants: float64, row-orthonormal truth (n,m,d), full-rank analytic
+Jacobian, no truth passed to fit, separate data/noise/model/query seeds,
+all failures in denominator; geometric threshold 0.2 unchanged;
+convergence/completion/residuals diagnostic only. No estimator change.
+Scalar response does not uniquely identify a varying rank-m distribution:
+interpret recovery relative to the specified generating map.
 
-## Bounded work and acceptance
-- [x] Remove only parallel-variant additions while preserving unrelated dirty work.
-- [x] Split shared linear algebra, multi-index workspace/entry point, and
-  manifold solve; add a single-index route that explicitly reuses current LSMR.
-- [x] Preserve `ADP.solver.HYBRID` public symbols and update internal imports,
-  focused monkeypatch locations, and solver routing notes.
-- [x] Confirm no parallel-variant traces remain; verify syntax/imports and
-  `git diff --check`. Do not run pytest unless explicitly requested.
-- [x] Update `STATE.md`, append the architecture decision, mark plan done.
+Read set: research/engineering contracts, WORKFLOW, ADP/manifold.md;
+ADP/core/manifold/ADP_Manifold.py; engine/manifol_engine/fit.py;
+experiments/manifold_recovery_validate.py, manifold_recovery_probe.py
+(_version), runner.py (_local_subspace_metrics).
 
-## Stop conditions
-Stop if extraction needs a formula, tolerance, result-contract, or default
-change. Resolve such changes as a separate task.
+- [ ] Implement standalone module, frozen manifest before fitting,
+  incremental JSONL, per-case summary, source hashes, time/RSS/debug info.
+- [ ] Verify analytical Jacobian by finite differences, basis rotation,
+  deterministic generation and independence; run smoke/full within budget.
+- [ ] Document protocol, observed limits, runnable commands, update routes
+  and durable state; mark done when script and bounded evidence exist.
+
+Main: n=600,d=8,J=40,P=40,N_loc=30,N_lin=40,N_manifold=10,
+sync=3,lambda=0.5,cg_tol=1e-6,a=2**(1/m),h_min=3*mean(std)/sqrt(n),
+scale_boundary=raise, m=1,2,3, curvature=0,0.35,0.8, noise=0,0.1.
+5 independent seeds 81000..81004, 512 query points, one BLAS thread.
+Smoke: same cases/parameters, seed 80000 (not main seed).
+Stop: no tuning after outcomes; budget 600 seconds between fits marks
+incomplete; numerical errors are recorded, never removed. A single fit
+can exceed remaining budget. Query finite-sample coverage is not a proof
+on a continuum. No held-out validation of an improved estimator is claimed.

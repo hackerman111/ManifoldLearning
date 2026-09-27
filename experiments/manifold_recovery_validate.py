@@ -96,7 +96,9 @@ def main() -> None:
             elapsed = time.perf_counter() - started
             if error is None:
                 selected_truth = truth[model.center_indices_, None, :]
-                quality = _local_subspace_metrics(selected_truth, model.projectors_)[0]
+                quality, whole_manifold_distance, _ = _local_subspace_metrics(
+                    selected_truth, model.projectors_
+                )
                 residual = max(
                     float(entry["linear_relative_residual_max"])
                     for entry in model.trace_
@@ -108,6 +110,7 @@ def main() -> None:
                 )
             else:
                 quality = None
+                whole_manifold_distance = None
                 residual = None
                 completed = False
                 stop_reason = None
@@ -119,8 +122,21 @@ def main() -> None:
                     "estimator": estimator,
                     "solver": args.solver,
                     "quality": quality,
+                    "whole_manifold_max_local_projector_distance": (
+                        whole_manifold_distance
+                    ),
+                    "whole_manifold_pass": (
+                        whole_manifold_distance is not None
+                        and whole_manifold_distance <= 0.2
+                    ),
                     "completion_pass": completed,
-                    "recovered": completed and quality is not None and quality <= 0.2,
+                    "recovered": (
+                        error is None
+                        and quality is not None
+                        and quality <= 0.2
+                        and whole_manifold_distance is not None
+                        and whole_manifold_distance <= 0.2
+                    ),
                     "stop_reason": stop_reason,
                     "linear_residual_max": residual,
                     "linear_iterations": iterations,
@@ -196,6 +212,14 @@ def main() -> None:
                 "point": {"n": point.n, "d": point.d, "sigma_eps": point.sigma_eps},
                 "quality": "full-center RMS principal sine",
                 "threshold": 0.2,
+                "whole_manifold_metric": (
+                    "maximum local principal sine over all centers"
+                ),
+                "whole_manifold_threshold": 0.2,
+                "recovery_rule": (
+                    "both geometric checks pass; completion and inner residuals "
+                    "are diagnostics only"
+                ),
                 "completion": "h_min and every certified inner residual <= 1e-5",
                 "outer_convergence_certified": False,
             },

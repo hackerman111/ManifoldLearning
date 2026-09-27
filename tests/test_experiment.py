@@ -953,15 +953,16 @@ def test_phase_outcomes_have_strict_precedence() -> None:
     )
     assert (
         _outcome_fields("nonconverged", False, 0.95, 0.9, "higher")["failure_mode"]
-        == "nonconverged"
+        == "recovered"
     )
     assert (
         _outcome_fields("success", True, 0.85, 0.9, "higher")["failure_mode"]
-        == "converged_bad_quality"
+        == "quality_not_recovered"
     )
     assert _outcome_fields("success", True, 0.95, 0.9, "higher") == {
         "convergence_pass": True,
         "quality_pass": True,
+        "whole_manifold_pass": None,
         "recovered": True,
         "failure_mode": "recovered",
     }
@@ -1190,9 +1191,10 @@ def test_phase_report_writes_boundaries_and_plots(tmp_path) -> None:
     with (series / "boundary.csv").open(encoding="utf-8") as stream:
         boundary = list(csv.DictReader(stream))
     assert len(phase) == 2
-    assert phase[0]["recovery_rate"] == "0.5"
+    assert phase[0]["recovery_rate"] == "1.0"
+    assert phase[0]["convergence_rate"] == "0.5"
     assert [row["boundary_kind"] for row in boundary] == [
-        "transition,numerical",
+        "numerical",
         "estimator",
     ]
     assert (series / "plots/2/phase_diagram.png").is_file()
@@ -1260,7 +1262,7 @@ def test_paired_ab_writes_log_and_plots(tmp_path) -> None:
     assert {row["selected_iteration"] for row in rows} == {"0"}
     manifest = json.loads((series / "series.json").read_text())
     assert series == tmp_path / manifest["experiment_id"] / "custom"
-    assert manifest["schema_version"] == 9
+    assert manifest["schema_version"] == 10
     assert manifest["subspace_metrics"]["trace_score"] == (
         "trace(P_hat @ P_true) / m = mean(cos(theta_j)^2)"
     )
@@ -1302,12 +1304,15 @@ def test_manifold_experiment_writes_local_quality_and_prediction(tmp_path) -> No
     assert row["status"] == "success"
     assert row["quality_metric"] == "local_projector_distance"
     assert row["quality_direction"] == "lower"
+    assert np.isfinite(float(row["whole_manifold_max_local_projector_distance"]))
+    assert row["whole_manifold_pass"] in {"True", "False"}
     assert row["recovered"] == "False"
-    assert row["failure_mode"] == "converged_bad_quality"
+    assert row["failure_mode"] == "quality_not_recovered"
     assert np.isfinite(float(row["prediction_rmse"]))
     assert json.loads(row["effective_config"])["solver"] == "cg"
     manifest = json.loads((series / "series.json").read_text())
-    assert manifest["schema_version"] == 9
+    assert manifest["schema_version"] == 10
+    assert manifest["recovery"]["whole_manifold_threshold"] == 0.2
     assert manifest["manifold_link"] == "0.5 * (x_1^2 + x_2^2)"
 
 

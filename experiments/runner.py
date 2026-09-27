@@ -55,6 +55,7 @@ _RUN_COLUMNS = (
     "quality_direction",
     "convergence_pass",
     "quality_pass",
+    "whole_manifold_pass",
     "recovered",
     "failure_mode",
     "quality",
@@ -63,6 +64,7 @@ _RUN_COLUMNS = (
     "projector_distance",
     "max_principal_sine",
     "max_principal_angle_deg",
+    "whole_manifold_max_local_projector_distance",
     "initial_quality",
     "last_quality",
     "initial_eigenvalues",
@@ -282,6 +284,7 @@ def _fit(
         cosine = None
         trace_score = None
         projector_distance = quality
+    whole_manifold_distance = max_principal_sine if point.mode == "manifold" else None
     metrics = (quality, max_principal_sine, max_principal_angle_deg)
     if any(value is not None and not np.isfinite(value) for value in metrics):
         raise RuntimeError("quality metric is not finite")
@@ -297,6 +300,8 @@ def _fit(
             quality,
             quality_threshold,
             quality_direction,
+            whole_manifold_distance,
+            0.2 if point.mode == "manifold" else None,
         ),
         "quality": quality,
         "cosine_abs": cosine,
@@ -304,6 +309,7 @@ def _fit(
         "projector_distance": projector_distance,
         "max_principal_sine": max_principal_sine,
         "max_principal_angle_deg": max_principal_angle_deg,
+        "whole_manifold_max_local_projector_distance": whole_manifold_distance,
         "initial_quality": metadata["initial_quality"],
         "last_quality": metadata["last_quality"],
         "initial_eigenvalues": _compact_json(metadata["initial_eigenvalues"]),
@@ -553,7 +559,7 @@ def _write_manifest(
     experiment_id: str,
 ) -> None:
     manifest = {
-        "schema_version": 9,
+        "schema_version": 10,
         "created_at": datetime.now().astimezone().isoformat(),
         "experiment_id": experiment_id,
         "experiment": experiment.selector,
@@ -586,6 +592,16 @@ def _write_manifest(
                     else "lower"
                 ),
                 "threshold": experiment.quality_threshold,
+                **(
+                    {
+                        "whole_manifold_metric": (
+                            "whole_manifold_max_local_projector_distance"
+                        ),
+                        "whole_manifold_threshold": 0.2,
+                    }
+                    if experiment.smoke.mode == "manifold"
+                    else {}
+                ),
             }
         ),
         "seed": seed,
@@ -652,12 +668,15 @@ def _outcome_fields(
     quality: float | None,
     threshold: float | None,
     direction: str,
+    whole_manifold_distance: float | None = None,
+    whole_manifold_threshold: float | None = None,
 ) -> dict[str, object]:
     """Классифицировать численный и статистический исход одного fit."""
     if threshold is None:
         return {
             "convergence_pass": None,
             "quality_pass": None,
+            "whole_manifold_pass": None,
             "recovered": None,
             "failure_mode": None,
         }
@@ -667,18 +686,24 @@ def _outcome_fields(
         quality_pass = (
             quality >= threshold if direction == "higher" else quality <= threshold
         )
-    recovered = convergence_pass and quality_pass is True
+    whole_manifold_pass = None
+    if whole_manifold_threshold is not None and whole_manifold_distance is not None:
+        whole_manifold_pass = whole_manifold_distance <= whole_manifold_threshold
+    recovered = status != "numerical_failure" and quality_pass is True and (
+        whole_manifold_threshold is None or whole_manifold_pass is True
+    )
     if status == "numerical_failure" or quality_pass is None:
         failure_mode = "numerical_failure"
-    elif not convergence_pass:
-        failure_mode = "nonconverged"
     elif not quality_pass:
-        failure_mode = "converged_bad_quality"
+        failure_mode = "quality_not_recovered"
+    elif whole_manifold_threshold is not None and not whole_manifold_pass:
+        failure_mode = "whole_manifold_not_recovered"
     else:
         failure_mode = "recovered"
     return {
         "convergence_pass": convergence_pass,
         "quality_pass": quality_pass,
+        "whole_manifold_pass": whole_manifold_pass,
         "recovered": recovered,
         "failure_mode": failure_mode,
     }

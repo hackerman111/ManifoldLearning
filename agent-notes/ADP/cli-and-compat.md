@@ -12,7 +12,7 @@ CLI валидирует комбинации до запуска: single тре
 
 `python -m ADP.cli.experiment` перечисляет каталог и передает управление верхнеуровневому package `experiments/` (models/registry/data/runner/single/multi/manifold). Сам ADP-модуль задает CLI аргументы, собирает `Build`, выбирает profile/runs/seed/output-dir и получает код завершения с учетом численных failures. Не переносите логику каталогов или генерации экспериментов в этот wrapper: определения находятся вне `ADP/`. Источник: **SRC-CLI-EXP-WRAPPER**.
 
-`experiment_utils.py` централизует проверки точек/конфигураций и метрик. `experiment_plots.py` читает `runs.csv`/manifest, сохраняет summary, trace summary, failure/phase/boundary CSV и Markdown; когда plots включены — формирует PNG для качества, runtime, memory, failures, trajectories и paired deltas. В фазовом recovery-отчете отдельно считает convergence, quality pass и итог recovery; numerical failures не смешиваются с качественными провалами. Источники: **SRC-CLI-EXP-VALIDATION**, **SRC-CLI-REPORT**, **SRC-CLI-RECOVERY**.
+`experiment_utils.py` централизует проверки точек/конфигураций и метрик. `experiment_plots.py` читает `runs.csv`/manifest, сохраняет summary, trace summary, failure/phase/boundary CSV и Markdown; когда plots включены — формирует PNG для качества, runtime, memory, failures, trajectories и paired deltas. Recovery single/multi определяется качеством общего подпространства; convergence считается отдельно только для диагностики. Manifold дополнительно проходит порог максимальной ошибки локального projector по всем центрам. Numerical failures остаются отдельным исходом. Источники: **SRC-CLI-EXP-VALIDATION**, **SRC-CLI-REPORT**, **SRC-CLI-RECOVERY**.
 
 `python -m experiments.diagnostic` — отдельный парный benchmark поверх `Experiment.run`: базовая точка и локальные варианты параметров на общих seed, сценарии base/noise/correlation/scarce, отдельные seed для отбора и проверки. Выходы: `run.json`, `diagnostics.{csv,json,md}` и обычные `series/*/{series.json,runs.csv,...}`; `--analyze` пересобирает отчёт по сохранённым series без повторного fit. Выбор параметра является предварительным и относится только к проверенному сценарию. При ошибке fit общий `experiments/runner.py` записывает его wall-clock время; traced peak остаётся пустым, если fit не вернул профиль. Источник: `experiments/diagnostic.py`, `experiments/runner.py:run_experiment`.
 
@@ -40,7 +40,7 @@ CLI валидирует комбинации до запуска: single тре
 | SRC-CLI-EXP-WRAPPER | experiment parser, runner handoff and exit status | `rtk proxy sed -n '1,111p' ADP/cli/experiment.py` |
 | SRC-CLI-EXP-VALIDATION | validation helpers and point/config invariants | `rtk proxy sed -n '1,348p' ADP/cli/experiment_utils.py` |
 | SRC-CLI-REPORT | runs/manifest aggregation and report outputs | `rtk proxy sed -n '153,268p' ADP/cli/experiment_plots.py` |
-| SRC-CLI-RECOVERY | convergence/quality/recovery/failure classification | `rtk proxy sed -n '421,588p' ADP/cli/experiment_plots.py` |
+| SRC-CLI-RECOVERY | convergence diagnostics, geometric recovery, failure classification | `rtk proxy sed -n '461,689p' ADP/cli/experiment_plots.py` |
 | SRC-CLI-MAIN-MODULE | executable package entry point | `rtk proxy sed -n '1,5p' ADP/cli/__main__.py` |
 | SRC-CLI-EXPORTS | lazy exports | `rtk proxy sed -n '1,22p' ADP/cli/__init__.py` |
 | SRC-API-ALIASES | public API and old module aliases | `rtk proxy sed -n '1,68p' ADP/__init__.py` |

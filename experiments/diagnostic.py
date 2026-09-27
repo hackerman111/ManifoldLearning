@@ -183,8 +183,11 @@ def _summary(rows: list[dict[str, str]], *, expected: int) -> dict[str, Any]:
         "recovery_ci_low": max(0.0, low),
         "recovery_ci_high": min(1.0, high),
         "numerical_failures": outcomes["numerical_failure"],
-        "nonconverged": outcomes["nonconverged"],
-        "converged_bad_quality": outcomes["converged_bad_quality"],
+        "nonconverged": sum(row.get("status") == "nonconverged" for row in rows),
+        "converged_bad_quality": sum(
+            row.get("status") == "success" and row.get("quality_pass") == "False"
+            for row in rows
+        ),
         "quality_median": _median(rows, "quality"),
         "quality_q10": _quantile(rows, "quality", 0.1),
         "quality_count": sum(_number(row.get("quality")) is not None for row in rows),

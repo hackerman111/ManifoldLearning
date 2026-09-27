@@ -193,10 +193,16 @@ def _single(name: str, variant: str, seed: int) -> dict[str, object]:
                 finally:
                     tracemalloc.stop()
                 true_projectors = data.beta[model.center_indices_].swapaxes(1, 2)
-                quality = _local_subspace_metrics(true_projectors, model.projectors_)[0]
+                quality, worst_local_error, _ = _local_subspace_metrics(
+                    true_projectors, model.projectors_
+                )
                 result = {
                     "quality": quality,
-                    "convergence_pass": True,
+                    "quality_pass": quality <= 0.2,
+                    "whole_manifold_max_local_projector_distance": worst_local_error,
+                    "whole_manifold_pass": worst_local_error <= 0.2,
+                    "recovered": quality <= 0.2 and worst_local_error <= 0.2,
+                    "convergence_pass": None,
                     "stop_reason": model.stop_reason_,
                     "solver_diagnostics": json.dumps(
                         {
@@ -237,7 +243,6 @@ def _single(name: str, variant: str, seed: int) -> dict[str, object]:
         diagnostics = json.loads(str(result["solver_diagnostics"]))
         residual = diagnostics.get("linear_relative_residual_max")
         stop = result["stop_reason"]
-        quality_value = cast(float, result["quality"])
         row.update(
             quality=result["quality"],
             convergence=bool(result["convergence_pass"])
@@ -250,17 +255,11 @@ def _single(name: str, variant: str, seed: int) -> dict[str, object]:
             )
             if name.startswith("manifold")
             else None,
-            recovered=(
-                bool(result["convergence_pass"]) and quality_value >= 0.95
-                if name.startswith("multi")
-                else bool(
-                    stop
-                    in {"h_min", "function_mass_boundary", "manifold_mass_boundary"}
-                    and isinstance(residual, (int, float))
-                    and residual <= 1e-5
-                    and quality_value <= 0.2
-                )
+            whole_manifold_max_local_projector_distance=result.get(
+                "whole_manifold_max_local_projector_distance"
             ),
+            whole_manifold_pass=result.get("whole_manifold_pass"),
+            recovered=bool(result["recovered"]),
             stop_reason=stop,
             inner_residual=residual,
             traced_peak_mib=result["max_stage_traced_peak_mib"],
@@ -308,10 +307,6 @@ def _summarize(rows: list[dict[str, object]], expected_pairs: int) -> dict[str, 
             quality_deltas.append(delta)
             if delta < -1e-10:
                 reasons.append(f"seed {seed}: quality decreased by {-delta:.6g}")
-            if base.get("convergence") and not candidate.get("convergence"):
-                reasons.append(f"seed {seed}: lost convergence")
-            if base.get("completion") and not candidate.get("completion"):
-                reasons.append(f"seed {seed}: lost completion")
             if base.get("recovered") and not candidate.get("recovered"):
                 reasons.append(f"seed {seed}: lost recovery")
         if len(paired) != expected_pairs or len(time_ratios) != expected_pairs:
@@ -473,7 +468,8 @@ def main(argv: list[str] | None = None) -> int:
             "rescaled to nominal expected Gram"
         ),
         "gate": (
-            "paired fits; no new failure/lost convergence/completion/recovery; "
+            "paired fits; no new failure/lost geometric recovery; convergence "
+            "and completion are diagnostics only; "
             "per-fit quality tolerance 1e-10; speed median wall<=0.8 "
             "and RSS<=1.05 or recovery +ceil(pairs/3) with wall/RSS<=1.1"
         ),

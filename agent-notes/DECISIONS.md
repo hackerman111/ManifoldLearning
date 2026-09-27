@@ -267,3 +267,19 @@ Use this form:
 - **Alternatives rejected:** Keep a mixed 700-line module or duplicate the single-index HPAO algorithm inside HYBRID.
 - **Affected:** `ADP/solver/HYBRID/`, CLI/import callers, focused solver tests, `agent-notes/ADP/` routing.
 - **Status:** active
+
+## 2026-09-27 — Keep current ADP objective solves matrix-free for audited profiles
+
+- **Decision:** Do not convert current single, multi, or manifold objective solves to sparse-matrix storage/factorization based on the audited profiles; retain the existing matrix-free paths. Reconsider only with evidence of structurally sparse operators on representative workloads.
+- **Reason/evidence:** Across 10 small and 10 medium tasks per family, exact design density was at least 99.9375% and all normal matrices were 100% dense. Rare design zeros appeared only in medium zero-inflated-70 profiles. Manifold CSR graph density medians were 51.56%/64.23% and did not make its feature-space B-system sparse. See `docs/experiments/sparse_solver_suitability_2026-09-27/report.md` and `audit.json`.
+- **Alternatives rejected:** Infer useful solver sparsity from input zero-inflation, near-zero coefficients, or the graph's CSR container without a sparse feature-space objective.
+- **Affected:** Solver research direction and audit artifacts; no production code, estimator, or defaults changed. Runtime and memory remain unbenchmarked.
+- **Status:** final for the audited synthetic profiles; not a universal claim about other data or operators.
+
+## 2026-09-27 — Define recovery by geometric quality, report convergence separately
+
+- **Decision:** Recovery requires finite-fit geometric quality only: single `abs(cosine)`, multi `trace_score`, and manifold aggregate local-projector quality plus a worst-center local-projector check. Solver convergence/stationarity remain diagnostics and do not gate recovery or candidate admission.
+- **Reason/evidence:** The user requested that solver convergence stop being mandatory for recovery. Existing experiment records already preserve quality and solver diagnostics separately. For the supported manifold experiments (`index_dim=1`), maximum principal sine over all centers is the maximum local-projector distance and prevents a poor region from being hidden by the full-center RMS average.
+- **Alternatives rejected:** Counting a high-quality estimate as unrecovered solely because an iterative solver stopped by its native status; judging manifold recovery by an average over centers without checking the worst center.
+- **Affected:** `experiments/runner.py`, experiment report/analysis code, recovery study gates, manifold validation, `PLAN.md`, and `STATE.md`; no ADP estimation formula or solver is changed.
+- **Status:** adopted; the existing 105/108 selection snapshot retains its old protocol and is incomplete.

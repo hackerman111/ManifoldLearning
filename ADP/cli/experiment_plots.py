@@ -81,8 +81,8 @@ _TRACE_COLUMNS = (
 )
 _FAILURE_MODES = (
     "numerical_failure",
-    "nonconverged",
-    "converged_bad_quality",
+    "quality_not_recovered",
+    "whole_manifold_not_recovered",
     "recovered",
 )
 _PHASE_COLUMNS = (
@@ -96,6 +96,8 @@ _PHASE_COLUMNS = (
     "quality_metric",
     "quality_direction",
     "quality_threshold",
+    "whole_manifold_metric",
+    "whole_manifold_threshold",
     "n_total",
     "n_quality",
     "n_converged",
@@ -106,16 +108,22 @@ _PHASE_COLUMNS = (
     "quality_pass_rate",
     "quality_pass_ci_low",
     "quality_pass_ci_high",
+    "n_whole_manifold_pass",
+    "whole_manifold_pass_rate",
     "n_recovered",
     "recovery_rate",
     "recovery_ci_low",
     "recovery_ci_high",
     "n_numerical_failure",
     "numerical_failure_rate",
+    "n_quality_not_recovered",
+    "quality_not_recovered_rate",
     "n_nonconverged",
     "nonconverged_rate",
     "n_converged_bad_quality",
     "converged_bad_quality_rate",
+    "n_whole_manifold_not_recovered",
+    "whole_manifold_not_recovered_rate",
     "quality_median",
     "quality_q05",
     "quality_q95",
@@ -463,6 +471,15 @@ def _phase_summaries(
         n_quality = len(quality)
         n_converged = sum(outcome["convergence_pass"] is True for outcome in outcomes)
         n_quality_pass = sum(outcome["quality_pass"] is True for outcome in outcomes)
+        whole_manifold_outcomes = [
+            outcome
+            for outcome in outcomes
+            if outcome["whole_manifold_pass"] is not None
+        ]
+        n_whole_manifold_pass = sum(
+            outcome["whole_manifold_pass"] is True
+            for outcome in whole_manifold_outcomes
+        )
         n_recovered = sum(outcome["recovered"] is True for outcome in outcomes)
         convergence_interval = _wilson_interval(n_converged, n_total)
         quality_interval = _wilson_interval(n_quality_pass, n_quality)
@@ -485,6 +502,8 @@ def _phase_summaries(
                 "quality_metric": recovery["metric"],
                 "quality_direction": recovery["direction"],
                 "quality_threshold": recovery["threshold"],
+                "whole_manifold_metric": recovery["whole_manifold_metric"] or "",
+                "whole_manifold_threshold": recovery["whole_manifold_threshold"],
                 "n_total": n_total,
                 "n_quality": n_quality,
                 "n_converged": n_converged,
@@ -497,6 +516,12 @@ def _phase_summaries(
                 ),
                 "quality_pass_ci_low": quality_interval[0],
                 "quality_pass_ci_high": quality_interval[1],
+                "n_whole_manifold_pass": n_whole_manifold_pass,
+                "whole_manifold_pass_rate": (
+                    n_whole_manifold_pass / len(whole_manifold_outcomes)
+                    if whole_manifold_outcomes
+                    else float("nan")
+                ),
                 "n_recovered": n_recovered,
                 "recovery_rate": n_recovered / n_total,
                 "recovery_ci_low": recovery_interval[0],
@@ -507,6 +532,37 @@ def _phase_summaries(
                     if mode != "recovered"
                 },
                 **{f"{mode}_rate": counts[mode] / n_total for mode in _FAILURE_MODES},
+                "n_nonconverged": sum(
+                    outcome["convergence_pass"] is False
+                    and outcome["status"] != "numerical_failure"
+                    for outcome in outcomes
+                ),
+                "nonconverged_rate": sum(
+                    outcome["convergence_pass"] is False
+                    and outcome["status"] != "numerical_failure"
+                    for outcome in outcomes
+                )
+                / n_total,
+                "n_converged_bad_quality": sum(
+                    outcome["convergence_pass"] is True
+                    and outcome["quality_pass"] is False
+                    for outcome in outcomes
+                ),
+                "converged_bad_quality_rate": sum(
+                    outcome["convergence_pass"] is True
+                    and outcome["quality_pass"] is False
+                    for outcome in outcomes
+                )
+                / n_total,
+                "n_whole_manifold_not_recovered": sum(
+                    outcome["whole_manifold_pass"] is False
+                    for outcome in outcomes
+                ),
+                "whole_manifold_not_recovered_rate": sum(
+                    outcome["whole_manifold_pass"] is False
+                    for outcome in outcomes
+                )
+                / n_total,
                 "quality_median": quantiles[0],
                 "quality_q05": quantiles[1],
                 "quality_q95": quantiles[2],
@@ -524,6 +580,8 @@ def _phase_outcome(
     convergence_pass = _boolean(row.get("convergence_pass"))
     if convergence_pass is None:
         convergence_pass = _diagnostics_converged(row.get("solver_diagnostics", ""))
+    if convergence_pass is None and row.get("status") in {"success", "nonconverged"}:
+        convergence_pass = row.get("status") == "success"
     if row.get("status") == "numerical_failure":
         convergence_pass = False
 
@@ -536,21 +594,40 @@ def _phase_outcome(
         quality_pass = (
             quality >= threshold if direction == "higher" else quality <= threshold
         )
-    recovered = convergence_pass is True and quality_pass is True
+    whole_manifold_metric = recovery.get("whole_manifold_metric")
+    whole_manifold_quality = None
+    whole_manifold_pass = None
+    if isinstance(whole_manifold_metric, str):
+        whole_manifold_quality = _number(
+            row.get(whole_manifold_metric, row.get("max_principal_sine", ""))
+        )
+        whole_manifold_threshold = _number(
+            recovery.get("whole_manifold_threshold")
+        )
+        if whole_manifold_threshold is not None and whole_manifold_quality is not None:
+            whole_manifold_pass = whole_manifold_quality <= whole_manifold_threshold
+    recovered = (
+        row.get("status") != "numerical_failure"
+        and quality_pass is True
+        and (whole_manifold_metric is None or whole_manifold_pass is True)
+    )
     if row.get("status") == "numerical_failure" or quality is None:
         failure_mode = "numerical_failure"
-    elif convergence_pass is not True:
-        failure_mode = "nonconverged"
     elif quality_pass is not True:
-        failure_mode = "converged_bad_quality"
+        failure_mode = "quality_not_recovered"
+    elif whole_manifold_metric is not None and whole_manifold_pass is not True:
+        failure_mode = "whole_manifold_not_recovered"
     else:
         failure_mode = "recovered"
     return {
         "quality": quality,
         "convergence_pass": convergence_pass,
         "quality_pass": quality_pass,
+        "whole_manifold_quality": whole_manifold_quality,
+        "whole_manifold_pass": whole_manifold_pass,
         "recovered": recovered,
         "failure_mode": failure_mode,
+        "status": row.get("status"),
     }
 
 
@@ -566,11 +643,18 @@ def _recovery_rule(
         threshold = quality_threshold
         metric = _first(rows, "quality_metric") or "quality"
         direction = _first(rows, "quality_direction") or "higher"
+        whole_manifold_metric = None
+        whole_manifold_threshold = None
     else:
         assert isinstance(configured, Mapping)
         threshold = configured.get("threshold")
         metric = configured.get("metric")
         direction = configured.get("direction")
+        whole_manifold_metric = configured.get("whole_manifold_metric")
+        whole_manifold_threshold = configured.get("whole_manifold_threshold")
+    if metric == "local_projector_distance" and whole_manifold_metric is None:
+        whole_manifold_metric = "whole_manifold_max_local_projector_distance"
+        whole_manifold_threshold = 0.2
     if (
         isinstance(threshold, bool)
         or not isinstance(threshold, (int, float))
@@ -582,7 +666,27 @@ def _recovery_rule(
         raise ValueError("quality direction must be 'higher' or 'lower'")
     if not isinstance(metric, str) or not metric:
         raise ValueError("quality metric must be a non-empty string")
-    return {"metric": metric, "direction": direction, "threshold": float(threshold)}
+    if whole_manifold_metric is not None:
+        if not isinstance(whole_manifold_metric, str) or not whole_manifold_metric:
+            raise ValueError("whole manifold metric must be a non-empty string")
+        if (
+            isinstance(whole_manifold_threshold, bool)
+            or not isinstance(whole_manifold_threshold, (int, float))
+            or not np.isfinite(whole_manifold_threshold)
+            or not 0 <= whole_manifold_threshold <= 1
+        ):
+            raise ValueError("whole manifold threshold must lie in [0, 1]")
+    return {
+        "metric": metric,
+        "direction": direction,
+        "threshold": float(threshold),
+        "whole_manifold_metric": whole_manifold_metric,
+        "whole_manifold_threshold": (
+            float(whole_manifold_threshold)
+            if whole_manifold_threshold is not None
+            else None
+        ),
+    }
 
 
 def _boundary_rows(
