@@ -39,9 +39,12 @@ def weight_block(
     ]
     np.square(coordinates, out=coordinates)
     projected2 = coordinates.sum(axis=1)
-    principal2 = np.einsum(
-        "bm,bmn->bn", eigenvalues[start:stop], coordinates, optimize=True
-    )
+    if model.localization_spectrum == "unit":
+        principal2 = projected2
+    else:
+        principal2 = np.einsum(
+            "bm,bmn->bn", eigenvalues[start:stop], coordinates, optimize=True
+        )
     residual2 = distance2 - projected2
     np.maximum(residual2, 0.0, out=residual2)
     principal2 += alpha**2 * residual2

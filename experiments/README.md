@@ -338,6 +338,22 @@ residuals/stop reason не входят в recovery.
 Отдельное парное exploratory сравнение использует существующую опцию
 `--scale-boundary stop`; default эксперимента остаётся `raise`.
 Их результаты сохраняются в разных каталогах и не смешиваются.
+Исправленный отдельный протокол `experiments.manifold_generalization_repair`
+сравнивает исходный относительный спектр локализации с явным `"unit"` на
+парных seed. Он проверяет качество центров и ошибку оценки выбранного chart
+отдельно от неизбежной ошибки nearest-chart на query. Для искривлённых
+`m>=2` генераторное поле `row(Dz)` не идентифицируется по одному scalar Y,
+поэтому эти профили остаются описательной диагностикой. Формулы, критерий,
+команды и результаты — в `docs/experiments/manifold_generalization_2026-09-28/repair.md`.
+
+Разбор провала на кривизне и честный критерий для скалярного отклика —
+[`docs/experiments/manifold_curvature_2026-09-28/report.md`](../docs/experiments/manifold_curvature_2026-09-28/report.md).
+Для `m>=2,c>0` проверяется включение наблюдаемого градиента в локальное
+пространство; это необходимое условие, а не восстановление всего `row(Dz)`.
+На проверенном `n=600,d=8` профиле даже broad/unit не прошёл all-center
+порог ни в одной из 60 попыток, поэтому положительной рекомендации для
+искривлённых m=1/2/3 нет. На плоской широкой поддержке broad/unit
+восстановил 30/30 попыток отдельной validation серии.
 
 ### Единая сетка manifold
 
@@ -349,25 +365,39 @@ residuals/stop reason не входят в recovery.
 30 seed на конфигурацию, `full` — 250; `--runs` переопределяет число повторов.
 
 ```bash
-uv run python -m experiments.manifold_grid --profile development --dry-run
-uv run python -m experiments.manifold_grid --profile full --dry-run
-uv run python -m experiments.manifold_grid --profile full
-uv run python -m experiments.manifold_grid --series hd-fixed-n,hd-fixed-n-over-d --profile full --dry-run
+uv run --no-sync python -m experiments.manifold_grid --profile development --dry-run
+uv run --no-sync python -m experiments.manifold_grid --profile full --dry-run
+uv run --no-sync python -m experiments.manifold_grid --profile full
+uv run --no-sync python -m experiments.manifold_grid --profile full --scale-boundary raise --dry-run
 ```
 
 Выводы записываются в новый каталог `benchmark_outputs/experiments/`:
 `manifest.json` фиксирует генератор, конфигурацию и окружение, `runs.jsonl`
 содержит каждую оценку и ошибку, `summary.json` обновляется после каждого fit.
-Recovery требует RMS и максимум principal sine не выше 0.2 одновременно на
-центрах и 512 независимых запросах; oracle-ошибка ближайшего истинного chart
-сохраняется отдельно.
+По умолчанию сетка использует `scale_boundary=stop`: fit завершается на
+последнем допустимом масштабе с `stop_reason=function_mass_boundary` или
+`manifold_mass_boundary`. Ошибки ранга и solver по-прежнему записываются как
+ошибки fit. Исходный строгий протокол из `Manifold exp.md` доступен через
+`--scale-boundary raise`; его результаты нельзя объединять с режимом `stop`.
+
+Для `m=1` и плоского `c=0` recovery требует RMS и максимум principal sine
+не выше 0.2 на всех центрах и при оценке chart тех же ближайших центров
+для 512 независимых запросов. Для искривлённых `m>=2` поле генераторного
+`row(Dz)` не определяется однозначно одним scalar Y, поэтому `recovered=null`.
+Сырые ошибки на query и oracle nearest-chart сохраняются отдельно как
+описательные метрики. В `summary.json` есть число оцениваемых fits, границы
+массы и численные ошибки; схема новых результатов — версия 2.
 
 В таблице 26 строк, но строго одинаковых конфигураций 22, поэтому полная
 сетка после дедупликации составляет 5,500 fits, а не указанные в документе
 5,750. Также `N_lin=200` не проходит live-валидацию для `n<=200` или `d=200`;
 поэтому текущий runner применяет ближайшую допустимую целевую массу
 `max(d+2, min(200, n-1))` для таких крайних точек. Остальные параметры
-совпадают со спецификацией; estimator и production defaults не меняются.
+совпадают со спецификацией, кроме явного выбора `scale_boundary=stop` для
+основного запуска сетки; production defaults не меняются. Старые результаты
+строгого протокола не перезаписываются.
+Результаты ограниченной проверки всех 22 точек и оценка качества — в
+[`docs/experiments/manifold_grid_2026-09-28/report.md`](../docs/experiments/manifold_grid_2026-09-28/report.md).
 
 ### Сетка Spokoini для multi-index
 

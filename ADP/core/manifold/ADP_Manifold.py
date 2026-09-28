@@ -42,6 +42,7 @@ class ADP_Manifold:
         cg_maxiter: int | None = None,
         solver: Literal["cg", "hybrid"] = "cg",
         estimator: Literal["manifold", "local_quadratic"] = "local_quadratic",
+        localization_spectrum: Literal["relative", "unit"] = "relative",
         dense_max_unknowns: int = 256,
         dense_max_bytes: int = 64 * 1024**2,
         scale_boundary: Literal["raise", "stop"] = "raise",
@@ -69,6 +70,9 @@ class ADP_Manifold:
         if estimator == "local_quadratic" and self.index_dim != 1:
             raise ValueError("local_quadratic estimator requires index_dim=1")
         self.estimator = estimator
+        if localization_spectrum not in {"relative", "unit"}:
+            raise ValueError("localization_spectrum must be 'relative' or 'unit'")
+        self.localization_spectrum = localization_spectrum
         self.dense_max_unknowns = self._integer(
             "dense_max_unknowns", dense_max_unknowns, minimum=0
         )

@@ -11,7 +11,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from threadpoolctl import threadpool_info, threadpool_limits
@@ -70,7 +70,9 @@ def _n_lin_target(cell: Cell) -> int:
     return max(cell.d + 2, min(200, cell.n - 1))
 
 
-def _run_case(cell: Cell, seed: int) -> dict[str, Any]:
+def _run_case(
+    cell: Cell, seed: int, scale_boundary: Literal["raise", "stop"]
+) -> dict[str, Any]:
     started = time.perf_counter()
     X, Y, truth, queries, query_truth, model_seed = make_data(
         seed, cell.n, cell.d, cell.m, cell.curvature, cell.noise
@@ -93,17 +95,17 @@ def _run_case(cell: Cell, seed: int) -> dict[str, Any]:
         h_min=h_min,
         batch_size=32,
         seed=model_seed,
-        scale_boundary="raise",
+        scale_boundary=scale_boundary,
     )
+    identifiable = cell.curvature == 0.0 or cell.m == 1
     row: dict[str, Any] = {
         **asdict(cell),
         "seed": seed,
         "model_seed": model_seed,
         "N_lin": n_lin,
+        "identifiable_target": identifiable,
         "error": None,
-        "recovered": False,
-        "center_recovered": False,
-        "query_recovered": False,
+        "recovered": False if identifiable else None,
     }
     fit_started = time.perf_counter()
     try:
@@ -113,22 +115,29 @@ def _run_case(cell: Cell, seed: int) -> dict[str, Any]:
         center_rms, center_max, _ = _local_subspace_metrics(
             truth[model.center_indices_], model.projectors_
         )
+        center_truth = truth[model.center_indices_]
         nearest = model._nearest_center_indices(model._prepare_queries(queries))
+        chart_rms, chart_max, _ = _local_subspace_metrics(
+            center_truth[nearest], model.projectors_[nearest]
+        )
         query_rms, query_max, _ = _local_subspace_metrics(
             query_truth, model.projectors_[nearest]
         )
         oracle_rms, oracle_max, _ = _local_subspace_metrics(
-            query_truth, truth[model.center_indices_][nearest]
+            query_truth, center_truth[nearest]
         )
+        center_pass = center_rms <= 0.2 and center_max <= 0.2
+        chart_pass = chart_rms <= 0.2 and chart_max <= 0.2
         row.update(
             center_rms=center_rms,
             center_max=center_max,
-            query_rms=query_rms,
-            query_max=query_max,
-            oracle_query_rms=oracle_rms,
-            oracle_query_max=oracle_max,
-            center_recovered=center_rms <= 0.2 and center_max <= 0.2,
-            query_recovered=query_rms <= 0.2 and query_max <= 0.2,
+            chart_estimation_rms=chart_rms,
+            chart_estimation_max=chart_max,
+            query_raw_rms=query_rms,
+            query_raw_max=query_max,
+            query_oracle_rms=oracle_rms,
+            query_oracle_max=oracle_max,
+            generator_center_gate=center_pass,
             stop_reason=model.stop_reason_,
             n_scales=model.n_scales_,
             effective_config=model.effective_config_,
@@ -137,7 +146,8 @@ def _run_case(cell: Cell, seed: int) -> dict[str, Any]:
             ),
             trace=model.trace_,
         )
-        row["recovered"] = row["center_recovered"] and row["query_recovered"]
+        if identifiable:
+            row["recovered"] = center_pass and chart_pass
         row["evaluation_seconds"] = time.perf_counter() - evaluation_started
     except Exception as exc:
         row["error"] = f"{type(exc).__name__}: {exc}"
@@ -158,11 +168,19 @@ def _summary(
         selected = [row for row in rows if name in row["series"]]
         planned = sum(name in cell.series for cell in grid()) * runs
         valid = [row for row in selected if row["error"] is None]
+        identifiable = [row for row in selected if row["identifiable_target"]]
         series_rows[name] = {
             "planned": planned,
             "finished": len(selected),
             "errors": sum(row["error"] is not None for row in selected),
-            "recovered": sum(bool(row["recovered"]) for row in selected),
+            "identifiable_finished": len(identifiable),
+            "recovered": sum(row["recovered"] is True for row in selected),
+            "function_boundary_stops": sum(
+                row.get("stop_reason") == "function_mass_boundary" for row in selected
+            ),
+            "manifold_boundary_stops": sum(
+                row.get("stop_reason") == "manifold_mass_boundary" for row in selected
+            ),
             **{
                 f"{metric}_median": (
                     float(np.median([row[metric] for row in valid if metric in row]))
@@ -172,9 +190,11 @@ def _summary(
                 for metric in (
                     "center_rms",
                     "center_max",
-                    "query_rms",
-                    "query_max",
-                    "oracle_query_max",
+                    "chart_estimation_rms",
+                    "chart_estimation_max",
+                    "query_raw_rms",
+                    "query_raw_max",
+                    "query_oracle_max",
                     "fit_seconds",
                 )
             },
@@ -213,6 +233,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--runs", type=int, help="Переопределить повторы профиля")
     parser.add_argument("--seed", type=int, default=81000)
     parser.add_argument("--threads", type=int, default=1)
+    parser.add_argument(
+        "--scale-boundary", choices=("stop", "raise"), default="stop"
+    )
     parser.add_argument("--series", help="Серии через запятую; по умолчанию все")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--list", action="store_true")
@@ -255,7 +278,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{name}: {count} points x {runs} runs = {count * runs} fits")
     print(
         f"Итого: {len(cells)} уникальных конфигураций, {planned} fits; "
-        f"profile={args.profile}"
+        f"profile={args.profile}; scale_boundary={args.scale_boundary}"
     )
     if args.dry_run:
         for cell in cells:
@@ -273,7 +296,7 @@ def main(argv: list[str] | None = None) -> int:
     with threadpool_limits(limits=args.threads):
         active_threadpools = threadpool_info()
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "created_at": datetime.now().astimezone().isoformat(),
         "profile": args.profile,
         "series": list(names),
@@ -287,7 +310,10 @@ def main(argv: list[str] | None = None) -> int:
             "X~N(0,I_d); u=X@Q; z_k=u_k+c*u_(m+k)^2/2; "
             "f=sum(z_k^2)/2; Y=(f-mean(f))/std(f)+sigma*N(0,1)"
         ),
-        "truth": "row(Dz), analytic full-rank local EDR subspace",
+        "truth": (
+            "row(Dz), analytic full-rank generator chart; "
+            "descriptive for curved m>=2"
+        ),
         "kernel": "max(1 - (distance_squared / h**2)**2, 0)",
         "bandwidth_rule": (
             "production target-mass search; h_min=3*mean(std(X))/sqrt(n); "
@@ -314,14 +340,15 @@ def main(argv: list[str] | None = None) -> int:
             "lambda_manifold": 0.5,
             "cg_tol": 1e-6,
             "support": "local",
-            "scale_boundary": "raise",
+            "scale_boundary": args.scale_boundary,
             "batch_size": 32,
             "a": "2**(1/m)",
             "h_min": "3*mean(std(X, axis=0))/sqrt(n)",
         },
         "recovery": (
-            "center AND 512 independent query RMS/max principal sine <= 0.2; "
-            "oracle chart errors also recorded"
+            "identifiable if c=0 or m=1; center AND same-center chart-estimation "
+            "RMS/max principal sine <= 0.2; raw and oracle nearest-chart query "
+            "errors are descriptive"
         ),
         "threadpool": {
             "requested_threads": args.threads,
@@ -345,7 +372,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         for cell in cells:
             for seed in range(args.seed, args.seed + runs):
-                row = _run_case(cell, seed)
+                row = _run_case(cell, seed, args.scale_boundary)
                 rows.append(row)
                 stream.write(json.dumps(row, allow_nan=False) + "\n")
                 stream.flush()
@@ -355,6 +382,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 print(
                     f"{len(rows)}/{planned} {cell.key} seed={seed} "
+                    f"stop={row.get('stop_reason')} "
                     f"recovered={row['recovered']} error={row['error']}",
                     flush=True,
                 )

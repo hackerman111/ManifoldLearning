@@ -31,7 +31,7 @@ def test_chunked_weights_and_sparse_graph_match_dense_reference() -> None:
     eigenvalues[:, 0] = 1.0
     h = 1.7
     alpha = 0.45
-    model = ADP_Manifold(2, batch_size=2)
+    model = ADP_Manifold(2, estimator="manifold", batch_size=2)
 
     distance2 = model._pairwise_distance2(X, centers)
     explicit_difference = X[None, :, :] - centers[:, None, :]
@@ -73,6 +73,27 @@ def test_chunked_weights_and_sparse_graph_match_dense_reference() -> None:
     np.testing.assert_allclose(graph.toarray(), actual[:, : len(centers)])
     assert graph.nnz == np.count_nonzero(actual[:, : len(centers)])
 
+    unit_model = ADP_Manifold(
+        2, estimator="manifold", localization_spectrum="unit", batch_size=2
+    )
+    original_eigenvalues = eigenvalues.copy()
+    unit_argument = (projected2 + alpha**2 * (distance2 - projected2)) / h**2
+    unit_expected = np.maximum(1.0 - np.square(unit_argument), 0.0)
+    unit_actual = np.vstack(
+        [
+            unit_model._weight_block(
+                X, centers, projectors, eigenvalues, h, alpha, start
+            )
+            for start in range(0, len(centers), unit_model.batch_size)
+        ]
+    )
+    np.testing.assert_allclose(unit_actual, unit_expected, rtol=2e-14, atol=2e-14)
+    unit_graph = unit_model._build_manifold_graph(
+        centers, projectors, eigenvalues, h, alpha
+    )
+    np.testing.assert_allclose(unit_graph.toarray(), unit_actual[:, : len(centers)])
+    np.testing.assert_array_equal(eigenvalues, original_eigenvalues)
+
     Y = rng.normal(size=len(X))
     directions = rng.normal(size=(len(centers), 3, X.shape[1]))
     directions /= np.linalg.norm(directions, axis=2, keepdims=True)
@@ -112,7 +133,9 @@ def test_penalty_operator_and_cg_match_dense_reference() -> None:
     source_projectors = _projectors(rng, K, m, d)
     slopes = rng.normal(size=(K, m))
     B = rng.normal(size=(m, d))
-    model = ADP_Manifold(2, lambda_manifold=0.6, cg_tol=1e-11)
+    model = ADP_Manifold(
+        2, estimator="manifold", lambda_manifold=0.6, cg_tol=1e-11
+    )
 
     normalized = weights / weights.sum()
     dense_average = np.einsum(
@@ -160,7 +183,9 @@ def test_penalty_operator_and_cg_match_dense_reference() -> None:
     np.testing.assert_allclose(unpreconditioned, expected, rtol=2e-10, atol=2e-11)
     assert residual <= 1e-10
 
-    failing = ADP_Manifold(2, lambda_manifold=0.6, cg_tol=1e-14, cg_maxiter=1)
+    failing = ADP_Manifold(
+        2, estimator="manifold", lambda_manifold=0.6, cg_tol=1e-14, cg_maxiter=1
+    )
     with pytest.raises(RuntimeError, match="CG did not converge"):
         failing._solve_B(operator, preconditioner, rhs, initial)
 
@@ -226,6 +251,7 @@ def test_fit_is_reproducible_chunk_invariant_and_recovers_subspace() -> None:
     Y = np.sin(2.0 * X[:, 0]) + np.square(X[:, 1])
     Y += 0.02 * rng.normal(size=len(X))
     settings: dict[str, Any] = {
+        "estimator": "manifold",
         "N_loc": 28,
         "N_lin": 50,
         "N_J": 14,
@@ -313,6 +339,7 @@ def test_invalid_and_degenerate_inputs_fail_explicitly() -> None:
     with pytest.raises(RuntimeError, match="rank-deficient local-linear fit"):
         ADP_Manifold(
             1,
+            estimator="manifold",
             N_loc=8,
             N_lin=15,
             N_J=8,
@@ -357,6 +384,8 @@ def test_mass_boundary_is_the_feasible_side_of_the_bracket() -> None:
         model._feasible_scale(X, centers, basis, spectrum, 0.001, 0.01)
     with pytest.raises(ValueError, match="scale_boundary"):
         ADP_Manifold(1, scale_boundary="invalid")
+    with pytest.raises(ValueError, match="localization_spectrum"):
+        ADP_Manifold(1, localization_spectrum="invalid")
 
 
 @pytest.mark.parametrize("seed", [7, 19, 31])
@@ -366,6 +395,7 @@ def test_varying_direction_learns_at_mass_boundary(seed: int) -> None:
     Y = X[:, 0] + 0.03 * X[:, 1] ** 2 + 0.01 * rng.normal(size=len(X))
     model = ADP_Manifold(
         1,
+        estimator="manifold",
         N_loc=30,
         N_lin=80,
         N_J=40,

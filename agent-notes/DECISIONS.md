@@ -325,3 +325,43 @@ Status: active experiment interpretation; no algorithm decision/promoted variant
 - **Alternatives rejected:** Automatically skip remaining seeds after repeated errors or switch the main grid to `stop`, which would censor the failure rate or change the specified estimator protocol.
 - **Affected:** Interpretation of `experiments/manifold_grid.py` outputs and future run instructions; no estimator, solver, or runner behavior changed.
 - **Status:** adopted for this grid.
+
+## 2026-09-28 — Diagnose manifold generalization without changing the estimator
+
+- **Decision:** Keep the current manifold estimator and frozen generalization protocols intact. Treat replacing relative spectrum by unit weights as a separate ESTIMATOR hypothesis requiring its own selection and validation; do not call it a universal fix.
+- **Reason/evidence:** The paired flat broad `m=3,c=0` diagnostic changes recovery from 0/10 to 10/10 and exposes spectral localization feedback, but exact-gradient initialization on the broad curved graph still has center RMS 0.268–0.649. Exact center charts also fail the curved query gate. See `docs/experiments/manifold_generalization_2026-09-28/diagnosis.md` and its runnable `diagnosis.py`.
+- **Alternatives rejected:** Attribute geometric failures to solver recovery, silently replace spectral weights in production, or relax the frozen recovery threshold after observing failures.
+- **Affected:** Interpretation of manifold generalization results and future experiment design; no production code or frozen outputs changed.
+- **Status:** adopted for this diagnosis.
+
+## 2026-09-28 — Use explicit feasible boundary in the runnable manifold grid
+
+- **Decision:** For `experiments.manifold_grid`, default to the existing explicit `scale_boundary="stop"` variant and retain the original strict `raise` protocol behind `--scale-boundary raise`. Keep all other estimator parameters and every numerical failure. In schema 2, assess recovery only for `m=1` or flat `c=0`, using center and same-center chart-estimation errors; retain raw/oracle nearest-chart distances as diagnostics.
+- **Reason/evidence:** The user's interrupted full run and an earlier partial run contained 61/61 identical mass-boundary exceptions on the first cell. Paired seed 81000 reaches four updates then raises in strict mode; stop returns after five updates with target mass 80.0000000002 and solver residual 9.1e-15, allowing geometric assessment. It still fails recovery (center RMS/max 0.330/0.642). The prior generalization proof shows curved `m>=2` generator charts are not identifiable from scalar Y, and the raw query gate includes chart discretization.
+- **Supersedes:** The earlier same-day decision to keep strict `raise` as the grid default; that mode remains reproducible on request. This is an explicit grid protocol/ESTIMATOR variant change, not a production ADP default change.
+- **Affected:** `experiments/manifold_grid.py`, grid tests, `experiments/README.md`, manifold routing, `PLAN.md`, and `STATE.md`; previous output artifacts remain unchanged.
+- **Status:** active for the repaired grid; broad recovery remains an empirical question.
+
+## 2026-09-28 — Use only identifiable scalar-response targets for curved manifold
+
+- **Decision:** Keep scalar Y. For curved m=1, assess the one-dimensional local chart away from stationary points; for flat m=1/2/3, assess the fixed global EDR space. For curved m=2/3, assess containment of the observable gradient in the estimated local space and keep generator `row(Dz)` distances descriptive, with no full-chart recovery flag.
+- **Reason/evidence:** The smooth gauge change `z(x) -> R(x)z(x)` preserves `f(x)=||z(x)||²/2` at every x but changes `row(Dz(x))` for m>=2. The user explicitly selected an honest scalar-response criterion. The raw nearest-chart query gate also includes nonzero discretization error with exact center charts.
+- **Alternatives rejected:** Claim full rank-m curved chart recovery from scalar observations; redefine a failed generator-chart gate as success.
+- **Affected:** New curvature diagnosis/validation protocol, result interpretation, and `PLAN.md`; production estimator and old artifacts remain unchanged.
+- **Status:** active.
+
+## 2026-09-28 — Retain unit-spectrum localization as a flat broad variant
+
+- **Decision:** Keep `localization_spectrum="unit"` opt-in. It is supported for the frozen broad flat m=1/2/3 protocol but is not promoted as a general default.
+- **Reason/evidence:** Complete development/validation paired runs: broad/unit recovered 30/30 flat validation fits without numerical failure; broad/relative recovered 14/30. Local/unit recovered only 19/30 with five failures, and the curved development gate failed. The complete run manifests match all 11 live source hashes.
+- **Alternatives rejected:** Change the production default or claim curvature repair from the flat result.
+- **Affected:** Experiment interpretation and `docs/experiments/manifold_generalization_2026-09-28/repair.md`; no production code change.
+- **Status:** validated only in the frozen flat broad setting.
+
+## 2026-09-28 — Stop the curved scalar-response estimator search at the failed gate
+
+- **Decision:** Do not promote the current manifold estimator, its `unit` spectrum option, or the Gaussian-Stein/quartic prototype as a stable curved m=1/2/3 recovery method. Keep the scalar-response criterion as all-center RMS and maximum gradient-containment sine <=0.2; full curved `row(Dz)` for m>=2 remains a descriptive generator distance.
+- **Reason/evidence:** The finalized 240/240 development rows and matching seven source hashes show broad/unit 60/60 numerically completed fits but 0/60 gradient-containment passes. The original broad graph with exact source gradients also passed 0/60; local/unit had 21/60 rank failures. The one isolated polynomial candidate computed 12/12 preflight profiles and passed 0/12. The smooth gauge example proves full chart nonidentifiability for m>=2 under scalar `f=||z||²/2`; `tests/test_manifold_identifiability.py` checks the counterexample numerically. See `docs/experiments/manifold_curvature_2026-09-28/report.md`.
+- **Alternatives rejected:** Count low solver residual or `scale_boundary="stop"` as geometric recovery, weaken the all-center maximum gate after observing failures, infer a general curved method from flat validation or the mild d=4 curved test, or run untouched curved validation after failed preflight.
+- **Affected:** Curved-manifold scientific claim and experiment routing only. Production estimator and defaults stay as recorded; the opt-in flat broad `unit` result remains valid for its frozen profile.
+- **Status:** closed for this bounded hypothesis; further recovery requires a new identifiable model/signal assumption and a new selection protocol.
