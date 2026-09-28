@@ -365,3 +365,11 @@ Status: active experiment interpretation; no algorithm decision/promoted variant
 - **Alternatives rejected:** Count low solver residual or `scale_boundary="stop"` as geometric recovery, weaken the all-center maximum gate after observing failures, infer a general curved method from flat validation or the mild d=4 curved test, or run untouched curved validation after failed preflight.
 - **Affected:** Curved-manifold scientific claim and experiment routing only. Production estimator and defaults stay as recorded; the opt-in flat broad `unit` result remains valid for its frozen profile.
 - **Status:** closed for this bounded hypothesis; further recovery requires a new identifiable model/signal assumption and a new selection protocol.
+
+## 2026-09-28 — Isolate the SVD.tex rank-r multi-index step
+
+- **Decision:** Implement the fixed-g rank-r objective as an opt-in CPU `ADP_solver` method. Return a full m-row public basis by retaining B's recovered right singular directions and completing them from the projected prior basis; refit local coefficients before the existing spectral canonicalization.
+- **Reason/evidence:** `SVD.tex` penalizes `||B-P||²` and constrains `rank(B)<m`, unlike live HPAO's correction penalty and full-rank output contract. The rank-r matrix alone cannot identify all m EDR directions. Small dense reference checks establish the v solve, adjoint, objective descent, and conditional scale stationarity; a public m=2/r=1 fit completes.
+- **Alternatives rejected:** Replace default LSMR, treat arbitrary SVD null-space vectors as recovered EDR directions, or claim the greedy rank-r result is a global optimum.
+- **Affected:** `ADP/solver/SVD.py`, `tests/test_svd_solver.py`, `agent-notes/ADP/multi-index.md`; existing default solver and API unchanged.
+- **Status:** active experimental variant.

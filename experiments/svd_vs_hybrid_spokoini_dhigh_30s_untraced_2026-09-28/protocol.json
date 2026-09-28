@@ -1,0 +1,46 @@
+{
+  "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "git_commit": "2511076de51a66b089bc37213a702e79f18ab1de",
+  "git_dirty_before_run": true,
+  "seeds_by_case": {
+    "spokoini_m2_dhigh_30s": [
+      0,
+      1,
+      2
+    ]
+  },
+  "rank_by_case": {
+    "spokoini_m2_dhigh_30s": 1
+  },
+  "cases": {
+    "spokoini_m2_dhigh_30s": {
+      "generator": "spokoini",
+      "n": 800,
+      "d": 50,
+      "m": 2,
+      "N_J": 800,
+      "N_phi": 10,
+      "N_lin": 100,
+      "N_loc": 10,
+      "a": 1.010050167084168,
+      "h_min": 1.0,
+      "select_step": "last",
+      "solver_max_steps": 5,
+      "budget_sec": 30.0
+    }
+  },
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "protocol": "Cold full ADP_multi_index.fit in isolated processes with paired data/fit seeds; float64; full fit runs to completion and elapsed time is checked against the 30-second target; worker safety timeout is 240 seconds.",
+  "objective_note": "SVD fixed-g rank-r objective and HYBRID HPAO correction-penalty objective differ; numeric lambda_penalty is shared but objectives are not equivalent.",
+  "data_generator": "Spokoiny m=2 generator from experiments.data using recorded split seed-bundle for point mi-spokoini-m2-dhigh; X=2*Beta(1,tau=1)-1, sigma_x=1; sigma_eps=0.1 Gaussian noise; fixed two-column true basis.",
+  "fit_configuration": "Spokoini point d=50,n=800,m=2,N_loc=10,N_lin=100,N_J=800,N_phi=10, a=exp(1/100),h_min=1,select_step=last,outer_steps=None, index_init=local,estimator=new,lambda_penalty=0.05; kernel is Epanechnikov max(1-u^2,0) on scaled anisotropic distance; SVD rank=1, HYBRID max_steps=5,tol=1e-6,theta=0.1; defaults otherwise.",
+  "memory_method": "resource.ru_maxrss in KiB includes interpreter/import baseline; tracemalloc is disabled on the heavy timing point to avoid distorting the 30-second timing target.",
+  "timing_method": "time.perf_counter around fit only; no warm-up; isolated fresh subprocess per fit; BLAS/OpenMP threads fixed to one."
+}

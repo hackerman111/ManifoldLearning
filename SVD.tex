@@ -1,0 +1,956 @@
+### Low-Rank Truncated-SVD Solver for Multi-Index ADP
+
+Рассматривается глобальный шаг multi-index ADP при фиксированных локальных коэффициентах \(g_j\):
+
+\[
+\min_{B\in\mathbb R^{m\times d}}
+F(B),
+\]
+
+\[
+F(B)
+=
+\sum_{j=1}^{J}
+N_j
+\left\|
+I_j-U_jB^\top g_j
+\right\|_2^2
++
+\lambda\|B-P\|_F^2,
+\]
+
+где
+
+\[
+P,B\in\mathbb R^{m\times d},\qquad
+PP^\top=I_m,
+\]
+
+\[
+g_j\in\mathbb R^m,\qquad
+I_j\in\mathbb R^p,\qquad
+U_j\in\mathbb R^{p\times d}.
+\]
+
+Требуется построить приближение ранга \(r<m\):
+
+\[
+\operatorname{rank}(B)\le r.
+\]
+
+Определим
+
+\[
+H_j=U_j^\top U_j,
+\qquad
+c_j=U_j^\top I_j.
+\]
+
+---
+
+## 1. Rank-\(r\) параметризация
+
+Ищем \(B\) в форме truncated SVD
+
+\[
+B_r=A\Sigma V^\top
+=
+\sum_{k=1}^{r}\sigma_k a_kv_k^\top,
+\]
+
+где
+
+\[
+A=[a_1,\ldots,a_r]\in\mathbb R^{m\times r},
+\]
+
+\[
+V=[v_1,\ldots,v_r]\in\mathbb R^{d\times r},
+\]
+
+\[
+A^\top A=I_r,
+\qquad
+V^\top V=I_r,
+\]
+
+\[
+\Sigma=\operatorname{diag}(\sigma_1,\ldots,\sigma_r).
+\]
+
+Для центра \(j\)
+
+\[
+B_r^\top g_j
+=
+V\Sigma A^\top g_j.
+\]
+
+Обозначим
+
+\[
+\alpha_j=A^\top g_j.
+\]
+
+Тогда
+
+\[
+\begin{aligned}
+\left\|
+I_j-U_jV\Sigma\alpha_j
+\right\|^2
+={}&
+\|I_j\|^2
+-
+2\alpha_j^\top\Sigma V^\top c_j
+\\
+&+
+\alpha_j^\top
+\Sigma V^\top H_jV\Sigma\alpha_j.
+\end{aligned}
+\]
+
+Так как \(A\) и \(V\) имеют ортонормированные столбцы,
+
+\[
+\|A\Sigma V^\top\|_F^2
+=
+\|\Sigma\|_F^2
+=
+\sum_{k=1}^r\sigma_k^2.
+\]
+
+Кроме того,
+
+\[
+\|P\|_F^2=m.
+\]
+
+Следовательно,
+
+\[
+\boxed{
+\|B_r-P\|_F^2
+=
+m+
+\sum_{k=1}^r\sigma_k^2
+-
+2\operatorname{tr}
+\left(
+\Sigma A^\top PV
+\right).
+}
+\]
+
+---
+
+## 2. Квадратичная задача по singular values
+
+Для
+
+\[
+B_r=
+\sum_{k=1}^r\sigma_ka_kv_k^\top
+\]
+
+имеем
+
+\[
+U_jB_r^\top g_j
+=
+\sum_{k=1}^{r}
+\sigma_k(a_k^\top g_j)U_jv_k.
+\]
+
+Поэтому
+
+\[
+F(B_r)
+=
+C+
+\sigma^\top M\sigma
+-
+2b^\top\sigma,
+\]
+
+где \(C\) не зависит от \(\sigma\), а
+
+\[
+\boxed{
+M_{k\ell}
+=
+\sum_{j=1}^{J}
+N_j
+(a_k^\top g_j)
+(a_\ell^\top g_j)
+(U_jv_k)^\top(U_jv_\ell)
++
+\lambda\delta_{k\ell}
+}
+\]
+
+и
+
+\[
+\boxed{
+b_k
+=
+\sum_{j=1}^{J}
+N_j
+(a_k^\top g_j)
+I_j^\top U_jv_k
++
+\lambda a_k^\top Pv_k.
+}
+\]
+
+При фиксированных \(A,V\) оптимальные singular values находятся точно:
+
+\[
+\boxed{
+M\sigma=b.
+}
+\]
+
+То есть
+
+\[
+\sigma^\star=M^{-1}b
+\]
+
+при невырожденном \(M\). На практике следует решать систему через Cholesky/QR, а не вычислять \(M^{-1}\).
+
+После решения отрицательный знак \(\sigma_k\) можно поглотить в \(a_k\) или \(v_k\).
+
+---
+
+## 3. Rank-1 подзадача
+
+Для построения компонент последовательно рассмотрим текущее приближение \(B\) и добавку
+
+\[
+B^+=B+\sigma av^\top,
+\]
+
+где
+
+\[
+\|a\|_2=\|v\|_2=1.
+\]
+
+Определим текущие residuals
+
+\[
+e_j
+=
+I_j-U_jB^\top g_j.
+\]
+
+Тогда
+
+\[
+F(B+\sigma av^\top)-F(B)
+=
+D_B(a,v)\sigma^2
+-
+2R_B(a,v)\sigma,
+\]
+
+где
+
+\[
+\boxed{
+D_B(a,v)
+=
+\sum_j
+N_j
+(a^\top g_j)^2
+\|U_jv\|^2
++
+\lambda
+}
+\]
+
+и
+
+\[
+\boxed{
+R_B(a,v)
+=
+\sum_j
+N_j
+(a^\top g_j)
+v^\top U_j^\top e_j
++
+\lambda a^\top(P-B)v.
+}
+\]
+
+Для фиксированных \(a,v\)
+
+\[
+\boxed{
+\sigma^\star(a,v)
+=
+\frac{R_B(a,v)}
+     {D_B(a,v)}.
+}
+\]
+
+Соответствующее уменьшение функционала равно
+
+\[
+\boxed{
+F(B+\sigma^\star av^\top)-F(B)
+=
+-
+\frac{R_B(a,v)^2}
+     {D_B(a,v)}.
+}
+\]
+
+Следовательно, оптимальная rank-1 компонента решает
+
+\[
+\boxed{
+\max_{\|a\|=\|v\|=1}
+\frac{R_B(a,v)^2}
+     {D_B(a,v)}.
+}
+\]
+
+---
+
+## 4. Попеременное восстановление \(a\) и \(v\)
+
+### Шаг по \(a\)
+
+При фиксированном \(v\)
+
+\[
+R_B(a,v)=a^\top q_v,
+\]
+
+где
+
+\[
+q_v
+=
+\sum_j
+N_j
+g_j
+\left(v^\top U_j^\top e_j\right)
++
+\lambda(P-B)v.
+\]
+
+Кроме того,
+
+\[
+D_B(a,v)
+=
+a^\top G_v a,
+\]
+
+где
+
+\[
+\boxed{
+G_v
+=
+\sum_j
+N_j
+\|U_jv\|^2
+g_jg_j^\top
++
+\lambda I_m.
+}
+\]
+
+Поэтому
+
+\[
+\max_a
+\frac{(a^\top q_v)^2}
+     {a^\top G_va}
+\]
+
+имеет решение
+
+\[
+\boxed{
+a
+\propto
+G_v^{-1}q_v.
+}
+\]
+
+После решения выполняется нормировка
+
+\[
+a\leftarrow\frac{a}{\|a\|}.
+\]
+
+Матрица \(G_v\) имеет размер только \(m\times m\).
+
+### Шаг по \(v\)
+
+При фиксированном \(a\)
+
+\[
+R_B(a,v)=v^\top q_a,
+\]
+
+где
+
+\[
+q_a
+=
+\sum_j
+N_j
+(a^\top g_j)
+U_j^\top e_j
++
+\lambda(P-B)^\top a.
+\]
+
+Определим
+
+\[
+\boxed{
+H_a
+=
+\sum_j
+N_j
+(a^\top g_j)^2
+U_j^\top U_j
++
+\lambda I_d.
+}
+\]
+
+Тогда
+
+\[
+D_B(a,v)=v^\top H_av
+\]
+
+и
+
+\[
+\boxed{
+v
+\propto
+H_a^{-1}q_a.
+}
+\]
+
+После решения
+
+\[
+v\leftarrow\frac{v}{\|v\|}.
+\]
+
+Матрицу \(H_a\in\mathbb R^{d\times d}\) строить не требуется. Достаточно matrix-free операции
+
+\[
+H_ax
+=
+\sum_j
+N_j
+(a^\top g_j)^2
+U_j^\top(U_jx)
++
+\lambda x.
+\]
+
+Поэтому шаг по \(v\) можно решать CG/LSMR.
+
+---
+
+## 5. Последовательное rank-\(r\) восстановление
+
+Инициализация:
+
+\[
+B_0=0.
+\]
+
+Для
+
+\[
+k=1,\ldots,r
+\]
+
+выполняется следующий цикл.
+
+### Шаг 1. Residual
+
+\[
+e_j^{(k)}
+=
+I_j-U_jB_{k-1}^\top g_j.
+\]
+
+### Шаг 2. Инициализация нового \(v\)
+
+Можно использовать случайный единичный вектор или ведущий правый singular vector residual-gradient
+
+\[
+Q_{k-1}
+=
+\sum_j
+N_j
+g_j
+\left(U_j^\top e_j^{(k)}\right)^\top
++
+\lambda(P-B_{k-1}).
+\]
+
+Полный \(Q_{k-1}\) строить не обязательно. Его действия на векторы вычисляются matrix-free.
+
+### Шаг 3. Alternating rank-1 solve
+
+До внутренней сходимости повторять
+
+\[
+q_v
+=
+\sum_j
+N_jg_j
+(v^\top U_j^\top e_j^{(k)})
++
+\lambda(P-B_{k-1})v,
+\]
+
+\[
+G_v
+=
+\sum_j
+N_j
+\|U_jv\|^2g_jg_j^\top
++
+\lambda I_m,
+\]
+
+\[
+a
+\leftarrow
+\operatorname{normalize}
+\left(G_v^{-1}q_v\right),
+\]
+
+после чего
+
+\[
+q_a
+=
+\sum_j
+N_j
+(a^\top g_j)
+U_j^\top e_j^{(k)}
++
+\lambda(P-B_{k-1})^\top a,
+\]
+
+\[
+H_a x
+=
+\sum_j
+N_j
+(a^\top g_j)^2
+U_j^\top(U_jx)
++
+\lambda x,
+\]
+
+\[
+v
+\leftarrow
+\operatorname{normalize}
+\left(H_a^{-1}q_a\right).
+\]
+
+### Шаг 4. Оптимальный масштаб
+
+Вычислить
+
+\[
+R=
+R_{B_{k-1}}(a,v),
+\qquad
+D=
+D_{B_{k-1}}(a,v),
+\]
+
+и
+
+\[
+\boxed{
+\sigma_k=\frac RD.
+}
+\]
+
+### Шаг 5. Rank-1 update
+
+\[
+\widetilde B_k
+=
+B_{k-1}
++
+\sigma_kav^\top.
+\]
+
+### Шаг 6. Compact SVD
+
+Выполнить
+
+\[
+\widetilde B_k
+=
+A_k\Sigma_kV_k^\top
+\]
+
+и оставить не более \(k\) ненулевых компонент.
+
+Полный SVD матрицы \(m\times d\) не требуется.
+
+Если
+
+\[
+\widetilde B_k=LR^\top,
+\qquad
+L\in\mathbb R^{m\times k},
+\quad
+R\in\mathbb R^{d\times k},
+\]
+
+выполняются thin QR
+
+\[
+L=Q_LR_L,
+\qquad
+R=Q_RR_R
+\]
+
+и SVD только матрицы
+
+\[
+R_LR_R^\top\in\mathbb R^{k\times k}.
+\]
+
+---
+
+## 6. Совместная переоценка singular values
+
+После compact SVD желательно не сохранять жадно найденные \(\sigma_1,\ldots,\sigma_k\), а решить точную условную задачу.
+
+Для текущих
+
+\[
+A_k=[a_1,\ldots,a_k],
+\qquad
+V_k=[v_1,\ldots,v_k]
+\]
+
+строятся
+
+\[
+(M_k)_{s\ell}
+=
+\sum_j
+N_j
+(a_s^\top g_j)
+(a_\ell^\top g_j)
+(U_jv_s)^\top(U_jv_\ell)
++
+\lambda\delta_{s\ell},
+\]
+
+\[
+(b_k)_s
+=
+\sum_j
+N_j
+(a_s^\top g_j)
+I_j^\top U_jv_s
++
+\lambda a_s^\top Pv_s.
+\]
+
+После чего
+
+\[
+\boxed{
+M_k\sigma=b_k.
+}
+\]
+
+Затем
+
+\[
+B_k
+=
+A_k\operatorname{diag}(\sigma)V_k^\top.
+\]
+
+Этот шаг оптимизирует все \(k\) singular values одновременно и устраняет часть ошибки жадного восстановления.
+
+---
+
+## 7. Критерий остановки
+
+Алгоритм можно остановить до достижения заданного \(r\), если новая компонента практически не уменьшает функционал:
+
+\[
+\frac{R^2/D}
+     {\max(1,F(B_{k-1}))}
+<
+\varepsilon_{\mathrm{rank}}.
+\]
+
+Дополнительный критерий определяется singular spectrum:
+
+\[
+\frac{\sigma_k^2}
+{\sum_{\ell=1}^{k}\sigma_\ell^2}
+<
+\varepsilon_{\mathrm{sv}}.
+\]
+
+Поэтому effective rank может определяться адаптивно.
+
+---
+
+## 8. Полный алгоритм
+
+**Вход:**  
+\(\{I_j,U_j,N_j,g_j\}_{j=1}^J\), \(P\), \(\lambda\), максимальный ранг \(r\), допуски \(\varepsilon_{\mathrm{inner}},\varepsilon_{\mathrm{rank}}\).
+
+**Инициализация:**
+
+\[
+B_0=0.
+\]
+
+**Для \(k=1,\ldots,r\):**
+
+1. Вычислить
+   \[
+   e_j=I_j-U_jB_{k-1}^\top g_j.
+   \]
+
+2. Инициализировать \(v\).
+
+3. Повторять до внутренней сходимости:
+   \[
+   a\leftarrow
+   \operatorname{normalize}(G_v^{-1}q_v),
+   \]
+   \[
+   v\leftarrow
+   \operatorname{normalize}(H_a^{-1}q_a).
+   \]
+
+4. Вычислить
+   \[
+   \sigma=R_B(a,v)/D_B(a,v).
+   \]
+
+5. Если
+   \[
+   R_B(a,v)^2/D_B(a,v)
+   \]
+   меньше порога, остановиться.
+
+6. Выполнить
+   \[
+   B_k\leftarrow B_{k-1}+\sigma av^\top.
+   \]
+
+7. Сделать compact SVD \(B_k\).
+
+8. Для полученных \(A_k,V_k\) решить
+   \[
+   M_k\sigma=b_k.
+   \]
+
+9. Обновить
+   \[
+   B_k=A_k\operatorname{diag}(\sigma)V_k^\top.
+   \]
+
+**Выход:**
+
+\[
+\boxed{
+B_r=A_r\Sigma_rV_r^\top.
+}
+\]
+
+---
+
+## 9. Интерпретация как generalized truncated SVD
+
+Определим оператор
+
+\[
+\boxed{
+\mathcal L(X)
+=
+\sum_j
+N_j
+(g_jg_j^\top)
+X
+(U_j^\top U_j)
++
+\lambda X
+}
+\]
+
+и
+
+\[
+\boxed{
+C_B
+=
+\sum_j
+N_jg_jc_j^\top+\lambda P.
+}
+\]
+
+Полное unconstrained решение \(B_\star\) удовлетворяет
+
+\[
+\mathcal L(B_\star)=C_B.
+\]
+
+Поскольку функционал квадратичен,
+
+\[
+F(B)
+=
+F(B_\star)
++
+\left\langle
+B-B_\star,
+\mathcal L(B-B_\star)
+\right\rangle.
+\]
+
+Следовательно, точная rank-\(r\) задача имеет форму
+
+\[
+\boxed{
+B_r^\star
+=
+\arg\min_{\operatorname{rank}(B)\le r}
+\|B-B_\star\|_{\mathcal L}^2
+}
+\]
+
+с
+
+\[
+\|X\|_{\mathcal L}^2
+=
+\langle X,\mathcal L(X)\rangle.
+\]
+
+Поэтому предложенный алгоритм можно рассматривать как последовательное вычисление **generalized singular components в Hessian-метрике HPAO**.
+
+Обычный truncated SVD является частным случаем, когда
+
+\[
+\mathcal L(X)\propto X.
+\]
+
+---
+
+## 10. Изотропное приближение
+
+Если
+
+\[
+U_j^\top U_j
+\approx
+\eta_jI_d,
+\]
+
+то
+
+\[
+\mathcal L(B)
+\approx
+GB,
+\]
+
+где
+
+\[
+G
+=
+\sum_j
+N_j\eta_jg_jg_j^\top
++
+\lambda I_m.
+\]
+
+Тогда
+
+\[
+F(B)
+=
+\operatorname{const}
++
+\left\|
+G^{1/2}B-G^{-1/2}C_B
+\right\|_F^2.
+\]
+
+С заменой
+
+\[
+Z=G^{1/2}B
+\]
+
+rank сохраняется, и по теореме Eckart–Young
+
+\[
+Z_r
+=
+\left[
+G^{-1/2}C_B
+\right]_r.
+\]
+
+Следовательно,
+
+\[
+\boxed{
+B_r
+=
+G^{-1/2}
+\left[
+G^{-1/2}C_B
+\right]_r.
+}
+\]
+
+Эта формула задаёт прямой approximate solver:
+
+\[
+\boxed{
+G,C_B
+\rightarrow
+G^{-1/2}C_B
+\rightarrow
+\text{truncated SVD}_r
+\rightarrow
+B_r.
+}
+\]
+
+Её можно использовать либо как самостоятельную аппроксимацию, либо как инициализацию общего low-rank solver.
+
+**Замечание.** Ограничение \(\operatorname{rank}(B)\le r<m\) означает, что этот solver намеренно аппроксимирует полный HPAO-шаг более низкоранговой матрицей. Поэтому после получения \(B_r\) EDR-базис следует восстанавливать тем же спектральным шагом, что и в полном алгоритме; \(B_r\) не следует непосредственно интерпретировать как новый \(m\)-мерный ортонормированный базис.

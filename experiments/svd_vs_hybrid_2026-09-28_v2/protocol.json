@@ -1,0 +1,46 @@
+{
+  "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "git_commit": "2511076de51a66b089bc37213a702e79f18ab1de",
+  "git_dirty_before_run": true,
+  "seeds": [
+    11,
+    23,
+    37
+  ],
+  "rank": 2,
+  "cases": {
+    "small": {
+      "n": 500,
+      "d": 20,
+      "m": 3,
+      "N_J": 40,
+      "N_phi": 10,
+      "N_lin": 60
+    },
+    "medium": {
+      "n": 900,
+      "d": 60,
+      "m": 3,
+      "N_J": 64,
+      "N_phi": 12,
+      "N_lin": 100
+    }
+  },
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "protocol": "cold full ADP_multi_index.fit in isolated process; same synthetic data/fit seed per pair; float64; SVD rank=2; HYBRID max_steps=5,tol=1e-6",
+  "data_generator": "X~N(0,I); true basis is QR of independent Gaussian d-by-m matrix; Y=sum(sin(XB)+0.25*(XB)^2)+0.2*N(0,1). Data seed equals pair seed.",
+  "fit_configuration": "ADP_Config(seed=data_seed+1000,N_loc=15,lambda_penalty=0.05,h_min=0.35,a=sqrt(2),outer_steps=3,select_step=best,batch_size=32,index_init=local,estimator=new,direction_mode=auto,multi_tensor=orthogonal,redraw_directions=true,training_set=all); kernel is Epanechnikov max(1-u^2,0) on scaled anisotropic distance; N_J/N_phi/N_lin by case. Center selection is seeded without replacement; local initializer is data-driven.",
+  "solver_configuration": "SVD rank=2, inner_tol=1e-6, inner_maxiter=20, default LSMR v cap; HYBRID max_steps=5,tol=1e-6, strict hybrid_inner_rtol=None and default dense limits. Both run CPU float64.",
+  "objective_note": "SVD fixed-g rank-r objective and HYBRID HPAO correction-penalty objective differ; numeric lambda_penalty is shared but objectives are not equivalent.",
+  "timing_method": "time.perf_counter around fit only; no warm-up; isolated fresh subprocess per fit; BLAS/OpenMP threads fixed to one.",
+  "memory_method": "resource.ru_maxrss in KiB includes interpreter/import baseline; tracemalloc peak covers Python-tracked allocations during fit and excludes many native allocations.",
+  "quality_metric": "||B_est B_est.T - B_true B_true.T||_F / sqrt(2m), smaller is better; truth is used only for post-fit evaluation.",
+  "pilot_note": "The sibling experiments/svd_vs_hybrid_2026-09-28 folder preserves 12 invalid pre-fit attempts where N_J was below ceil(n/N_loc); these are excluded. This v2 run used valid N_J and all 12 fits completed."
+}

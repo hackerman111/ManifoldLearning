@@ -36,6 +36,40 @@
 
 Для outer-step selection используется SSE на Y в выбранных центрах, даже когда solver diagnostic loss другой. `trace_indices=True` включает basis, eigenvalues, alpha, mass summaries и solver diagnostics.
 
+## Явный low-rank solver из `SVD.tex`
+
+`ADP/solver/SVD.py` реализует отдельный `rank=r<m` вариант для фиксированных
+локальных коэффициентов `g_j`. Его функционал ровно
+`sum_j mass_j ||I_j-U_j B.T g_j||² + lambda||B-P||²`; это не текущий
+HPAO correction penalty. `solve_fixed_coefficients` возвращает
+низкоранговую `(m,d)` матрицу `B` и историю этого функционала. Жадные
+rank-1 компоненты находятся попеременными шагами: малая `(m,m)` задача для
+`a`, augmented matrix-free LSMR с проверкой normal residual для `v`,
+compact QR/SVD и совместное решение `(k,k)` задачи масштабов. Глобальный
+rank-r optimum не гарантируется.
+
+Для публичного обучения используется существующий custom-solver hook:
+
+```python
+from ADP import ADP_Config, ADP_multi_index, ADP_solver
+from ADP.solver.SVD import solve as solve_svd
+
+model = ADP_multi_index(
+    3, ADP_Config(), ADP_solver(solve_svd, rank=2)
+).fit(X, y)
+```
+
+`solve` сначала вычисляет `g_j` локальным refit для входящего полного `P`.
+После низкорангового шага он дополняет найденные `r` правых направлений
+проекцией прежнего `P`, чтобы вернуть требуемый ортонормированный basis
+размера `(m,d)`, и заново оценивает локальные коэффициенты. Оставшиеся
+`m-r` направления опираются на prior, а не определяются матрицей `B`.
+Внешний fit-loop затем применяет обычную канонизацию по спектру
+коэффициентов. Вариант CPU-only; текущий LSMR остаётся default.
+
+Источники: **SRC-SVD-SOLVER**, **SRC-SOLVER-API**, **SRC-MI-CANONICAL**;
+эталонные проверки: `tests/test_svd_solver.py`.
+
 ## Локаторы
 
 | ID | Фрагмент | Команда sed |
@@ -50,5 +84,6 @@
 | SRC-MI-INIT | local basis/spectrum initialization paths | `rtk proxy sed -n '70,184p' ADP/engine/common/initialize.py` |
 | SRC-MI-DRIVER | effective tensor, fit/trace/stop/selection | `rtk proxy sed -n '304,540p' ADP/engine/common/index_fit.py` |
 | SRC-MI-ENGINE | basis QR, orientation, subspace/projector distance | `rtk proxy sed -n '12,69p' ADP/engine/multi_index/ADP_multi_index_engine.py` |
+| SRC-SVD-SOLVER | fixed-g rank-r objective, compact SVD, augmented v step, prior completion | `rtk proxy sed -n '1,311p' ADP/solver/SVD.py` |
 
 Все коды извлекаются из `ADP/`; полный каталог файлов — [README.md](README.md#каталог-исходников). Общая статистика и mass contract — [index-pipeline.md](index-pipeline.md).

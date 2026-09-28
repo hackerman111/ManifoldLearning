@@ -1,79 +1,57 @@
-task_id: manifold-curvature-recovery-2026-09-28
+task_id: svd-vs-hybrid-heavy-30s-2026-09-28
 status: done
-change_class: ESTIMATOR only for explicit candidates; experiment criterion correction
----
+change_class: APPROXIMATE comparison; no estimator changes
 
-# Diagnose and improve manifold recovery on curvature
+# Compare SVD with HYBRID on the 30-second heavy multi-index point
 
-Goal: explain the current curved failure mathematically and empirically, then
-improve reproducible recovery for m=1,2,3 under a scalar response. Use full
-local-subspace recovery only where identifiable (curved m=1 and flat m=1/2/3).
-For curved m=2/3, test observable gradient containment and report generator
-chart distances as descriptive diagnostics, never as identified recovery.
+Goal: rerun the prior `mi-spokoini-m2-dhigh` point with paired seeds 0,1,2
+using the full SVD rank-1 and HYBRID fit loops. Report wall time against the
+30-second target, recovery quality, process peak RSS, traced Python peak,
+outer/inner convergence and failures.
 
-Non-goals: claim arbitrary curved rank-m charts are identified from one scalar
-Y, change production defaults, weaken rank/residual checks, erase frozen
-artifacts, or hide failed fits and bad centers.
+Non-goals: stop a fit at 30 seconds (full-fit quality and memory still matter),
+change parameters after seeing results, or claim equivalent inner objectives.
 
-Known evidence: `diagnosis.md` isolates spectrum feedback on flat m=3, broad
-graph tangent mixing on curvature, and a nearest-chart query discretization
-ceiling. `repair.md` proves gauge nonidentifiability of curved m>=2 generator
-charts. Previous paired selection completed 360/360: unit spectrum passed the
-flat broad m=3 gate 10/10 but did not repair curvature and had more support
-failures. The 22-cell grid recovered only 2/40 identifiable attempts, both
-flat m=2, with 21/82 rank failures. Existing flat validation artifacts need
-completion audit.
+Frozen point: Spokoini m=2, d=50, n=800, tau=1, beta(1,tau) features, Gaussian
+noise sigma_eps=0.1, `N_loc=10`, `N_lin=100`, `N_J=800`, `N_phi=10`,
+`a=exp(1/100)`, `h_min=1`, local initialization, `select_step=last`, no outer
+step cap, solver max steps 5. Recreate data and model seeds with the same
+`experiments.data._make_seed_bundle` scheme as the saved experiment. SVD uses
+rank r=1; HYBRID uses its saved strict defaults. Both use float64 and one BLAS
+thread, with a safety timeout of 240 seconds; 30 seconds is a target checked
+after each complete fit, not a censoring deadline.
 
-Hypotheses: (H1) measured failure decomposes into nonidentifiability, tangent
-mixing, gradient pilot bias/variance, spectrum feedback, mass/support boundary,
-and query discretization; (H2) direct local gradient geometry or an auditable
-small estimator variant can recover curved m=1 more reliably; (H3) curved
-m=2/3 estimated spaces can stably contain the observable gradient even though
-their remaining m-1 directions have no unique scalar-data target.
+Known limitation: SVD's fixed-g rank-r objective differs from HYBRID's HPAO
+correction-penalty objective, despite the shared numeric lambda. Its second
+basis direction is completed from the incoming prior. Compare end-to-end
+recovery descriptively and include this caveat.
 
-Invariants: float64; no truth in fit or parameter choice; seed pairing and
-untouched held-out validation; all-center RMS and maximum principal sine;
-separate fit failures, numerical residuals, wall time and memory; bounded
-working arrays; explicit ESTIMATOR variants; old artifacts/default unchanged.
-
-Read set: `agent-notes/ADP/manifold.md`; numerics/research contracts;
-`docs/experiments/manifold_generalization_2026-09-28/{protocol,diagnosis,repair}.md`;
-`experiments/{manifold_generalization,manifold_generalization_repair}.py`;
-`ADP/engine/manifol_engine/{fit,weights,graphs,optimisation}.py`;
-`ADP/core/manifold/ADP_Manifold.py`; relevant `tests/test_manifold.py`.
+Exact read set: saved point in
+`benchmark_outputs/experiments/spokoyni-12/mi-spokoini-m2-dhigh/series.json`,
+`experiments/{multi.py,data.py,runner.py,models.py}`, current SVD/HYBRID solver
+APIs, and the existing paired runner `benchmarks/svd_vs_hybrid.py`.
 
 Work units:
-- [x] Audit existing flat held-out run and publish the paired spectrum result,
-  including regressions and numerical failures. All 120/120 rows complete and
-  11 source hashes match; broad/unit recovers 30/30 flat fits (relative 14/30),
-  while local/unit recovers only 19/30 with five numerical failures. See
-  `docs/experiments/manifold_generalization_2026-09-28/repair.md`.
-- [x] Derive the observable target and run small references: exact gradients,
-  local linear/quadratic pilots, initialized and final projectors, exact-chart
-  oracle; decompose curved error across m=1/2/3 without changing production.
-  Complete 240/240 development diagnostic: broad/unit 60/60 fits but 0/60
-  observable-gradient passes; exact-gradient graph also 0/60; local/unit
-  21/60 rank failures. See `docs/experiments/manifold_curvature_2026-09-28/report.md`.
-- [x] Choose at most one justified opt-in curved estimator candidate after the
-  reference gate. Gaussian-Stein top-2m plus quartic scalar surrogate passed
-  its derivative finite-difference check but failed the first frozen seed's
-  12/12 all-center gradient gates. Its global active-subspace max sine was
-  .321–.583. Reject before production implementation; no truth used in fit.
-- [x] Apply the validation stop condition: no curved candidate passed
-  preflight, so no untouched curved validation or positive recovery claim.
-  Full curved m>=2 chart is mathematically unidentifiable from scalar f;
-  m=1 and observable-gradient finite-sample limitations are quantified in
-  `docs/experiments/manifold_curvature_2026-09-28/report.md`. The successful
-  flat broad/unit candidate already passed 30/30 untouched validation.
-- [x] Update focused tests, report, affected routing note, `STATE.md`, and
-  durable decisions. Final manifests match live source hashes; the formatted
-  diagnostic reproduced 240/240 semantic rows exactly, and the preflight
-  completed 12/12. Focused pytest 20/20, Ruff check/format, Pyright 0 errors,
-  and `git diff --check` passed. The curved recovery target was not achieved;
-  the failed gate is the stopping result, not a positive validation claim.
+- [x] Extend runner for exact Spokoiny point and matched seed bundle; run 6
+  fits in fresh processes.
+- [x] Verify all raw records, compare paired metrics and 30-second target,
+  report time/quality/memory/convergence/failures.
+- [x] Save protocol/report, update plan and `agent-notes/STATE.md`, run Ruff and
+  `git diff --check`.
 
-Verification: analytic gauge example, finite-difference gradient check,
-small-array reference, paired development and untouched validation with
-manifest/source hashes, focused pytest, Ruff/Pyright on touched code and
-`git diff --check`. Stop after repeated conceptual failure; never redefine
-curved m>=2 chart recovery as a success metric.
+Evidence: all 6 fits completed with no errors or safety timeouts; 0/3 fits per
+method met the 30-second target. Median SVD/HYBRID times were 47.56/58.99 s,
+median normalized projector distances 0.0951/0.0481, and median process peak
+RSS 98,172/125,848 KiB. All fits reached `h_min` after 162 outer steps;
+HYBRID's convergence diagnostic was false on all runs, and SVD's rank-one
+inner loop hit its 20-step cap on 22/49/43 outer updates. Full paired results,
+protocol, raw records, and traces are in
+`experiments/svd_vs_hybrid_spokoini_dhigh_30s_untraced_2026-09-28/`.
+`uv run ruff format --check benchmarks/svd_vs_hybrid.py`,
+`uv run ruff check benchmarks/svd_vs_hybrid.py`, and `rtk git diff --check`
+passed. Traced Python peak was intentionally not collected for this timing
+target; process high-water RSS is reported instead.
+
+Stop conditions: preserve and report any failure/timeout; do not resample or
+retune. If either fit is censored by the 240-second safety timeout, report the
+comparison as incomplete for that pair.

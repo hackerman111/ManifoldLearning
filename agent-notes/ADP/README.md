@@ -80,6 +80,7 @@ Manifold — другая модель, с отдельной оркестрац
 | SRC-HYBRID-MANIFOLD | `ADP/solver/HYBRID/HYBRID_manifold.py` — manifold dense/PCG/LSMR subproblem | `rtk proxy sed -n '1,291p' ADP/solver/HYBRID/HYBRID_manifold.py` |
 | SRC-LEGACY-LSMR | `ADP/solver/legacy_lsmr.py` — прежний solver-контракт | `rtk proxy sed -n '1,350p' ADP/solver/legacy_lsmr.py` |
 | SRC-LSMR | `ADP/solver/LSMR.py` — текущий HPAO-LSMR, local refit/correction/certificates | `rtk proxy sed -n '1,684p' ADP/solver/LSMR.py` |
+| SRC-SVD-SOLVER | `ADP/solver/SVD.py` — opt-in rank-r multi-index solver из `SVD.tex` | `rtk proxy sed -n '1,311p' ADP/solver/SVD.py` |
 | SRC-MULTIOP | `ADP/solver/_multi_operator.py` — joint multi forward/adjoint | `rtk proxy sed -n '1,29p' ADP/solver/_multi_operator.py` |
 | SRC-CLI-INIT | `ADP/cli/__init__.py` — ленивые CLI exports | `rtk proxy sed -n '1,22p' ADP/cli/__init__.py` |
 | SRC-CLI-MAIN-ENTRY | `ADP/cli/__main__.py` — `python -m ADP.cli` entry | `rtk proxy sed -n '1,5p' ADP/cli/__main__.py` |
