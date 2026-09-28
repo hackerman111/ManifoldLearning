@@ -103,8 +103,23 @@ def _worker(case: str, seed: int, solver_name: str) -> dict[str, object]:
             batch_size=32,
         )
     rank = min(RANK, params["m"] - 1)
-    if solver_name == "svd":
-        solver = ADP_solver(solve_svd, rank=rank)
+    svd_solvers = {
+        "svd",
+        "svd_adaptive",
+        "svd_direct",
+        "svd_warm",
+        "svd_strict",
+    }
+    if solver_name in svd_solvers:
+        solver = ADP_solver(
+            solve_svd,
+            rank=rank,
+            warm_start=solver_name != "svd_strict",
+            adaptive_krylov=solver_name == "svd_adaptive",
+            direct_max_dimension=(
+                128 if solver_name in {"svd", "svd_direct"} else None
+            ),
+        )
     else:
         solver = ADP_solver(
             solve_hybrid,
@@ -138,20 +153,36 @@ def _worker(case: str, seed: int, solver_name: str) -> dict[str, object]:
     )
     trace = model.trace_
     diagnostics = [entry.get("solver", {}) for entry in trace]
-    if solver_name == "svd":
+    if solver_name in svd_solvers:
         inner_iterations = sum(
             sum(entry.get("inner_iterations", ())) for entry in diagnostics
         )
         inner_converged = all(
             all(entry.get("inner_converged", ())) for entry in diagnostics
         )
-        linear_iterations = None
+        linear_iterations = sum(
+            int(entry.get("lsmr_iterations_total", 0)) for entry in diagnostics
+        )
+        u_vector_passes = sum(
+            int(entry.get("u_vector_passes", 0)) for entry in diagnostics
+        )
+        lsmr_refinements = sum(
+            int(entry.get("lsmr_refinements", 0)) for entry in diagnostics
+        )
+        direct_solves = sum(int(entry.get("direct_solves", 0)) for entry in diagnostics)
+        direct_fallbacks = sum(
+            int(entry.get("direct_fallbacks", 0)) for entry in diagnostics
+        )
     else:
         inner_iterations = None
         inner_converged = all(entry.get("converged", False) for entry in diagnostics)
         linear_iterations = sum(
             int(entry.get("linear_iterations_total", 0)) for entry in diagnostics
         )
+        u_vector_passes = None
+        lsmr_refinements = None
+        direct_solves = None
+        direct_fallbacks = None
 
     return {
         "case": case,
@@ -176,7 +207,13 @@ def _worker(case: str, seed: int, solver_name: str) -> dict[str, object]:
         "stop_reason": model.result_.stop_reason,
         "inner_iterations": inner_iterations,
         "linear_iterations": linear_iterations,
-        "svd_inner_converged": inner_converged if solver_name == "svd" else None,
+        "u_vector_passes": u_vector_passes,
+        "lsmr_refinements": lsmr_refinements,
+        "direct_solves": direct_solves,
+        "direct_fallbacks": direct_fallbacks,
+        "svd_inner_converged": (
+            inner_converged if solver_name in svd_solvers else None
+        ),
         "hybrid_solver_converged": (
             all(entry.get("converged", False) for entry in diagnostics)
             if solver_name == "hybrid"
@@ -326,6 +363,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--worker", nargs=3, metavar=("CASE", "SEED", "SOLVER"))
+    parser.add_argument("--worker-output", type=Path)
     parser.add_argument("--aggregate", action="store_true")
     parser.add_argument("--cases", nargs="+")
     args = parser.parse_args()
@@ -341,7 +379,11 @@ def main() -> None:
                 "status": "error",
                 "error": f"{type(error).__name__}: {error}",
             }
-        print(json.dumps(row, allow_nan=False))
+        encoded = json.dumps(row, allow_nan=False)
+        if args.worker_output is not None:
+            args.worker_output.parent.mkdir(parents=True, exist_ok=True)
+            args.worker_output.write_text(encoded + "\n", encoding="utf-8")
+        print(encoded)
         return
 
     if args.aggregate:

@@ -3,9 +3,18 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+import ADP.solver.SVD as svd_module
 from ADP import ADP_Config, ADP_multi_index, ADP_solver
 from ADP.cli.main import _synthetic_data
-from ADP.solver.SVD import _v_operator, _v_step, solve, solve_fixed_coefficients
+from ADP.solver.SVD import (
+    _FlatU,
+    _v_certificate,
+    _v_operator,
+    _v_step,
+    _v_step_direct,
+    solve,
+    solve_fixed_coefficients,
+)
 
 
 @pytest.mark.parametrize(
@@ -27,9 +36,10 @@ def test_fixed_rank_step_matches_dense_objective_and_v_reference(
     a /= np.linalg.norm(a)
     alpha = g @ a
     scale = np.repeat(np.sqrt(mass) * alpha, p)
-    operator = _v_operator(U, np.sqrt(mass) * alpha, np.sqrt(ridge))
+    flat_U = _FlatU(U)
+    operator = _v_operator(flat_U, scale)
     probe = rng.normal(size=d)
-    dual = rng.normal(size=J * p + d)
+    dual = rng.normal(size=J * p)
     np.testing.assert_allclose(
         np.dot(operator @ probe, dual),
         np.dot(probe, operator.rmatvec(dual)),
@@ -37,15 +47,54 @@ def test_fixed_rank_step_matches_dense_objective_and_v_reference(
         atol=1e-12,
     )
     design = scale[:, None] * U.reshape(J * p, d)
-    target = np.concatenate(
-        ((np.sqrt(mass)[:, None] * I).ravel(), np.sqrt(ridge) * (P.T @ a))
-    )
+    target = (np.sqrt(mass)[:, None] * I).ravel()
+    z = P.T @ a
     expected_v = np.linalg.lstsq(
-        np.vstack((design, np.sqrt(ridge) * np.eye(d))), target, rcond=None
+        np.vstack((design, np.sqrt(ridge) * np.eye(d))),
+        np.concatenate((target, np.sqrt(ridge) * z)),
+        rcond=None,
     )[0]
-    v, certificate = _v_step(U, I, P, alpha, a, np.sqrt(mass), ridge, 1e-8, None)
+    v, raw_v, estimate, iterations, stop, certificate_args = _v_step(
+        flat_U, target, P, alpha, a, np.sqrt(mass), ridge, 1e-8, None
+    )
+    certificate = _v_certificate(flat_U, raw_v, *certificate_args, ridge=ridge)
     np.testing.assert_allclose(v, expected_v / np.linalg.norm(expected_v), atol=1e-9)
     assert certificate < 1e-9
+    assert np.isfinite(estimate)
+    assert iterations > 0
+    assert stop in range(8)
+    warm = rng.normal(size=d)
+    warm_v, warm_raw, _, _, _, warm_certificate_args = _v_step(
+        flat_U,
+        target,
+        P,
+        alpha,
+        a,
+        np.sqrt(mass),
+        ridge,
+        1e-8,
+        None,
+        x0=warm,
+    )
+    warm_certificate = _v_certificate(
+        flat_U, warm_raw, *warm_certificate_args, ridge=ridge
+    )
+    np.testing.assert_allclose(
+        warm_v, expected_v / np.linalg.norm(expected_v), atol=1e-9
+    )
+    assert warm_certificate < 1e-9
+
+    if ridge > 0:
+        direct_v, direct_raw, direct_certificate_args = _v_step_direct(
+            flat_U, target, P, alpha, a, np.sqrt(mass), ridge
+        )
+        direct_certificate = _v_certificate(
+            flat_U, direct_raw, *direct_certificate_args, ridge=ridge
+        )
+        np.testing.assert_allclose(
+            direct_v, expected_v / np.linalg.norm(expected_v), atol=1e-9
+        )
+        assert direct_certificate < 1e-9
 
     B, diagnostics = solve_fixed_coefficients(
         P,
@@ -57,6 +106,7 @@ def test_fixed_rank_step_matches_dense_objective_and_v_reference(
         lambda_penalty=ridge,
         inner_tol=1e-8,
         rank_tol=0,
+        direct_max_dimension=None,
     )
 
     def dense_objective(matrix: np.ndarray) -> float:
@@ -68,6 +118,9 @@ def test_fixed_rank_step_matches_dense_objective_and_v_reference(
 
     assert np.linalg.matrix_rank(B) <= 2
     assert diagnostics["effective_rank"] <= 2
+    assert diagnostics["u_vector_passes"] > 0
+    assert not diagnostics["u_flat_copy"]
+    assert diagnostics["lsmr_iterations_total"] > 0
     assert np.all(np.diff(diagnostics["rank_objective_history"]) <= 1e-10)
     np.testing.assert_allclose(
         diagnostics["rank_objective_history"][-1], dense_objective(B), atol=1e-9
@@ -80,6 +133,64 @@ def test_fixed_rank_step_matches_dense_objective_and_v_reference(
         minus = dense_objective(B - 1e-5 * component)
         assert abs((plus - minus) / 2e-5) < 1e-6
         assert singular[k] > 0
+
+    if ridge > 0:
+        direct_B, direct_diagnostics = solve_fixed_coefficients(
+            P,
+            U,
+            I,
+            g,
+            mass,
+            rank=2,
+            lambda_penalty=ridge,
+            inner_tol=1e-8,
+            rank_tol=0,
+            direct_max_dimension=d,
+        )
+        assert direct_diagnostics["direct_solves"] > 0
+        assert direct_diagnostics["direct_fallbacks"] == 0
+        assert direct_diagnostics["lsmr_iterations_total"] == 0
+        np.testing.assert_allclose(
+            direct_diagnostics["rank_objective_history"][-1],
+            dense_objective(direct_B),
+            atol=1e-9,
+        )
+        np.testing.assert_allclose(direct_B, B, rtol=2e-7, atol=2e-8)
+
+
+def test_factor_projection_falls_back_to_direct_u_product(monkeypatch) -> None:
+    rng = np.random.default_rng(83)
+    J, p, d, m = 9, 4, 7, 4
+    U = rng.normal(size=(J, p, d))
+    I = rng.normal(size=(J, p))
+    g = rng.normal(size=(J, m))
+    mass = rng.uniform(0.3, 2.0, size=J)
+    P = np.linalg.qr(rng.normal(size=(d, m)))[0].T
+    monkeypatch.setattr(svd_module, "_QR_CACHE_CONDITION_LIMIT", 0.0)
+
+    B, diagnostics = solve_fixed_coefficients(
+        P,
+        U,
+        I,
+        g,
+        mass,
+        rank=3,
+        lambda_penalty=0.4,
+        inner_tol=1e-8,
+        inner_maxiter=1,
+        rank_tol=0,
+        warm_start=False,
+    )
+    fitted = np.array([U[j] @ (B.T @ g[j]) for j in range(J)])
+    dense_objective = float(
+        np.sum(mass[:, None] * (I - fitted) ** 2) + 0.4 * np.sum((B - P) ** 2)
+    )
+
+    assert diagnostics["factor_cache_fallbacks"] == diagnostics["effective_rank"]
+    assert diagnostics["inner_converged"] == (False,) * diagnostics["effective_rank"]
+    np.testing.assert_allclose(
+        diagnostics["rank_objective_history"][-1], dense_objective, atol=1e-9
+    )
 
 
 def test_public_multi_fit_accepts_explicit_svd_solver() -> None:

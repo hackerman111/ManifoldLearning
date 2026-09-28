@@ -44,8 +44,12 @@
 HPAO correction penalty. `solve_fixed_coefficients` возвращает
 низкоранговую `(m,d)` матрицу `B` и историю этого функционала. Жадные
 rank-1 компоненты находятся попеременными шагами: малая `(m,m)` задача для
-`a`, augmented matrix-free LSMR с проверкой normal residual для `v`,
-compact QR/SVD и совместное решение `(k,k)` задачи масштабов. Глобальный
+`a`, для `v` — прямой Cholesky при `lambda>0, d<=128` либо плоский LSMR с
+явной проверкой normal residual и fallback, compact QR/SVD с кэшем `U@V`
+и совместное решение `(k,k)` задачи масштабов. Временный буфер прямого
+решения ограничен 16 MiB; `direct_max_dimension=None` оставляет только LSMR.
+Адаптивный допуск LSMR доступен через `adaptive_krylov=True`, но по умолчанию
+выключен после потери качества на одном тяжёлом seed. Глобальный
 rank-r optimum не гарантируется.
 
 Для публичного обучения используется существующий custom-solver hook:
@@ -84,6 +88,6 @@ model = ADP_multi_index(
 | SRC-MI-INIT | local basis/spectrum initialization paths | `rtk proxy sed -n '70,184p' ADP/engine/common/initialize.py` |
 | SRC-MI-DRIVER | effective tensor, fit/trace/stop/selection | `rtk proxy sed -n '304,540p' ADP/engine/common/index_fit.py` |
 | SRC-MI-ENGINE | basis QR, orientation, subspace/projector distance | `rtk proxy sed -n '12,69p' ADP/engine/multi_index/ADP_multi_index_engine.py` |
-| SRC-SVD-SOLVER | fixed-g rank-r objective, compact SVD, augmented v step, prior completion | `rtk proxy sed -n '1,311p' ADP/solver/SVD.py` |
+| SRC-SVD-SOLVER | fixed-g rank-r objective, small-d Cholesky/flat LSMR, factor cache, prior completion | `rtk proxy sed -n '1,680p' ADP/solver/SVD.py` |
 
 Все коды извлекаются из `ADP/`; полный каталог файлов — [README.md](README.md#каталог-исходников). Общая статистика и mass contract — [index-pipeline.md](index-pipeline.md).

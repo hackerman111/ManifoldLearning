@@ -373,3 +373,11 @@ Status: active experiment interpretation; no algorithm decision/promoted variant
 - **Alternatives rejected:** Replace default LSMR, treat arbitrary SVD null-space vectors as recovered EDR directions, or claim the greedy rank-r result is a global optimum.
 - **Affected:** `ADP/solver/SVD.py`, `tests/test_svd_solver.py`, `agent-notes/ADP/multi-index.md`; existing default solver and API unchanged.
 - **Status:** active experimental variant.
+
+## 2026-09-29 — Use a certified direct v solve for small positive-ridge SVD problems
+
+- **Decision:** In the opt-in SVD solver, use bounded Cholesky normal equations when `lambda_penalty>0` and `d<=128`; retain strict flat LSMR for larger `d` and nonpositive ridge, with explicit normal-residual certification and LSMR fallback. Keep adaptive Krylov tolerance opt-in; use an objective-preserving warm start on the iterative path.
+- **Reason/evidence:** The user-shaped fixed-g d=400 case improved from 1.0372 to 0.6263 s median under strict LSMR. At the heavy `(Jp,d)=(8000,50)` geometry, direct/LSMR kernel time ratio was 0.58. Three full heavy seeds completed in 24.92/25.10/25.20 s with projector distances 0.11831/0.08987/0.09291 versus old 0.11831/0.08987/0.09507 and zero direct fallbacks. Adaptive tolerance reduced time but worsened seed-2 projector distance to 0.12634. See `experiments/svd_hot_path_2026-09-28/` and `experiments/svd_hot_path_full_fit_2026-09-28/`.
+- **Limit:** The direct threshold is empirical and conservative; the final small algebraic cleanup after full-fit timing has focused dense/public verification but no repeated full-fit timing. Peak RSS rose about 4–5 MiB in the heavy direct fit. Pyright did not finish within several minutes and was interrupted.
+- **Affected:** `ADP/solver/SVD.py`, focused tests, SVD benchmarks and route notes; the default ADP estimator remains unchanged.
+- **Status:** done for this bounded optimization task.
