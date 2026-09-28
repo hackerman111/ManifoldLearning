@@ -36,17 +36,22 @@
 
 Для outer-step selection используется SSE на Y в выбранных центрах, даже когда solver diagnostic loss другой. `trace_indices=True` включает basis, eigenvalues, alpha, mass summaries и solver diagnostics.
 
-## Явный low-rank solver из `SVD.tex`
+## Явный low-rank solver из `SVD.tex` и `SVD_corr.tex`
 
-`ADP/solver/SVD.py` реализует отдельный `rank=r<m` вариант для фиксированных
-локальных коэффициентов `g_j`. Его функционал ровно
+`ADP/solver/SVD.py` реализует два явных `rank=r<m` варианта для фиксированных
+локальных коэффициентов `g_j`. Общий функционал ровно
 `sum_j mass_j ||I_j-U_j B.T g_j||² + lambda||B-P||²`; это не текущий
-HPAO correction penalty. `solve_fixed_coefficients` возвращает
-низкоранговую `(m,d)` матрицу `B` и историю этого функционала. Жадные
+HPAO correction penalty. По умолчанию `low_rank_target="matrix"` сохраняет
+старое ограничение `rank(B)<=r` и возвращает низкоранговую `(m,d)` матрицу
+`B`. Режим `low_rank_target="correction"` ограничивает `rank(B-P)<=r`,
+начинает с `Delta=0`, один раз считает `I-forward(U,P,g)` и возвращает
+сырой полный `P+Delta`; `rank=0` возвращает `P`. Жадные
 rank-1 компоненты находятся попеременными шагами: малая `(m,m)` задача для
 `a`, для `v` — прямой Cholesky при `lambda>0, d<=128` либо плоский LSMR с
 явной проверкой normal residual и fallback, compact QR/SVD с кэшем `U@V`
-и совместное решение `(k,k)` задачи масштабов. Временный буфер прямого
+и совместное решение `(k,k)` задачи масштабов. Correction переиспользует эти
+численные primitives с нулевой ridge-целью и штрафом `lambda||Delta||²`.
+Временный буфер прямого
 решения ограничен 16 MiB; `direct_max_dimension=None` оставляет только LSMR.
 Адаптивный допуск LSMR доступен через `adaptive_krylov=True`, но по умолчанию
 выключен после потери качества на одном тяжёлом seed. Глобальный
@@ -59,20 +64,27 @@ from ADP import ADP_Config, ADP_multi_index, ADP_solver
 from ADP.solver.SVD import solve as solve_svd
 
 model = ADP_multi_index(
-    3, ADP_Config(), ADP_solver(solve_svd, rank=2)
+    3, ADP_Config(), ADP_solver(solve_svd, rank=2, low_rank_target="correction")
 ).fit(X, y)
 ```
 
 `solve` сначала вычисляет `g_j` локальным refit для входящего полного `P`.
-После низкорангового шага он дополняет найденные `r` правых направлений
-проекцией прежнего `P`, чтобы вернуть требуемый ортонормированный basis
-размера `(m,d)`, и заново оценивает локальные коэффициенты. Оставшиеся
+Correction mode ортонормирует строки `P+Delta` через thin QR, проверяет полный
+row rank и заново оценивает локальные коэффициенты. Matrix mode по-прежнему
+дополняет найденные `r` правых направлений проекцией прежнего `P`; оставшиеся
 `m-r` направления опираются на prior, а не определяются матрицей `B`.
 Внешний fit-loop затем применяет обычную канонизацию по спектру
 коэффициентов. Вариант CPU-only; текущий LSMR остаётся default.
 
 Источники: **SRC-SVD-SOLVER**, **SRC-SOLVER-API**, **SRC-MI-CANONICAL**;
-эталонные проверки: `tests/test_svd_solver.py`.
+эталонные проверки: `tests/test_svd_solver.py`; fixed-g замеры:
+`benchmarks/svd_correction.py`, `experiments/svd_correction_2026-09-29/`
+(d=20) и `experiments/svd_correction_high_d_2026-09-29/` (d=100/300/600;
+небольшой и изменчивый парный выигрыш только на d=600). Full-fit LSMR/SVD
+comparison: `benchmarks/svd_vs_hybrid.py --comparison lsmr-svd` and
+`experiments/lsmr_vs_svd_fullfit_2026-09-29/REPORT.md` (100/50/25 paired
+seeds; SVD faster, large-case projector recovery favored LSMR; objectives
+differ).
 
 ## Локаторы
 
@@ -88,6 +100,6 @@ model = ADP_multi_index(
 | SRC-MI-INIT | local basis/spectrum initialization paths | `rtk proxy sed -n '70,184p' ADP/engine/common/initialize.py` |
 | SRC-MI-DRIVER | effective tensor, fit/trace/stop/selection | `rtk proxy sed -n '304,540p' ADP/engine/common/index_fit.py` |
 | SRC-MI-ENGINE | basis QR, orientation, subspace/projector distance | `rtk proxy sed -n '12,69p' ADP/engine/multi_index/ADP_multi_index_engine.py` |
-| SRC-SVD-SOLVER | fixed-g rank-r objective, small-d Cholesky/flat LSMR, factor cache, prior completion | `rtk proxy sed -n '1,680p' ADP/solver/SVD.py` |
+| SRC-SVD-SOLVER | fixed-g rank-r matrix/correction objectives, small-d Cholesky/flat LSMR, factor cache, prior completion or QR | `rtk proxy sed -n '1,721p' ADP/solver/SVD.py` |
 
 Все коды извлекаются из `ADP/`; полный каталог файлов — [README.md](README.md#каталог-исходников). Общая статистика и mass contract — [index-pipeline.md](index-pipeline.md).

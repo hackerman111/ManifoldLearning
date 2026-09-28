@@ -1,0 +1,1023 @@
+\section{Обновление существующего truncated-SVD solver:
+low-rank correction $B=P+\Delta$}
+
+\subsection{Цель}
+
+Требуется модифицировать существующий solver в
+\texttt{ADP/solver/SVD.py}.
+
+Текущая реализация непосредственно строит малоранговую матрицу
+\[
+    B_r=A\Sigma V^\top,
+    \qquad
+    \rank(B_r)\le r<m,
+\]
+то есть ограничивает ранг самой матрицы $B$.
+
+Необходимо заменить внутреннюю параметризацию на малоранговую
+\emph{поправку} к текущему multi-index basis:
+\[
+\boxed{
+    B=P+\Delta,
+    \qquad
+    \Delta=A\Sigma V^\top,
+    \qquad
+    \rank(\Delta)\le r.
+}
+\]
+
+При этом
+\[
+    P\in\mathbb R^{m\times d},
+    \qquad
+    PP^\top=I_m,
+\]
+остаётся текущим $m$-мерным EDR basis.
+
+Новый solver не должен уменьшать размерность EDR до $r$.
+Параметр $r$ задаёт только максимальный ранг изменения текущего
+подпространства за один HPAO solve.
+
+Существующий внешний API
+\[
+    \texttt{solve(index\_init, U, I, mass, lambda\_prox, rank, ...)}
+\]
+желательно сохранить.
+
+\subsection{Исходная задача}
+
+При фиксированных локальных коэффициентах
+\[
+    g_j\in\mathbb R^m
+\]
+исходный HPAO functional имеет вид
+\[
+    F(B)
+    =
+    \sum_{j=1}^{J}
+    N_j
+    \left\|
+        I_j-U_jB^\top g_j
+    \right\|_2^2
+    +
+    \lambda
+    \|B-P\|_F^2.
+\]
+
+Ввести
+\[
+    B=P+\Delta.
+\]
+
+Определить residual текущего basis:
+\[
+\boxed{
+    e_j^{(0)}
+    =
+    I_j-U_jP^\top g_j.
+}
+\]
+
+Тогда задача принимает вид
+\[
+\boxed{
+    F(\Delta)
+    =
+    \sum_{j=1}^{J}
+    N_j
+    \left\|
+        e_j^{(0)}
+        -
+        U_j\Delta^\top g_j
+    \right\|_2^2
+    +
+    \lambda\|\Delta\|_F^2.
+}
+\]
+
+Именно этот functional должен оптимизировать обновлённый solver.
+
+\subsection{Внутреннее представление correction}
+
+Хранить
+\[
+    \Delta
+    =
+    A\diag(s)V^\top
+    =
+    \sum_{k=1}^{K}
+    s_k a_kv_k^\top,
+\]
+где
+\[
+    A\in\mathbb R^{m\times K},
+    \qquad
+    V\in\mathbb R^{d\times K}.
+\]
+
+В начале solve:
+\[
+\boxed{
+    \Delta_0=0.
+}
+\]
+
+Не использовать
+\[
+    B_0=0
+\]
+как текущую точку оптимизации.
+
+Фактическая матрица HPAO на любом шаге:
+\[
+\boxed{
+    B_k=P+\Delta_k.
+}
+\]
+
+\subsection{Изменение инициализации}
+
+В существующем внутреннем solver заменить смысл переменной
+\texttt{B}.
+
+Предпочтительный вариант:
+\begin{itemize}
+    \item явно переименовать её в \texttt{Delta};
+    \item не хранить отдельно плотную матрицу $B=P+\Delta$;
+    \item материализовывать её только при необходимости.
+\end{itemize}
+
+Инициализация должна иметь вид
+\[
+    A=\varnothing,
+    \qquad
+    V=\varnothing,
+    \qquad
+    s=\varnothing,
+    \qquad
+    \Delta=0.
+\]
+
+До rank-loop один раз вычислить
+\[
+\boxed{
+    E^{(0)}
+    =
+    I-\operatorname{forward}(U,P,g).
+}
+\]
+
+Здесь
+\[
+    E^{(0)}_j=e_j^{(0)}.
+\]
+
+\subsection{Residual внутри rank-loop}
+
+Для текущей факторизации
+\[
+    \Delta
+    =
+    A\diag(s)V^\top
+\]
+correction prediction равен
+\[
+    U_j\Delta^\top g_j
+    =
+    \sum_k
+    s_k
+    (a_k^\top g_j)
+    U_jv_k.
+\]
+
+Следовательно, residual необходимо вычислять как
+\[
+\boxed{
+    e_j
+    =
+    e_j^{(0)}
+    -
+    U_j\Delta^\top g_j.
+}
+\]
+
+При использовании существующего cache
+\[
+    W_{j,:,k}=U_jv_k
+\]
+получаем
+\[
+\boxed{
+    e
+    =
+    E^{(0)}
+    -
+    \operatorname{einsum}
+    \left(
+        W,\,
+        (gA)\odot s
+    \right).
+}
+\]
+
+Не использовать в этом месте исходный $I$ как residual относительно
+нулевой матрицы.
+
+\subsection{Rank-$1$ correction}
+
+На очередном rank-шаге искать
+\[
+    \delta
+    =
+    \sigma av^\top,
+    \qquad
+    \|a\|_2=\|v\|_2=1.
+\]
+
+Обновление:
+\[
+    \Delta^+
+    =
+    \Delta+\sigma av^\top.
+\]
+
+Изменение objective должно быть
+\[
+\boxed{
+    F(\Delta+\sigma av^\top)-F(\Delta)
+    =
+    D(a,v)\sigma^2
+    -
+    2R(a,v)\sigma.
+}
+\]
+
+Здесь
+\[
+\boxed{
+    D(a,v)
+    =
+    \sum_j
+    N_j
+    (a^\top g_j)^2
+    \|U_jv\|_2^2
+    +
+    \lambda
+}
+\]
+и
+\[
+\boxed{
+    R(a,v)
+    =
+    \sum_j
+    N_j
+    (a^\top g_j)
+    v^\top U_j^\top e_j
+    -
+    \lambda
+    \langle
+        \Delta,av^\top
+    \rangle_F.
+}
+\]
+
+Поэтому
+\[
+\boxed{
+    \sigma^\star
+    =
+    \frac{R(a,v)}{D(a,v)}
+}
+\]
+и predicted gain равен
+\[
+\boxed{
+    \operatorname{gain}
+    =
+    \frac{R(a,v)^2}{D(a,v)}.
+}
+\]
+
+Существующий критерий \texttt{rank\_tol} должен использовать этот gain.
+
+\subsection{Изменение матрицы $Q$}
+
+Для текущего residual $e_j$ определить
+\[
+    q_j
+    =
+    U_j^\top e_j.
+\]
+
+Data-gradient factor:
+\[
+    Q_{\mathrm{data}}
+    =
+    \sum_j
+    N_jg_jq_j^\top.
+\]
+
+Так как
+\[
+    B-P=\Delta,
+\]
+регуляризационная часть gradient равна
+\[
+    \lambda\Delta.
+\]
+
+Следовательно, используемая в rank-$1$ поиске матрица должна быть
+\[
+\boxed{
+    Q
+    =
+    Q_{\mathrm{data}}
+    -
+    \lambda\Delta.
+}
+\]
+
+Эквивалентно, если код продолжает временно использовать
+\[
+    B=P+\Delta,
+\]
+можно вычислять
+\[
+    P-B=-\Delta.
+\]
+
+Необходимо проверить численно, что обе реализации совпадают.
+
+\subsection{$a$-step}
+
+При фиксированном $v$
+\[
+    R(a,v)=a^\top Qv.
+\]
+
+Определить
+\[
+\boxed{
+    G_v
+    =
+    \sum_j
+    N_j
+    \|U_jv\|_2^2
+    g_jg_j^\top
+    +
+    \lambda I_m.
+}
+\]
+
+Тогда использовать существующий small solve:
+\[
+\boxed{
+    a_{\mathrm{raw}}
+    =
+    G_v^{-1}Qv,
+}
+\]
+\[
+\boxed{
+    a
+    =
+    \frac{a_{\mathrm{raw}}}
+         {\|a_{\mathrm{raw}}\|_2}.
+}
+\]
+
+Матрица имеет размер
+\[
+    m\times m.
+\]
+
+Существующую реализацию через Cholesky/\texttt{lstsq}
+сохранить.
+
+\subsection{$v$-step}
+
+При фиксированном $a$ обозначить
+\[
+    \alpha_j=a^\top g_j.
+\]
+
+Необходимо решать
+\[
+\boxed{
+\left[
+    \sum_j
+    N_j\alpha_j^2
+    U_j^\top U_j
+    +
+    \lambda I_d
+\right]
+v_{\mathrm{raw}}
+=
+\sum_j
+N_j\alpha_j
+U_j^\top e_j
+-
+\lambda\Delta^\top a.
+}
+\]
+
+Не формировать матрицы
+\[
+    U_j^\top U_j
+\]
+явно.
+
+Сохранить существующие два backend:
+\begin{enumerate}
+    \item direct Cholesky для достаточно малых $d$;
+    \item matrix-free LSMR для больших $d$.
+\end{enumerate}
+
+После solve:
+\[
+\boxed{
+    v
+    =
+    \frac{v_{\mathrm{raw}}}
+         {\|v_{\mathrm{raw}}\|_2}.
+}
+\]
+
+Существующий normal-residual certificate сохранить.
+
+\subsection{Упрощение ridge target в $v$-step}
+
+В старой параметризации rank-$r$ матрицы $B$ proximal term
+задавал target
+\[
+    P^\top a.
+\]
+
+В correction-параметризации regularizer равен
+\[
+    \lambda\|\Delta\|_F^2.
+\]
+
+Для нового rank-$1$ направления около текущей $\Delta$ ridge target
+определяется только текущей correction.
+
+Поэтому при решении задачи непосредственно по новой компоненте
+необходимо использовать
+\[
+\boxed{
+    z
+    =
+    -\Delta^\top a.
+}
+\]
+
+Эквивалентная нормальная система:
+\[
+    (A^\top A+\lambda I)v_{\mathrm{raw}}
+    =
+    A^\top y
+    -
+    \lambda\Delta^\top a.
+\]
+
+Не использовать
+\[
+    z=(P-B)^\top a
+\]
+с $B$, обозначающим только correction.
+Если переменная $B$ всё ещё обозначает полную матрицу $P+\Delta$,
+то старое выражение
+\[
+    (P-B)^\top a
+\]
+остаётся корректным.
+
+Необходимо выбрать одну семантику переменных и не смешивать их.
+
+\subsection{Compact QR/SVD}
+
+Существующую compact compression сохранить.
+
+После получения новой компоненты
+\[
+    \sigma av^\top
+\]
+имеем
+\[
+    \Delta^+
+    =
+    \Delta+\sigma av^\top.
+\]
+
+Если
+\[
+    \Delta=LR^\top,
+\]
+то после добавления новой компоненты:
+\[
+    L^+
+    =
+    [L,\sigma a],
+    \qquad
+    R^+
+    =
+    [R,v].
+\]
+
+Выполнить thin QR
+\[
+    L^+=Q_LR_L,
+    \qquad
+    R^+=Q_RR_R.
+\]
+
+Затем
+\[
+    R_LR_R^\top
+    =
+    \widetilde A
+    \Sigma
+    \widetilde V^\top.
+\]
+
+Новые факторы correction:
+\[
+\boxed{
+    A
+    =
+    Q_L\widetilde A,
+    \qquad
+    V
+    =
+    Q_R\widetilde V,
+}
+\]
+с сохранением не более заданного rank budget.
+
+Полный SVD матрицы $m\times d$ не выполнять.
+
+\subsection{Joint re-fit singular values}
+
+После compact SVD необходимо переоценить все singular scales
+при фиксированных $A,V$.
+
+Пусть
+\[
+    \Delta
+    =
+    \sum_{k=1}^{K}
+    s_ka_kv_k^\top.
+\]
+
+Ввести
+\[
+    X_{j,:,k}
+    =
+    (a_k^\top g_j)U_jv_k.
+\]
+
+Тогда требуется решить
+\[
+\boxed{
+    \min_s
+    \sum_j
+    N_j
+    \left\|
+        e_j^{(0)}
+        -
+        \sum_k s_kX_{j,:,k}
+    \right\|_2^2
+    +
+    \lambda\|s\|_2^2.
+}
+\]
+
+Нормальная система:
+\[
+\boxed{
+    Ms=b,
+}
+\]
+где
+\[
+    M_{k\ell}
+    =
+    \sum_j
+    N_j
+    X_{j,:,k}^\top X_{j,:,\ell}
+    +
+    \lambda\delta_{k\ell},
+\]
+\[
+\boxed{
+    b_k
+    =
+    \sum_j
+    N_j
+    X_{j,:,k}^\top e_j^{(0)}.
+}
+\]
+
+В отличие от старой параметризации здесь
+\textbf{не должно быть} дополнительного члена
+\[
+    \lambda a_k^\top Pv_k
+\]
+в правой части.
+
+Причина:
+\[
+    \|B-P\|_F^2
+    =
+    \|\Delta\|_F^2,
+\]
+поэтому prior уже полностью учтён ridge-членом
+\[
+    \lambda I.
+\]
+
+\subsection{Новый factorized objective}
+
+Заменить старую формулу objective для факторов на
+\[
+\boxed{
+    F
+    =
+    \sum_j
+    N_j
+    \left\|
+        e_j^{(0)}
+        -
+        \sum_k
+        s_k
+        (a_k^\top g_j)
+        U_jv_k
+    \right\|_2^2
+    +
+    \lambda
+    \sum_k s_k^2.
+}
+\]
+
+При ортонормированных $A,V$
+\[
+    \|\Delta\|_F^2
+    =
+    s^\top s.
+\]
+
+Новая функция должна иметь смысл
+\[
+\texttt{\_correction\_objective\_from\_factors(...)}.
+\]
+
+Удалить из неё старые члены
+\[
+    \|P\|_F^2
+\]
+и
+\[
+    -2\langle B,P\rangle_F.
+\]
+
+\subsection{Выход solver}
+
+После окончания rank-recovery получить
+\[
+    \Delta_r
+    =
+    A\diag(s)V^\top.
+\]
+
+Сформировать
+\[
+\boxed{
+    B_{\mathrm{raw}}
+    =
+    P+\Delta_r.
+}
+\]
+
+Не использовать старую процедуру
+\[
+    \texttt{\_complete\_basis(V,s,P)}
+\]
+для correction solver.
+
+Вместо неё ортонормировать полный обновлённый basis:
+\[
+    B_{\mathrm{raw}}^\top
+    =
+    QR,
+\]
+\[
+\boxed{
+    P_{\mathrm{new}}=Q^\top.
+}
+\]
+
+После этого выполнить существующий local refit:
+\[
+    g_j^{\mathrm{new}}
+    =
+    \arg\min_g
+    \left\|
+        I_j-U_jP_{\mathrm{new}}^\top g
+    \right\|_2^2.
+\]
+
+Вернуть
+\[
+    \texttt{HPAOResult}
+    \left(
+        P_{\mathrm{new}},
+        g^{\mathrm{new}},
+        \texttt{diagnostics}
+    \right).
+\]
+
+\subsection{Сохранение старого solver}
+
+Существующий вариант
+\[
+    \rank(B)\le r
+\]
+не удалять до окончания сравнительных экспериментов.
+
+Необходимо поддержать два режима, например:
+\[
+\texttt{low\_rank\_target = "matrix"}
+\]
+для старого solver и
+\[
+\texttt{low\_rank\_target = "correction"}
+\]
+для нового.
+
+Допустим также отдельный entry point
+\[
+    \texttt{solve\_correction(...)}.
+\]
+
+Предпочтителен вариант, при котором общие численные primitives
+не дублируются:
+\begin{itemize}
+    \item \texttt{\_FlatU};
+    \item direct $v$ solve;
+    \item LSMR $v$ solve;
+    \item normal-residual certificate;
+    \item \texttt{\_solve\_small};
+    \item compact QR/SVD.
+\end{itemize}
+
+\subsection{Diagnostics}
+
+Добавить:
+\[
+    \texttt{low\_rank\_target="correction"},
+\]
+\[
+    \texttt{correction\_rank},
+\]
+\[
+    \texttt{correction\_singular\_values},
+\]
+\[
+    \texttt{correction\_frobenius\_norm},
+\]
+\[
+    \texttt{relative\_correction\_norm}
+    =
+    \frac{\|\Delta\|_F}{\|P\|_F},
+\]
+\[
+    \texttt{rank\_gain\_history},
+\]
+\[
+    \texttt{rank\_objective\_history}.
+\]
+
+Сохранить существующие:
+\begin{itemize}
+    \item LSMR iteration counters;
+    \item normal-residual certificates;
+    \item inner convergence;
+    \item $U$-pass counter;
+    \item direct/iterative solve counters.
+\end{itemize}
+
+\subsection{Обязательные invariant tests}
+
+Добавить следующие тесты.
+
+\paragraph{Zero correction.}
+
+При
+\[
+    r=0
+\]
+или при остановке до принятия первой компоненты:
+\[
+    P_{\mathrm{new}}=P
+\]
+с точностью до basis orientation.
+
+\paragraph{Penalty.}
+
+Проверить численно:
+\[
+    \|B-P\|_F^2
+    =
+    \|\Delta\|_F^2.
+\]
+
+\paragraph{Factor objective.}
+
+Для случайных малых задач сравнить factorized expression с прямым
+вычислением
+\[
+    \sum_j
+    N_j
+    \|I_j-U_j(P+\Delta)^\top g_j\|^2
+    +
+    \lambda\|\Delta\|_F^2.
+\]
+
+Разность должна быть на уровне floating-point error.
+
+\paragraph{Rank-1 scale.}
+
+Для фиксированных $a,v$ проверить, что
+\[
+    \sigma^\star=R/D
+\]
+совпадает с минимумом одномерной задачи, полученным прямым solver.
+
+\paragraph{Joint scale refit.}
+
+После решения
+\[
+    Ms=b
+\]
+gradient objective по $s$ должен быть близок к нулю.
+
+\paragraph{Monotonicity.}
+
+Каждый принятый deterministic rank-step должен удовлетворять
+\[
+    F(\Delta_{k+1})
+    \le
+    F(\Delta_k)
+    +
+    \varepsilon_{\mathrm{num}}.
+\]
+
+\paragraph{Full-rank reference.}
+
+На малых задачах сравнить correction solver с полным HPAO solver.
+Для возрастающего $r$ ошибка objective должна в среднем уменьшаться.
+
+Не требовать монотонности projector error по $r$ как математического
+инварианта.
+
+\subsection{Главный эксперимент}
+
+Для каждого outer HPAO step сохранить полное reference-решение
+\[
+    B_\star
+\]
+и определить
+\[
+    \Delta_\star=B_\star-P.
+\]
+
+Посчитать singular values
+\[
+    \sigma_1(\Delta_\star)
+    \ge
+    \cdots
+    \ge
+    \sigma_m(\Delta_\star).
+\]
+
+Измерить
+\[
+\boxed{
+    E_r
+    =
+    \frac{
+        \sum_{k=1}^r
+        \sigma_k(\Delta_\star)^2
+    }{
+        \sum_{k=1}^m
+        \sigma_k(\Delta_\star)^2
+    }.
+}
+\]
+
+Сравнить:
+\begin{enumerate}
+    \item текущий full HPAO;
+    \item существующий solver с $\rank(B)\le r$;
+    \item новый solver с $\rank(B-P)\le r$.
+\end{enumerate}
+
+Для каждого варианта измерить:
+\[
+    F,
+    \qquad
+    \text{wall time},
+    \qquad
+    \text{$U$ passes},
+    \qquad
+    \text{effective rank},
+\]
+\[
+    \text{projector distance to full HPAO},
+    \qquad
+    \text{projector distance to truth}
+\]
+при наличии ground truth.
+
+\subsection{Следующий этап: stochastic extension}
+
+Стохастическую версию не смешивать с первой реализацией correction solver.
+
+Сначала получить deterministic solver
+\[
+    \rank(B-P)\le r
+\]
+при использовании всех $J$ центров.
+
+После прохождения correctness tests добавить sampling
+\[
+    \mathcal B_t
+    \subset
+    \{1,\ldots,J\},
+    \qquad
+    |\mathcal B_t|=b.
+\]
+
+Для data-частей использовать множитель
+\[
+    \frac{J}{b}.
+\]
+
+Regularization
+\[
+    \lambda\|\Delta\|_F^2
+\]
+не масштабировать.
+
+На stochastic rank-$1$ шаге использовать
+\[
+\widehat R_t(a,v)
+=
+\frac{J}{b}
+\sum_{j\in\mathcal B_t}
+N_j
+(a^\top g_j)
+v^\top U_j^\top e_j
+-
+\lambda
+\langle\Delta,av^\top\rangle_F,
+\]
+\[
+\widehat D_t(a,v)
+=
+\frac{J}{b}
+\sum_{j\in\mathcal B_t}
+N_j
+(a^\top g_j)^2
+\|U_jv\|^2
++
+\lambda,
+\]
+\[
+\boxed{
+    \widehat\sigma_t
+    =
+    \frac{\widehat R_t}{\widehat D_t}.
+}
+\]
+
+Обновление:
+\[
+    \Delta
+    \leftarrow
+    \Delta
+    +
+    \widehat\sigma_tav^\top.
+\]
+
+После превышения rank budget выполнить
+\[
+\boxed{
+    \Delta\leftarrow\Pi_r(\Delta)
+}
+\]
+через существующий compact QR/SVD.
+
+Стохастический режим реализовывать только после подтверждения
+эквивалентности deterministic correction objective прямому вычислению.

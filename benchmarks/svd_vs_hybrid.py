@@ -1,4 +1,4 @@
-"""Paired full-fit comparison of the opt-in truncated-SVD solver and HYBRID.
+"""Paired full-fit comparison of the opt-in truncated-SVD solver and HPAO.
 
 Run from the repository root, for example:
     PYTHONPATH=. python -m benchmarks.svd_vs_hybrid \
@@ -19,7 +19,6 @@ import statistics
 import subprocess
 import sys
 import time
-import tracemalloc
 from pathlib import Path
 
 CASES = {
@@ -51,6 +50,7 @@ def _worker(case: str, seed: int, solver_name: str) -> dict[str, object]:
 
     from ADP import ADP_Config, ADP_multi_index, ADP_solver
     from ADP.solver.HYBRID.HYBRID_multi import solve as solve_hybrid
+    from ADP.solver.LSMR import solve as solve_lsmr
     from ADP.solver.SVD import solve as solve_svd
 
     params = CASES[case]
@@ -120,6 +120,8 @@ def _worker(case: str, seed: int, solver_name: str) -> dict[str, object]:
                 128 if solver_name in {"svd", "svd_direct"} else None
             ),
         )
+    elif solver_name == "lsmr":
+        solver = ADP_solver(solve_lsmr, max_steps=5, tol=1e-6)
     else:
         solver = ADP_solver(
             solve_hybrid,
@@ -127,17 +129,10 @@ def _worker(case: str, seed: int, solver_name: str) -> dict[str, object]:
             tol=1e-6,
         )
 
-    track_python_memory = params.get("generator") != "spokoini"
-    if track_python_memory:
-        tracemalloc.start()
     started = time.perf_counter()
     model = ADP_multi_index(params["m"], config, solver).fit(X, y)
     elapsed = time.perf_counter() - started
-    if track_python_memory:
-        _, traced_peak = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
-    else:
-        traced_peak = None
+    traced_peak = None
 
     basis = model.basis_
     estimate_projector = basis @ basis.T
@@ -177,7 +172,15 @@ def _worker(case: str, seed: int, solver_name: str) -> dict[str, object]:
         inner_iterations = None
         inner_converged = all(entry.get("converged", False) for entry in diagnostics)
         linear_iterations = sum(
-            int(entry.get("linear_iterations_total", 0)) for entry in diagnostics
+            int(
+                entry.get(
+                    "lsmr_iterations_total"
+                    if solver_name == "lsmr"
+                    else "linear_iterations_total",
+                    0,
+                )
+            )
+            for entry in diagnostics
         )
         u_vector_passes = None
         lsmr_refinements = None
@@ -219,6 +222,11 @@ def _worker(case: str, seed: int, solver_name: str) -> dict[str, object]:
             if solver_name == "hybrid"
             else None
         ),
+        "lsmr_solver_converged": (
+            all(entry.get("converged", False) for entry in diagnostics)
+            if solver_name == "lsmr"
+            else None
+        ),
         "solver_trace": diagnostics,
     }
 
@@ -227,11 +235,17 @@ def _aggregate(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     result = []
     cases = sorted({str(row.get("case")) for row in rows})
     for case in cases:
+        solver_names = [
+            solver
+            for solver in ("svd", "lsmr", "hybrid")
+            if any(r.get("case") == case and r.get("solver") == solver for r in rows)
+        ]
+        comparison_solver = "lsmr" if "lsmr" in solver_names else "hybrid"
         by_solver = {
             solver: [
                 r for r in rows if r.get("case") == case and r.get("solver") == solver
             ]
-            for solver in ("svd", "hybrid")
+            for solver in solver_names
         }
         for solver, group in by_solver.items():
             ok = [row for row in group if row.get("status") == "ok"]
@@ -305,17 +319,23 @@ def _aggregate(rows: list[dict[str, object]]) -> list[dict[str, object]]:
                 if solver == "hybrid"
                 else None
             )
+            summary["lsmr_solver_converged_runs"] = (
+                sum(row.get("lsmr_solver_converged") is True for row in ok)
+                if solver == "lsmr"
+                else None
+            )
             result.append(summary)
 
     lookup = {(r["case"], r["solver"]): r for r in result}
     for case in cases:
         svd = lookup[(case, "svd")]
-        hybrid = lookup[(case, "hybrid")]
+        comparison = lookup[(case, comparison_solver)]
         for field in ("fit_time_sec", "peak_rss_kib", "tracemalloc_peak_bytes"):
-            left, right = svd[f"{field}_median"], hybrid[f"{field}_median"]
-            svd[f"{field}_ratio_svd_over_hybrid"] = (
+            left, right = svd[f"{field}_median"], comparison[f"{field}_median"]
+            svd[f"{field}_ratio_svd_over_{comparison_solver}"] = (
                 float(left) / float(right) if left is not None and right else None
             )
+        svd["comparison_solver"] = comparison_solver
         paired = []
         case_seeds = sorted(
             {int(row["seed"]) for row in rows if row.get("case") == case}
@@ -332,27 +352,31 @@ def _aggregate(rows: list[dict[str, object]]) -> list[dict[str, object]]:
                 ),
                 None,
             )
-            h = next(
+            other = next(
                 (
                     r
                     for r in rows
                     if r.get("case") == case
-                    and r.get("solver") == "hybrid"
+                    and r.get("solver") == comparison_solver
                     and r.get("seed") == seed
                     and r.get("status") == "ok"
                 ),
                 None,
             )
-            if s and h:
+            if s and other:
                 paired.append(
                     {
                         "seed": seed,
-                        "time_ratio_svd_over_hybrid": s["fit_time_sec"]
-                        / h["fit_time_sec"],
-                        "quality_delta_svd_minus_hybrid": s["projector_distance"]
-                        - h["projector_distance"],
-                        "rss_delta_kib_svd_minus_hybrid": s["peak_rss_kib"]
-                        - h["peak_rss_kib"],
+                        f"time_ratio_svd_over_{comparison_solver}": s["fit_time_sec"]
+                        / other["fit_time_sec"],
+                        f"quality_delta_svd_minus_{comparison_solver}": s[
+                            "projector_distance"
+                        ]
+                        - other["projector_distance"],
+                        f"rss_delta_kib_svd_minus_{comparison_solver}": s[
+                            "peak_rss_kib"
+                        ]
+                        - other["peak_rss_kib"],
                     }
                 )
         svd["paired_seed_deltas"] = paired
@@ -366,6 +390,9 @@ def main() -> None:
     parser.add_argument("--worker-output", type=Path)
     parser.add_argument("--aggregate", action="store_true")
     parser.add_argument("--cases", nargs="+")
+    parser.add_argument(
+        "--comparison", choices=("svd-hybrid", "lsmr-svd"), default="svd-hybrid"
+    )
     args = parser.parse_args()
     if args.worker:
         case, seed, solver = args.worker
@@ -399,19 +426,42 @@ def main() -> None:
         )
         return
 
+    try:
+        git_dirty_before_run = bool(
+            subprocess.run(
+                ["git", "status", "--short"],
+                capture_output=True,
+                check=True,
+                text=True,
+            ).stdout.strip()
+        )
+    except (OSError, subprocess.CalledProcessError):
+        git_dirty_before_run = None
     args.output.mkdir(parents=True, exist_ok=False)
     env = dict(os.environ)
     env.update(OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
     env["PYTHONPATH"] = str(Path.cwd()) + os.pathsep + env.get("PYTHONPATH", "")
     rows: list[dict[str, object]] = []
-    selected_cases = args.cases or list(CASES)
-    seeds_by_case = {
-        case: HEAVY_SEEDS if case == "spokoini_m2_dhigh_30s" else SEEDS
-        for case in selected_cases
-    }
+    selected_cases = args.cases or (
+        ["small", "medium", "spokoini_m2_dhigh_30s"]
+        if args.comparison == "lsmr-svd"
+        else list(CASES)
+    )
+    if args.comparison == "lsmr-svd":
+        seed_counts = {"small": 100, "medium": 50, "spokoini_m2_dhigh_30s": 25}
+        seeds_by_case = {
+            case: list(range(seed_counts[case])) for case in selected_cases
+        }
+        solvers = ("svd", "lsmr")
+    else:
+        seeds_by_case = {
+            case: list(HEAVY_SEEDS if case == "spokoini_m2_dhigh_30s" else SEEDS)
+            for case in selected_cases
+        }
+        solvers = ("svd", "hybrid")
     for case in selected_cases:
         for seed in seeds_by_case[case]:
-            pair = ["svd", "hybrid"] if seed % 2 else ["hybrid", "svd"]
+            pair = list(solvers if seed % 2 else solvers[::-1])
             for solver in pair:
                 command = [
                     sys.executable,
@@ -456,20 +506,15 @@ def main() -> None:
         commit = subprocess.run(
             ["git", "rev-parse", "HEAD"], capture_output=True, check=True, text=True
         ).stdout.strip()
-        dirty = bool(
-            subprocess.run(
-                ["git", "status", "--short"], capture_output=True, check=True, text=True
-            ).stdout.strip()
-        )
     except (OSError, subprocess.CalledProcessError):
-        commit, dirty = None, None
+        commit = None
     meta = {
         "python": sys.version,
         "platform": platform.platform(),
         "numpy": np.__version__,
         "scipy": scipy.__version__,
         "git_commit": commit,
-        "git_dirty_before_run": dirty,
+        "git_dirty_before_run": git_dirty_before_run,
         "seeds_by_case": seeds_by_case,
         "rank_by_case": {
             case: min(RANK, CASES[case]["m"] - 1) for case in selected_cases
@@ -481,11 +526,15 @@ def main() -> None:
         },
         "protocol": (
             "Cold full ADP_multi_index.fit in isolated processes with paired data/fit "
-            "seeds; float64; full fit runs to completion and elapsed time is checked "
-            "against the 30-second target; worker safety timeout is 240 seconds."
+            "seeds; float64; no tracemalloc during fit; worker safety timeout is "
+            "240 seconds."
         ),
         "objective_note": (
-            "SVD fixed-g rank-r objective and HYBRID HPAO correction-penalty "
+            "SVD fixed-g rank-r objective and LSMR HPAO correction-penalty "
+            "objective differ; projector recovery is descriptive end-to-end "
+            "comparison, not equivalent-inner-objective accuracy."
+            if args.comparison == "lsmr-svd"
+            else "SVD fixed-g rank-r objective and HYBRID HPAO correction-penalty "
             "objective differ; numeric lambda_penalty is shared but objectives "
             "are not equivalent."
         ),
@@ -499,16 +548,18 @@ def main() -> None:
         "fit_configuration": (
             "Spokoini point d=50,n=800,m=2,N_loc=10,N_lin=100,N_J=800,N_phi=10, "
             "a=exp(1/100),h_min=1,select_step=last,outer_steps=None, "
-            "index_init=local,estimator=new,lambda_penalty=0.05; kernel is "
-            "Epanechnikov max(1-u^2,0) on scaled anisotropic distance; SVD rank=1, "
-            "HYBRID max_steps=5,tol=1e-6,theta=0.1; defaults otherwise."
+            "index_init=local,estimator=new,lambda_penalty=0.05; SVD low_rank_target="
+            "matrix,rank=1,inner_tol=1e-6,inner_maxiter=20; LSMR max_steps=5, "
+            "tol=1e-6,theta=0.1; defaults otherwise."
             if "spokoini_m2_dhigh_30s" in selected_cases
-            else "See selected case configuration in this manifest."
+            else "Synthetic: N_loc=15, lambda_penalty=0.05, h_min=0.35, "
+            "a=sqrt(2), outer_steps=3, select_step=best, batch_size=32; SVD "
+            "low_rank_target=matrix, rank=2, inner_tol=1e-6, inner_maxiter=20; "
+            "LSMR max_steps=5,tol=1e-6,theta=0.1; see cases for N_J/N_phi/N_lin."
         ),
         "memory_method": (
             "resource.ru_maxrss in KiB includes interpreter/import baseline; "
-            "tracemalloc is disabled on the heavy timing point to avoid distorting "
-            "the 30-second timing target."
+            "tracemalloc is disabled for every case so fit timing is uninstrumented."
         ),
         "timing_method": (
             "time.perf_counter around fit only; no warm-up; isolated fresh "

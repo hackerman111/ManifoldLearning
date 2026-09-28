@@ -1,4 +1,4 @@
-"""Explicit rank-constrained multi-index step from ``SVD.tex`` (CPU)."""
+"""Rank-constrained multi-index steps from ``SVD.tex`` and ``SVD_corr.tex``."""
 
 from __future__ import annotations
 
@@ -79,10 +79,12 @@ def solve_fixed_coefficients(
     warm_start: bool = True,
     adaptive_krylov: bool = False,
     direct_max_dimension: int | None = _DIRECT_DIMENSION_LIMIT,
+    low_rank_target: str = "matrix",
 ) -> tuple[np.ndarray, dict[str, object]]:
-    """Greedy rank-r minimization of the fixed-g objective in ``SVD.tex``.
+    """Greedy fixed-g solve with rank bound on B or its correction B-P.
 
-    Returns the rank-deficient matrix B, not an m-dimensional EDR basis.
+    Returns the raw B, not an orthonormal EDR basis. ``matrix`` preserves
+    the historical rank-deficient B; ``correction`` returns P+Delta.
     Positive-ridge problems up to ``direct_max_dimension`` use a certified
     Cholesky solve; the remaining v subproblems use shifted-damp LSMR.
     """
@@ -102,6 +104,7 @@ def solve_fixed_coefficients(
         warm_start=warm_start,
         adaptive_krylov=adaptive_krylov,
         direct_max_dimension=direct_max_dimension,
+        low_rank_target=low_rank_target,
     )
     return B, diagnostics
 
@@ -122,6 +125,7 @@ def _solve_fixed_coefficients_validated(
     warm_start: bool,
     adaptive_krylov: bool,
     direct_max_dimension: int | None,
+    low_rank_target: str,
 ) -> tuple[np.ndarray, dict[str, object], np.ndarray, np.ndarray]:
     """Внутренний fixed-g solve для уже проверенных P/U/I/mass."""
     if P.ndim != 2:
@@ -138,8 +142,14 @@ def _solve_fixed_coefficients_validated(
     for name, value in (("rank", rank), ("inner_maxiter", inner_maxiter)):
         if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
             raise TypeError(f"{name} must be an integer")
-    if not 1 <= rank < m or inner_maxiter < 1:
-        raise ValueError("require 1 <= rank < m and inner_maxiter >= 1")
+    if not isinstance(low_rank_target, str) or low_rank_target not in {
+        "matrix",
+        "correction",
+    }:
+        raise ValueError("low_rank_target must be 'matrix' or 'correction'")
+    min_rank = 0 if low_rank_target == "correction" else 1
+    if not min_rank <= rank < m or inner_maxiter < 1:
+        raise ValueError(f"require {min_rank} <= rank < m and inner_maxiter >= 1")
     if lsmr_maxiter is not None and (
         isinstance(lsmr_maxiter, bool)
         or not isinstance(lsmr_maxiter, (int, np.integer))
@@ -168,18 +178,25 @@ def _solve_fixed_coefficients_validated(
     A = np.empty((m, 0))
     V = np.empty((d, 0))
     singular = np.empty(0)
-    B = np.zeros_like(P)
     W = np.empty((*U.shape[:2], 0))
     flat_U = _FlatU(U)
+    # A,V,s describe B in matrix mode and Delta=B-P in correction mode.
+    base_residual = I - forward(U, P, g) if low_rank_target == "correction" else I
+    if low_rank_target == "correction":
+        flat_U.passes += 1  # initial U_j P.T g_j pass
+    prior = np.zeros_like(P) if low_rank_target == "correction" else P
     root_mass = np.sqrt(mass)
     row_root_mass = np.repeat(root_mass, U.shape[1])
-    weighted_I = row_root_mass * I.ravel()
+    weighted_base = row_root_mass * base_residual.ravel()
     identity_m = np.eye(m)
-    prior_norm2 = float(np.sum(P**2))
-    objective = float(np.sum(mass[:, None] * I**2) + lambda_penalty * prior_norm2)
+    prior_norm2 = float(np.sum(prior**2))
+    objective = float(
+        np.sum(mass[:, None] * base_residual**2) + lambda_penalty * prior_norm2
+    )
     if not np.isfinite(objective):
         raise ValueError("initial rank objective must be finite")
     history = [objective]
+    gains: list[float] = []
     certificates: list[float] = []
     lsmr_estimates: list[float] = []
     lsmr_iterations: list[int] = []
@@ -200,10 +217,12 @@ def _solve_fixed_coefficients_validated(
     stop_reason = "rank_limit"
 
     for k in range(1, rank + 1):
-        residual = I - np.einsum("jpk,jk->jp", W, (g @ A) * singular, optimize=True)
+        residual = base_residual - np.einsum(
+            "jpk,jk->jp", W, (g @ A) * singular, optimize=True
+        )
         target = row_root_mass * residual.ravel()
         pulled = flat_U.batched_rmatvec(residual)
-        proximity = P - B
+        proximity = prior - (A * singular) @ V.T
         Q = g.T @ (mass[:, None] * pulled) + lambda_penalty * proximity
         initial = Q - (Q @ V) @ V.T
         gram = initial @ initial.T
@@ -374,19 +393,19 @@ def _solve_fixed_coefficients_validated(
         weighted_design = row_root_mass[:, None] * flat_design
         M = weighted_design.T @ weighted_design
         M += lambda_penalty * np.eye(k)
-        b = weighted_design.T @ weighted_I
-        b += lambda_penalty * np.einsum(
-            "mk,mk->k", candidate_A, P @ candidate_V, optimize=True
-        )
+        b = weighted_design.T @ weighted_base
+        if low_rank_target == "matrix":
+            b += lambda_penalty * np.einsum(
+                "mk,mk->k", candidate_A, P @ candidate_V, optimize=True
+            )
         candidate_s = _solve_small(M, b, lambda_penalty)
-        candidate_B = (candidate_A * candidate_s) @ candidate_V.T
         candidate_objective = _objective_from_factors(
             candidate_A,
             candidate_s,
             candidate_V,
             projected,
-            P,
-            I,
+            prior,
+            base_residual,
             g,
             mass,
             lambda_penalty,
@@ -398,20 +417,21 @@ def _solve_fixed_coefficients_validated(
             1, objective
         ):
             raise RuntimeError("conditional singular-value solve increased objective")
-        A, V, singular, B, W, objective = (
+        A, V, singular, W, objective = (
             candidate_A,
             candidate_V,
             candidate_s,
-            candidate_B,
             projected,
             candidate_objective,
         )
         history.append(objective)
+        gains.append(gain)
         if _factor_rank(singular, m, d) < k:
             stop_reason = "no_rank_growth"
             break
 
     diagnostics = {
+        "low_rank_target": low_rank_target,
         "effective_rank": _factor_rank(singular, m, d),
         "rank_stop_reason": stop_reason,
         "rank_objective_history": tuple(history),
@@ -425,6 +445,7 @@ def _solve_fixed_coefficients_validated(
         "inner_iterations": tuple(inner_iterations),
         "inner_converged": tuple(inner_converged),
         "rank_scales": tuple(float(x) for x in singular),
+        "rank_gain_history": tuple(gains),
         "u_vector_passes": flat_U.passes,
         "u_flat_copy": flat_U.copied,
         "factor_cache_fallbacks": factor_cache_fallbacks,
@@ -435,7 +456,19 @@ def _solve_fixed_coefficients_validated(
         "warm_start": bool(warm_start),
         "adaptive_krylov": bool(adaptive_krylov),
     }
-    return B, diagnostics, V, singular
+    low_rank = (A * singular) @ V.T
+    if low_rank_target == "correction":
+        correction_norm = float(np.linalg.norm(singular))
+        diagnostics.update(
+            correction_rank=diagnostics["effective_rank"],
+            correction_singular_values=tuple(
+                float(x) for x in sorted(np.abs(singular), reverse=True)
+            ),
+            correction_frobenius_norm=correction_norm,
+            relative_correction_norm=correction_norm / math.sqrt(m),
+        )
+        return P + low_rank, diagnostics, V, singular
+    return low_rank, diagnostics, V, singular
 
 
 def _v_step_direct(
@@ -584,10 +617,16 @@ def _objective(B, P, U, I, g, mass, ridge):
     return float(np.sum(mass[:, None] * residual**2) + ridge * np.sum((B - P) ** 2))
 
 
-def _objective_from_factors(A, singular, V, W, P, I, g, mass, ridge, prior_norm2):
-    residual = I - np.einsum("jpk,jk->jp", W, (g @ A) * singular, optimize=True)
+def _objective_from_factors(
+    A, singular, V, W, prior, base_residual, g, mass, ridge, prior_norm2
+):
+    """Objective for base+low_rank, with ridge target ``prior``."""
+    residual = base_residual - np.einsum(
+        "jpk,jk->jp", W, (g @ A) * singular, optimize=True
+    )
     penalty = prior_norm2 + singular @ singular
-    penalty -= 2 * np.einsum("mk,mk,k->", A, P @ V, singular, optimize=True)
+    if prior_norm2:
+        penalty -= 2 * np.einsum("mk,mk,k->", A, prior @ V, singular, optimize=True)
     return float(np.sum(mass[:, None] * residual**2) + ridge * penalty)
 
 
@@ -628,11 +667,12 @@ def solve(
     warm_start: bool = True,
     adaptive_krylov: bool = False,
     direct_max_dimension: int | None = _DIRECT_DIMENSION_LIMIT,
+    low_rank_target: str = "matrix",
 ) -> HPAOResult:
-    """Opt-in ADP solver: fixed-g rank-r step followed by prior completion.
+    """Opt-in ADP solver with rank bound on B or on its correction B-P.
 
-    Here ``lambda_prox`` is the manuscript's ``lambda * ||B-P||²`` penalty,
-    unlike the correction penalty in the default LSMR solver.
+    ``matrix`` retains the historical low-rank B and prior completion;
+    ``correction`` orthonormalizes the full updated P+Delta.
     """
     if hasattr(U, "__cuda_array_interface__"):
         raise NotImplementedError("truncated-SVD solver requires CPU statistics")
@@ -641,7 +681,7 @@ def solve(
         raise ValueError("truncated-SVD solver requires a multi-index matrix")
     P = _normalize_index(P)
     g, _ = _local_refit(I, U, P)
-    _, diagnostics, V, singular = _solve_fixed_coefficients_validated(
+    raw, diagnostics, V, singular = _solve_fixed_coefficients_validated(
         P,
         U,
         I,
@@ -656,13 +696,26 @@ def solve(
         warm_start=warm_start,
         adaptive_krylov=adaptive_krylov,
         direct_max_dimension=direct_max_dimension,
+        low_rank_target=low_rank_target,
     )
-    basis = _complete_basis(V, singular, P)
+    if low_rank_target == "correction":
+        if diagnostics["correction_rank"] == 0:
+            basis = P.copy()
+        else:
+            q, r = np.linalg.qr(raw.T, mode="reduced")
+            values = np.linalg.svd(r, compute_uv=False)
+            if values[-1] <= np.finfo(float).eps * max(raw.shape) * values[0]:
+                raise RuntimeError("updated correction basis lost row rank")
+            basis = q.T
+        completion = "updated_basis_qr"
+    else:
+        basis = _complete_basis(V, singular, P)
+        completion = "prior_projected"
     coefficients, local_ranks = _local_refit(I, U, basis)
     diagnostics.update(
         linear_solver="truncated_svd",
         loss=_loss(I, U, basis, coefficients, mass),
         local_rank_loss=int(np.count_nonzero(local_ranks < len(P))),
-        completion="prior_projected",
+        completion=completion,
     )
     return HPAOResult(basis, coefficients, diagnostics)

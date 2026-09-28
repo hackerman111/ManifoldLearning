@@ -381,3 +381,11 @@ Status: active experiment interpretation; no algorithm decision/promoted variant
 - **Limit:** The direct threshold is empirical and conservative; the final small algebraic cleanup after full-fit timing has focused dense/public verification but no repeated full-fit timing. Peak RSS rose about 4–5 MiB in the heavy direct fit. Pyright did not finish within several minutes and was interrupted.
 - **Affected:** `ADP/solver/SVD.py`, focused tests, SVD benchmarks and route notes; the default ADP estimator remains unchanged.
 - **Status:** done for this bounded optimization task.
+
+## 2026-09-29 — Add low-rank correction as an explicit SVD mode
+
+- **Decision:** Keep `low_rank_target="matrix"` as the existing default and add `low_rank_target="correction"` to `solve` and `solve_fixed_coefficients`. The shared factor loop uses `I-forward(U,P,g)` as its data base and zero ridge target in correction mode; `rank=0` returns P. The public correction result QR-orthonormalizes `P+Delta` and refits local coefficients.
+- **Reason/evidence:** `SVD_corr.tex` changes the rank constraint from `rank(B)<=r` to `rank(B-P)<=r`, an ESTIMATOR variant. Shared `_FlatU`, direct/LSMR v solves, certificate, QR/SVD compression and scale re-fit avoid duplicate numerical paths. Nine focused tests pass, including dense objective, conditional scale derivatives, direct/iterative certificates and public multi-index fits. The bounded three-seed fixed-g comparison is recorded under `experiments/svd_correction_2026-09-29/`.
+- **Alternatives rejected:** Silently change the old SVD default, overwrite the default HPAO LSMR solver, or duplicate the entire greedy loop. High reference correction energy `E_2=0.884–0.929` did not imply greedy optimality: rank-2 correction objective improved over matrix on only two of three tested seeds.
+- **Affected:** `ADP/solver/SVD.py`, focused tests, benchmark, and SVD routing notes. Stochastic sampling remains outside this deterministic implementation.
+- **Status:** active opt-in variant; no general recovery or speed claim.
