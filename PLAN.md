@@ -1,58 +1,46 @@
-task_id: lsmr-vs-current-svd-full-fit-2026-09-29
-status: active
-change_class: EXPERIMENT; solver objectives differ, no estimator/default changes
-
-# Compare current LSMR and SVD on paired full multi-index fits
-
-Goal: measure full-fit runtime, process peak RSS, recovery error, and solver/
-outer-loop diagnostics for LSMR versus current SVD on three frozen workloads:
-small n=500,d=20,m=3 (100 paired seeds), medium n=900,d=60,m=3 (50 pairs),
-and the saved heavy Spokoiny point n=800,d=50,m=2,N_J=800 (25 pairs).
-
-Non-goals: change either solver, tune after inspecting results, or claim their
-inner objectives are equivalent. SVD's fixed-g rank-r objective and LSMR's
-HPAO objective differ; projector recovery is an end-to-end descriptive metric.
-
-Known evidence: prior three-seed SVD/HYBRID full fits exist for the small and
-medium synthetic workloads and the heavy Spokoiny point. On the heavy point,
-SVD took median 47.56 s and HYBRID 58.99 s; this does not predict current LSMR.
-The heavy historical saved experiment uses LSMR but is from a different run
-state and will not substitute for paired current runs.
-
-Invariants: paired methods receive identical generated X/y/truth and fit seed;
-float64; one BLAS/OpenMP thread; isolated fresh worker process per fit; rank=2
-for m=3 and rank=1 for m=2; no fit-time tracing; capture process high-water
-RSS. Keep every failure and incomplete pair. Compare per-cell distributions,
-paired differences/ratios, diagnostics, and descriptive projector error.
-
-Exact read set: `benchmarks/svd_vs_hybrid.py`, `ADP/solver/{LSMR,SVD}.py`,
-`agent-notes/ADP/multi-index.md`, `experiments/{data.py,models.py,runner.py}`,
-the prior small/medium report, and saved heavy point `series.json`.
-
-Bounded work units:
-- [x] Add an LSMR/SVD paired-run protocol for these cases and seed counts;
-  validate solver wiring on small seed 0 and the Spokoiny LSMR generator path
-  on seed 25 (outside the frozen analysis range). Both workers completed and
-  emitted finite full-fit metrics.
-- [x] Run frozen seed ranges: small 0-99, medium 0-49, heavy 0-24. Do not
-  retune or replace failed seeds; retain all rows.
-- [x] Verify raw records and aggregates; write per-case report with time,
-  RSS, projector recovery, convergence/failure counts, and paired statistics.
-  Update `PLAN.md`/`agent-notes/STATE.md`; run Ruff and `git diff --check`.
-
-Stop conditions: any data/seed mismatch, duplicate/missing pair, changed
-parameters between methods, or repeated worker failures; preserve failed rows
-and report incomplete evidence. Safety timeout is 240 seconds per full fit.
-
-Outcome: 350/350 fits succeeded with exact paired seed coverage and no
-duplicates. SVD was faster on every pair (median speedup 8.6x small, 7.9x
-medium, 1.51x large). Median projector error favored SVD slightly on small,
-was inconclusive on medium, and strongly favored LSMR on the large workload,
-where several SVD seeds had high error. Peak RSS was consistently higher for
-SVD by about 3.0, 5.2, and 2.0 MiB, respectively. No LSMR run met its HPAO
-stopping certificate; SVD inner solves converged in 82/100, 36/50, and 7/25
-fits. See `experiments/lsmr_vs_svd_fullfit_2026-09-29/REPORT.md` for full
-statistics and the objective/convergence caveats. Ruff, format, and diff
-checks passed; no tests were requested or run.
-
+task_id: svd-preconditioner-forced-lsmr-2026-09-30
 status: done
+change_class: NUMERICAL comparison only; no production changes
+
+# Goal
+Measure the opt-in diagonal preconditioner on the saved heavy Spokoiny full fit
+(n=800,d=50,m=2), forcing LSMR in both paired variants. Compare runtime,
+iterations, fit quality, and memory for precondition_v=False/True on seeds 0-2.
+
+# Evidence and hypothesis
+The previous direct-path comparison had zero LSMR iterations because d=50 is
+below the default direct threshold 128. The current API supports forcing LSMR
+with direct_max_dimension=None. Hypothesis: diagonal right scaling lowers
+LSMR work on this task; it may add setup cost, so end-to-end time and quality
+must be measured.
+
+# Invariants and scope
+Keep data/init seeds, fit settings, float64, one BLAS thread, solver tolerances,
+and stopping schedule fixed. Only vary precondition_v. Do not change production
+code or estimator. Retain errors; do not claim benefit from fewer iterations
+unless fit quality and completion also remain comparable.
+
+# Read set
+experiments/svd_preconditioner_spokoini_2026-09-30/{benchmark.py,REPORT.md,manifest.json};
+benchmarks/svd_vs_hybrid.py; ADP/solver/SVD.py; agent-notes/ADP/multi-index.md.
+
+# Work units
+- [x] R0: create a separate forced-LSMR runner and immutable manifest.
+- [x] R1: run three paired seeds in fresh subprocesses; stop on configuration
+  mismatch or repeated worker failure.
+- [x] R2: analyze results and record limitations in a new report.
+- [x] R3: checkpoint PLAN.md and agent-notes/STATE.md.
+
+# Verification and stop conditions
+Diagnostics must show direct_solves=0 and positive LSMR iteration counts in
+both arms. Check identical paired data/init and compare projector distance,
+outer steps, wall time, and process peak RSS. Three successful seed pairs are
+the bounded experiment; do not tune settings based on these seeds.
+
+# Result
+All six fits used LSMR (`direct_solves=0`, positive LSMR iteration counts).
+Median paired runtime decreased 5.44%; median paired LSMR iterations decreased
+12.95%. Every fit exceeded the original 30 s budget and
+`svd_inner_converged=false`; projector error changed by 0.00232 on seed 2.
+Full report and raw evidence:
+`experiments/svd_preconditioner_forced_lsmr_spokoini_2026-09-30/REPORT.md`.

@@ -11,6 +11,17 @@
 | Один индекс, ADP | [single-index-adp.md](single-index-adp.md) | `[M-ADP-SI-*]`, `[X-SI-*]` |
 | Общее EDR-подпространство с несколькими индексами | [multi-index-adp.md](multi-index-adp.md) | `[X-MI-*]`, `[M-MI-*]`, `[M-ADP-MI-*]` |
 | Локально меняющееся EDR-подпространство (manifold) | [manifold-adp.md](manifold-adp.md) | `[A-*]`, `[M-MAN-*]` |
+| SVD-решатель: единая теория и три направления развития | [SVD_solver.tex](../../SVD/SVD_solver.tex) | Метки `sec:variants`, `sec:operator`, `sec:greedy`, `sec:isotropic`, `sec:limits`, `sec:second`, `sec:gpu`, `sec:algorithm` |
+
+Сводный документ SVD является самостоятельным TeX-файлом. Приложение
+`sec:sources` содержит карту всех материалов `SVD/` и исправленных
+математических утверждений. Численные проверки формул и сведения о сборке:
+`SVD/documentation/VERIFICATION.md`. Новые предложения обозначены явно;
+текущее поведение кода описано в [../ADP/multi-index.md](../ADP/multi-index.md).
+На 2026-09-30 из `sec:algorithm` реализовано диагональное предобусловливание
+условных v-задач как опция `precondition_v=True`; аудит и парная проверка —
+`experiments/svd_improvements_2026-09-30/REPORT.md`. Остальные предложения
+этого раздела сохраняют статус программы дальнейшего развития.
 
 ## Общая нотация
 

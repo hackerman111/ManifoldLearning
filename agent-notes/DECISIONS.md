@@ -389,3 +389,22 @@ Status: active experiment interpretation; no algorithm decision/promoted variant
 - **Alternatives rejected:** Silently change the old SVD default, overwrite the default HPAO LSMR solver, or duplicate the entire greedy loop. High reference correction energy `E_2=0.884–0.929` did not imply greedy optimality: rank-2 correction objective improved over matrix on only two of three tested seeds.
 - **Affected:** `ADP/solver/SVD.py`, focused tests, benchmark, and SVD routing notes. Stochastic sampling remains outside this deterministic implementation.
 - **Status:** active opt-in variant; no general recovery or speed claim.
+
+## 2026-09-30 — Add bounded opt-in Jacobi scaling to the SVD v subproblem
+
+- **Decision:** Implement `precondition_v=True` as a NUMERICAL option, default False, for positive-ridge iterative v solves. Scale both data and ridge blocks by the inverse square root of the normal diagonal, preserving the objective, regularization center and warm start. Keep original-coordinate certification and strict unpreconditioned fallback. Disable scaling at zero ridge to preserve minimum-norm semantics; retain the small-d direct path. Cache center-wise column energy within 16 MiB and stream larger cases.
+- **Reason/evidence:** The simplest applicable preconditioner in `SVD/SVD_solver.tex` passed independent algebra/adjoint audit, dense references, 59 shared tests and paired selection/untouched validation (144 rows each). On validation column-scaled fixed-g tasks, median time/pass ratios versus the frozen baseline were 0.2255/0.2381. Full-fit projector quality changed by at most 2.27e-8, outer step counts matched, and no new numerical failures occurred. See `experiments/svd_improvements_2026-09-30/REPORT.md` and raw manifests/rows.
+- **EXACT companion change:** Fuse augmented LinearOperator callbacks by directly using `_FlatU` actions. This applies by default and preserves the mathematical operator; validation isotropic fixed-g median time ratio was 0.9430, with no traced-memory regression beyond the frozen bound. Reject nonfinite certificates/norms explicitly.
+- **Alternatives rejected:** Scalar damping after right scaling would change the penalty; scaling zero ridge can change the minimum-norm solution. Dense d*d preconditioners, GPU, block updates and new search strategies add complexity beyond this task. Existing ADP default LSMR, rank semantics and estimator remain unchanged.
+- **Protocol boundary:** Initial full-fit n220/d150 settings were infeasible before solver execution. Preserve all 18 refused rows and the failed initial summary; corrected n320 selection used fresh fit seeds120..122 before validation220..222. No solver/gate tuning followed the protocol error. The result establishes bounded numerical equivalence/performance, not new recovery or global optimality.
+- **Verification limit:** Ruff/format/diff checks passed; configured Pyright timed out after 180s, exit124. Bounded baseline checks also did not finish, so full type checking is unverified.
+- **Affected:** `ADP/solver/SVD.py`, `tests/test_svd_solver.py`, SVD experiment artifacts and routing notes, `PLAN.md`, `STATE.md`.
+- **Status:** done for this bounded optimization; diagonal scaling remains opt-in.
+
+## 2026-09-30 — Record preconditioner behavior on the 25-second Spokoiny fit
+
+- **Decision:** Keep the existing `direct_max_dimension=128` behavior and the opt-in preconditioner unchanged. On the saved full-fit task (`n=800,d=50,m=2,N_J=800`), compare the same three seeds with the flag off/on using isolated one-thread processes.
+- **Reason/evidence:** Median paired on/off time ratio was 1.0022 (+0.22%); projector error and outer-step count matched in all three pairs. Diagnostics show zero LSMR iterations and 1977/2407/2238 direct solves. Since `d=50` is on the direct Cholesky path, the experiment does not exercise Jacobi scaling. See `experiments/svd_preconditioner_spokoini_2026-09-30/REPORT.md`.
+- **Limit:** This is evidence about the option's no-op on this direct-path workload; it does not assess preconditioning for high-d iterative LSMR fits. Process RSS is not an isolated solver-memory measure.
+- **Affected:** Experiment interpretation and future workload selection only; production solver/API unchanged.
+- **Status:** done.
