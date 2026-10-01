@@ -19,6 +19,28 @@ Default `"alternating"` сохраняет условные a/v solves и сер
 inner/LSMR tuples. Контракт, ограничения и актуальный SRC-SVD-SOLVER:
 [multi-index.md](multi-index.md#явный-svd-решатель-ранг-матрицы-и-ранг-поправки).
 
+## Профильный Grassmann (opt-in)
+
+`ADP.solver.grassman.solve`: CPU multi-index HPAOResult, cached Schur
+rank-one / adaptive-q spectral / full q*m-core profiled GN + polar Armijo.
+Default tau=0 сохраняет unpenalized finite-sketch профиль; positive tau
+отдельный estimator. GN damping не permanent penalty. No global guarantee;
+rank/workspace guards и uncompleted status диагностируются. API/границы и
+локаторы: [multi-index.md](multi-index.md#профильный-grassmann-solver-opt-in).
+
+`ADP.solver.grassman_optim.solve` — отдельная EXACT/NUMERICAL CPU-версия
+с теми же настройками optimizer и HPAOResult; `grassman.py` сохранён как
+эталон. Safe m<=2 profiles используют reorthogonalized QR и triangular solves;
+при cond²*eps>=sqrt(eps), tiny absolute scale, p<m или m>2 — исходный SVD.
+Градиент сначала считает U_j.T@residual_j, затем weighted global contraction;
+scratch ограничен чанками 4 MiB. U actions — transpose GEMM с contiguous
+малым результатом; полный q*m Jacobian батчевый. Кэш sqrt(mass) живёт в solve,
+остальные кэши — внутри frozen шага. Нет новых dense d*d/normal matrices.
+Финальный сертификат по-прежнему использует live U. Проверки/сравнение:
+`tests/test_grassman_optim.py`, `benchmarks/grassman_optim_benchmark.py`,
+`experiments/grassman_optim_2026_10_01/` (активный paired benchmark).
+Источник **SRC-GRASSMAN-OPTIM**: `sed -n '1,574p' ADP/solver/grassman_optim.py`.
+
 ## HPAO-LSMR: current default
 
 При фиксированных статистиках solver минимизирует weighted least-squares по локальным коэффициентам и индексу. Для заданного индекса локальные коэффициенты refit-ятся отдельно по каждому j: у single используется скалярное решение, у multi — minimum-norm SVD решения малой задачи. Затем global correction строится LinearOperator-ом со строго парным forward/adjoint и решается LSMR как ridge least squares с `damp=sqrt(lambda_prox)`. Не материализуется матрица размера `(J*P) x (m*d)`.

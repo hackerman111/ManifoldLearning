@@ -11,10 +11,22 @@
 | Один индекс, ADP | [single-index-adp.md](single-index-adp.md) | `[M-ADP-SI-*]`, `[X-SI-*]` |
 | Общее EDR-подпространство с несколькими индексами | [multi-index-adp.md](multi-index-adp.md) | `[X-MI-*]`, `[M-MI-*]`, `[M-ADP-MI-*]` |
 | Локально меняющееся EDR-подпространство (manifold) | [manifold-adp.md](manifold-adp.md) | `[A-*]`, `[M-MAN-*]` |
+| Общая EDR/ADE/SVD теория, Grassmann-повороты, tangent Tucker и метрики | [EDR_unified_theory.tex](../../SVD/EDR_unified_theory.tex) | `sec:framework`, `sec:svd`, `sec:rotations`, `sec:angles`, `sec:reduced`, `sec:field`, `sec:metrics`, `sec:map`, `sec:literature` |
 | SVD-решатель: единая теория и три направления развития | [SVD_solver.tex](../../SVD/SVD_solver.tex) | Метки `sec:variants`, `sec:operator`, `sec:greedy`, `sec:isotropic`, `sec:limits`, `sec:second`, `sec:gpu`, `sec:algorithm` |
 
-Сводный документ SVD является самостоятельным TeX-файлом. Приложение
-`sec:sources` содержит карту всех материалов `SVD/` и исправленных
+Общая теория от 2026-10-01 — самостоятельный русский TeX с доказательствами,
+первичными научными источниками и явными границами обобщения. SVD точен при
+разделимом полном операторе `G X H`; tangent SVD точно разлагает один шаг
+на коммутирующие plane rotations. Fixed-g и profiled цели различаются.
+203 independent formula checks и трёхseedовый benchmark одной angle curve:
+[REPORT.md](../../SVD/theory_2026_10_01/REPORT.md). PDF лежит рядом с отчётом.
+Ускорение ~6x относится к 61 оценке выбранного угла с общей проекцией;
+производственный solver и качество полного EDR-fit не проверялись/не менялись.
+`sec:map` учитывает текущий разрешённый корпус; исключённые пользовательские
+подкаталоги не использованы. Новые алгоритмы явно обозначены предложениями.
+
+Прежний подробный документ SVD также самостоятельный. Его приложение
+`sec:sources` содержит историческую карту материалов `SVD/` и исправленных
 математических утверждений. Численные проверки формул и сведения о сборке:
 `SVD/documentation/VERIFICATION.md`. Новые предложения обозначены явно;
 текущее поведение кода описано в [../ADP/multi-index.md](../ADP/multi-index.md).

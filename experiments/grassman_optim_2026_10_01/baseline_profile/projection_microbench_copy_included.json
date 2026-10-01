@@ -1,0 +1,315 @@
+{
+  "metadata": {
+    "python": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+    "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+    "numpy": "2.5.2",
+    "scipy": "1.18.1",
+    "threads": {
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1"
+    },
+    "optimized_sha256": "9e1d91142d5c951f9efb718d8149b2eff3b0d7bed6246803ddc9f44d4d5b6139",
+    "frozen_sha256": "034724db29023f6da5212932004280228707029d45b73124d27c4213b139effb",
+    "repeats": 150,
+    "measurement": "all variants include result C-contiguous conversion; feature-strided inputs include ascontiguousarray conversion at solver boundary; each variant warmed; perf_counter"
+  },
+  "projections": {
+    "UY_contiguous": {
+      "input_shape": [
+        800,
+        10,
+        50
+      ],
+      "input_strides": [
+        4000,
+        400,
+        8
+      ],
+      "input_c_contiguous": true,
+      "flattened_shares_input": true,
+      "factor_shape": [
+        50,
+        2
+      ],
+      "factor_strides": [
+        16,
+        8
+      ],
+      "factor_c_contiguous": true,
+      "boundary_contiguous_copy_included": false,
+      "rows": [
+        {
+          "variant": "batched_at",
+          "median_sec": 0.0010958935017697513,
+          "min_sec": 0.0010032829995907377,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        },
+        {
+          "variant": "flat_gemm",
+          "median_sec": 0.0010080319989356212,
+          "min_sec": 0.000985472997854231,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        },
+        {
+          "variant": "transpose_gemm_plus_copy",
+          "median_sec": 0.00031582600058754906,
+          "min_sec": 0.00030039099874556996,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        },
+        {
+          "variant": "stacked_gemv",
+          "median_sec": 0.00030395300200325437,
+          "min_sec": 0.00029564199940068647,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        }
+      ]
+    },
+    "UV_contiguous": {
+      "input_shape": [
+        800,
+        10,
+        50
+      ],
+      "input_strides": [
+        4000,
+        400,
+        8
+      ],
+      "input_c_contiguous": true,
+      "flattened_shares_input": true,
+      "factor_shape": [
+        50,
+        2
+      ],
+      "factor_strides": [
+        16,
+        8
+      ],
+      "factor_c_contiguous": true,
+      "boundary_contiguous_copy_included": false,
+      "rows": [
+        {
+          "variant": "batched_at",
+          "median_sec": 0.0010187180014327168,
+          "min_sec": 0.0009961590003513265,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        },
+        {
+          "variant": "flat_gemm",
+          "median_sec": 0.0010745220006356249,
+          "min_sec": 0.0009830979979597032,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        },
+        {
+          "variant": "transpose_gemm_plus_copy",
+          "median_sec": 0.00031938800020725466,
+          "min_sec": 0.00030157800210872665,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        },
+        {
+          "variant": "stacked_gemv",
+          "median_sec": 0.0003063274998567067,
+          "min_sec": 0.00029445399923133664,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        }
+      ]
+    },
+    "UY_feature_stride2_including_boundary_copy": {
+      "input_shape": [
+        800,
+        10,
+        50
+      ],
+      "input_strides": [
+        8000,
+        800,
+        16
+      ],
+      "input_c_contiguous": false,
+      "flattened_shares_input": true,
+      "factor_shape": [
+        50,
+        2
+      ],
+      "factor_strides": [
+        16,
+        8
+      ],
+      "factor_c_contiguous": true,
+      "boundary_contiguous_copy_included": true,
+      "rows": [
+        {
+          "variant": "batched_at",
+          "median_sec": 0.0011606019997998374,
+          "min_sec": 0.0010828329977812245,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        },
+        {
+          "variant": "flat_gemm",
+          "median_sec": 0.001107767000576132,
+          "min_sec": 0.00107689600190497,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        },
+        {
+          "variant": "transpose_gemm_plus_copy",
+          "median_sec": 0.00041259250065195374,
+          "min_sec": 0.0003870649998134468,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        },
+        {
+          "variant": "stacked_gemv",
+          "median_sec": 0.00040190650179283693,
+          "min_sec": 0.00038350300019374117,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        }
+      ]
+    },
+    "UV_feature_stride2_including_boundary_copy": {
+      "input_shape": [
+        800,
+        10,
+        50
+      ],
+      "input_strides": [
+        8000,
+        800,
+        16
+      ],
+      "input_c_contiguous": false,
+      "flattened_shares_input": true,
+      "factor_shape": [
+        50,
+        2
+      ],
+      "factor_strides": [
+        16,
+        8
+      ],
+      "factor_c_contiguous": true,
+      "boundary_contiguous_copy_included": true,
+      "rows": [
+        {
+          "variant": "batched_at",
+          "median_sec": 0.0011232010001549497,
+          "min_sec": 0.0010899570006586146,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        },
+        {
+          "variant": "flat_gemm",
+          "median_sec": 0.0011879105004481971,
+          "min_sec": 0.001086395001038909,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        },
+        {
+          "variant": "transpose_gemm_plus_copy",
+          "median_sec": 0.00041615450027165934,
+          "min_sec": 0.0003870649998134468,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        },
+        {
+          "variant": "stacked_gemv",
+          "median_sec": 0.00040249999983643647,
+          "min_sec": 0.0003787540008488577,
+          "output_c_contiguous": true,
+          "output_strides": [
+            160,
+            16,
+            8
+          ],
+          "shares_U": false
+        }
+      ]
+    }
+  }
+}

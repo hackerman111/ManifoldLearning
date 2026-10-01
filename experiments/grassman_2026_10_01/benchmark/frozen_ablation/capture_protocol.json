@@ -1,0 +1,51 @@
+{
+  "stage": "capture",
+  "case": "spokoini_m2_dhigh_30s",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "variants": [
+    "core_gn"
+  ],
+  "params": {
+    "generator": "spokoini",
+    "n": 800,
+    "d": 50,
+    "m": 2,
+    "N_J": 800,
+    "N_phi": 10,
+    "N_lin": 100,
+    "N_loc": 10,
+    "a": 1.010050167084168,
+    "h_min": 1.0,
+    "select_step": "last",
+    "solver_max_steps": 5,
+    "budget_sec": 30.0
+  },
+  "grassman_steps": 20,
+  "float_dtype": "float64",
+  "thread_env": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "python": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "git_commit": "b7fe68aa7abb10092e1a349ed0b134bdae469765",
+  "git_dirty": true,
+  "benchmark_sha256": "1461ee15c389a1e3a4feef82c059445e2a858943404a34f5054f08ce141f4b32",
+  "solver_sha256": {
+    "ADP/solver/grassman.py": "070d0bb91962f23610b3e0a647e8f10fb417bac75e049305c3ef38223966c1a2",
+    "ADP/solver/SVD.py": "030d42fd6a5e7da26b586dfc15f35aceacbbb0c3aa69d4614b7b1272d183814a"
+  },
+  "protocol": "Full-fit stage: cold ADP_multi_index.fit in isolated processes, one process per method/seed; one BLAS thread, perf_counter around fit, process ru_maxrss, no tracing. Capture is separate and excluded from time aggregates. Frozen stage runs one HPAOResult call per variant/process on captured first-outer statistics and externally evaluates minimum-norm local-refit profile loss.",
+  "objective_note": "Grassmann/profile methods use common profiled local-refit loss. Current SVD has a different fixed-g objective; its returned index is re-evaluated with the common profile. Full-fit recovery is descriptive.",
+  "memory_note": "ru_maxrss KiB includes interpreter/imports and loaded data; frozen RSS also includes the input arrays.",
+  "timeout_sec": 240,
+  "command": "/home/papayka/AMI/Vlad_edr/ManifoldLearning/benchmarks/grassman_benchmark.py --stage capture --seeds 0 1 2 --timeout 240 --output experiments/grassman_2026_10_01/benchmark/frozen_ablation",
+  "results_count": 3
+}

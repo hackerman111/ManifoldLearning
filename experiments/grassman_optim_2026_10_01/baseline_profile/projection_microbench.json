@@ -1,0 +1,226 @@
+{
+  "metadata": {
+    "python": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+    "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+    "numpy": "2.5.2",
+    "scipy": "1.18.1",
+    "thread_env": {
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1"
+    },
+    "frozen_sha256": "034724db29023f6da5212932004280228707029d45b73124d27c4213b139effb",
+    "reference_sha256": "070d0bb91962f23610b3e0a647e8f10fb417bac75e049305c3ef38223966c1a2",
+    "optimized_sha256": "c20e7e044fa8892334e01148f19b8272d49e86cb18197760f95a768f9b612727",
+    "repeats": 150,
+    "measurement": "each primitive warmed, time.perf_counter, same outputs verified, single thread"
+  },
+  "contiguous": [
+    {
+      "projection": "UY",
+      "shape_U": [
+        800,
+        10,
+        50
+      ],
+      "shape_factor": [
+        50,
+        2
+      ],
+      "factor_order_c": true,
+      "U_flat_shares_memory": true,
+      "rows": [
+        {
+          "variant": "batched_at",
+          "median_sec": 0.001084027000615606,
+          "min_sec": 0.001076902000932023,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        },
+        {
+          "variant": "flat_gemm",
+          "median_sec": 0.0010899629996856675,
+          "min_sec": 0.0010697789984988049,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        },
+        {
+          "variant": "transposed_gemm",
+          "median_sec": 0.0003288885000074515,
+          "min_sec": 0.00031226599821820855,
+          "output_c_contiguous": false,
+          "output_shares_U": false
+        },
+        {
+          "variant": "einsum_no_opt",
+          "median_sec": 0.0014960280004743254,
+          "min_sec": 0.0013820449967170134,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        },
+        {
+          "variant": "stacked_gemv",
+          "median_sec": 0.00033957400228246115,
+          "min_sec": 0.00032532600016565993,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        }
+      ]
+    },
+    {
+      "projection": "UV",
+      "shape_U": [
+        800,
+        10,
+        50
+      ],
+      "shape_factor": [
+        50,
+        2
+      ],
+      "factor_order_c": true,
+      "U_flat_shares_memory": true,
+      "rows": [
+        {
+          "variant": "batched_at",
+          "median_sec": 0.001105991999793332,
+          "min_sec": 0.0010804650009959005,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        },
+        {
+          "variant": "flat_gemm",
+          "median_sec": 0.0010822455005836673,
+          "min_sec": 0.001067404002242256,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        },
+        {
+          "variant": "transposed_gemm",
+          "median_sec": 0.0003312640001240652,
+          "min_sec": 0.00031226599821820855,
+          "output_c_contiguous": false,
+          "output_shares_U": false
+        },
+        {
+          "variant": "einsum_no_opt",
+          "median_sec": 0.0014230074993974995,
+          "min_sec": 0.0013832320000801701,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        },
+        {
+          "variant": "stacked_gemv",
+          "median_sec": 0.00033838699891930446,
+          "min_sec": 0.00032295199707732536,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        }
+      ]
+    }
+  ],
+  "noncontiguous": [
+    {
+      "projection": "UY_noncontiguous",
+      "shape_U": [
+        800,
+        10,
+        50
+      ],
+      "shape_factor": [
+        50,
+        2
+      ],
+      "factor_order_c": true,
+      "U_flat_shares_memory": true,
+      "rows": [
+        {
+          "variant": "batched_at",
+          "median_sec": 0.0012318485005380353,
+          "min_sec": 0.0011813870005425997,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        },
+        {
+          "variant": "flat_gemm",
+          "median_sec": 0.0013612670009024441,
+          "min_sec": 0.0012763719969370868,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        },
+        {
+          "variant": "transposed_gemm",
+          "median_sec": 0.0005271720001474023,
+          "min_sec": 0.0004749300023831893,
+          "output_c_contiguous": false,
+          "output_shares_U": false
+        },
+        {
+          "variant": "einsum_no_opt",
+          "median_sec": 0.0014889029989717528,
+          "min_sec": 0.0014129150004009716,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        },
+        {
+          "variant": "stacked_gemv",
+          "median_sec": 0.00040843950046109967,
+          "min_sec": 0.00037756800156785175,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        }
+      ]
+    },
+    {
+      "projection": "UV_noncontiguous",
+      "shape_U": [
+        800,
+        10,
+        50
+      ],
+      "shape_factor": [
+        50,
+        2
+      ],
+      "factor_order_c": true,
+      "U_flat_shares_memory": true,
+      "rows": [
+        {
+          "variant": "batched_at",
+          "median_sec": 0.0012900270012323745,
+          "min_sec": 0.0012098829975002445,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        },
+        {
+          "variant": "flat_gemm",
+          "median_sec": 0.0014141020001261495,
+          "min_sec": 0.0013440500006254297,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        },
+        {
+          "variant": "transposed_gemm",
+          "median_sec": 0.0006197830007295124,
+          "min_sec": 0.0005532929972105194,
+          "output_c_contiguous": false,
+          "output_shares_U": false
+        },
+        {
+          "variant": "einsum_no_opt",
+          "median_sec": 0.0015334285017161164,
+          "min_sec": 0.001418851999915205,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        },
+        {
+          "variant": "stacked_gemv",
+          "median_sec": 0.0003906290003214963,
+          "min_sec": 0.0003728200026671402,
+          "output_c_contiguous": true,
+          "output_shares_U": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "stage": "frozen",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "solver_order_by_seed": {
+    "0": [
+      "grassman",
+      "grassman_optim"
+    ],
+    "1": [
+      "grassman_optim",
+      "grassman"
+    ],
+    "2": [
+      "grassman",
+      "grassman_optim"
+    ]
+  },
+  "solver_options": {
+    "method": "core_gn",
+    "angle_backend": "schur",
+    "max_steps": 5,
+    "tol": 1e-06,
+    "energy_tol": 0.05,
+    "local_ridge": 0.0,
+    "max_angle": 0.5,
+    "workspace_bytes": 16777216
+  },
+  "thread_env": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "python": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "blas_configuration": "Build Dependencies:\n  blas:\n    detection method: pkgconfig\n    found: true\n    include directory: /usr/include\n    lib directory: /usr/lib\n    name: cblas\n    openblas configuration: unknown\n    pc file directory: /usr/lib/pkgconfig\n    version: 3.12.0\n  lapack:\n    detection method: pkgconfig\n    found: true\n    include directory: /usr/include\n    lib directory: /usr/lib\n    name: lapack\n    openblas configuration: unknown\n    pc file directory: /usr/lib/pkgconfig\n    version: 3.12.0\nCompilers:\n  c:\n    args: -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3,\n      -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection,\n      -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy,\n      -flto=auto, -ffat-lto-objects\n    commands: cc\n    linker: ld.bfd\n    linker args: -Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now,\n      -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2,\n      -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security,\n      -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer,\n      -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto,\n      -ffat-lto-objects\n    name: gcc\n    version: 16.1.1\n  c++:\n    args: -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3,\n      -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection,\n      -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -Wp,-D_GLIBCXX_ASSERTIONS,\n      -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto,\n      -ffat-lto-objects\n    commands: c++\n    linker: ld.bfd\n    linker args: -Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now,\n      -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2,\n      -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security,\n      -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer,\n      -Wp,-D_GLIBCXX_ASSERTIONS, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy,\n      -flto=auto, -ffat-lto-objects\n    name: gcc\n    version: 16.1.1\n  cython:\n    commands: cython\n    linker: cython\n    name: cython\n    version: 3.2.9\nMachine Information:\n  build:\n    cpu: x86_64\n    endian: little\n    family: x86_64\n    system: linux\n  host:\n    cpu: x86_64\n    endian: little\n    family: x86_64\n    system: linux\nPython Information:\n  path: /usr/bin/python\n  version: '3.14'\nSIMD Extensions:\n  found:\n  - X86_V2\n  - X86_V3\n  - X86_V4\n  - AVX512_ICL\n  not found:\n  - AVX512_SPR\n\n",
+  "git_commit": "b7fe68aa7abb10092e1a349ed0b134bdae469765",
+  "git_dirty": true,
+  "benchmark_sha256": "a32e81f64513488298edc3608df0acbb871484ec73dbcb0641eb781dda68f858",
+  "solver_sha256": {
+    "grassman": "070d0bb91962f23610b3e0a647e8f10fb417bac75e049305c3ef38223966c1a2",
+    "grassman_optim": "9e1d91142d5c951f9efb718d8149b2eff3b0d7bed6246803ddc9f44d4d5b6139"
+  },
+  "input_source_sha256": {
+    "benchmarks/grassman_benchmark.py": "77e1beec7e94496c0690df4737b4ea387423695cf79dcb87db55e284bf583647",
+    "experiments/data.py": "3015bb517d78adc77c7d27bb2e0c4ae0abf76469aa753610754364058d5cef87",
+    "experiments/models.py": "e8ccd4b85fd5d8f1d4bba31ac20971589e8ef1a2641d7a56f300dddf91c8d6e0",
+    "experiments/runner.py": "dd69b4920cbfcef91ee9eb99d6ae5e1de6f775c7ba68c6fda0171468c3727f53",
+    "ADP/core/ADP_Config.py": "d803afe7cf9e52ddc321bb711bb5adc3eb7721a217f94570dd8aafdc1685a4d3"
+  },
+  "protocol": "Fresh subprocess for each solver/seed; fullfit perf_counter wraps fit only; frozen stage performs one warm-up and warmed repeated calls on a saved first-outer Spokoiny snapshot. One BLAS thread. Failures remain in JSONL.",
+  "repeats": 21,
+  "timeout_sec": 120,
+  "results_file": "experiments/grassman_optim_2026_10_01/frozen_final_hash/frozen_runs.jsonl",
+  "paired": [
+    {
+      "seed": 0,
+      "original_solver": "grassman",
+      "optimized_solver": "grassman_optim",
+      "projector_frobenius_difference": 1.3842149269042812e-15,
+      "runtime_ratio_optimized_over_original": 0.39675752683483634
+    },
+    {
+      "seed": 1,
+      "original_solver": "grassman",
+      "optimized_solver": "grassman_optim",
+      "projector_frobenius_difference": 1.929063409773623e-15,
+      "runtime_ratio_optimized_over_original": 0.445717989326377
+    },
+    {
+      "seed": 2,
+      "original_solver": "grassman",
+      "optimized_solver": "grassman_optim",
+      "projector_frobenius_difference": 1.9006063952243077e-15,
+      "runtime_ratio_optimized_over_original": 0.3816447186558387
+    }
+  ],
+  "failed_runs": [],
+  "command_at_run": "OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python -m benchmarks.grassman_optim_benchmark --stage frozen --seeds 0 1 2 --repeats 21 --timeout 120 --output experiments/grassman_optim_2026_10_01/frozen_final_hash",
+  "benchmark_sha256_after_format": "b8e7d2d796b55a5cee369084a2e19dc56003f7e19dd8043174cbec3d14011797",
+  "provenance_note": "benchmark_sha256 is the exact launch-time file hash; after rows were complete only formatting/dead temporary cleanup changed current harness bytes."
+}

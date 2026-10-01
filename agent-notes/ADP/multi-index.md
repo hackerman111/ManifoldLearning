@@ -36,15 +36,83 @@
 
 Для outer-step selection используется SSE на Y в выбранных центрах, даже когда solver diagnostic loss другой. `trace_indices=True` включает basis, eigenvalues, alpha, mass summaries и solver diagnostics.
 
+## Профильный Grassmann solver (opt-in)
+
+`ADP/solver/grassman.py::solve` возвращает `HPAOResult`, принимает CPU
+`index_init=(m,d), U=(J,p,d), I=(J,p), mass=(J,)`. При `local_ridge=0`
+минимизирует тот же unpenalized minimum-norm finite-sketch профиль,
+что local-refit HPAO; не fixed-g rank-r цель SVD. `local_ridge>0` — явный
+ESTIMATOR вариант. `lambda_prox` здесь только damping малого GN solve,
+не постоянный statistical/chordal penalty. Production default не изменён.
+
+`method="rank_one"` использует rank-one геодезику и scalar Schur curve
+(улучшение I; `angle_backend="refit"` — независимая абляция стоимости).
+`method="spectral"` выбирает q по энергии горизонтального градиента и
+проверяет cached geodesic через Armijo. Default `"core_gn"` (улучшение II)
+решает augmented least squares во всех q*m координатах Z=V K, сохраняя
+полный `T.T*r` член и связи коэффициентов; polar retraction/Armijo.
+Операторные действия U[Y,V] кэшируются только внутри текущего шага.
+Нет dense d*d проектора/Hessian. При превышении `workspace_bytes`
+полный core заменяется spectral; при rank/conditioning guard — rank-one
+по значениям, без применения неверной full-rank производной.
+
+`converged` требует normalized horizontal gradient <=tol; это inner frozen
+stationarity, не global optimum. На rank boundary сертификат неприменим;
+`rank_boundary_stationary`, `max_steps`, `line_search_failed` сохраняют
+незавершённость явно. Итоговый residual/gradient пересчитывается через live U.
+Диагностики: profile/loss history, step_ranks, GN/evaluation/fallback counts,
+local rank loss, orthogonality, stationarity_applicable.
+
+Пример подключения без конфликта `method` конструктора адаптера:
+
+```python
+from functools import partial
+from ADP import ADP_solver
+from ADP.solver.grassman import solve
+solver = ADP_solver(partial(solve, method="core_gn", max_steps=5))
+```
+
+Для CPU-оптимизации того же optimizer можно импортировать `solve` из
+`ADP.solver.grassman_optim`: public signature/defaults сохранены. Safe малые
+local QR, bounded reassociated gradient, transpose GEMM и frozen-step caches
+описаны в [solvers.md](solvers.md#профильный-grassmann-opt-in).
+Это EXACT/NUMERICAL относительно исходного grassman, без изменения цели,
+допусков или iteration budget. Исходный модуль остаётся проверяемым эталоном.
+
+Проверки: `tests/test_grassman.py` (independent lstsq, Schur, FD full Jacobian,
+dense ridge, gauge/rank/stress/noiseless recovery). Paired heavy Spokoiny
+и frozen ablations: `benchmarks/grassman_benchmark.py`, результаты/ограничения
+в `experiments/grassman_2026_10_01/REPORT.md`. Три full-fit seeds:
+core5 paired time ratio .874, ниже projector error на всех3, ~13MiB больше
+RSS; core20 ratio1.260. Все inner calls capped/unconverged. Schur/refit
+rank-one frozen paired gain5.72x; GN .0949s vsspectral .2157s при близком loss.
+Adaptive-rank advantage не наблюдалось; QR compression при p10<d+1 бесполезен.
+Это bounded outer-budget evidence, не heldout/global/convergence guarantee.
+
 ## Явный SVD-решатель: ранг матрицы и ранг поправки
 
-Материалы исходной постановки теперь находятся в `SVD/SVD.tex` и
-`SVD/SVD_form.tex`; прежний корневой `SVD_corr.tex` отсутствует в текущем
-рабочем дереве. Поведение режима поправки сверять по живому коду ниже.
-Единое изложение: [SVD_solver.tex](../../SVD/SVD_solver.tex), разделы
+Новая общая теория: [EDR_unified_theory.tex](../../SVD/EDR_unified_theory.tex),
+метки `sec:framework`, `sec:svd`, `sec:grassmann`, `sec:angles`, `sec:field`,
+`sec:metrics`. Она объединяет fixed-g matrix/correction, профилированные
+Grassmann-повороты и tangent Tucker как разные частные случаи; не заменяет
+их цели друг другом. Карта текущих семи разрешённых заметок — `sec:map`;
+литература — `sec:literature`. Проверки/сборка/узкий angle benchmark:
+[REPORT.md](../../SVD/theory_2026_10_01/REPORT.md) (203 формульных проверки,
+3 frozen-curve seeds, total time ratio .160–.167; не full-fit recovery).
+Теоретическая работа не меняла production solver. Профильный angle-search
+и полный малый GN core теперь реализованы opt-in в `grassman.py` ниже;
+пространственный tangent Tucker остаётся предложением.
+Отдельно различаются localization/residual/penalty/search metrics;
+GLS covariance требует squared kernel weights, не только Sigma/N.
+
+Ранее указанные `SVD/SVD.tex`, `SVD/SVD_form.tex`, `chat_*.md` и
+`problem.md` сейчас отсутствуют в корне `SVD/`; пользовательские перемещения
+не отменялись, исключённые подкаталоги не читались. Поведение correction
+сверять по живому коду ниже. Подробное прежнее изложение:
+[SVD_solver.tex](../../SVD/SVD_solver.tex), разделы
 `sec:variants`, `sec:limits`, `sec:second`, `sec:gpu`, `sec:algorithm`.
-Приложение `sec:sources` учитывает все шесть файлов исходной папки, включая
-пустой `chat_2.md`. Второй решатель, совместные блоки, преобразованные и
+Приложение `sec:sources` учитывает историческую структуру исходной папки;
+текущая карта содержится в новом документе. Второй решатель, совместные блоки, преобразованные и
 случайные кандидаты остаются предложениями. Отбор обычных SVD-пар Q по
 точному выигрышу реализован экспериментальной опцией ниже. Проверка формул:
 `rtk proxy python SVD/documentation/check_math.py`; запись проверки и сборки —
@@ -179,6 +247,8 @@ differ).
 | SRC-MI-INIT | local basis/spectrum initialization paths | `rtk proxy sed -n '70,184p' ADP/engine/common/initialize.py` |
 | SRC-MI-DRIVER | effective tensor, fit/trace/stop/selection | `rtk proxy sed -n '305,552p' ADP/engine/common/index_fit.py` |
 | SRC-MI-ENGINE | basis QR, orientation, subspace/projector distance | `rtk proxy sed -n '12,69p' ADP/engine/multi_index/ADP_multi_index_engine.py` |
+| SRC-GRASSMAN | profile/Schur/Jacobian/polar/solve | `rtk proxy sed -n '1,460p' ADP/solver/grassman.py` |
+| SRC-GRASSMAN-OPTIM | safe local QR/bounded gradient/transpose GEMM/batched full GN; same optimizer | `rtk proxy sed -n '1,574p' ADP/solver/grassman_optim.py` |
 | SRC-SVD-SOLVER | fixed-g rank-r objectives, default certified Cholesky/LSMR or experimental gradient-gain pairs, optional diagonal/metric scaling, prior completion or QR | `rtk proxy sed -n '1,1021p' ADP/solver/SVD.py` |
 
 Все коды извлекаются из `ADP/`; полный каталог файлов — [README.md](README.md#каталог-исходников). Общая статистика и mass contract — [index-pipeline.md](index-pipeline.md).

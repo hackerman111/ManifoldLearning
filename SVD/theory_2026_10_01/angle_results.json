@@ -1,0 +1,214 @@
+{
+  "metadata": {
+    "python": "3.14.7",
+    "numpy": "2.5.2",
+    "dtype": "float64",
+    "threads": {
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1"
+    },
+    "numpy_blas_config": "Build Dependencies:\n  blas:\n    detection method: pkgconfig\n    found: true\n    include directory: /usr/include\n    lib directory: /usr/lib\n    name: cblas\n    openblas configuration: unknown\n    pc file directory: /usr/lib/pkgconfig\n    version: 3.12.0\n  lapack:\n    detection method: pkgconfig\n    found: true\n    include directory: /usr/include\n    lib directory: /usr/lib\n    name: lapack\n    openblas configuration: unknown\n    pc file directory: /usr/lib/pkgconfig\n    version: 3.12.0\nCompilers:\n  c:\n    args: -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3,\n      -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection,\n      -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy,\n      -flto=auto, -ffat-lto-objects\n    commands: cc\n    linker: ld.bfd\n    linker args: -Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now,\n      -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2,\n      -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security,\n      -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer,\n      -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto,\n      -ffat-lto-objects\n    name: gcc\n    version: 16.1.1\n  c++:\n    args: -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3,\n      -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection,\n      -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -Wp,-D_GLIBCXX_ASSERTIONS,\n      -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto,\n      -ffat-lto-objects\n    commands: c++\n    linker: ld.bfd\n    linker args: -Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now,\n      -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2,\n      -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security,\n      -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer,\n      -Wp,-D_GLIBCXX_ASSERTIONS, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy,\n      -flto=auto, -ffat-lto-objects\n    name: gcc\n    version: 16.1.1\n  cython:\n    commands: cython\n    linker: cython\n    name: cython\n    version: 3.2.9\nMachine Information:\n  build:\n    cpu: x86_64\n    endian: little\n    family: x86_64\n    system: linux\n  host:\n    cpu: x86_64\n    endian: little\n    family: x86_64\n    system: linux\nPython Information:\n  path: /usr/bin/python\n  version: '3.14'\nSIMD Extensions:\n  found:\n  - X86_V2\n  - X86_V3\n  - X86_V4\n  - AVX512_ICL\n  not found:\n  - AVX512_SPR\n\n",
+    "memory_method": "tracemalloc separate run; traced allocations only, excludes native LAPACK workspace/RSS and already-live inputs",
+    "repeats": 7,
+    "statistic": "median",
+    "scope": "61 angle values for one frozen rank-one plane; no angle minimization/full fit/recovery comparison",
+    "fixed_design": "U=synthetic independent Gaussian; frame=orthonormal; I=Gaussian; masses=lognormal; no kernel/bandwidth/direction refresh",
+    "commit": "b7fe68aa7abb10092e1a349ed0b134bdae469765",
+    "dirty_paths": [
+      " M PLAN.md",
+      " D SVD/SVD.tex",
+      " D SVD/SVD_algorithm.pdf",
+      " D SVD/SVD_cur.pdf",
+      " D SVD/SVD_form.tex",
+      " D SVD/chat_1.md",
+      " D SVD/chat_2.md",
+      " D SVD/chat_3.md",
+      " D SVD/documentation/SVD_solver.pdf",
+      " D SVD/problem.md",
+      " M agent-notes/STATE.md",
+      " M problem.md",
+      "?? SVD/EDR_unified_theory.tex",
+      "?? SVD/PDF/",
+      "?? SVD/Tucker.md",
+      "?? SVD/archive/",
+      "?? SVD/cladue.md",
+      "?? SVD/grassmann_rank_one.tex",
+      "?? SVD/multiindex.tex",
+      "?? SVD/theory_2026_10_01/"
+    ]
+  },
+  "rows": [
+    {
+      "seed": 602001,
+      "J": 128,
+      "p": 40,
+      "d": 300,
+      "m": 3,
+      "tau": 0.2,
+      "angle_count": 61,
+      "relative_curve_error": 1.5265913601441247e-16,
+      "common_projection_s": 0.004053491000377107,
+      "preparation_s": 0.0005532889990718104,
+      "scalar_curve_s": 0.0005687240009137895,
+      "batched_svd_curve_s": 0.026940163999825018,
+      "total_time_ratio": 0.1669859201933091,
+      "curve_with_prep_time_ratio": 0.041648335919294614,
+      "preparation_peak_traced_bytes": 559584,
+      "scalar_curve_peak_traced_bytes": 7776,
+      "batched_svd_curve_peak_traced_bytes": 564352,
+      "timing_samples": {
+        "common_projection": [
+          0.004058240996528184,
+          0.004254147999745328,
+          0.004065364999405574,
+          0.004053491000377107,
+          0.004049929000757402,
+          0.004039243001898285,
+          0.004047554997669067
+        ],
+        "preparation": [
+          0.0007444459988619201,
+          0.0005331040010787547,
+          0.0008703009989403654,
+          0.0005200439991313033,
+          0.0005544759987969883,
+          0.0005532889990718104,
+          0.0005354780005291104
+        ],
+        "scalar": [
+          0.0006114669995440636,
+          0.0006470860025729053,
+          0.0005615990012302063,
+          0.0005687240009137895,
+          0.0005402279966801871,
+          0.0005509139991772827,
+          0.0005794089993287344
+        ],
+        "batched_svd": [
+          0.027247679001447977,
+          0.026940163999825018,
+          0.027374720997613622,
+          0.02687723599956371,
+          0.027067207000072813,
+          0.0268843600024411,
+          0.026881984998908592
+        ]
+      }
+    },
+    {
+      "seed": 602002,
+      "J": 128,
+      "p": 40,
+      "d": 300,
+      "m": 3,
+      "tau": 0.2,
+      "angle_count": 61,
+      "relative_curve_error": 1.3807114397460106e-16,
+      "common_projection_s": 0.004076050998264691,
+      "preparation_s": 0.0003265110026404727,
+      "scalar_curve_s": 0.0005449769996630494,
+      "batched_svd_curve_s": 0.026866550000704592,
+      "total_time_ratio": 0.15989408908233083,
+      "curve_with_prep_time_ratio": 0.0324376595536333,
+      "preparation_peak_traced_bytes": 559584,
+      "scalar_curve_peak_traced_bytes": 7776,
+      "batched_svd_curve_peak_traced_bytes": 564352,
+      "timing_samples": {
+        "common_projection": [
+          0.004047554997669067,
+          0.004076050998264691,
+          0.004058239999721991,
+          0.0044654890007223,
+          0.004083174000697909,
+          0.0040784250013530254,
+          0.0040523040006519295
+        ],
+        "preparation": [
+          0.0008239969974965788,
+          0.00038231500002439134,
+          0.00032057500357041135,
+          0.00036569300209521316,
+          0.0003265110026404727,
+          0.0002956409989565145,
+          0.00032176199965761043
+        ],
+        "scalar": [
+          0.0006269019977480639,
+          0.0005366659970604815,
+          0.0006019679967721459,
+          0.0005449769996630494,
+          0.0005200429986871313,
+          0.0005568500018853229,
+          0.000539041000592988
+        ],
+        "batched_svd": [
+          0.027415088999987347,
+          0.027064832000178285,
+          0.026866550000704592,
+          0.027454270999442087,
+          0.02624677199855796,
+          0.026313261998438975,
+          0.02584071100136498
+        ]
+      }
+    },
+    {
+      "seed": 602003,
+      "J": 128,
+      "p": 40,
+      "d": 300,
+      "m": 3,
+      "tau": 0.2,
+      "angle_count": 61,
+      "relative_curve_error": 1.6522166005313242e-16,
+      "common_projection_s": 0.004049929000757402,
+      "preparation_s": 0.0003170120035065338,
+      "scalar_curve_s": 0.0005402280003181659,
+      "batched_svd_curve_s": 0.025763535999431042,
+      "total_time_ratio": 0.16459572896176558,
+      "curve_with_prep_time_ratio": 0.03327338311960093,
+      "preparation_peak_traced_bytes": 559584,
+      "scalar_curve_peak_traced_bytes": 7776,
+      "batched_svd_curve_peak_traced_bytes": 564352,
+      "timing_samples": {
+        "common_projection": [
+          0.004071301002113614,
+          0.004066551999130752,
+          0.004032119002658874,
+          0.004049929000757402,
+          0.0040451799977745395,
+          0.00404399199760519,
+          0.004060616000060691
+        ],
+        "preparation": [
+          0.0014354630002344493,
+          0.0003087010009039659,
+          0.00029920300221419893,
+          0.00032057499993243255,
+          0.0003170120035065338,
+          0.00037756599704152904,
+          0.00030632700145361014
+        ],
+        "scalar": [
+          0.0005651620012940839,
+          0.0005699109970009886,
+          0.0005402280003181659,
+          0.0005497269994521048,
+          0.0005295429982652422,
+          0.0005342910008039325,
+          0.0005366670011426322
+        ],
+        "batched_svd": [
+          0.02582646299924818,
+          0.025676860997918993,
+          0.02558068899816135,
+          0.025706543998239795,
+          0.025763535999431042,
+          0.025780156996916048,
+          0.026012870999693405
+        ]
+      }
+    }
+  ]
+}

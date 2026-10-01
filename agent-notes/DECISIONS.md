@@ -430,3 +430,111 @@ A useful candidate without rank growth remains a heuristic stop of the
 existing greedy loop. Dense gain/derivative, anisotropic ordering, rank stops,
 metric whitening and public-fit tests verify this boundary. No default
 promotion; pilot evidence is in experiments/svd_gradient_2026-09-30/.
+
+## 2026-10-01 — Unify EDR/SVD through profiled operators and reduced geometric coordinates
+
+- **Decision:** Use separable operator least squares with variable projection and reduced coordinate maps as the common mathematical framework. Keep fixed-g matrix-rank, correction-rank, profiled Grassmann and spatial-field estimators distinct. Treat tangent SVD as commuting plane rotations of one fixed step; model spatial low rank before retraction rather than claiming low Tucker rank for the resulting basis tensor.
+- **Reason/evidence:** Allowed seven-note SVD corpus and original VARPRO/Grassmann/GROUSE/weighted-rank/CP-Tucker literature. The standalone synthesis has short proofs and 203 independent checks in 35 groups. A three-seed, seven-repeat frozen angle-value comparison gives total time ratios .160–.167 versus batched augmented SVD including the shared projection, with curve discrepancy <=1.7e-16. This is evidence for scalar profile evaluation, not a full optimizer or recovery guarantee.
+- **Alternatives rejected:** Ordinary SVD for general summed-Kronecker Hessians; identifying fixed-g ambient optimization with profiled subspace optimization; covariance Sigma/N for general kernel weights; low-rank spatial factors without spatial coupling/integrability assumptions; claiming global angle minimization or full sequence convergence from a local formula/descent bound.
+- **Affected:** SVD/EDR_unified_theory.tex, SVD/theory_2026_10_01/{REPORT.md,check_formulas.py,formula_results.json,angle_microbenchmark.py,angle_results.json,build_audit.json}; affected TeX/multi-index routes. No production solver changes. Prior unfinished joint optimizer scope saved verbatim in PREVIOUS_PLAN.md/PREVIOUS_STATE.md.
+- **Status:** active theory/design decision; proposed optimizer integrations and recovery improvements remain unvalidated.
+
+## 2026-10-01 — Explicit profiled Grassmann solver with reduced full-core GN
+
+- **Decision:** Add opt-in CPU `ADP.solver.grassman.solve` using full residual
+  Jacobian in leading horizontal gradient subspace, all q*m core coordinates,
+  polar retraction and true-profile Armijo. Keep Schur rank-one and spectral
+  adaptive-q turns as ablations. Default local_ridge=0; lambda is damping only.
+- **Reason/evidence:** EDR_unified_theory eq:dg retains coefficient cross terms;
+  small independent lstsq/finite-difference tests pass. This bounds the dense
+  solve by q*m instead of m*d. Cache operator actions only within frozen basis.
+- **Alternatives rejected:** Dropped T.T*r term, row-independent solves, permanent
+  coefficient/chordal ridge or replacement objective would change the target.
+  Full ambient GN needs more operator passes; current low m favors small core.
+- **Guards:** No full-rank Jacobian at deficient/ill-conditioned tau=0; value
+  rank-one fallback. Explicit workspace fallback to spectral; no certified
+  stationarity at rank boundary. Final certificate uses live U.
+- **Affected:** ADP/solver/grassman.py; tests/test_grassman.py; EDR theory I/II.
+- **Status:** active; performance/recovery advantage pending paired benchmark.
+
+## 2026-10-01 — Five-step Grassmann budget for outer warm starts
+
+- **Decision:** Set Grassmann default max_steps=5, retain configurable larger
+  budgets and explicit converged/gradient diagnostics. Select core_gn5 for
+  the measured heavy outer workload; no unconditional method recommendation.
+- **Evidence:** Three paired seeds on n800/d50/m2 full162 steps: core5 times
+  31.72/33.48/34.03s vs SVD36.32/40.74/37.52s; median paired ratio .874.
+  Projector errors .05417/.04728/.04494 vs .11831/.08987/.12586.
+  Core20 was slower than SVD (ratio1.260) and recovery slightly worse on all3.
+- **Limits:** Both budgets exhaust final inner cap and fail stationarity;
+  core5 gradients .0188/.0282/.0335. Three reused ablation seeds are preliminary,
+  not untouched-seed validation. RSS +12–14MiB; objectives differ from SVD.
+- **Affected:** grassman default, explicit-budget paired artifacts under
+  experiments/grassman_2026_10_01/benchmark/fullfit_core5 and pilot_after_adapterfix.
+- **Status:** active; larger standalone frozen solves may need larger budget.
+
+## 2026-10-01 — Accept bounded Grassmann implementation and measured I/II evidence
+
+- **Decision:** Keep explicit Grassmann variant and five-step outer budget;
+  retain rank-one Schur, fixed/adaptive spectral and larger core caps for audit.
+- **Evidence:** 18 independent numerical tests, 110 focused regressions;
+  lead verified Luna raw paired results and source hashes. Schur rank-one
+  paired speedup5.72x vs refit, projection-inclusive61-angle curve23.2x,
+  max absolute error3.41e-13. Full core GN frozen .0949s vs spectral .2157s
+  at similar loss; adaptive rank showed no useful advantage on this point.
+- **Limits:** Three seeds, differing SVD objective, all core calls capped;
+  five-step gain12.6% costs ~13MiB processRSS, no certified inner stationarity.
+  p10<d+1 makes exactQR compression irrelevant. Retained harness failures
+  distinguish setup errors from numerical failures. No default solver promotion.
+- **Timing audit:** Historical SVD25.734 vs current34.859 has identical work
+  diagnostics/output; Python/compiler changed and old BLAS unrecorded. Do not
+  infer algorithm regression or a proven environmental cause from these runs.
+- **Affected:** REPORT.md/VERIFICATION.md in experiments/grassman_2026_10_01,
+  benchmark harness/results, solver/default budget and maintained routes.
+- **Status:** active; heldout validation is follow-up, not claimed here.
+
+## 2026-10-01 — Separate numerical CPU optimization of Grassmann
+
+- **Decision:** Preserve grassman.py as small auditable reference; add
+  grassman_optim.py with unchanged optimizer/default budgets/tolerances.
+  Use reorthogonalized local QR only for safe m<=2; retain original SVD for
+  sensitive/small/rank-deficient/large-m systems. Full augmented GN remains
+  direct lstsq; no normal-equation optimization or estimator change.
+- **Evidence:** Luna17 independent/parity/FD tests pass before last projection
+  slice; frozen5-step paired gain~1.7x with projector differences<2e-15.
+  Gradient adjoint reassociation .24ms vs1.13ms; transpose GEMM .33ms vs1.08ms
+  (copy-inclusive final measurement pending). Original flat GEMM has no gain.
+- **Memory/invalidation:** Gradient scratch capped4MiB using center chunks;
+  only frozen-basis caches and per-solve invariant scalars/root(mass).
+  Wide GEMM copies only (J,p,k), never another U-sized representation.
+  Existing core workspace guard and live final certificate preserved.
+- **Rejected:** Reduced iterations, relaxed tolerances, damping-only normal
+  equations, unchecked analytic Gram inversion would confound CPU comparison
+  or weaken numerical correctness.
+- **Affected:** grassman_optim.py; tests/test_grassman_optim.py; new benchmark
+  and experiment directory; ADP solver/multi-index/source routing notes.
+- **Status:** active; heavy paired final comparison pending.
+
+## 2026-10-01 — Accept Grassmann CPU optimization with measured trajectory limit
+
+- **Decision:** Keep separate grassman_optim.py and untouched reference; accept
+  EXACT/NUMERICAL CPU changes after35 optimized numerical checks and127 shared
+  passes, final paired fullfits and common-input ill-conditioned diagnosis.
+- **Evidence:** Final BLAS1 heavy Spokoiny n800/d50/m2/J800/p10: median paired
+  runtime ratio.941939 (5.8% reduction), frozen core5 speedup2.5204x, final
+  projector differences<=6.90e-10 and profile objective differences<=3.49e-8.
+  Every seed has162 outer calls/810 accepted steps, all capped/unconverged.
+  GN/rank fallback counts match; profile evaluation counts differ (roundoff).
+- **Limits:** Seed2 transient profile loss difference3.436 (10.4%) at call106
+  comes with differing outer inputs; common-input cross-solves differ only
+  <=1.66e-8 in objective and<=2.30e-8 in projector. Incoming basis3.60e-8,
+  U8.60%/I12.99%/mass2.19%; precise upstream amplification unisolated. No
+  identical trajectory/convergence/recovery improvement claim. Fresh-process
+  RSS delta median+92KiB, range-5872 to+7040KiB; no stable memory gain claim.
+- **Scope:** Original cProfile solver share~16.3% of instrumented fullfit;
+  local statistics dominate. Do not expand this task into upstream changes.
+  Wide GEMM and QR measured on this BLAS/workload; m>2 retains SVD.
+- **Affected/evidence:** grassman_optim.py; experiments/grassman_optim_2026_10_01/
+  {fullfit_final_hash,frozen_final_hash,call106_diagnostic,REPORT,VERIFICATION};
+  earlier and invalid-derived benchmark artifacts retained with correction notes.
+- **Status:** active; documentation/static review completion pending.

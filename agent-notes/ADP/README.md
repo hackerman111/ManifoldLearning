@@ -80,7 +80,9 @@ Manifold — другая модель, с отдельной оркестрац
 | SRC-HYBRID-MANIFOLD | `ADP/solver/HYBRID/HYBRID_manifold.py` — manifold dense/PCG/LSMR subproblem | `rtk proxy sed -n '1,291p' ADP/solver/HYBRID/HYBRID_manifold.py` |
 | SRC-LEGACY-LSMR | `ADP/solver/legacy_lsmr.py` — прежний solver-контракт | `rtk proxy sed -n '1,350p' ADP/solver/legacy_lsmr.py` |
 | SRC-LSMR | `ADP/solver/LSMR.py` — текущий HPAO-LSMR, local refit/correction/certificates | `rtk proxy sed -n '1,684p' ADP/solver/LSMR.py` |
-| SRC-SVD-SOLVER | `ADP/solver/SVD.py` — opt-in rank-r matrix/correction multi-index solver из `SVD.tex` и `SVD_corr.tex` | `rtk proxy sed -n '1,721p' ADP/solver/SVD.py` |
+| SRC-SVD-SOLVER | `ADP/solver/SVD.py` — opt-in fixed-g rank-r matrix/correction solver; multi-index.md | `rtk proxy sed -n '1,1050p' ADP/solver/SVD.py` |
+| SRC-GRASSMAN | `ADP/solver/grassman.py` — opt-in profiled Grassmann Schur/spectral/core-GN | `rtk proxy sed -n '1,460p' ADP/solver/grassman.py` |
+| SRC-GRASSMAN-OPTIM | `ADP/solver/grassman_optim.py` — EXACT/NUMERICAL CPU optimization of same Grassmann optimizer | `rtk proxy sed -n '1,574p' ADP/solver/grassman_optim.py` |
 | SRC-MULTIOP | `ADP/solver/_multi_operator.py` — joint multi forward/adjoint | `rtk proxy sed -n '1,29p' ADP/solver/_multi_operator.py` |
 | SRC-CLI-INIT | `ADP/cli/__init__.py` — ленивые CLI exports | `rtk proxy sed -n '1,22p' ADP/cli/__init__.py` |
 | SRC-CLI-MAIN-ENTRY | `ADP/cli/__main__.py` — `python -m ADP.cli` entry | `rtk proxy sed -n '1,5p' ADP/cli/__main__.py` |

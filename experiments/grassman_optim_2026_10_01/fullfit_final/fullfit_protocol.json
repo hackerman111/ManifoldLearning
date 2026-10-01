@@ -1,0 +1,80 @@
+{
+  "stage": "fullfit",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "solver_order_by_seed": {
+    "0": [
+      "grassman",
+      "grassman_optim"
+    ],
+    "1": [
+      "grassman_optim",
+      "grassman"
+    ],
+    "2": [
+      "grassman",
+      "grassman_optim"
+    ]
+  },
+  "solver_options": {
+    "method": "core_gn",
+    "angle_backend": "schur",
+    "max_steps": 5,
+    "tol": 1e-06,
+    "energy_tol": 0.05,
+    "local_ridge": 0.0,
+    "max_angle": 0.5,
+    "workspace_bytes": 16777216
+  },
+  "thread_env": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "python": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "blas_configuration": "Build Dependencies:\n  blas:\n    detection method: pkgconfig\n    found: true\n    include directory: /usr/include\n    lib directory: /usr/lib\n    name: cblas\n    openblas configuration: unknown\n    pc file directory: /usr/lib/pkgconfig\n    version: 3.12.0\n  lapack:\n    detection method: pkgconfig\n    found: true\n    include directory: /usr/include\n    lib directory: /usr/lib\n    name: lapack\n    openblas configuration: unknown\n    pc file directory: /usr/lib/pkgconfig\n    version: 3.12.0\nCompilers:\n  c:\n    args: -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3,\n      -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection,\n      -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy,\n      -flto=auto, -ffat-lto-objects\n    commands: cc\n    linker: ld.bfd\n    linker args: -Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now,\n      -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2,\n      -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security,\n      -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer,\n      -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto,\n      -ffat-lto-objects\n    name: gcc\n    version: 16.1.1\n  c++:\n    args: -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3,\n      -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection,\n      -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -Wp,-D_GLIBCXX_ASSERTIONS,\n      -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto,\n      -ffat-lto-objects\n    commands: c++\n    linker: ld.bfd\n    linker args: -Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now,\n      -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2,\n      -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security,\n      -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer,\n      -Wp,-D_GLIBCXX_ASSERTIONS, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy,\n      -flto=auto, -ffat-lto-objects\n    name: gcc\n    version: 16.1.1\n  cython:\n    commands: cython\n    linker: cython\n    name: cython\n    version: 3.2.9\nMachine Information:\n  build:\n    cpu: x86_64\n    endian: little\n    family: x86_64\n    system: linux\n  host:\n    cpu: x86_64\n    endian: little\n    family: x86_64\n    system: linux\nPython Information:\n  path: /usr/bin/python\n  version: '3.14'\nSIMD Extensions:\n  found:\n  - X86_V2\n  - X86_V3\n  - X86_V4\n  - AVX512_ICL\n  not found:\n  - AVX512_SPR\n\n",
+  "git_commit": "b7fe68aa7abb10092e1a349ed0b134bdae469765",
+  "git_dirty": true,
+  "benchmark_sha256": "9c64276d1b5fea0525715ed6476208b7d4f54e9943ee679523fa7cd895ae9be3",
+  "solver_sha256": {
+    "grassman": "070d0bb91962f23610b3e0a647e8f10fb417bac75e049305c3ef38223966c1a2",
+    "grassman_optim": "11e9941d2f04a8e1cabc5aacd9c2f59ab262de2cf34b272c000ee4a65ba16f79"
+  },
+  "protocol": "Fresh subprocess for each solver/seed; fullfit perf_counter wraps fit only; frozen stage performs one warm-up and warmed repeated calls on a saved first-outer Spokoiny snapshot. One BLAS thread. Failures remain in JSONL.",
+  "repeats": null,
+  "timeout_sec": 600,
+  "results_file": "experiments/grassman_optim_2026_10_01/fullfit_final/fullfit_runs.jsonl",
+  "paired": [
+    {
+      "seed": 0,
+      "original_solver": "grassman",
+      "optimized_solver": "grassman_optim",
+      "projector_frobenius_difference": 8.923486553452158e-15,
+      "runtime_ratio_optimized_over_original": 0.9314715776697259,
+      "rss_delta_kib_optimized_minus_original": 1656
+    },
+    {
+      "seed": 1,
+      "original_solver": "grassman",
+      "optimized_solver": "grassman_optim",
+      "projector_frobenius_difference": 1.089107757466425e-15,
+      "runtime_ratio_optimized_over_original": 0.9076731843320579,
+      "rss_delta_kib_optimized_minus_original": -4940
+    },
+    {
+      "seed": 2,
+      "original_solver": "grassman",
+      "optimized_solver": "grassman_optim",
+      "projector_frobenius_difference": 6.896085738439043e-10,
+      "runtime_ratio_optimized_over_original": 0.94792310030357,
+      "rss_delta_kib_optimized_minus_original": -688
+    }
+  ],
+  "failed_runs": []
+}

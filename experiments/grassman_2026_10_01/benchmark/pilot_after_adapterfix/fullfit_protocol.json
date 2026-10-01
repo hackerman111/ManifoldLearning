@@ -1,0 +1,52 @@
+{
+  "stage": "fullfit",
+  "case": "spokoini_m2_dhigh_30s",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "variants": [
+    "svd",
+    "core_gn"
+  ],
+  "params": {
+    "generator": "spokoini",
+    "n": 800,
+    "d": 50,
+    "m": 2,
+    "N_J": 800,
+    "N_phi": 10,
+    "N_lin": 100,
+    "N_loc": 10,
+    "a": 1.010050167084168,
+    "h_min": 1.0,
+    "select_step": "last",
+    "solver_max_steps": 5,
+    "budget_sec": 30.0
+  },
+  "grassman_steps": 20,
+  "float_dtype": "float64",
+  "thread_env": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "python": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "git_commit": "b7fe68aa7abb10092e1a349ed0b134bdae469765",
+  "git_dirty": true,
+  "benchmark_sha256": "75ad9ca2bd0a8518f56b197c20fbe7318bafd2dcc392ed2412bb6aa549a3b2c2",
+  "solver_sha256": {
+    "ADP/solver/grassman.py": "9899e41aadc11fce178593a738b5034817963e8807b8054183ff0aa05b68fd56",
+    "ADP/solver/SVD.py": "030d42fd6a5e7da26b586dfc15f35aceacbbb0c3aa69d4614b7b1272d183814a"
+  },
+  "protocol": "Full-fit stage: cold ADP_multi_index.fit, isolated fresh process per method/seed, one BLAS thread, perf_counter around fit, process ru_maxrss, no tracing. Capture stage is separately instrumented and excluded from timing aggregates. Frozen stage runs one HPAOResult call per variant/process on captured first-outer statistics and evaluates minimum-norm local-refit profile loss externally.",
+  "objective_note": "Grassmann/profile methods are compared by common profiled local-refit loss. Current SVD's own fixed-g objective/diagnostics differ; its returned index is re-evaluated using the common profile loss. Full-fit projector recovery is descriptive.",
+  "memory_note": "ru_maxrss KiB includes interpreter/imports and loaded data; frozen per-process RSS also includes inputs.",
+  "timeout_sec": 240,
+  "command": "/home/papayka/AMI/Vlad_edr/ManifoldLearning/benchmarks/grassman_benchmark.py --stage fullfit --seeds 0 1 2 --timeout 240 --output experiments/grassman_2026_10_01/benchmark/pilot_after_adapterfix",
+  "results_count": 6
+}

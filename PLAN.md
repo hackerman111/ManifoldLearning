@@ -1,45 +1,48 @@
-task_id: svd-joint-rank-r-2026-09-30
+task_id: grassman-code-optimization-2026-10-01
 status: active
-change_class: APPROXIMATE (isolated experimental optimizer, unchanged objective)
+change_class: EXACT / NUMERICAL; original optimizer/settings preserved
 
-# Goal and scope
-Implement simultaneous X=A M V.T optimization, full r*r core, orthonormal
-A,V, spectral initialization, core least squares, horizontal descent and QR.
-Callable through ADP_solver in experiments/svd_joint_2026_09_30/prototype.py.
-No default replacement, new metric, GPU, global optimum or recovery guarantee.
+# Goal / non-goals
+Optimize CPU code in a separate ADP/solver/grassman_optim.py; compare with
+unchanged grassman.py on heavy Spokoiny. No estimator, iteration-budget,
+tolerance, default method, dependency, or outer-fit changes. Prior task evidence
+archived in experiments/grassman_optim_2026_10_01/PREVIOUS_*.
 
-# Evidence, hypothesis, invariants
-78 baseline SVD/gradient/metric tests pass. Fixed-g objective:
-sum mass||I-U B.T g||² + lambda||B-P||². Matrix: B=X, prior=P;
-correction: B=P+X, shifted I, zero prior. Retain all Hessian cross terms.
-Core ridge center A.T prior V; omitted prior penalty is constant only for
-core solve, not line search. Hypothesis: moving both spaces improves fixed-g
-objective versus greedy, possibly at increased runtime. Float64, finite
-checks, rank<=r, monotone objectives, complete basis/refit and dirty files.
-Augmented QR/lstsq; no d*d or (md)^2 Hessian. QR chunks capped at 16 MiB
-plus O(r^4); cached U V costs O(J p r).
+# Evidence / hypotheses / invariants
+Baseline default core_gn5 and Spokoiny n800 d50 m2 J800 p10,162 outer steps.
+Hypotheses: batched local SVD and repeated core-coordinate actions dominate;
+batched contractions, stable small local QR, frozen-step caching may help.
+Preserve minimum-norm/rank cutoff, ridge augmented LS, full Jacobian cross
+terms, Armijo/guards/status, orthonormality, live final certificate, float64.
+No dense d*d matrices or unbounded caches. Cache invalidation: per solve or
+per frozen basis; workspace guard must include new intermediates.
 
 # Exact read set
-ADP/solver/SVD.py::{_FlatU,_objective,_complete_basis,solve};
-ADP/solver/LSMR.py::{_validate_inputs,_local_refit,_normalize_index};
-tests/test_svd{_solver,_gradient,_metric}.py; numerics/research contracts;
-agent-notes/{WORKFLOW,ADP/solvers,ADP/multi-index}.md.
+AGENTS; PLAN/STATE/WORKFLOW; numerics/research/engineering contracts;
+agent-notes/ADP/{solvers,multi-index}; ADP/solver/grassman.py:1-460;
+LSMR input/refit helpers as needed; tests/test_grassman.py; pyproject.toml;
+benchmarks/grassman_benchmark.py; saved heavy frozen/protocol artifacts.
 
-# Bounded units and acceptance
-- [x] Baseline, derivation and active checkpoint.
-- [ ] Prototype, dense core/gradient references, invariance, ill-conditioning,
-  zero ridge/rank, failure and complete ADP fit checks.
-- [ ] Frozen paired selection: fixed-g d100/300/600 seeds 73001..73003,
-  rank2/m4, matrix/correction; full fits d10/50 seeds 73101..73103.
-  Gate: no exceptions/objective increases; joint fixed-g objective <= greedy
-  within 1e-6 relative on every pair; full-fit projector distance <= greedy
-  +0.02 on every pair. Record time/memory; no speed requirement.
-- [ ] If selection passes: untouched validation seeds 74001..74003 and
-  74101..74103, same configurations. On failure leave untouched.
-- [ ] Report actual outcomes, refresh routes/state/decision, mark done.
+# Bounded units / acceptance evidence
+- [x] Luna profile baseline; frozen ~28ms, local profile/gradient dominate;
+  reproducible BLAS1 paired protocol established in experiment artifacts.
+- [x] Implement measured hot-path optimizations in separate solver; Luna17
+  independent/parity/FD/rank/ridge/layout/chunk tests pass before final GEMM
+  slice; final solver frozen (574 lines); existing optimized-module checks pending.
+- [x] Luna final paired heavy full fits3seeds, alternating order, fixed BLAS;
+  final ratio.94194, frozen2.52x, projector<=6.9e-10; raw runtime/RSS/trace/config
+  and source/input hashes retained. Earlier ratio.9315 series also retained.
+- [x] Diagnose seed2 call106 transient profile difference3.436 (~10.4%):
+  captures/cross-solves show common-input objective delta<=1.66e-8 and
+  projector<=2.30e-8; incoming basis diff3.60e-8, U8.60%/I12.99%/mass2.19%.
+  Outer sensitivity measured; exact upstream amplification mechanism unisolated.
+- [ ] Lead audit numerical formulas/raw evidence, configured lint/type/shared
+  checks; affected notes, STATE/DECISIONS and final report updated.
 
-# Stop conditions
-Fix reference mismatch/nonfinite/descent violation before pilots. Two repeated
-conceptual failures require hypothesis revision. Selection failure closes
-promotion gate; usable prototype/tests remain the deliverable.
-Previous completed plan archived verbatim in the experiment directory.
+# Verification / stop conditions
+Reference original remains unchanged. Require finite results, orthogonality,
+small-problem objective/coefficient/Jacobian agreement at scale-justified
+float64 tolerances; heavy paired output and iteration differences recorded.
+Retain failures. Stop after measured hot paths and heavy comparison completed;
+reject changes that sacrifice correctness/stability or regress memory without
+measured reason. No unrelated repository repair.
