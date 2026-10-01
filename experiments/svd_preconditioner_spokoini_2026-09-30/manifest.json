@@ -1,0 +1,41 @@
+{
+  "task": "svd-preconditioner-spokoini-2026-09-30",
+  "case": "spokoini_m2_dhigh_30s",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "paired_order": {
+    "0": [
+      false,
+      true
+    ],
+    "1": [
+      true,
+      false
+    ],
+    "2": [
+      false,
+      true
+    ]
+  },
+  "fit_configuration": "Spokoiny m=2, d=50, n=800, N_loc=10, N_lin=100, N_J=800, N_phi=10, a=exp(1/100), h_min=1, select_step=last, full outer schedule, lambda_penalty=0.05, SVD rank=1, matrix objective; defaults otherwise.",
+  "solver_path": "svd_direct with direct_max_dimension=128; precondition_v flag is passed through to solve.",
+  "protocol": "Fresh subprocess per fit, perf_counter around fit, float64, one BLAS thread, no tracemalloc; identical Spokoiny generated data and init for each paired seed.",
+  "git_commit": "65b7a4327f8c908c5d9309e433e69e04c553874b",
+  "git_dirty": true,
+  "production_svd_sha256": "bfa1e33f6fb79ee8afb84e9148617e92522138945fd3badef5742cdd1ab2e38f",
+  "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "thread_environment": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "blas_one_thread": true,
+  "runner_sha256": "49a9bb0acbe56fbfcb2e9c8592cb40dd503d5d00d627249c3a910fe7785b1f32",
+  "analysis_sha256": "b0dee604feba080a16f684bacf3e8f0f989afda6b149aeffae2f478475e48b77"
+}

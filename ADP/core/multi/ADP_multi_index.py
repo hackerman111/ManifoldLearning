@@ -57,11 +57,13 @@ class ADP_multi_index:
                 mode="multi",
                 index_dim=self.index_dim,
                 profiler=profiler,
-                solve=lambda index, statistics: solver.fit_current(
+                solver_metric_context=solver.settings.get("metric_power", 0) != 0,
+                solve=lambda index, statistics, **metric_context: solver.fit_current(
                     statistics,
                     index,
                     normalized=config.estimator == "new",
                     lambda_prox=config.lambda_penalty,
+                    **metric_context,
                 ),
                 progress=progress,
                 trace_indices=True,

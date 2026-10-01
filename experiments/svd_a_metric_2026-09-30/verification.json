@@ -1,0 +1,76 @@
+{
+  "tests": "91 passed: metric, SVD, model/CLI regressions",
+  "ruff": "passed",
+  "diff_check": "passed",
+  "replays": [
+    {
+      "kind": "fit",
+      "case": "small",
+      "target": "matrix",
+      "differences": {
+        "objective_last": 0.0,
+        "normal_residual_max": 0.0,
+        "projector_distance": 0.0
+      }
+    },
+    {
+      "kind": "fit",
+      "case": "small",
+      "target": "correction",
+      "differences": {
+        "objective_last": 0.0,
+        "normal_residual_max": 0.0,
+        "projector_distance": 0.0
+      }
+    },
+    {
+      "kind": "fit",
+      "case": "medium",
+      "target": "matrix",
+      "differences": {
+        "objective_last": 0.0,
+        "normal_residual_max": 0.0,
+        "projector_distance": 0.0
+      }
+    },
+    {
+      "kind": "fit",
+      "case": "medium",
+      "target": "correction",
+      "differences": {
+        "objective_last": 0.0,
+        "normal_residual_max": 0.0,
+        "projector_distance": 0.0
+      }
+    },
+    {
+      "kind": "fixed",
+      "case": "300",
+      "target": "matrix",
+      "differences": {
+        "objective_last": 0.0,
+        "normal_residual_max": 0.0,
+        "coefficient_error": 0.0
+      }
+    },
+    {
+      "kind": "fixed",
+      "case": "300",
+      "target": "correction",
+      "differences": {
+        "objective_last": 0.0,
+        "normal_residual_max": 0.0,
+        "coefficient_error": 0.0
+      }
+    }
+  ],
+  "final_hashes": {
+    "ADP/solver/SVD.py": "7915bce9f5876dfad6d37252d81954055f206b7908619e9fd530917f5410fe76",
+    "ADP/core/ADP_Solver.py": "a49de2c4ab080210d88c72655b74fa77fc28d619a1179de5552a2e4951c3101c",
+    "ADP/core/multi/ADP_multi_index.py": "65a77f3ff7a620b8cf9678d7d30c4346b323711c7adb879f198a4dae847080aa",
+    "ADP/engine/common/index_fit.py": "6ddfa795ba4ac2092dbecac29159b6e91935d64b8a2805a06303d939ba8d8cb5",
+    "tests/test_svd_metric.py": "0a79498645b8e026cb626ab6ea636c3e3cb8a8bfd07bebeb9e9a2ce91a4573bd",
+    "experiments/svd_a_metric_2026-09-30/benchmark.py": "01fc3fb7b526769151cab82191e527391d712d1f48e35b34cce8237eec4eddec"
+  },
+  "static_analysis": "standard Pyright exceeded 30s configured limit; not verified"
+}

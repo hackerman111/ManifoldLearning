@@ -1,0 +1,86 @@
+{
+  "task_id": "svd-simple-improvements-2026-09-30-r2",
+  "date": "2026-09-30",
+  "implementation_status": "done",
+  "production_sha256": "bfa1e33f6fb79ee8afb84e9148617e92522138945fd3badef5742cdd1ab2e38f",
+  "production_equals_validated_candidate": true,
+  "baseline_sha256": "6b40b25bfdda5cddab2038c4b919cf730bf3bed156aab14b85953d79f62bacc5",
+  "independent_math_audit": {
+    "status": "passed",
+    "evidence": "AUDIT.md"
+  },
+  "dense_reference": {
+    "status": "passed",
+    "script": "check_reference.py",
+    "seed": 772,
+    "checks": [
+      "shifted augmented least squares with and without warm starts",
+      "adjoints and cached/streamed normal diagonals",
+      "unequal mass and column scales, dependent and zero columns",
+      "positive ridge stress and nondegenerate zero-ridge minimum norm"
+    ]
+  },
+  "shared_tests": {
+    "status": "passed",
+    "passed": 59,
+    "svd_tests": 18,
+    "new_svd_tests": 9,
+    "elapsed_seconds": 6.8,
+    "command": "rtk proxy env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync pytest -q tests/test_svd_solver.py tests/test_multi_solver_certificate.py tests/test_index_models.py"
+  },
+  "ruff_check": {
+    "status": "passed",
+    "files": [
+      "ADP/solver/SVD.py",
+      "tests/test_svd_solver.py",
+      "candidate_svd.py",
+      "check_reference.py",
+      "benchmark.py",
+      "analyze.py",
+      "test_preconditioner.py"
+    ]
+  },
+  "ruff_format": {
+    "status": "passed",
+    "production_and_tests_command": "rtk proxy env UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync ruff format --check ADP/solver/SVD.py tests/test_svd_solver.py"
+  },
+  "git_diff_check": {
+    "status": "passed",
+    "command": "rtk proxy git diff --check"
+  },
+  "pyright": {
+    "status": "timed_out",
+    "exit_code": 124,
+    "timeout_seconds": 180,
+    "command": "rtk proxy env PYRIGHT_PYTHON_IGNORE_WARNINGS=1 UV_CACHE_DIR=/tmp/adp-uv-cache timeout 180s uv run --no-sync pyright ADP/solver/SVD.py",
+    "output": "",
+    "note": "Full type checking is unverified. Earlier bounded baseline and prototype checks also did not finish; a timeout is not a passing result."
+  },
+  "selection": {
+    "status": "passed",
+    "rows": 144,
+    "summary": "selection_corrected_summary.json",
+    "fixed_seeds": [110, 111, 112],
+    "fit_seeds": [120, 121, 122],
+    "fit_n": 320,
+    "protocol_repair": "Initial n220/d150 fits were infeasible before solver execution. All 18 refused rows and the failed initial summary are retained; repaired fits use fresh selection seeds, with unchanged candidate and gates."
+  },
+  "untouched_validation": {
+    "status": "passed",
+    "rows": 144,
+    "summary": "validation_summary.json",
+    "fixed_seeds": [210, 211, 212],
+    "fit_seeds": [220, 221, 222],
+    "scaled_median_time_ratio": 0.22548455700754588,
+    "scaled_median_pass_ratio": 0.23809516597339858,
+    "default_isotropic_time_ratio": 0.9430493706571683,
+    "max_relative_matrix_error": 5.210222861621075e-7,
+    "max_projector_disagreement": 2.758875313847445e-6,
+    "max_quality_change": 2.2617587691620145e-8,
+    "max_outer_step_change": 0,
+    "new_numerical_failures": 0,
+    "default_memory_ok": true,
+    "objective_and_rank_ok": true
+  },
+  "claim_scope": "Bounded numerical equivalence and measured performance on the frozen fixtures; no new EDR recovery or global optimality claim."
+}

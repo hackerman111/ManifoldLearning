@@ -1,0 +1,1768 @@
+\section{Spectrally Preconditioned Truncated-SVD HPAO Solver}
+
+\subsection{Постановка}
+
+Рассматривается непосредственно rank-constrained global step
+multi-index HPAO.
+
+При фиксированном текущем basis
+\[
+    P\in\mathbb R^{m\times d},
+    \qquad
+    PP^\top=I_m,
+\]
+и фиксированных локальных коэффициентах
+\[
+    g_j\in\mathbb R^m
+\]
+необходимо решить
+\[
+\boxed{
+    \min_{\rank(B)\le r}
+    F(B)
+}
+\]
+для
+\[
+\boxed{
+    F(B)
+    =
+    \sum_{j=1}^J
+    N_j
+    \left\|
+        I_j-U_jB^\top g_j
+    \right\|_2^2
+    +
+    \lambda
+    \|B-P\|_F^2.
+}
+\]
+
+Здесь
+\[
+    B\in\mathbb R^{m\times d},
+    \qquad
+    r<m,
+\]
+и предполагается
+\[
+    \lambda>0.
+\]
+
+Основная задача состоит именно в построении малорангового
+приближения самой матрицы $B$:
+\[
+\boxed{
+    B_r
+    =
+    A\Sigma V^\top,
+    \qquad
+    A^\top A=I_r,
+    \quad
+    V^\top V=I_r.
+}
+\]
+
+Не вводится представление
+\[
+    B=P+\Delta.
+\]
+
+\subsection{Действительно различные семейства методов}
+
+Для данной rank-constrained задачи следует различать как минимум
+четыре математически различных семейства подходов.
+
+\paragraph{I. Greedy conditional spectral recovery.}
+
+Матрица строится последовательно:
+\[
+    B_k
+    =
+    B_{k-1}
+    +
+    \sigma_k a_kv_k^\top.
+\]
+
+На каждом шаге выбирается rank-one направление,
+дающее максимальное уменьшение исходного квадратичного functional.
+
+Для фиксированного rank-one направления optimal line-search
+получается аналитически.
+
+Глобальный поиск лучшего $(a,v)$ для общего набора $H_j$
+остаётся нелинейной биквадратичной задачей.
+
+\paragraph{II. Exact whitening + truncated SVD.}
+
+При специальной структуре
+\[
+    H_j=\eta_jI_d
+\]
+вся rank-$r$ задача точно преобразуется в best rank-$r$
+matrix approximation в норме Фробениуса.
+
+В этом случае truncated SVD даёт глобальное решение исходной
+rank-constrained задачи.
+
+\paragraph{III. Block low-rank factor optimization.}
+
+Используется
+\[
+    B=XY^\top,
+\]
+где
+\[
+    X\in\mathbb R^{m\times r},
+    \qquad
+    Y\in\mathbb R^{d\times r},
+\]
+и выполняется alternating least squares.
+
+Этот подход не требует изотропии $H_j$ и одновременно оптимизирует
+все $r$ компонент, но задача совместно по $(X,Y)$ невыпукла.
+
+\paragraph{IV. Convex nuclear-norm relaxation.}
+
+Ограничение
+\[
+    \rank(B)\le r
+\]
+можно заменить penalty
+\[
+    \tau\|B\|_*.
+\]
+
+Это приводит к другой оптимизационной задаче.
+Она может использоваться как baseline, но не является точным
+решением исходной rank-constrained постановки.
+
+\subsection{Квадратичная операторная форма}
+
+Определим
+\[
+    H_j
+    =
+    U_j^\top U_j
+    \succeq0
+\]
+и
+\[
+    c_j
+    =
+    U_j^\top I_j.
+\]
+
+Раскрывая квадрат:
+\[
+\begin{aligned}
+    \|I_j-U_jB^\top g_j\|_2^2
+    ={}&
+    \|I_j\|_2^2
+    -
+    2g_j^\top Bc_j
+    \\
+    &+
+    g_j^\top BH_jB^\top g_j.
+\end{aligned}
+\]
+
+Также
+\[
+\begin{aligned}
+    \lambda\|B-P\|_F^2
+    ={}&
+    \lambda\|B\|_F^2
+    -
+    2\lambda\langle B,P\rangle_F
+    +
+    \lambda\|P\|_F^2.
+\end{aligned}
+\]
+
+Следовательно,
+\[
+\boxed{
+    F(B)
+    =
+    C_0
+    +
+    \langle B,\mathcal L(B)\rangle_F
+    -
+    2\langle C_B,B\rangle_F,
+}
+\]
+где
+\[
+\boxed{
+    \mathcal L(X)
+    =
+    \sum_{j=1}^J
+    N_j
+    (g_jg_j^\top)
+    XH_j
+    +
+    \lambda X
+}
+\]
+и
+\[
+\boxed{
+    C_B
+    =
+    \sum_{j=1}^J
+    N_jg_jc_j^\top
+    +
+    \lambda P.
+}
+\]
+
+Константа равна
+\[
+    C_0
+    =
+    \sum_jN_j\|I_j\|_2^2
+    +
+    \lambda\|P\|_F^2.
+\]
+
+Так как
+\[
+    PP^\top=I_m,
+\]
+имеем
+\[
+    \|P\|_F^2=m.
+\]
+
+\subsection{Лемма 1: свойства оператора $\mathcal L$}
+
+\textbf{Лемма.}
+Оператор $\mathcal L$ самосопряжён и положительно определён.
+Для любого
+\[
+    X\in\mathbb R^{m\times d}
+\]
+выполняется
+\[
+\boxed{
+    \langle X,\mathcal L(X)\rangle_F
+    =
+    \sum_j
+    N_j
+    \|U_jX^\top g_j\|_2^2
+    +
+    \lambda\|X\|_F^2
+    \ge
+    \lambda\|X\|_F^2.
+}
+\]
+
+\textbf{Доказательство.}
+
+Для каждого $j$
+\[
+\begin{aligned}
+    \left\langle
+        X,
+        (g_jg_j^\top)XH_j
+    \right\rangle_F
+    &=
+    \operatorname{tr}
+    \left(
+        X^\top g_jg_j^\top XU_j^\top U_j
+    \right)
+    \\
+    &=
+    \|U_jX^\top g_j\|_2^2.
+\end{aligned}
+\]
+
+Отсюда следует положительная определённость при $\lambda>0$.
+
+Самосопряжённость следует из симметричности
+\[
+    g_jg_j^\top
+    \quad\text{и}\quad
+    H_j.
+\]
+
+\subsection{Полное unconstrained решение}
+
+Без ограничения rank задача строго выпукла.
+
+Её единственный minimizer $B_\star$ удовлетворяет
+\[
+\boxed{
+    \mathcal L(B_\star)=C_B.
+}
+\]
+
+Кроме того,
+\[
+\boxed{
+    F(B)
+    =
+    F(B_\star)
+    +
+    \langle
+        B-B_\star,
+        \mathcal L(B-B_\star)
+    \rangle_F.
+}
+\]
+
+Следовательно, исходная rank-constrained задача эквивалентна
+\[
+\boxed{
+    B_r^\star
+    =
+    \arg\min_{\rank(B)\le r}
+    \|B-B_\star\|_{\mathcal L}^2,
+}
+\]
+где
+\[
+    \|X\|_{\mathcal L}^2
+    =
+    \langle X,\mathcal L(X)\rangle_F.
+\]
+
+Таким образом, задача является generalized low-rank approximation
+в Hessian-метрике исходного HPAO functional.
+
+\subsection{Normal residual}
+
+Для текущего приближения $B_t$ определим
+\[
+\boxed{
+    Q_t
+    =
+    C_B-\mathcal L(B_t).
+}
+\]
+
+Тогда
+\[
+\boxed{
+    \nabla F(B_t)=-2Q_t.
+}
+\]
+
+Для произвольной поправки $Z$
+имеем точное равенство
+\[
+\boxed{
+    F(B_t+Z)-F(B_t)
+    =
+    \langle Z,\mathcal L(Z)\rangle_F
+    -
+    2\langle Q_t,Z\rangle_F.
+}
+\]
+
+\subsection{Теорема 1: лучший rank-one line-search}
+
+Пусть
+\[
+    Z=av^\top,
+    \qquad
+    a\neq0,
+    \quad
+    v\neq0.
+\]
+
+Рассмотрим
+\[
+    B_t+\sigma Z.
+\]
+
+Тогда
+\[
+    F(B_t+\sigma Z)-F(B_t)
+    =
+    D(a,v)\sigma^2
+    -
+    2R_t(a,v)\sigma,
+\]
+где
+\[
+\boxed{
+    R_t(a,v)
+    =
+    a^\top Q_tv
+}
+\]
+и
+\[
+\boxed{
+    D(a,v)
+    =
+    \sum_j
+    N_j
+    (a^\top g_j)^2
+    v^\top H_jv
+    +
+    \lambda
+    \|a\|_2^2\|v\|_2^2.
+}
+\]
+
+Так как
+\[
+    D(a,v)>0,
+\]
+optimal scale равен
+\[
+\boxed{
+    \sigma^\star(a,v)
+    =
+    \frac{
+        a^\top Q_tv
+    }{
+        D(a,v)
+    }.
+}
+\]
+
+Точное уменьшение objective:
+\[
+\boxed{
+    \operatorname{gain}_t(a,v)
+    =
+    \frac{
+        (a^\top Q_tv)^2
+    }{
+        D(a,v)
+    }.
+}
+\]
+
+Следовательно, лучший следующий rank-one шаг задаётся
+\[
+\boxed{
+    \Gamma_1(Q_t)
+    =
+    \sup_{a,v\neq0}
+    \frac{
+        (a^\top Q_tv)^2
+    }{
+        \sum_j
+        N_j
+        (a^\top g_j)^2
+        v^\top H_jv
+        +
+        \lambda
+        \|a\|^2\|v\|^2
+    }.
+}
+\]
+
+\subsection{Conditional spectral norm}
+
+Определим
+\[
+\boxed{
+    \|Q\|_{\mathrm{csp},\mathcal L}
+    =
+    \sup_{\rank(Z)=1}
+    \frac{
+        |\langle Q,Z\rangle_F|
+    }{
+        \sqrt{
+            \langle Z,\mathcal L(Z)\rangle_F
+        }
+    }.
+}
+\]
+
+Тогда
+\[
+\boxed{
+    \Gamma_1(Q)
+    =
+    \|Q\|_{\mathrm{csp},\mathcal L}^2.
+}
+\]
+
+Это даёт точный смысл spectral criterion:
+\[
+\boxed{
+    \text{conditional spectral norm}^2
+    =
+    \text{максимально возможный gain одного rank-one шага}.
+}
+\]
+
+\subsection{Conditional optimization по $a$}
+
+При фиксированном единичном $v$ определим
+\[
+\boxed{
+    G(v)
+    =
+    \sum_j
+    N_j
+    (v^\top H_jv)
+    g_jg_j^\top
+    +
+    \lambda I_m.
+}
+\]
+
+Тогда
+\[
+    D(a,v)
+    =
+    a^\top G(v)a
+\]
+и
+\[
+    R_t(a,v)
+    =
+    a^\top Q_tv.
+\]
+
+Следовательно,
+\[
+\boxed{
+    \max_{a\neq0}
+    \operatorname{gain}_t(a,v)
+    =
+    (Q_tv)^\top
+    G(v)^{-1}
+    (Q_tv),
+}
+\]
+и optimal direction:
+\[
+\boxed{
+    a
+    \propto
+    G(v)^{-1}Q_tv.
+}
+\]
+
+\subsection{Conditional optimization по $v$}
+
+При фиксированном единичном $a$ определим
+\[
+\boxed{
+    H(a)
+    =
+    \sum_j
+    N_j
+    (a^\top g_j)^2H_j
+    +
+    \lambda I_d.
+}
+\]
+
+Тогда
+\[
+\boxed{
+    v
+    \propto
+    H(a)^{-1}Q_t^\top a.
+}
+\]
+
+Таким образом, exact conditional spectral direction может
+искаться alternating iterations
+\[
+\boxed{
+    v
+    \rightarrow
+    a
+    \rightarrow
+    v
+    \rightarrow
+    \cdots.
+}
+\]
+
+Каждый точный conditional update не уменьшает
+$\operatorname{gain}_t(a,v)$.
+
+Однако для произвольных $H_j$ совместная задача остаётся невыпуклой.
+Глобальная оптимальность alternating procedure не гарантируется.
+
+\subsection{Обусловленность conditional solves}
+
+При
+\[
+    \|a\|=\|v\|=1
+\]
+имеем
+\[
+    G(v)\succeq\lambda I_m
+\]
+и
+\[
+    H(a)\succeq\lambda I_d.
+\]
+
+Следовательно,
+\[
+\boxed{
+    \kappa(G(v))
+    \le
+    1+
+    \frac{
+        \sum_j
+        N_j
+        \|g_j\|_2^2
+        \|H_j\|_2
+    }{
+        \lambda
+    }
+}
+\]
+и аналогично
+\[
+\boxed{
+    \kappa(H(a))
+    \le
+    1+
+    \frac{
+        \sum_j
+        N_j
+        \|g_j\|_2^2
+        \|H_j\|_2
+    }{
+        \lambda
+    }.
+}
+\]
+
+\subsection{Точная изотропная модель}
+
+Теперь предположим
+\[
+\boxed{
+    H_j=\eta_jI_d,
+    \qquad
+    \eta_j\ge0.
+}
+\]
+
+Определим
+\[
+\boxed{
+    G
+    =
+    \sum_j
+    N_j\eta_jg_jg_j^\top
+    +
+    \lambda I_m.
+}
+\]
+
+Тогда
+\[
+\boxed{
+    \mathcal L(X)=GX.
+}
+\]
+
+Линейная часть при этом остаётся
+\[
+\boxed{
+    C_B
+    =
+    \sum_j
+    N_jg_jc_j^\top
+    +
+    \lambda P.
+}
+\]
+
+Это принципиальное отличие pure-$B$ постановки:
+prior $P$ входит непосредственно в spectral target.
+
+\subsection{Теорема 2: точное truncated-SVD решение}
+
+Пусть
+\[
+    H_j=\eta_jI_d.
+\]
+
+Определим
+\[
+\boxed{
+    M
+    =
+    G^{-1/2}C_B.
+}
+\]
+
+Пусть
+\[
+    M
+    =
+    U
+    \diag(s_1,\ldots,s_m)
+    V^\top,
+\]
+где
+\[
+    s_1\ge s_2\ge\cdots\ge0.
+\]
+
+Тогда глобальный minimizer
+\[
+    \min_{\rank(B)\le r}F(B)
+\]
+равен
+\[
+\boxed{
+    B_r^\star
+    =
+    G^{-1/2}
+    [G^{-1/2}C_B]_r.
+}
+\]
+
+\textbf{Доказательство.}
+
+При изотропии
+\[
+\begin{aligned}
+    F(B)
+    &=
+    C_0
+    +
+    \operatorname{tr}(B^\top GB)
+    -
+    2\operatorname{tr}(C_B^\top B).
+\end{aligned}
+\]
+
+Введём
+\[
+    Z=G^{1/2}B.
+\]
+
+Так как $G$ положительно определена,
+\[
+    \rank(Z)=\rank(B).
+\]
+
+Тогда
+\[
+\begin{aligned}
+    F(B)
+    &=
+    C_0
+    +
+    \|Z\|_F^2
+    -
+    2
+    \langle
+        G^{-1/2}C_B,
+        Z
+    \rangle_F
+    \\
+    &=
+    C_0
+    -
+    \|M\|_F^2
+    +
+    \|Z-M\|_F^2.
+\end{aligned}
+\]
+
+По теореме Eckart--Young
+глобально оптимальное rank-$r$ решение есть
+\[
+    Z_r^\star=[M]_r.
+\]
+
+Следовательно,
+\[
+\boxed{
+    B_r^\star
+    =
+    G^{-1/2}[M]_r.
+}
+\]
+
+\subsection{Точное значение objective gap}
+
+В тех же условиях
+\[
+\boxed{
+    F(B_r^\star)
+    =
+    C_0
+    -
+    \sum_{k=1}^r s_k^2.
+}
+\]
+
+Unconstrained solution:
+\[
+\boxed{
+    B_\star
+    =
+    G^{-1}C_B.
+}
+\]
+
+Для него
+\[
+\boxed{
+    F(B_\star)
+    =
+    C_0
+    -
+    \sum_k s_k^2.
+}
+\]
+
+Поэтому
+\[
+\boxed{
+    F(B_r^\star)
+    -
+    F(B_\star)
+    =
+    \sum_{k>r}s_k^2.
+}
+\]
+
+Таким образом, spectral tail имеет точный смысл ошибки
+rank-$r$ approximation по исходному HPAO objective.
+
+\subsection{Точный выбор rank}
+
+Определим captured objective energy:
+\[
+\boxed{
+    E_r
+    =
+    \frac{
+        \sum_{k=1}^r s_k^2
+    }{
+        \sum_k s_k^2
+    }.
+}
+\]
+
+Тогда выбор
+\[
+\boxed{
+    r_\varepsilon
+    =
+    \min
+    \left\{
+        r:
+        \frac{
+            \sum_{k>r}s_k^2
+        }{
+            \sum_ks_k^2
+        }
+        \le
+        \varepsilon_{\mathrm{energy}}
+    \right\}
+}
+\]
+точно гарантирует
+\[
+    E_{r_\varepsilon}
+    \ge
+    1-\varepsilon_{\mathrm{energy}}.
+\]
+
+\subsection{Теорема 3: следующий singular component}
+
+Для
+\[
+    B_r^\star
+    =
+    G^{-1/2}[M]_r
+\]
+normal residual равен
+\[
+    Q_r
+    =
+    C_B-GB_r^\star.
+\]
+
+Следовательно,
+\[
+\boxed{
+    G^{-1/2}Q_r
+    =
+    M-[M]_r.
+}
+\]
+
+Поэтому
+\[
+\boxed{
+    \|Q_r\|_{\mathrm{csp},\mathcal L}
+    =
+    \|G^{-1/2}Q_r\|_2
+    =
+    s_{r+1}.
+}
+\]
+
+Точный лучший следующий rank-one gain:
+\[
+\boxed{
+    \Gamma_1(Q_r)=s_{r+1}^2.
+}
+\]
+
+Более того, лучший rank-$q$ expansion имеет вид
+\[
+\boxed{
+    \delta_q^\star
+    =
+    G^{-1/2}
+    [M-[M]_r]_q
+}
+\]
+и даёт улучшение
+\[
+\boxed{
+    F(B_r^\star)
+    -
+    F(B_r^\star+\delta_q^\star)
+    =
+    \sum_{k=r+1}^{r+q}s_k^2.
+}
+\]
+
+Таким образом, в точной изотропной модели нет необходимости
+жадно угадывать следующую singular component:
+весь оптимальный блок top-$q$ находится одним truncated SVD.
+
+\subsection{Изотропная инициализация для общего случая}
+
+В общем случае
+\[
+    H_j\neq\eta_jI.
+\]
+
+Выберем
+\[
+\boxed{
+    \eta_j
+    =
+    \frac{\operatorname{tr}(H_j)}{d}
+    =
+    \frac{\|U_j\|_F^2}{d}.
+}
+\]
+
+Тогда
+\[
+    \eta_jI
+\]
+является лучшей scalar approximation $H_j$
+в норме Фробениуса:
+\[
+\boxed{
+    \eta_j
+    =
+    \arg\min_\eta
+    \|H_j-\eta I\|_F^2.
+}
+\]
+
+Построим
+\[
+\boxed{
+    G
+    =
+    \sum_j
+    N_j\eta_jg_jg_j^\top
+    +
+    \lambda I_m
+}
+\]
+и
+\[
+\boxed{
+    C_B
+    =
+    \sum_j
+    N_jg_jc_j^\top
+    +
+    \lambda P.
+}
+\]
+
+Тогда естественная spectral initialization:
+\[
+\boxed{
+    B_r^{(0)}
+    =
+    G^{-1/2}
+    [G^{-1/2}C_B]_r.
+}
+\]
+
+В общем случае это не является точным решением исходной задачи,
+но может использоваться как:
+
+\begin{enumerate}
+    \item начальное приближение для greedy solver;
+    \item начальное приближение для block ALS;
+    \item deterministic fallback;
+    \item источник начального rank;
+    \item spectral preconditioner для residual-gradient.
+\end{enumerate}
+
+\subsection{Perturbation относительно изотропной модели}
+
+Положим
+\[
+    E_j
+    =
+    H_j-\eta_jI
+\]
+и
+\[
+\boxed{
+    \rho
+    =
+    \sum_j
+    N_j
+    \|g_j\|_2^2
+    \|E_j\|_2.
+}
+\]
+
+Пусть
+\[
+    \widetilde{\mathcal L}(X)=GX.
+\]
+
+Тогда
+\[
+\boxed{
+    \|
+        (\mathcal L-\widetilde{\mathcal L})(X)
+    \|_F
+    \le
+    \rho\|X\|_F.
+}
+\]
+
+Если
+\[
+    \rho<\lambda
+\]
+и
+\[
+    \theta=\rho/\lambda,
+\]
+то
+\[
+\boxed{
+    (1-\theta)
+    \langle X,\widetilde{\mathcal L}(X)\rangle_F
+    \le
+    \langle X,\mathcal L(X)\rangle_F
+    \le
+    (1+\theta)
+    \langle X,\widetilde{\mathcal L}(X)\rangle_F.
+}
+\]
+
+\subsection{Изотропная spectral proposal для общего residual}
+
+Пусть текущая матрица равна $B_t$ и вычислен exact normal residual
+\[
+\boxed{
+    Q_t
+    =
+    C_B-\mathcal L(B_t).
+}
+\]
+
+Вместо обычного top singular vector $Q_t$
+рассмотрим preconditioned matrix
+\[
+\boxed{
+    W_t
+    =
+    G^{-1/2}Q_t.
+}
+\]
+
+Её top singular pair решает isotropic surrogate задачи
+лучшего rank-one шага.
+
+Если
+\[
+    \rho<\lambda,
+\]
+то exact gain этого isotropic-optimal направления
+составляет не менее
+\[
+\boxed{
+    \frac{1-\theta}{1+\theta}
+}
+\]
+доли от глобально лучшего exact rank-one gain.
+
+Таким образом,
+\[
+\boxed{
+    G^{-1/2}Q_t
+}
+\]
+является curvature-aware заменой обычного residual-gradient
+для инициализации следующей singular component.
+
+\subsection{Block spectral proposal}
+
+Вместо одной компоненты вычислить
+\[
+\boxed{
+    [G^{-1/2}Q_t]_q
+    =
+    \widetilde A_q
+    S_q
+    V_q^\top.
+}
+\]
+
+Использовать
+\[
+\boxed{
+    Z_q^{(0)}
+    =
+    G^{-1/2}
+    \widetilde A_q
+    S_q
+    V_q^\top
+}
+\]
+как начальное rank-$q$ направление.
+
+При точной изотропии это exact optimal rank-$q$ residual correction.
+
+В общем случае это preconditioned spectral proposal,
+который необходимо затем дооптимизировать по исходному functional.
+
+\subsection{Block ALS непосредственно для $B$}
+
+Вместо жадного восстановления по одной компоненте
+рассмотреть факторизацию
+\[
+\boxed{
+    B=XY^\top,
+}
+\]
+где
+\[
+    X\in\mathbb R^{m\times r},
+    \qquad
+    Y\in\mathbb R^{d\times r}.
+\]
+
+Тогда
+\[
+    B^\top g_j
+    =
+    Y(X^\top g_j).
+\]
+
+Исходный functional принимает вид
+\[
+\boxed{
+\begin{aligned}
+    F(X,Y)
+    ={}&
+    \sum_j
+    N_j
+    \left\|
+        I_j-U_jY(X^\top g_j)
+    \right\|_2^2
+    \\
+    &+
+    \lambda
+    \|XY^\top-P\|_F^2.
+\end{aligned}
+}
+\]
+
+При фиксированном $X$ это convex quadratic problem по $Y$.
+
+При фиксированном $Y$ это convex quadratic problem по $X$.
+
+\subsection{Монотонность block ALS}
+
+Если обе block subproblems решаются точно:
+\[
+    Y_{t+1}
+    \in
+    \arg\min_YF(X_t,Y),
+\]
+\[
+    X_{t+1}
+    \in
+    \arg\min_XF(X,Y_{t+1}),
+\]
+то
+\[
+\boxed{
+    F(X_{t+1},Y_{t+1})
+    \le
+    F(X_t,Y_t).
+}
+\]
+
+Следовательно, objective sequence монотонна и ограничена снизу.
+
+Это не доказывает глобальную сходимость к
+\[
+    B_r^\star,
+\]
+так как parameterized problem по $(X,Y)$ совместно невыпукла.
+
+\subsection{Spectral initialization block ALS}
+
+Предлагается инициализировать block ALS не случайно, а через
+\[
+\boxed{
+    B_r^{(0)}
+    =
+    G^{-1/2}
+    [G^{-1/2}C_B]_r.
+}
+\]
+
+Для получения balanced factors выполнить SVD
+\[
+    B_r^{(0)}
+    =
+    A\Sigma V^\top
+\]
+и положить
+\[
+\boxed{
+    X_0
+    =
+    A\Sigma^{1/2},
+    \qquad
+    Y_0
+    =
+    V\Sigma^{1/2}.
+}
+\]
+
+Это предотвращает произвольный масштаб между факторами.
+
+\subsection{Balancing после ALS}
+
+После каждого полного ALS sweep использовать compact SVD:
+\[
+    X_tY_t^\top
+    =
+    A\Sigma V^\top
+\]
+и переопределять
+\[
+\boxed{
+    X_t
+    \leftarrow
+    A\Sigma^{1/2},
+    \qquad
+    Y_t
+    \leftarrow
+    V\Sigma^{1/2}.
+}
+\]
+
+Это не меняет $B$ и значение objective.
+
+\subsection{Критерии выбора rank}
+
+Следует различать два spectral criteria.
+
+\paragraph{Energy criterion.}
+
+Для singular values isotropic target
+\[
+    M=G^{-1/2}C_B
+\]
+использовать
+\[
+\boxed{
+    \frac{
+        \sum_{k>r}s_k^2
+    }{
+        \sum_ks_k^2
+    }
+    \le
+    \varepsilon_{\mathrm{energy}}.
+}
+\]
+
+При точной изотропии это exact relative objective-gap criterion.
+
+При общей структуре $H_j$ это только surrogate.
+
+\paragraph{Next-component criterion.}
+
+Использовать
+\[
+\boxed{
+    \frac{s_{r+1}}{s_1}
+    \le
+    \varepsilon_{\mathrm{sv}}.
+}
+\]
+
+При точной изотропии
+\[
+\boxed{
+    \frac{
+        \text{best next rank-one gain}
+    }{
+        \text{best first rank-one gain}
+    }
+    =
+    \left(
+        \frac{s_{r+1}}{s_1}
+    \right)^2.
+}
+\]
+
+Однако малый $s_{r+1}$ сам по себе не контролирует сумму всего
+оставшегося spectral tail.
+
+Поэтому для выбора rank предпочтителен energy criterion,
+а $\varepsilon_{\mathrm{sv}}$ следует использовать как тест
+отсутствия одной сильной следующей компоненты.
+
+\subsection{Spectral residual stopping}
+
+Для текущего $B_t$ вычислить exact residual
+\[
+    Q_t=C_B-\mathcal L(B_t).
+\]
+
+Затем
+\[
+    W_t=G^{-1/2}Q_t.
+\]
+
+В точной изотропной модели
+\[
+\boxed{
+    \|W_t\|_2^2
+}
+\]
+равно максимально возможному улучшению одним rank-one шагом.
+
+При perturbation condition
+\[
+    \rho<\lambda
+\]
+имеем upper certificate
+\[
+\boxed{
+    \Gamma_1(Q_t)
+    \le
+    \frac{
+        \|G^{-1/2}Q_t\|_2^2
+    }{
+        1-\rho/\lambda
+    }.
+}
+\]
+
+Следовательно, можно остановиться при
+\[
+\boxed{
+    \frac{
+        \|G^{-1/2}Q_t\|_2^2
+    }{
+        1-\rho/\lambda
+    }
+    \le
+    \varepsilon_{\mathrm{gain}}.
+}
+\]
+
+Тогда никакая дополнительная rank-one component не может уменьшить
+исходный objective более чем на
+$\varepsilon_{\mathrm{gain}}$.
+
+\subsection{Предлагаемый pure truncated-SVD алгоритм}
+
+Предлагается следующий алгоритм.
+
+\paragraph{Шаг 1. Построение isotropic model.}
+
+За один проход вычислить
+\[
+    c_j=U_j^\top I_j
+\]
+и
+\[
+    \eta_j
+    =
+    \frac{\|U_j\|_F^2}{d}.
+\]
+
+Сформировать
+\[
+    C_B
+    =
+    \sum_j
+    N_jg_jc_j^\top
+    +
+    \lambda P
+\]
+и
+\[
+    G
+    =
+    \sum_j
+    N_j\eta_jg_jg_j^\top
+    +
+    \lambda I_m.
+\]
+
+\paragraph{Шаг 2. Spectral initialization.}
+
+Вычислить
+\[
+    M=G^{-1/2}C_B
+\]
+и truncated SVD
+\[
+    [M]_r.
+\]
+
+Положить
+\[
+\boxed{
+    B_0
+    =
+    G^{-1/2}[M]_r.
+}
+\]
+
+Rank $r$ можно выбрать автоматически по
+$\varepsilon_{\mathrm{energy}}$.
+
+\paragraph{Шаг 3. Exact block refinement.}
+
+Факторизовать
+\[
+    B_0=X_0Y_0^\top
+\]
+и выполнить несколько block ALS sweeps,
+оптимизируя полный исходный functional
+\[
+    F(B),
+\]
+а не isotropic surrogate.
+
+\paragraph{Шаг 4. Exact normal residual.}
+
+После refinement вычислить
+\[
+    Q_t
+    =
+    C_B-\mathcal L(B_t).
+\]
+
+\paragraph{Шаг 5. Spectral expansion.}
+
+Если residual остаётся значимым,
+вычислить
+\[
+    [G^{-1/2}Q_t]_q.
+\]
+
+Использовать соответствующий rank-$q$ block
+для расширения текущего low-rank представления.
+
+\paragraph{Шаг 6. Compression.}
+
+После расширения выполнить compact SVD и сохранить rank budget.
+
+\paragraph{Шаг 7. Exact refinement.}
+
+Снова выполнить block ALS либо conditional
+rank-one/rank-$q$ refinement по исходному functional.
+
+\paragraph{Шаг 8. Stopping.}
+
+Остановить solver по комбинации:
+
+\[
+    \text{objective gain},
+\]
+\[
+    \varepsilon_{\mathrm{sv}},
+\]
+\[
+    \varepsilon_{\mathrm{energy}},
+\]
+и, когда доступен perturbation certificate,
+\[
+    \|G^{-1/2}Q_t\|_2.
+\]
+
+\subsection{Вычислительная стоимость spectral initialization}
+
+Для каждого $j$ необходимо вычислить
+\[
+    U_j^\top I_j
+\]
+и
+\[
+    \|U_j\|_F^2.
+\]
+
+При
+\[
+    U_j\in\mathbb R^{p\times d}
+\]
+это требует
+\[
+\boxed{
+    O(Jpd)
+}
+\]
+операций.
+
+Accumulation
+\[
+    C_B
+    =
+    \sum_jN_jg_jc_j^\top+\lambda P
+\]
+требует
+\[
+    O(Jmd).
+\]
+
+Построение $G$:
+\[
+    O(Jm^2).
+\]
+
+Factorization $G$:
+\[
+    O(m^3).
+\]
+
+SVD матрицы
+\[
+    G^{-1/2}C_B\in\mathbb R^{m\times d}
+\]
+при $m\ll d$:
+\[
+    O(m^2d).
+\]
+
+Итого:
+\[
+\boxed{
+    O(
+        Jpd
+        +
+        Jmd
+        +
+        Jm^2
+        +
+        m^2d
+        +
+        m^3
+    ).
+}
+\]
+
+Дополнительная память:
+\[
+\boxed{
+    O(md+m^2).
+}
+\]
+
+\subsection{Рекомендуемая иерархия методов}
+
+Для развития существующего truncated-SVD solver рекомендуется
+сравнить следующие методы.
+
+\paragraph{Method A: current greedy SVD.}
+
+Последовательное добавление одной rank-one component с текущей
+инициализацией из residual-gradient.
+
+\paragraph{Method B: preconditioned greedy SVD.}
+
+Тот же greedy solver, но следующая component инициализируется
+из top singular pair
+\[
+    G^{-1/2}Q_t.
+\]
+
+\paragraph{Method C: isotropic truncated-SVD initialization + greedy refinement.}
+
+Начальное приближение:
+\[
+    B_0
+    =
+    G^{-1/2}
+    [G^{-1/2}C_B]_r.
+\]
+
+После этого используется существующий exact greedy refinement.
+
+\paragraph{Method D: isotropic initialization + block ALS.}
+
+Все $r$ компонент инициализируются одновременно через truncated SVD,
+после чего совместно оптимизируются block ALS.
+
+\paragraph{Method E: adaptive block spectral expansion.}
+
+Rank начинает с малого $r_0$ и увеличивается блоками размера $q$
+через
+\[
+    [G^{-1/2}Q_t]_q.
+\]
+
+После каждого expansion выполняется exact refinement.
+
+\subsection{Главная проверяемая гипотеза}
+
+Необходимо проверить, является ли preconditioned spectral matrix
+\[
+\boxed{
+    G^{-1/2}C_B
+}
+\]
+хорошей аппроксимацией структуры полного rank-constrained HPAO
+решения.
+
+Для полного unconstrained решения $B_\star$ и low-rank решения $B_r$
+измерять:
+
+\[
+    F(B_r)-F(B_\star),
+\]
+\[
+    \frac{\|B_r-B_\star\|_F}{\|B_\star\|_F},
+\]
+\[
+    \text{projector distance после canonicalization},
+\]
+\[
+    \text{число проходов через }U,
+\]
+\[
+    \text{wall time}.
+\]
+
+Отдельно измерять точность isotropic model:
+\[
+\boxed{
+    \theta
+    =
+    \frac{
+        \sum_j
+        N_j
+        \|g_j\|_2^2
+        \|H_j-\eta_jI\|_2
+    }{
+        \lambda
+    }.
+}
+\]
+
+Если
+\[
+    \theta\ll1,
+\]
+spectral initialization имеет строгую perturbation-интерпретацию.
+
+Если
+\[
+    \theta\ge1,
+\]
+она остаётся допустимой эвристической инициализацией,
+но multiplicative spectral certificate больше не применим.
+
+\subsection{Итог}
+
+Для pure truncated-SVD solver строго доказано следующее.
+
+Для общего HPAO functional:
+
+\[
+\boxed{
+    \text{лучший rank-one gain}
+    =
+    \|Q\|_{\mathrm{csp},\mathcal L}^2.
+}
+\]
+
+Conditional directions удовлетворяют
+\[
+\boxed{
+    a
+    \propto
+    G(v)^{-1}Qv,
+    \qquad
+    v
+    \propto
+    H(a)^{-1}Q^\top a.
+}
+\]
+
+При точной изотропии:
+\[
+\boxed{
+    B_r^\star
+    =
+    G^{-1/2}
+    [G^{-1/2}C_B]_r.
+}
+\]
+
+При этом
+\[
+\boxed{
+    F(B_r^\star)-F(B_\star)
+    =
+    \sum_{k>r}s_k^2,
+}
+\]
+а лучший следующий rank-one gain равен
+\[
+\boxed{
+    s_{r+1}^2.
+}
+\]
+
+Поэтому наиболее естественное развитие pure SVD solver имеет вид
+\[
+\boxed{
+\text{whitened truncated-SVD initialization}
+\rightarrow
+\text{exact low-rank refinement}
+\rightarrow
+\text{preconditioned spectral residual expansion}.
+}
+\]
+
+При этом сама оптимизируемая величина на всех этапах остаётся
+\[
+\boxed{B}
+\]
+и никакая correction-параметризация
+$B=P+\Delta$ не используется.

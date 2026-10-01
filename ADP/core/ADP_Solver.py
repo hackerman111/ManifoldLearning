@@ -67,6 +67,7 @@ class ADP_solver:
         *,
         normalized: bool,
         lambda_prox: float,
+        **metric_context: object,
     ) -> HPAOResult:
         """Вызвать HPAO solver; multi-index передаётся строками (m,d).
 
@@ -78,7 +79,9 @@ class ADP_solver:
             and self.method is not solve_lsmr
         ):
             raise NotImplementedError("GPU statistics require LSMR or transfer to CPU")
-        overlap = self.settings.keys() & {"mass", "lambda_prox"}
+        overlap = self.settings.keys() & (
+            {"mass", "lambda_prox"} | metric_context.keys()
+        )
         if overlap:
             raise ValueError(f"duplicate solver settings: {', '.join(sorted(overlap))}")
         result = self.method(
@@ -87,6 +90,7 @@ class ADP_solver:
             statistics.I,
             mass=statistics.mass if normalized else None,
             lambda_prox=lambda_prox,
+            **metric_context,
             **self.settings,
         )
         if not isinstance(result, HPAOResult):

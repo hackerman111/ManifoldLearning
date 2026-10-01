@@ -44,13 +44,14 @@
 Единое изложение: [SVD_solver.tex](../../SVD/SVD_solver.tex), разделы
 `sec:variants`, `sec:limits`, `sec:second`, `sec:gpu`, `sec:algorithm`.
 Приложение `sec:sources` учитывает все шесть файлов исходной папки, включая
-пустой `chat_2.md`. Предложенные второй решатель, совместные блоки и новые
-правила поиска не являются реализованными возможностями. Проверка формул:
+пустой `chat_2.md`. Второй решатель, совместные блоки, преобразованные и
+случайные кандидаты остаются предложениями. Отбор обычных SVD-пар Q по
+точному выигрышу реализован экспериментальной опцией ниже. Проверка формул:
 `rtk proxy python SVD/documentation/check_math.py`; запись проверки и сборки —
 `SVD/documentation/VERIFICATION.md`.
 
 `ADP/solver/SVD.py` реализует два явных `rank=r<m` варианта для фиксированных
-локальных коэффициентов `g_j`. Общий функционал ровно
+локальных коэффициентов `g_j`. Функционал по умолчанию
 `sum_j mass_j ||I_j-U_j B.T g_j||² + lambda||B-P||²`; это не текущий
 HPAO correction penalty. По умолчанию `low_rank_target="matrix"` сохраняет
 старое ограничение `rank(B)<=r` и возвращает низкоранговую `(m,d)` матрицу
@@ -81,6 +82,51 @@ ridge. Центр регуляризации и ненулевой warm start с
 Адаптивный допуск LSMR доступен через `adaptive_krylov=True`, но по умолчанию
 выключен после потери качества на одном тяжёлом seed. Глобальный
 rank-r optimum не гарантируется.
+
+Экспериментальный `rank_one_search="gradient"` (default `"alternating"`)
+берёт все ненулевые сингулярные пары непроецированной
+`Q=sum_j mass_j g_j e_j.T U_j + lambda(prior-low_rank)=-grad(F)/2`.
+Для единичных a,v считает `R=a.T Q v`,
+`D=sum_j mass_j (g_j.T a)² ||U_j v||²+lambda`, выбирает максимум
+`gamma=R²/D` и шаг `sigma=R/D` (SVD_solver.tex, eq:Q/eq:gain и раздел
+«Выбор направления по уменьшению, а не только по градиенту»).
+Попеременные a/v solves пропускаются; сжатие QR/SVD, совместный refit
+масштабов, проверка исходной цели и итоговый basis/refit общие.
+Внутренняя метрика применяется через тот же whitening. Это APPROXIMATE,
+цель не меняется. Поиск по конечному набору пар не даёт глобального
+rank-one/rank-r optimum. Полезная добавка без роста ранга отклоняется с
+`no_rank_growth`; это эвристическая остановка, не сертификат стационарности.
+У `gradient` tuples `inner_iterations`, `inner_converged`, `lsmr_*` пусты,
+число linear solves равно 0, `v_normal_residual_applicable=False`;
+нулевой `v_normal_residual_max` не является сертификатом.
+`inner_tol`, `inner_maxiter`, direct/LSMR/warm-start/preconditioning настройки
+направлений относятся только к `alternating`; `rank_tol` активен в обоих.
+Дополнительный scratch для кандидатов O(md+Jp), до m действий Uv на добавку,
+плотной Hessian/d*d нет. Reference/edge/public-fit проверки:
+`tests/test_svd_gradient.py`; метрика: `tests/test_svd_metric.py`.
+Парный фиксированный-g пилот d100/300, 3 seeds, оба rank targets:
+`experiments/svd_gradient_2026-09-30/{pilot.py,REPORT.md,runs.csv,metadata.json}`.
+
+Новая экспериментальная опция `metric_power=0/.5/1` и `metric_floor=rho`
+заменяет proximal penalty на `lambda tr((B-P) A (B-P).T)`;
+`A=rho I+(1-rho)(K/||K||op)^p`. Default p=0 сохраняет Frobenius.
+Full: `K=alpha² I+P.T Lambda P`; orthogonal:
+`K=alpha²(I-P.T P)+P.T Lambda P`. h не входит в метрику.
+Multi-index model передаёт текущие alpha, eigenvalues и effective_tensor через
+явный opt-in `solver_metric_context` fit-loop; старые двухаргументные callbacks
+сохраняют контракт. Адаптер отклоняет повторные fixed/dynamic настройки.
+В прямом `solve_fixed_coefficients` нужны `metric_alpha`, `metric_eigenvalues`,
+`metric_tensor`; incoming P ортонормирован и Lambda имеет max=1.
+Whitening допускает неортонормированный внутренний prior; выход и directions
+completion возвращаются в исходные координаты. Дополнительная постоянная
+память — один U-sized буфер, работа O(J*p*d*m); dense d*d metric нет.
+Сертификаты v-подзадач и rank_scales относятся к whitened координатам;
+correction Frobenius norm/singular values — к исходным. Orthogonal при
+нулевых eigenvalues требует положительного floor; нечисловая SPD отклоняется.
+Опция — ESTIMATOR, не гарантия восстановления или глобального rank optimum.
+Проверки: `tests/test_svd_metric.py`; парный пилот и ограничения:
+`experiments/svd_a_metric_2026-09-30/{AUDIT,REPORT}.md` (120 строк, без exceptions;
+held-out correction не подтвердил улучшение, default не меняется).
 
 Для публичного обучения используется существующий custom-solver hook:
 
@@ -123,7 +169,7 @@ differ).
 
 | ID | Фрагмент | Команда sed |
 |---|---|---|
-| SRC-MI-FIT | публичный fit и `(d,m)` publication/transform | `rtk proxy sed -n '20,104p' ADP/core/multi/ADP_multi_index.py` |
+| SRC-MI-FIT | публичный fit и `(d,m)` publication/transform | `rtk proxy sed -n '20,108p' ADP/core/multi/ADP_multi_index.py` |
 | SRC-MI-RESULT | projector distance result API | `rtk proxy sed -n '12,51p' ADP/core/multi/ADP_multi_index_result.py` |
 | SRC-MI-UTIL | orthogonality/rank/result validation | `rtk proxy sed -n '9,95p' ADP/core/multi/ADP_multi_index_utils.py` |
 | SRC-MI-CANONICAL | weighted coefficient rotation and canonical spectrum | `rtk proxy sed -n '108,185p' ADP/engine/common/index_fit.py` |
@@ -131,8 +177,8 @@ differ).
 | SRC-MI-ALPHA | alpha search and exact compact-support reduction | `rtk proxy sed -n '259,389p' ADP/engine/common/calculus.py` |
 | SRC-MI-DIRECTIONS | principal plus orthogonal random sketch | `rtk proxy sed -n '390,422p' ADP/engine/common/calculus.py` |
 | SRC-MI-INIT | local basis/spectrum initialization paths | `rtk proxy sed -n '70,184p' ADP/engine/common/initialize.py` |
-| SRC-MI-DRIVER | effective tensor, fit/trace/stop/selection | `rtk proxy sed -n '304,540p' ADP/engine/common/index_fit.py` |
+| SRC-MI-DRIVER | effective tensor, fit/trace/stop/selection | `rtk proxy sed -n '305,552p' ADP/engine/common/index_fit.py` |
 | SRC-MI-ENGINE | basis QR, orientation, subspace/projector distance | `rtk proxy sed -n '12,69p' ADP/engine/multi_index/ADP_multi_index_engine.py` |
-| SRC-SVD-SOLVER | fixed-g rank-r objectives, certified Cholesky/LSMR, optional diagonal scaling, bounded factor/energy caches, prior completion or QR | `rtk proxy sed -n '1,782p' ADP/solver/SVD.py` |
+| SRC-SVD-SOLVER | fixed-g rank-r objectives, default certified Cholesky/LSMR or experimental gradient-gain pairs, optional diagonal/metric scaling, prior completion or QR | `rtk proxy sed -n '1,1021p' ADP/solver/SVD.py` |
 
 Все коды извлекаются из `ADP/`; полный каталог файлов — [README.md](README.md#каталог-исходников). Общая статистика и mass contract — [index-pipeline.md](index-pipeline.md).

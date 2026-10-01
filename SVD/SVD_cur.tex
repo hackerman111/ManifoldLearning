@@ -1,0 +1,152 @@
+% Сборка: lualatex -halt-on-error -interaction=nonstopmode -output-directory=SVD SVD/SVD_cur.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage{fontspec}
+\setmainfont{Noto Serif}
+\usepackage[russian]{babel}
+\usepackage[margin=20mm]{geometry}
+\usepackage{amsmath,amssymb,microtype}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\setlength{\emergencystretch}{2em}
+\newcommand{\R}{\mathbb R}
+\newcommand{\Id}{\mathrm{Id}}
+\newcommand{\T}{^{\mathsf T}}
+\newcommand{\F}{_{\mathrm F}}
+\DeclareMathOperator{\rank}{rank}
+\begin{document}
+\begin{center}
+{\Large\bfseries Текущая реализация SVD-решателя}\\[4pt]
+{\small По \texttt{ADP/solver/SVD.py}; обозначения \texttt{SVD\_solver.tex}}
+\end{center}
+
+\textbf{1. Вход и локальная оценка.}
+Функция \texttt{solve} выполняет один шаг для многоиндексного базиса
+$P\in\R^{m\times d}$ и CPU-статистик $U=(U_j)\in\R^{J\times p\times d}$,
+$I=(I_j)\in\R^{J\times p}$. Проверяются входы; при отсутствии
+\texttt{mass} используются единичные массы $N_j$, иначе массы должны быть
+конечными и положительными. Базис ортонормируется. Через
+\texttt{\_local\_refit} вычисляются minimum-norm решения
+$g_j=\arg\min_g\|I_j-U_jP\T g\|_2^2$ (пакетное SVD,
+с \texttt{lstsq} для чувствительных к потере ранга центров).
+Эти $g_j$ затем фиксированы на весь внутренний шаг: полного чередования
+локальных и глобальных оценок внутри \texttt{solve} нет.
+
+\textbf{2. Два режима и начальное состояние.}
+При $\lambda=\texttt{lambda\_prox}\ge0$ минимизируется
+$F(B)=\sum_jN_j\|I_j-U_jB\T g_j\|_2^2+\lambda\|B-P\|\F^2$.
+По умолчанию \texttt{low\_rank\_target="matrix"} ограничивает
+$\rank(B)\le r$, $1\le r<m$. Режим \texttt{"correction"}
+ограничивает $\rank(B-P)\le r$, $0\le r<m$.
+Для единого описания положим
+\[
+ (X,I_j^0,P^0)=
+ \begin{cases}
+ (B,I_j,P),&\text{matrix},\\
+ (\Delta,I_j-U_jP\T g_j,0),\quad B=P+\Delta,&\text{correction}.
+ \end{cases}
+\]
+В обоих случаях начинают с $X=0$ и пустых факторов
+$X=A\operatorname{diag}(\sigma)V\T$, $A\T A=V\T V=\Id_k$.
+Кэш $W_j=U_jV$ позволяет считать предсказания без сборки $X$ на каждом шаге.
+\texttt{\_FlatU} хранит непрерывный массив $U$ и его представление
+$(Jp)\times d$ для матричных действий, при необходимости копируя вход.
+
+\textbf{3. Инициализация очередной компоненты.}
+Для $k=1,\ldots,r$ вычисляются
+\[
+ e_j=I_j^0-W_j\operatorname{diag}(\sigma)A\T g_j,\qquad
+ Q=\sum_jN_jg_j(U_j\T e_j)\T+\lambda(P^0-X).
+\]
+Код строит $Q_\perp=Q-(QV)V\T$ и находит ведущий собственный вектор $u$
+малой матрицы $Q_\perp Q_\perp\T$. При ведущем значении $\mu>0$
+начальное направление равно $v=Q_\perp\T u/\sqrt\mu$;
+при $\mu\le0$ следует остановка \texttt{zero\_gradient}.
+Так новое начало выбирается вне уже найденного правого пространства.
+Ортогональность к $V$ не навязывается последующим попеременным итерациям.
+
+\textbf{4. Попеременное уточнение и контроль линейного решения.}
+При фиксированном $Q$ повторяются нормированные решения
+\[
+ \left[\sum_jN_j\|U_jv\|_2^2g_jg_j\T+\lambda\Id_m\right]\widetilde a=Qv,
+ \quad a=\widetilde a/\|\widetilde a\|_2,
+\]
+\[
+ H_a\widetilde v=Q\T a,\qquad
+ H_a=\sum_jN_j(a\T g_j)^2U_j\T U_j+\lambda\Id_d,
+ \quad v=\widetilde v/\|\widetilde v\|_2.
+\]
+Малые системы решаются Холецким, с запасным \texttt{lstsq}.
+При $\lambda>0$ и $d\le128$ по умолчанию система для $\widetilde v$
+также решается Холецким; взвешенный дизайн собирается блоками до 16 MiB.
+Иначе используется матрично-свободный LSMR для
+$\min_x\|A_ax-t\|_2^2+\lambda\|x-z\|_2^2$, где
+$(A_ax)_j=\sqrt{N_j}(a\T g_j)U_jx$,
+$t_j=\sqrt{N_j}e_j$, $z=(P^0-X)\T a$.
+\texttt{warm\_start=True} переиспользует предыдущий $\widetilde v$
+внутри поиска пары; расширенная задача поправки сохраняет центр штрафа $z$.
+Опция \texttt{precondition\_v} масштабирует оба блока по диагонали
+$A_a\T A_a+\lambda\Id_d$; \texttt{adaptive\_krylov} меняет допуск LSMR.
+
+Поиск заканчивается при $1-|v_{t+1}\T v_t|<\texttt{inner\_tol}$
+(по умолчанию $10^{-6}$) либо после \texttt{inner\_maxiter} шагов (20).
+Последнее ненормированное решение проверяется по
+\[
+ \eta=\frac{\|A_a\T(A_a\widetilde v-t)+\lambda(\widetilde v-z)\|_2}
+ {\max(1,\|A_a\T t+\lambda z\|_2)}
+ \le\max(10^{-7},10\,\texttt{inner\_tol}).
+\]
+При неудаче ускоренных вариантов выполняется строгое LSMR-уточнение;
+оставшаяся неприемлемая невязка вызывает ошибку. Затем $a$ ещё раз точно
+переоценивается для последнего $v$, даже если достигнут лимит итераций.
+
+\textbf{5. Добавление, сжатие и принятие.}
+Вычисляются $R=a\T Qv$, $D=\sum_jN_j(a\T g_j)^2\|U_jv\|_2^2+\lambda$,
+масштаб $R/D$ и ожидаемый выигрыш $\gamma=R^2/D$.
+При неположительном $D$ следует \texttt{zero\_curvature};
+при $\gamma/\max(1,F)<\texttt{rank\_tol}$ (по умолчанию $10^{-8}$) ---
+\texttt{rank\_tolerance}. Иначе к факторам добавляется компонента,
+выполняются сокращённые QR и SVD малой матрицы произведения QR-факторов.
+Если новое сингулярное значение не превышает
+$\epsilon\max(m,d)s_{\max}$, следует \texttt{no\_rank\_growth}.
+Кэш $U_jV$ преобразуется через QR-факторы; при
+$\operatorname{cond}(R_R)>10^6$ пересчитывается непосредственно.
+
+Для новых ортонормированных $a_\ell,v_\ell$ совместно решается $M\sigma=h$:
+\begin{align*}
+ M_{\ell t}&=\sum_jN_j(a_\ell\T g_j)(a_t\T g_j)
+ (U_jv_\ell)\T(U_jv_t)+\lambda\delta_{\ell t},\\
+ h_\ell&=\sum_jN_j(a_\ell\T g_j)(I_j^0)\T U_jv_\ell
+                  +\lambda a_\ell\T P^0v_\ell.
+\end{align*}
+Кандидат принимается при конечном функционале и росте не более
+$64\epsilon\max(1,F)$, где $\epsilon$ --- машинная точность; иначе возникает ошибка.
+После принятия потеря численного ранга также завершает цикл.
+История функционала, выигрыши, ранги, остановки и невязки сохраняются.
+
+\textbf{6. Возврат базиса и коэффициентов.}
+\texttt{solve\_fixed\_coefficients} возвращает сырую $B$ и диагностику.
+\texttt{solve} в режиме matrix берёт активные правые направления по убыванию
+$|\sigma_\ell|$ и дополняет их до $m$ из SVD матрицы
+$P-(PV_{\rm act})V_{\rm act}\T$; при нулевом ранге возвращает $P$.
+В режиме correction строится QR базиса $(P+\Delta)\T$ с проверкой полного
+ранга строк; при нулевой поправке сохраняется $P$.
+На итоговом базисе заново оцениваются локальные коэффициенты.
+Возвращается \texttt{HPAOResult}: базис, коэффициенты, диагностика,
+включая взвешенную ошибку данных и число локальных потерь ранга.
+Убывание внутреннего $F$ не гарантирует его убывание после ортонормирования
+или глобальную оптимальность; дополнение из $P$ не восстанавливает новые EDR-направления.
+
+\textbf{Опциональная спектральная метрика.}
+\texttt{metric\_power=0} оставляет описанный штраф Фробениуса.
+При $\nu=\texttt{metric\_power}\in\{1/2,1\}$ код задаёт
+$K=\alpha^2\Id_d+P\T\Lambda P$ (full) либо
+$K=\alpha^2(\Id_d-P\T P)+P\T\Lambda P$ (orthogonal),
+$\mathsf A=\rho\Id_d+(1-\rho)(K/\|K\|_2)^\nu$,
+где $\rho=\texttt{metric\_floor}$. Требуются положительная определённость,
+$\alpha>0$ и нормированный спектр $\Lambda$.
+Штраф становится $\lambda\|(B-P)\mathsf A^{1/2}\|\F^2$;
+тот же цикл применяется к $B\mathsf A^{1/2}$, $P\mathsf A^{1/2}$,
+$U_j\mathsf A^{-1/2}$. Затем координаты возвращаются обратно,
+и базис формируется в исходном пространстве. Плотная $d\times d$ метрика
+не строится, но хранится дополнительный массив размера $U$.
+\end{document}

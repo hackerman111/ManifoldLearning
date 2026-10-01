@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-from typing import Any, cast
 
 import numpy as np
 from scipy.linalg import LinAlgError, cho_factor, cho_solve, solve_triangular
@@ -105,26 +104,8 @@ def solve_fixed_coefficients(
     precondition_v: bool = False,
     direct_max_dimension: int | None = _DIRECT_DIMENSION_LIMIT,
     low_rank_target: str = "matrix",
-    rank_one_search: str = "alternating",
-    metric_power: float = 0.0,
-    metric_floor: float = 0.0,
-    metric_alpha: float | None = None,
-    metric_eigenvalues: np.ndarray | None = None,
-    metric_tensor: str = "full",
 ) -> tuple[np.ndarray, dict[str, object]]:
     """Greedy fixed-g solve with rank bound on B or its correction B-P.
-
-    ``metric_power`` 0/.5/1 selects identity or a normalized learned tensor.
-    Positive powers require current alpha and op-normalized eigenvalues.
-    ``metric_floor`` mixes with identity AFTER the spectral power. ``full``
-    uses alpha^2 I + P.T Lambda P; ``orthogonal`` uses alpha^2 on the
-    orthogonal complement only. h is excluded from the proximal metric.
-
-    ``rank_one_search="gradient"`` is an experimental alternative: screen
-    all nonzero SVD pairs of Q=-grad(F)/2 by exact gain R²/D and take step
-    R/D without alternating a/v solves. Compact compression and joint scale
-    refit remain active; stopping is heuristic, not a stationarity certificate.
-    Linear-solver/warm-start options apply only to the default "alternating".
 
     Returns the raw B, not an orthonormal EDR basis. ``matrix`` preserves
     the historical rank-deficient B; ``correction`` returns P+Delta.
@@ -134,7 +115,7 @@ def solve_fixed_coefficients(
     their normal diagonal, preserving the original regularization center.
     """
     P, U, I, mass = _validate_inputs(P, U, I, mass)
-    B, diagnostics, _, _ = _solve_with_metric(
+    B, diagnostics, _, _ = _solve_fixed_coefficients_validated(
         P,
         U,
         I,
@@ -151,151 +132,8 @@ def solve_fixed_coefficients(
         precondition_v=precondition_v,
         direct_max_dimension=direct_max_dimension,
         low_rank_target=low_rank_target,
-        rank_one_search=rank_one_search,
-        metric_power=metric_power,
-        metric_floor=metric_floor,
-        metric_alpha=metric_alpha,
-        metric_eigenvalues=metric_eigenvalues,
-        metric_tensor=metric_tensor,
     )
     return B, diagnostics
-
-
-def _metric_spectrum(
-    P: np.ndarray,
-    power: float,
-    floor: float,
-    alpha: float | None,
-    eigenvalues: np.ndarray | None,
-    tensor: str,
-) -> tuple[float, np.ndarray]:
-    """Eigenvalues of rho I + (1-rho) (normalized kernel tensor)^p."""
-    if power not in (0.0, 0.5, 1.0):
-        raise ValueError("metric_power must be 0, 0.5 or 1")
-    if not np.isfinite(floor) or not 0 <= floor <= 1:
-        raise ValueError("metric_floor must be finite in [0, 1]")
-    if power == 0:
-        return 1.0, np.ones(len(P))
-    if alpha is None or not np.isfinite(alpha) or alpha <= 0:
-        raise ValueError("positive finite metric_alpha is required")
-    raw_values = np.asarray(eigenvalues)
-    if np.iscomplexobj(raw_values) or not np.issubdtype(raw_values.dtype, np.number):
-        raise TypeError("metric_eigenvalues must be real numeric values")
-    values = np.asarray(raw_values, dtype=float)
-    if (
-        values.shape != (len(P),)
-        or not np.all(np.isfinite(values))
-        or np.any(values < 0)
-        or not np.isclose(values.max(), 1.0, rtol=1e-8, atol=1e-10)
-    ):
-        raise ValueError("metric_eigenvalues must be nonnegative and op-normalized")
-    if tensor == "full":
-        scale = math.hypot(alpha, 1.0)
-        perpendicular = (alpha / scale) ** 2
-        parallel = perpendicular + values * (1.0 / scale) ** 2
-    elif tensor == "orthogonal":
-        scale = max(alpha, 1.0)
-        perpendicular = (alpha / scale) ** 2
-        parallel = values * (1.0 / scale) ** 2
-    else:
-        raise ValueError("metric_tensor must be 'full' or 'orthogonal'")
-    perpendicular = floor + (1 - floor) * perpendicular**power
-    parallel = floor + (1 - floor) * parallel**power
-    if perpendicular <= 0 or np.any(parallel <= 0):
-        raise ValueError("metric is not numerically SPD; use metric_floor > 0")
-    return perpendicular, parallel
-
-
-def _metric_action(
-    X: np.ndarray,
-    P: np.ndarray,
-    perpendicular: float,
-    parallel: np.ndarray,
-    exponent: float,
-) -> np.ndarray:
-    """Right action of A^exponent without a d*d tensor; X=(...,d)."""
-    scalar = perpendicular**exponent
-    return scalar * X + ((X @ P.T) * (parallel**exponent - scalar)) @ P
-
-
-def _solve_with_metric(
-    P: np.ndarray,
-    U: np.ndarray,
-    I: np.ndarray,
-    g: np.ndarray,
-    mass: np.ndarray,
-    *,
-    metric_power: float,
-    metric_floor: float,
-    metric_alpha: float | None,
-    metric_eigenvalues: np.ndarray | None,
-    metric_tensor: str,
-    **settings: Any,
-) -> tuple[np.ndarray, dict[str, object], np.ndarray, np.ndarray]:
-    if P.ndim != 2 or not np.allclose(P @ P.T, np.eye(len(P)), rtol=1e-8, atol=1e-10):
-        raise ValueError("P must have orthonormal rows")
-    perpendicular, parallel = _metric_spectrum(
-        P, metric_power, metric_floor, metric_alpha, metric_eigenvalues, metric_tensor
-    )
-    if metric_power == 0:
-        raw, diagnostics, V, singular = _solve_fixed_coefficients_validated(
-            P, U, I, g, mass, **settings
-        )
-    else:
-        prior = _metric_action(P, P, perpendicular, parallel, 0.5)
-        transformed_U = np.empty(U.shape, dtype=U.dtype)
-        # One U-sized output; bound temporary low-rank projections by 16 MiB.
-        chunk = max(
-            1,
-            _DIRECT_WORKSPACE_BYTES // (8 * U.shape[1] * (3 * U.shape[2] + 2 * len(P))),
-        )
-        for start in range(0, len(U), chunk):
-            transformed_U[start : start + chunk] = _metric_action(
-                U[start : start + chunk], P, perpendicular, parallel, -0.5
-            )
-            if not np.all(np.isfinite(transformed_U[start : start + chunk])):
-                raise ValueError("metric whitening produced nonfinite statistics")
-        if not np.all(np.isfinite(prior)):
-            raise ValueError("metric whitening produced nonfinite prior")
-        raw, diagnostics, _, _ = _solve_fixed_coefficients_validated(
-            prior, transformed_U, I, g, mass, orthonormal_prior=False, **settings
-        )
-        raw = _metric_action(raw, P, perpendicular, parallel, -0.5)
-        if not np.all(np.isfinite(raw)):
-            raise RuntimeError("metric unwhitening produced nonfinite B")
-        # Rank is invariant, singular values/directions are not. Completion and
-        # physical correction diagnostics must use original coordinates.
-        target = raw - P if settings["low_rank_target"] == "correction" else raw
-        _, singular, right = np.linalg.svd(target, full_matrices=False)
-        k = cast(int, diagnostics["effective_rank"])
-        V, singular = right[:k].T, singular[:k]
-        if settings["low_rank_target"] == "correction":
-            diagnostics["correction_metric_norm"] = diagnostics[
-                "correction_frobenius_norm"
-            ]
-            diagnostics["correction_singular_values"] = tuple(
-                float(x) for x in singular
-            )
-            diagnostics["correction_frobenius_norm"] = float(np.linalg.norm(target))
-            diagnostics["relative_correction_norm"] = float(
-                np.linalg.norm(target) / math.sqrt(len(P))
-            )
-    diagnostics.update(
-        metric_power=float(metric_power),
-        metric_floor=float(metric_floor),
-        metric_alpha=metric_alpha if metric_power else None,
-        metric_eigenvalues=tuple(float(x) for x in cast(np.ndarray, metric_eigenvalues))
-        if metric_power
-        else (),
-        metric_tensor=metric_tensor if metric_power else "identity",
-        metric_condition=float(
-            max(perpendicular, parallel.max()) / min(perpendicular, parallel.min())
-        ),
-        metric_transform_bytes=U.nbytes if metric_power else 0,
-        rank_scales_coordinates="whitened" if metric_power else "original",
-        metric_certificate_coordinates="whitened" if metric_power else "original",
-    )
-    return raw, diagnostics, V, singular
 
 
 def _solve_fixed_coefficients_validated(
@@ -316,14 +154,12 @@ def _solve_fixed_coefficients_validated(
     precondition_v: bool,
     direct_max_dimension: int | None,
     low_rank_target: str,
-    rank_one_search: str = "alternating",
-    orthonormal_prior: bool = True,
 ) -> tuple[np.ndarray, dict[str, object], np.ndarray, np.ndarray]:
     """Внутренний fixed-g solve для уже проверенных P/U/I/mass."""
     if P.ndim != 2:
         raise ValueError("P must have shape (m, d)")
     m, d = P.shape
-    if orthonormal_prior and not np.allclose(P @ P.T, np.eye(m), rtol=1e-8, atol=1e-10):
+    if not np.allclose(P @ P.T, np.eye(m), rtol=1e-8, atol=1e-10):
         raise ValueError("P must have orthonormal rows")
     raw_g = np.asarray(g)
     if np.iscomplexobj(raw_g) or not np.issubdtype(raw_g.dtype, np.number):
@@ -339,11 +175,6 @@ def _solve_fixed_coefficients_validated(
         "correction",
     }:
         raise ValueError("low_rank_target must be 'matrix' or 'correction'")
-    if not isinstance(rank_one_search, str) or rank_one_search not in {
-        "alternating",
-        "gradient",
-    }:
-        raise ValueError("rank_one_search must be 'alternating' or 'gradient'")
     min_rank = 0 if low_rank_target == "correction" else 1
     if not min_rank <= rank < m or inner_maxiter < 1:
         raise ValueError(f"require {min_rank} <= rank < m and inner_maxiter >= 1")
@@ -422,105 +253,55 @@ def _solve_fixed_coefficients_validated(
         pulled = flat_U.batched_rmatvec(residual)
         proximity = prior - (A * singular) @ V.T
         Q = g.T @ (mass[:, None] * pulled) + lambda_penalty * proximity
-        if rank_one_search == "gradient":
-            pair = _gradient_pair(flat_U, Q, g, mass, lambda_penalty)
-            if pair is None:
-                stop_reason = "zero_gradient"
+        initial = Q - (Q @ V) @ V.T
+        gram = initial @ initial.T
+        eigenvalues, eigenvectors = np.linalg.eigh(gram)
+        leading = float(eigenvalues[-1])
+        if leading <= 0:
+            stop_reason = "zero_gradient"
+            break
+        v = initial.T @ eigenvectors[:, -1]
+        v /= math.sqrt(leading)
+        a = np.zeros(m)
+        v_raw: np.ndarray | None = None
+        warm_v: np.ndarray | None = None
+        certificate_args: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
+        converged = False
+        iterations = 0
+        last_change = math.inf
+        for _ in range(inner_maxiter):
+            iterations += 1
+            Uv = flat_U.matvec(v).reshape(U.shape[:2])
+            weights = mass * np.einsum("jp,jp->j", Uv, Uv)
+            G = g.T @ (weights[:, None] * g) + lambda_penalty * identity_m
+            qv = Q @ v
+            candidate_a = _solve_small(G, qv, lambda_penalty)
+            norm_a = np.linalg.norm(candidate_a)
+            if norm_a == 0 or not np.isfinite(norm_a):
                 break
-            a, v, Uv = pair
-        else:
-            initial = Q - (Q @ V) @ V.T
-            gram = initial @ initial.T
-            eigenvalues, eigenvectors = np.linalg.eigh(gram)
-            leading = float(eigenvalues[-1])
-            if leading <= 0:
-                stop_reason = "zero_gradient"
-                break
-            v = initial.T @ eigenvectors[:, -1]
-            v /= math.sqrt(leading)
-            a = np.zeros(m)
-            v_raw: np.ndarray | None = None
-            warm_v: np.ndarray | None = None
-            certificate_args: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
-            converged = False
-            iterations = 0
-            last_change = math.inf
-            for _ in range(inner_maxiter):
-                iterations += 1
-                Uv = flat_U.matvec(v).reshape(U.shape[:2])
-                weights = mass * np.einsum("jp,jp->j", Uv, Uv)
-                G = g.T @ (weights[:, None] * g) + lambda_penalty * identity_m
-                qv = Q @ v
-                candidate_a = _solve_small(G, qv, lambda_penalty)
-                norm_a = np.linalg.norm(candidate_a)
-                if norm_a == 0 or not np.isfinite(norm_a):
-                    break
-                a = candidate_a / norm_a
-                previous_v = v
-                krylov_tol = (
-                    float(np.clip(0.1 * last_change, 1e-10, 1e-4))
-                    if adaptive_krylov
-                    else min(1e-10, inner_tol * 0.1)
-                )
-                if use_direct:
-                    try:
-                        v, v_raw, certificate_args = _v_step_direct(
-                            flat_U,
-                            target,
-                            proximity,
-                            g @ a,
-                            a,
-                            root_mass,
-                            lambda_penalty,
-                        )
-                        direct_solves += 1
-                    except LinAlgError:
-                        direct_fallbacks += 1
-                        use_direct = False
-                if not use_direct:
-                    v, v_raw, estimate, iterations_v, stop_v, certificate_args = (
-                        _v_step(
-                            flat_U,
-                            target,
-                            proximity,
-                            g @ a,
-                            a,
-                            root_mass,
-                            lambda_penalty,
-                            inner_tol,
-                            lsmr_maxiter,
-                            x0=warm_v if warm_start else None,
-                            krylov_tol=krylov_tol,
-                            precondition=precondition_v,
-                        )
-                    )
-                    lsmr_estimates.append(estimate)
-                    lsmr_iterations.append(iterations_v)
-                    lsmr_stops.append(stop_v)
-                    lsmr_tolerances.append(krylov_tol)
-                warm_v = v_raw
-                alignment_change = max(0.0, 1.0 - abs(float(v @ previous_v)))
-                last_change = math.sqrt(2.0 * alignment_change)
-                if alignment_change < inner_tol:
-                    converged = True
-                    break
-            if not np.any(a):
-                stop_reason = "zero_gradient"
-                break
-            if v_raw is None or certificate_args is None:
-                raise RuntimeError("truncated-SVD v solve did not produce a direction")
-            certificate = _v_certificate(
-                flat_U,
-                v_raw,
-                *certificate_args,
-                ridge=lambda_penalty,
+            a = candidate_a / norm_a
+            previous_v = v
+            krylov_tol = (
+                float(np.clip(0.1 * last_change, 1e-10, 1e-4))
+                if adaptive_krylov
+                else min(1e-10, inner_tol * 0.1)
             )
-            certificate_limit = max(1e-7, 10 * inner_tol)
-            if certificate > certificate_limit and (
-                adaptive_krylov or warm_start or use_direct or precondition_v
-            ):
-                direct_failed = use_direct
-                strict_tol = min(1e-10, inner_tol * 0.1)
+            if use_direct:
+                try:
+                    v, v_raw, certificate_args = _v_step_direct(
+                        flat_U,
+                        target,
+                        proximity,
+                        g @ a,
+                        a,
+                        root_mass,
+                        lambda_penalty,
+                    )
+                    direct_solves += 1
+                except LinAlgError:
+                    direct_fallbacks += 1
+                    use_direct = False
+            if not use_direct:
                 v, v_raw, estimate, iterations_v, stop_v, certificate_args = _v_step(
                     flat_U,
                     target,
@@ -531,40 +312,79 @@ def _solve_fixed_coefficients_validated(
                     lambda_penalty,
                     inner_tol,
                     lsmr_maxiter,
-                    x0=v_raw,
-                    krylov_tol=strict_tol,
+                    x0=warm_v if warm_start else None,
+                    krylov_tol=krylov_tol,
+                    precondition=precondition_v,
                 )
-                lsmr_refinements += 1
-                if direct_failed:
-                    direct_fallbacks += 1
-                    use_direct = False
                 lsmr_estimates.append(estimate)
                 lsmr_iterations.append(iterations_v)
                 lsmr_stops.append(stop_v)
-                lsmr_tolerances.append(strict_tol)
-                certificate = _v_certificate(
-                    flat_U,
-                    v_raw,
-                    *certificate_args,
-                    ridge=lambda_penalty,
-                )
-            certificates.append(certificate)
-            if not np.isfinite(certificate) or certificate > certificate_limit:
-                raise RuntimeError(
-                    "truncated-SVD v solve failed its normal-residual check"
-                )
-            # Finish with the exact a minimizer for the last v, even at the cap.
-            Uv = flat_U.matvec(v).reshape(U.shape[:2])
-            weights = mass * np.einsum("jp,jp->j", Uv, Uv)
-            G = g.T @ (weights[:, None] * g) + lambda_penalty * identity_m
-            candidate_a = _solve_small(G, Q @ v, lambda_penalty)
-            norm_a = np.linalg.norm(candidate_a)
-            if norm_a == 0 or not np.isfinite(norm_a):
-                stop_reason = "zero_gradient"
+                lsmr_tolerances.append(krylov_tol)
+            warm_v = v_raw
+            alignment_change = max(0.0, 1.0 - abs(float(v @ previous_v)))
+            last_change = math.sqrt(2.0 * alignment_change)
+            if alignment_change < inner_tol:
+                converged = True
                 break
-            a = candidate_a / norm_a
-            inner_iterations.append(iterations)
-            inner_converged.append(converged)
+        if not np.any(a):
+            stop_reason = "zero_gradient"
+            break
+        if v_raw is None or certificate_args is None:
+            raise RuntimeError("truncated-SVD v solve did not produce a direction")
+        certificate = _v_certificate(
+            flat_U,
+            v_raw,
+            *certificate_args,
+            ridge=lambda_penalty,
+        )
+        certificate_limit = max(1e-7, 10 * inner_tol)
+        if certificate > certificate_limit and (
+            adaptive_krylov or warm_start or use_direct or precondition_v
+        ):
+            direct_failed = use_direct
+            strict_tol = min(1e-10, inner_tol * 0.1)
+            v, v_raw, estimate, iterations_v, stop_v, certificate_args = _v_step(
+                flat_U,
+                target,
+                proximity,
+                g @ a,
+                a,
+                root_mass,
+                lambda_penalty,
+                inner_tol,
+                lsmr_maxiter,
+                x0=v_raw,
+                krylov_tol=strict_tol,
+            )
+            lsmr_refinements += 1
+            if direct_failed:
+                direct_fallbacks += 1
+                use_direct = False
+            lsmr_estimates.append(estimate)
+            lsmr_iterations.append(iterations_v)
+            lsmr_stops.append(stop_v)
+            lsmr_tolerances.append(strict_tol)
+            certificate = _v_certificate(
+                flat_U,
+                v_raw,
+                *certificate_args,
+                ridge=lambda_penalty,
+            )
+        certificates.append(certificate)
+        if not np.isfinite(certificate) or certificate > certificate_limit:
+            raise RuntimeError("truncated-SVD v solve failed its normal-residual check")
+        # Finish with the exact a minimizer for the last v, even at the cap.
+        Uv = flat_U.matvec(v).reshape(U.shape[:2])
+        weights = mass * np.einsum("jp,jp->j", Uv, Uv)
+        G = g.T @ (weights[:, None] * g) + lambda_penalty * identity_m
+        candidate_a = _solve_small(G, Q @ v, lambda_penalty)
+        norm_a = np.linalg.norm(candidate_a)
+        if norm_a == 0 or not np.isfinite(norm_a):
+            stop_reason = "zero_gradient"
+            break
+        a = candidate_a / norm_a
+        inner_iterations.append(iterations)
+        inner_converged.append(converged)
         alpha = g @ a
         denominator = float(np.sum(mass * alpha**2 * np.sum(Uv**2, axis=1)))
         denominator += lambda_penalty
@@ -642,11 +462,9 @@ def _solve_fixed_coefficients_validated(
 
     diagnostics = {
         "low_rank_target": low_rank_target,
-        "rank_one_search": rank_one_search,
         "effective_rank": _factor_rank(singular, m, d),
         "rank_stop_reason": stop_reason,
         "rank_objective_history": tuple(history),
-        "v_normal_residual_applicable": rank_one_search == "alternating",
         "v_normal_residual_max": max(certificates, default=0.0),
         "lsmr_normal_residual_estimate_max": max(lsmr_estimates, default=0.0),
         "lsmr_iterations": tuple(lsmr_iterations),
@@ -685,45 +503,6 @@ def _solve_fixed_coefficients_validated(
         )
         return P + low_rank, diagnostics, V, singular
     return low_rank, diagnostics, V, singular
-
-
-def _gradient_pair(
-    flat_U: _FlatU,
-    Q: np.ndarray,
-    g: np.ndarray,
-    mass: np.ndarray,
-    ridge: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
-    """Screen unprojected gradient SVD pairs by eq:gain of SVD_solver.tex.
-
-    Q=-grad(F)/2. This finite candidate set need not maximize rank-one gain;
-    neither a small gain nor absence of rank growth certifies optimality.
-    Only one (J,p) Uv buffer is retained per candidate; no dense Hessian.
-    """
-    if not np.all(np.isfinite(Q)):
-        raise RuntimeError("gradient candidate matrix must be finite")
-    left, values, right = np.linalg.svd(Q, full_matrices=False)
-    best = None
-    best_gain = 0.0
-    for i, value in enumerate(values):
-        if value == 0:
-            continue
-        a, v = left[:, i], right[i]
-        Uv = flat_U.matvec(v).reshape(flat_U.shape[:2])
-        denominator = float(np.sum(mass * (g @ a) ** 2 * np.sum(Uv**2, axis=1)))
-        denominator += ridge
-        numerator = float(a @ Q @ v)
-        if not np.isfinite(denominator) or not np.isfinite(numerator):
-            raise RuntimeError("gradient candidate curvature/numerator is nonfinite")
-        if denominator <= 0:
-            raise RuntimeError("nonzero gradient candidate has no positive curvature")
-        gain = numerator * numerator / denominator
-        if not np.isfinite(gain):
-            raise RuntimeError("gradient candidate gain is nonfinite")
-        if gain > best_gain:
-            best_gain = gain
-            best = a, v, Uv
-    return best
 
 
 def _v_step_direct(
@@ -949,32 +728,20 @@ def solve(
     precondition_v: bool = False,
     direct_max_dimension: int | None = _DIRECT_DIMENSION_LIMIT,
     low_rank_target: str = "matrix",
-    rank_one_search: str = "alternating",
-    metric_power: float = 0.0,
-    metric_floor: float = 0.0,
-    metric_alpha: float | None = None,
-    metric_eigenvalues: np.ndarray | None = None,
-    metric_tensor: str = "full",
 ) -> HPAOResult:
     """Opt-in ADP solver with rank bound on B or on its correction B-P.
 
     ``matrix`` retains the historical low-rank B and prior completion;
     ``correction`` orthonormalizes the full updated P+Delta.
-    ``rank_one_search="gradient"`` screens gradient SVD pairs by exact gain;
-    the default "alternating" retains certified conditional a/v solves.
     """
     if hasattr(U, "__cuda_array_interface__"):
         raise NotImplementedError("truncated-SVD solver requires CPU statistics")
     P, U, I, mass = _validate_inputs(index_init, U, I, mass)
     if P.ndim != 2:
         raise ValueError("truncated-SVD solver requires a multi-index matrix")
-    if metric_power != 0 and not np.allclose(
-        P @ P.T, np.eye(len(P)), rtol=1e-8, atol=1e-10
-    ):
-        raise ValueError("metric spectrum requires an orthonormal incoming P")
     P = _normalize_index(P)
     g, _ = _local_refit(I, U, P)
-    raw, diagnostics, V, singular = _solve_with_metric(
+    raw, diagnostics, V, singular = _solve_fixed_coefficients_validated(
         P,
         U,
         I,
@@ -991,12 +758,6 @@ def solve(
         precondition_v=precondition_v,
         direct_max_dimension=direct_max_dimension,
         low_rank_target=low_rank_target,
-        rank_one_search=rank_one_search,
-        metric_power=metric_power,
-        metric_floor=metric_floor,
-        metric_alpha=metric_alpha,
-        metric_eigenvalues=metric_eigenvalues,
-        metric_tensor=metric_tensor,
     )
     if low_rank_target == "correction":
         if diagnostics["correction_rank"] == 0:

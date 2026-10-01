@@ -1,15 +1,10 @@
-# Current agent state
-
-Completed: `svd-preconditioner-forced-lsmr-2026-09-30`; PLAN.md is done.
-
-On the saved heavy Spokoiny fit (`n=800,d=50,m=2`), forced-LSMR paired runs
-with preconditioner off/on (seeds 0-2) showed median paired runtime change
-`-5.44%` and LSMR iteration change `-12.95%`. All six runs had zero direct
-solves and positive LSMR iterations. All retained 162 outer steps and stopped
-at `h_min`, but `svd_inner_converged=false`; seed 2 projector distance shifted
-by `-0.00232`. All six exceeded the original 30 s budget. No production code
-changed and no default behavior was promoted.
-
-Report, raw rows, summary, manifest, and reproduction scripts:
-`experiments/svd_preconditioner_forced_lsmr_spokoini_2026-09-30/`.
-This is a three-seed, task-specific result; process RSS includes imports/data.
+# Current state
+Active svd-joint-rank-r-2026-09-30; bounded acceptance gates in PLAN.md.
+78 baseline SVD/gradient/metric tests pass. Existing dirty edits preserved.
+Implement experiments/svd_joint_2026_09_30/prototype.py: augmented full-core
+LS and horizontal steps on both spaces, unchanged fixed-g objective.
+Matrix and correction retain distinct rank constraints. No metric extension
+or default change. Callable through ADP_solver custom hook.
+Next: implementation and independent dense-reference checks before selection.
+Prior plan: experiments/svd_joint_2026_09_30/PREVIOUS_PLAN.md.
+Previous evidence remains under experiments/svd_*_2026-09-30/.

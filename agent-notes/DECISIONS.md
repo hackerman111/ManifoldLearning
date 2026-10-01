@@ -408,3 +408,25 @@ Status: active experiment interpretation; no algorithm decision/promoted variant
 - **Limit:** This is evidence about the option's no-op on this direct-path workload; it does not assess preconditioning for high-d iterative LSMR fits. Process RSS is not an isolated solver-memory measure.
 - **Affected:** Experiment interpretation and future workload selection only; production solver/API unchanged.
 - **Status:** done.
+
+
+## 2026-09-30 — Keep spectral SVD proximal metrics experimental
+
+- **Decision:** Keep explicit `metric_power=0/.5/1` and `metric_floor` in the opt-in truncated-SVD solver. Preserve Frobenius at p=0 and do not change defaults.
+- **Reason/evidence:** Whitening has an exact dense reference and 91 focused/regression tests pass. Selection p=1 improved the paired quality median under both rank constraints, but held-out correction failed the frozen gate: median projector-error delta +0.0000703 and worst +0.01061. Matrix mode passed this small pilot, but there are only three seeds per size and all held-out p=1 fits failed the inner convergence criterion. Details and raw runs: `experiments/svd_a_metric_2026-09-30/REPORT.md`.
+- **Limit:** This is a bounded SVD-solver pilot, not a recovery theorem or global rank-r optimization result. Whitening stores a second U-sized tensor. Pyright did not finish within 30 seconds.
+- **Affected:** SVD solver, current multi-index metric context, dense-reference tests, experiment report and routing notes.
+- **Status:** done; option remains experimental.
+
+## 2026-09-30 — SVD gradient pairs screened by exact decrease
+
+Active: explicit `rank_one_search="gradient"`, default `"alternating"`.
+Class APPROXIMATE; preserve the fixed-g matrix/correction objective and metric
+whitening. Use unprojected Q=-grad(F)/2 SVD pairs, exact R²/D ranking and R/D
+step, shared compression/scale refit; skip conditional a/v solves. This is a
+finite candidate heuristic, not joint L/R optimization or a global optimum.
+Do not interpret zero v residual as a certificate: applicability is false.
+A useful candidate without rank growth remains a heuristic stop of the
+existing greedy loop. Dense gain/derivative, anisotropic ordering, rank stops,
+metric whitening and public-fit tests verify this boundary. No default
+promotion; pilot evidence is in experiments/svd_gradient_2026-09-30/.

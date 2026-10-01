@@ -1,46 +1,45 @@
-task_id: svd-preconditioner-forced-lsmr-2026-09-30
-status: done
-change_class: NUMERICAL comparison only; no production changes
+task_id: svd-joint-rank-r-2026-09-30
+status: active
+change_class: APPROXIMATE (isolated experimental optimizer, unchanged objective)
 
-# Goal
-Measure the opt-in diagonal preconditioner on the saved heavy Spokoiny full fit
-(n=800,d=50,m=2), forcing LSMR in both paired variants. Compare runtime,
-iterations, fit quality, and memory for precondition_v=False/True on seeds 0-2.
+# Goal and scope
+Implement simultaneous X=A M V.T optimization, full r*r core, orthonormal
+A,V, spectral initialization, core least squares, horizontal descent and QR.
+Callable through ADP_solver in experiments/svd_joint_2026_09_30/prototype.py.
+No default replacement, new metric, GPU, global optimum or recovery guarantee.
 
-# Evidence and hypothesis
-The previous direct-path comparison had zero LSMR iterations because d=50 is
-below the default direct threshold 128. The current API supports forcing LSMR
-with direct_max_dimension=None. Hypothesis: diagonal right scaling lowers
-LSMR work on this task; it may add setup cost, so end-to-end time and quality
-must be measured.
+# Evidence, hypothesis, invariants
+78 baseline SVD/gradient/metric tests pass. Fixed-g objective:
+sum mass||I-U B.T g||² + lambda||B-P||². Matrix: B=X, prior=P;
+correction: B=P+X, shifted I, zero prior. Retain all Hessian cross terms.
+Core ridge center A.T prior V; omitted prior penalty is constant only for
+core solve, not line search. Hypothesis: moving both spaces improves fixed-g
+objective versus greedy, possibly at increased runtime. Float64, finite
+checks, rank<=r, monotone objectives, complete basis/refit and dirty files.
+Augmented QR/lstsq; no d*d or (md)^2 Hessian. QR chunks capped at 16 MiB
+plus O(r^4); cached U V costs O(J p r).
 
-# Invariants and scope
-Keep data/init seeds, fit settings, float64, one BLAS thread, solver tolerances,
-and stopping schedule fixed. Only vary precondition_v. Do not change production
-code or estimator. Retain errors; do not claim benefit from fewer iterations
-unless fit quality and completion also remain comparable.
+# Exact read set
+ADP/solver/SVD.py::{_FlatU,_objective,_complete_basis,solve};
+ADP/solver/LSMR.py::{_validate_inputs,_local_refit,_normalize_index};
+tests/test_svd{_solver,_gradient,_metric}.py; numerics/research contracts;
+agent-notes/{WORKFLOW,ADP/solvers,ADP/multi-index}.md.
 
-# Read set
-experiments/svd_preconditioner_spokoini_2026-09-30/{benchmark.py,REPORT.md,manifest.json};
-benchmarks/svd_vs_hybrid.py; ADP/solver/SVD.py; agent-notes/ADP/multi-index.md.
+# Bounded units and acceptance
+- [x] Baseline, derivation and active checkpoint.
+- [ ] Prototype, dense core/gradient references, invariance, ill-conditioning,
+  zero ridge/rank, failure and complete ADP fit checks.
+- [ ] Frozen paired selection: fixed-g d100/300/600 seeds 73001..73003,
+  rank2/m4, matrix/correction; full fits d10/50 seeds 73101..73103.
+  Gate: no exceptions/objective increases; joint fixed-g objective <= greedy
+  within 1e-6 relative on every pair; full-fit projector distance <= greedy
+  +0.02 on every pair. Record time/memory; no speed requirement.
+- [ ] If selection passes: untouched validation seeds 74001..74003 and
+  74101..74103, same configurations. On failure leave untouched.
+- [ ] Report actual outcomes, refresh routes/state/decision, mark done.
 
-# Work units
-- [x] R0: create a separate forced-LSMR runner and immutable manifest.
-- [x] R1: run three paired seeds in fresh subprocesses; stop on configuration
-  mismatch or repeated worker failure.
-- [x] R2: analyze results and record limitations in a new report.
-- [x] R3: checkpoint PLAN.md and agent-notes/STATE.md.
-
-# Verification and stop conditions
-Diagnostics must show direct_solves=0 and positive LSMR iteration counts in
-both arms. Check identical paired data/init and compare projector distance,
-outer steps, wall time, and process peak RSS. Three successful seed pairs are
-the bounded experiment; do not tune settings based on these seeds.
-
-# Result
-All six fits used LSMR (`direct_solves=0`, positive LSMR iteration counts).
-Median paired runtime decreased 5.44%; median paired LSMR iterations decreased
-12.95%. Every fit exceeded the original 30 s budget and
-`svd_inner_converged=false`; projector error changed by 0.00232 on seed 2.
-Full report and raw evidence:
-`experiments/svd_preconditioner_forced_lsmr_spokoini_2026-09-30/REPORT.md`.
+# Stop conditions
+Fix reference mismatch/nonfinite/descent violation before pilots. Two repeated
+conceptual failures require hypothesis revision. Selection failure closes
+promotion gate; usable prototype/tests remain the deliverable.
+Previous completed plan archived verbatim in the experiment directory.

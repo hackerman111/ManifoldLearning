@@ -191,12 +191,13 @@ def fit_index(
     config: ADP_Config,
     mode: str,
     index_dim: int,
-    solve: Callable[[np.ndarray, ADP_Statistics], HPAOResult],
+    solve: Callable[..., HPAOResult],
     profiler: IndexProfiler,
     progress: Callable[[dict], None] | None = None,
     quality: Callable[[np.ndarray], float] | None = None,
     displacement_scale: float | None = None,
     trace_indices: bool = False,
+    solver_metric_context: bool = False,
     statistics_function: Callable[..., ADP_Statistics] | None = None,
 ) -> IndexFitResult:
     """Выполнить текущий estimator; truth используется только внешней метрикой.
@@ -389,7 +390,18 @@ def fit_index(
                 )
 
         with profiler.stage("solver"):
-            result = solve(index, statistics)
+            if solver_metric_context:
+                if mode != "multi":
+                    raise ValueError("solver metric context requires multi-index")
+                result = solve(
+                    index,
+                    statistics,
+                    metric_alpha=float(factor),
+                    metric_eigenvalues=eigenvalues.copy(),
+                    metric_tensor=effective_tensor,
+                )
+            else:
+                result = solve(index, statistics)
             expected_coefficients = (
                 (n_centers,) if mode == "single" else (n_centers, index_dim)
             )

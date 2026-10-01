@@ -1,0 +1,55 @@
+{
+  "scope": "fixed-g synthetic pilot; no adaptive EDR recovery claim",
+  "dimensions": [
+    100,
+    300
+  ],
+  "seeds": [
+    11,
+    23,
+    37
+  ],
+  "J": 60,
+  "p": 8,
+  "m": 4,
+  "dtype": "float64",
+  "settings": {
+    "rank": 2,
+    "lambda_penalty": 0.7,
+    "rank_tol": 1e-08,
+    "inner_tol": 1e-06,
+    "inner_maxiter": 20
+  },
+  "threads": [
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 1,
+      "prefix": "libscipy_openblas",
+      "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+      "version": "0.3.34.0.0",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    },
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 1,
+      "prefix": "libscipy_openblas",
+      "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+      "version": "0.3.31.dev",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    }
+  ],
+  "python": "3.13.12",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "commit": "d4af5d82ca04ae05a4ca249b1a3ffdfc6bae9ff0",
+  "dirty": " M ADP/core/ADP_Solver.py\n M ADP/core/multi/ADP_multi_index.py\n M ADP/engine/common/index_fit.py\n M ADP/solver/SVD.py\n M PLAN.md\n M agent-notes/ADP/index-pipeline.md\n M agent-notes/ADP/multi-index.md\n M agent-notes/ADP/solvers.md\n M agent-notes/DECISIONS.md\n M agent-notes/STATE.md\n?? SVD/SVD.tex\n?? SVD/SVD_algorithm.pdf\n?? SVD/SVD_algorithm.tex\n?? SVD/SVD_cur.pdf\n?? SVD/SVD_cur.tex\n?? SVD/SVD_form.tex\n?? SVD/SVD_solver.tex\n?? SVD/chat_1.md\n?? SVD/chat_2.md\n?? SVD/chat_3.md\n?? SVD/problem.md\n?? experiments/svd_a_metric_2026-09-30/\n?? experiments/svd_gradient_2026-09-30/\n?? experiments/svd_improvements_2026-09-30/\n?? experiments/svd_preconditioner_forced_lsmr_spokoini_2026-09-30/\n?? experiments/svd_preconditioner_spokoini_2026-09-30/\n?? experiments/svd_recovery_2026-09-29/\n?? problem.md\n?? tests/test_svd_gradient.py\n?? tests/test_svd_metric.py\n",
+  "solver_sha256": "030d42fd6a5e7da26b586dfc15f35aceacbbb0c3aa69d4614b7b1272d183814a",
+  "data": "Gaussian U with geomspace(.2,5,d) column scales; Gaussian g; positive geomspace(.2,3,J) mass; I=U Btrue.T g + .05 Gaussian noise",
+  "memory": "separate deterministic rerun, tracemalloc peak; excludes input arrays allocated before start and may miss native BLAS allocations",
+  "warmup": "one unmeasured call for each configuration",
+  "solver_sha256_after": "030d42fd6a5e7da26b586dfc15f35aceacbbb0c3aa69d4614b7b1272d183814a"
+}

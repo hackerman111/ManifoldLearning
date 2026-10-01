@@ -1,0 +1,91 @@
+{
+  "phase": "validation",
+  "seeds": [
+    101,
+    103,
+    107
+  ],
+  "variants": {
+    "frobenius": [
+      0.0,
+      0.0
+    ],
+    "sqrt": [
+      0.5,
+      0.0
+    ],
+    "tensor": [
+      1.0,
+      0.0
+    ],
+    "floor": [
+      1.0,
+      0.1
+    ]
+  },
+  "config": {
+    "N_loc": 15,
+    "N_phi": 12,
+    "outer_steps": 12,
+    "a": 1.12,
+    "lambda_penalty": 0.05,
+    "h_min": 1e-06,
+    "select_step": "last",
+    "batch_size": 32,
+    "multi_tensor": "full"
+  },
+  "candidates": [
+    "tensor"
+  ],
+  "fixed": {
+    "d": [
+      100,
+      300
+    ],
+    "J": 32,
+    "p": 6,
+    "m": 3,
+    "alpha": 0.1,
+    "spectrum": [
+      1.0,
+      0.4,
+      0.1
+    ],
+    "ridge": 0.05
+  },
+  "fit_cases": {
+    "small": [
+      500,
+      20,
+      3,
+      40,
+      60
+    ],
+    "medium": [
+      900,
+      60,
+      3,
+      64,
+      100
+    ]
+  },
+  "seed_scheme": "synthetic data seed; fit seed+1000 split by existing engine",
+  "dtype": "float64",
+  "threads": 1,
+  "memory": "process peak RSS incl imports/data",
+  "kernel": "Epanechnikov squared distance; full tensor after first orthogonal step",
+  "selection_gate": "no failed fits; maximum quality worsening <=.02; median improvement >0",
+  "commit": "d4af5d82ca04ae05a4ca249b1a3ffdfc6bae9ff0",
+  "dirty": " M ADP/core/ADP_Solver.py\n M ADP/core/multi/ADP_multi_index.py\n M ADP/engine/common/index_fit.py\n M ADP/solver/SVD.py\n M PLAN.md\n M agent-notes/STATE.md\n?? SVD/SVD.tex\n?? SVD/SVD_form.tex\n?? SVD/SVD_solver.tex\n?? SVD/chat_1.md\n?? SVD/chat_2.md\n?? SVD/chat_3.md\n?? SVD/problem.md\n?? experiments/svd_a_metric_2026-09-30/\n?? experiments/svd_improvements_2026-09-30/\n?? experiments/svd_preconditioner_forced_lsmr_spokoini_2026-09-30/\n?? experiments/svd_preconditioner_spokoini_2026-09-30/\n?? experiments/svd_recovery_2026-09-29/\n?? problem.md\n?? tests/test_svd_metric.py\n",
+  "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "sources": {
+    "ADP/solver/SVD.py": "a67863ac2b04239dee7559a9befa6eb4a88f9f3b923ad6b527ce91edb618a9eb",
+    "ADP/core/ADP_Solver.py": "a49de2c4ab080210d88c72655b74fa77fc28d619a1179de5552a2e4951c3101c",
+    "ADP/core/multi/ADP_multi_index.py": "65a77f3ff7a620b8cf9678d7d30c4346b323711c7adb879f198a4dae847080aa",
+    "ADP/engine/common/index_fit.py": "6ddfa795ba4ac2092dbecac29159b6e91935d64b8a2805a06303d939ba8d8cb5",
+    "experiments/svd_a_metric_2026-09-30/benchmark.py": "f9490c062379d6c02de7eccfa5cc28b0a8fa19e7c5cfb7532c673f354b94c5ef"
+  }
+}

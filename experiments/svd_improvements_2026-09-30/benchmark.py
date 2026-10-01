@@ -1,0 +1,316 @@
+"""Frozen paired selection/validation; run with PYTHONPATH=. and one BLAS thread."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import platform
+import subprocess
+import threading
+import time
+import tracemalloc
+from pathlib import Path
+
+import numpy as np
+import psutil
+import scipy
+from check_reference import load_solver
+from threadpoolctl import threadpool_info
+
+from ADP import ADP_Config, ADP_multi_index, ADP_solver
+from ADP.cli.main import _synthetic_data
+from ADP.solver._multi_operator import forward
+
+ROOT = Path(__file__).parent
+METHODS = ("baseline", "fused", "jacobi")
+OPTIONS = {"rank": 2, "lambda_penalty": 0.3, "inner_tol": 1e-8, "rank_tol": 0}
+
+
+def projector(left, right):
+    return float(
+        np.sqrt(max(0.0, len(left) - np.sum((left @ right.T) ** 2)) / len(left))
+    )
+
+
+def fixed_fixture(seed, d, scaled):
+    streams = [np.random.default_rng(s) for s in np.random.SeedSequence(seed).spawn(4)]
+    U = streams[0].normal(size=(120, 8, d))
+    if scaled:
+        U *= np.geomspace(0.2, 5.0, d)
+    g = streams[1].normal(size=(120, 3))
+    P = np.linalg.qr(streams[2].normal(size=(d, 3)))[0].T
+    truth = np.linalg.qr(P.T + 0.1 * streams[2].normal(size=(d, 3)))[0].T
+    I = forward(U, truth, g) + 0.1 * streams[3].normal(size=(120, 8))
+    mass = streams[3].uniform(0.5, 1.5, 120)
+    return (P, U, I, g, mass), truth
+
+
+def measure_memory(call):
+    process = psutil.Process()
+    initial = process.memory_info().rss
+    samples = [initial]
+    stop = threading.Event()
+
+    def sample():
+        while not stop.wait(0.005):
+            samples.append(process.memory_info().rss)
+
+    thread = threading.Thread(target=sample)
+    tracemalloc.start()
+    thread.start()
+    try:
+        call()
+        samples.append(process.memory_info().rss)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        stop.set()
+        thread.join()
+        tracemalloc.stop()
+    return {
+        "traced_peak_bytes": peak,
+        "rss_start_bytes": initial,
+        "rss_peak_bytes": max(samples),
+        "rss_growth_bytes": max(samples) - initial,
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("stage", choices=("selection", "validation"))
+    parser.add_argument("--scope", choices=("all", "fixed", "fit"), default="all")
+    args = parser.parse_args()
+    seeds = (110, 111, 112) if args.stage == "selection" else (210, 211, 212)
+    if args.scope == "fit":
+        seeds = (120, 121, 122) if args.stage == "selection" else (220, 221, 222)
+    prefix = f"{args.stage}_{args.scope}"
+    baseline = load_solver("baseline_svd.py")
+    candidate = load_solver("candidate_svd.py")
+    metadata = {
+        "stage": args.stage,
+        "scope": args.scope,
+        "seeds": seeds,
+        "dimensions": [100, 300, 600],
+        "fixed_shape_J_p_m": [120, 8, 3],
+        "column_scales": [0.2, 5.0],
+        "options": OPTIONS,
+        "inner_maxiter": 20,
+        "repeats": 2,
+        "dtype": "float64",
+        "methods": METHODS,
+        "seed_scheme": "SeedSequence(seed).spawn(4)",
+        "full_fit": {
+            "n": 320,
+            "d": [50, 150],
+            "m": 3,
+            "noise": 0.05,
+            "N_J": 40,
+            "N_phi": 8,
+            "N_loc": 24,
+            "outer_steps": 3,
+            "seed": "data seed; config seed + 10000",
+            "h_min": 1e-6,
+            "kernel": "default Epanechnikov, squared-distance argument",
+            "estimator": "new",
+            "index_init": "local",
+            "multi_tensor": "orthogonal",
+            "redraw_directions": True,
+            "batch_size": 32,
+            "lambda_penalty": 0.05,
+        },
+        "python": platform.python_version(),
+        "numpy": np.__version__,
+        "scipy": scipy.__version__,
+        "threadpool": threadpool_info(),
+        "threads_env": {
+            k: os.environ.get(k)
+            for k in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
+        },
+        "git_commit": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], text=True
+        ).strip(),
+        "git_dirty": bool(
+            subprocess.check_output(["git", "status", "--porcelain"], text=True).strip()
+        ),
+        "code_sha256": {
+            name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+            for name in ("baseline_svd.py", "candidate_svd.py", "benchmark.py")
+        },
+        "memory_method": (
+            "separate run, tracemalloc peak excluding inputs; "
+            "RSS sampled every 5 ms, shared process"
+        ),
+        "gates": {
+            "relative_matrix_error": 2e-5,
+            "projector_disagreement": 2e-5,
+            "quality_change": 2e-5,
+            "scaled_time_and_pass_ratio": 0.8,
+            "default_isotropic_time_ratio": 1.1,
+            "default_memory_ratio": "1.1 + 1 MiB",
+            "new_failures": 0,
+            "outer_step_count_change": 0,
+        },
+    }
+    (ROOT / f"{prefix}_manifest.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    rows = []
+    output = ROOT / f"{prefix}_runs.jsonl"
+    with output.open("w") as handle:
+        for d in [] if args.scope == "fit" else metadata["dimensions"]:
+            for scaled in (False, True):
+                for mode in ("matrix", "correction"):
+                    for seed in seeds:
+                        data, truth = fixed_fixture(seed, d, scaled)
+                        reference_B = None
+                        reference_basis = None
+                        for method in METHODS:
+                            solver = baseline if method == "baseline" else candidate
+                            extra = (
+                                {}
+                                if method == "baseline"
+                                else {"precondition_v": method == "jacobi"}
+                            )
+
+                            def call(solver=solver, extra=extra, data=data, mode=mode):
+                                return solver.solve_fixed_coefficients(
+                                    *data, **OPTIONS, low_rank_target=mode, **extra
+                                )
+
+                            row = {
+                                "kind": "fixed",
+                                "d": d,
+                                "scaled": scaled,
+                                "mode": mode,
+                                "seed": seed,
+                                "method": method,
+                            }
+                            try:
+                                # Untimed warm-up; two timings without memory tracing.
+                                call()
+                                timings = []
+                                for _ in range(metadata["repeats"]):
+                                    started = time.perf_counter()
+                                    B, diag = call()
+                                    timings.append(time.perf_counter() - started)
+                                P, U, I, g, mass = data
+                                if mode == "matrix":
+                                    _, singular, right = np.linalg.svd(
+                                        B, full_matrices=False
+                                    )
+                                    basis = solver._complete_basis(right.T, singular, P)
+                                else:
+                                    basis = np.linalg.qr(B.T, mode="reduced")[0].T
+                                if method == "baseline":
+                                    reference_B, reference_basis = B, basis
+                                objective = float(
+                                    np.sum(mass[:, None] * (I - forward(U, B, g)) ** 2)
+                                    + OPTIONS["lambda_penalty"] * np.sum((B - P) ** 2)
+                                )
+                                row.update(
+                                    status="ok",
+                                    wall_sec=float(np.median(timings)),
+                                    timings=timings,
+                                    objective=objective,
+                                    objective_error=abs(
+                                        objective - diag["rank_objective_history"][-1]
+                                    ),
+                                    relative_matrix_error=float(
+                                        np.linalg.norm(B - reference_B)
+                                        / max(1, np.linalg.norm(reference_B))
+                                    ),
+                                    projector_disagreement=projector(
+                                        basis, reference_basis
+                                    ),
+                                    projector_error=projector(basis, truth),
+                                    diagnostics=diag,
+                                )
+                                if seed == seeds[0] and d == 600 and scaled:
+                                    row.update(measure_memory(call))
+                            except Exception as exc:
+                                row.update(
+                                    status="error", error=f"{type(exc).__name__}: {exc}"
+                                )
+                            rows.append(row)
+                            handle.write(json.dumps(row) + "\n")
+                            handle.flush()
+                    print(
+                        f"{args.stage}: fixed d={d} scaled={scaled} "
+                        f"mode={mode} complete",
+                        flush=True,
+                    )
+        for d in [] if args.scope == "fixed" else metadata["full_fit"]["d"]:
+            for mode in ("matrix", "correction"):
+                for seed in seeds:
+                    X, Y, truth = _synthetic_data(320, d, 3, 0.05, seed)
+                    reference_basis = None
+                    for method in METHODS:
+                        solver = baseline if method == "baseline" else candidate
+                        extra = (
+                            {}
+                            if method == "baseline"
+                            else {"precondition_v": method == "jacobi"}
+                        )
+
+                        def fit(
+                            solver=solver, extra=extra, seed=seed, mode=mode, X=X, Y=Y
+                        ):
+                            config = ADP_Config(
+                                seed=seed + 10000,
+                                N_J=40,
+                                N_phi=8,
+                                N_loc=24,
+                                outer_steps=3,
+                                h_min=1e-6,
+                            )
+                            return ADP_multi_index(
+                                3,
+                                config,
+                                ADP_solver(
+                                    solver.solve,
+                                    rank=2,
+                                    inner_tol=1e-8,
+                                    rank_tol=0,
+                                    low_rank_target=mode,
+                                    **extra,
+                                ),
+                            ).fit(X, Y)
+
+                        row = {
+                            "kind": "fit",
+                            "d": d,
+                            "mode": mode,
+                            "seed": seed,
+                            "method": method,
+                        }
+                        try:
+                            started = time.perf_counter()
+                            model = fit()
+                            elapsed = time.perf_counter() - started
+                            basis = model.basis_.T
+                            if method == "baseline":
+                                reference_basis = basis
+                            row.update(
+                                status="ok",
+                                wall_sec=elapsed,
+                                outer_steps=len(model.trace_),
+                                projector_disagreement=projector(
+                                    basis, reference_basis
+                                ),
+                                projector_error=projector(basis, truth.T),
+                                diagnostics=[step["solver"] for step in model.trace_],
+                            )
+                            if seed == seeds[0] and d == 150:
+                                row.update(measure_memory(fit))
+                        except Exception as exc:
+                            row.update(
+                                status="error", error=f"{type(exc).__name__}: {exc}"
+                            )
+                        rows.append(row)
+                        handle.write(json.dumps(row) + "\n")
+                        handle.flush()
+            print(f"{args.stage}: full fits d={d} complete", flush=True)
+    print(f"Saved {len(rows)} rows to {output}", flush=True)
+
+
+if __name__ == "__main__":
+    main()

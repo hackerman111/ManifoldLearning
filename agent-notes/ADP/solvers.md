@@ -2,11 +2,22 @@
 
 ## Общий контракт current index solver
 
-Модели передают solver-у `U=(J,P,d)`, `I=(J,P)` и индекс: single `(d,)`, multi row-basis `(m,d)`. При normalized statistics внешний вектор `mass=(J,)` умножает вклад каждой точки; если I/U уже не нормированы, передается `mass=None`. `ADP_solver.fit_current` проверяет тип `HPAOResult`; адаптер старого пользовательского solver с `ADP_SolverResult` — иной контракт. Источники: **SRC-SOLVER-ADAPTER**, **SRC-STAT-CPU**.
+Модели передают solver-у `U=(J,P,d)`, `I=(J,P)` и индекс: single `(d,)`, multi row-basis `(m,d)`. При normalized statistics внешний вектор `mass=(J,)` умножает вклад каждой точки; если I/U уже не нормированы, передается `mass=None`. `ADP_solver.fit_current` также принимает opt-in dynamic metric kwargs для SVD (см. multi-index.md), отклоняя дубликаты fixed settings; проверяет тип `HPAOResult`; адаптер старого пользовательского solver с `ADP_SolverResult` — иной контракт. Источники: **SRC-SOLVER-ADAPTER**, **SRC-STAT-CPU**.
 
 Актуальные single/multi wrappers по умолчанию используют `ADP.solver.LSMR.solve`. В CLI выбор CG/LSMR/HYBRID явный. `CG.solve` — самостоятельная current реализация.
 
 `LSMR.py` — current HPAO solver: принимает `index_init, U, I` и настройки текущей задачи (`mass`, `lambda_prox`, `max_steps`), возвращает `HPAOResult` с индексом, локальными коэффициентами и diagnostics. Он делает local refit и outer alternating updates, а SciPy/CuPy LSMR решает inner correction. Совместимый `LSMR.lsmr()` возвращает только индекс. `legacy_lsmr.py` — отдельная прежняя реализация: принимает `ADP_Statistics` и `beta`, использует `lambda_penalty`/`local_ridge`, возвращает `ADP_SolverResult` и реализует старые single/multi alternating steps. Это разные API, objective и backend boundaries. Внутренних вызовов `legacy_lsmr.solve` сейчас нет; сохранять его нужно только для внешних пользователей старого контракта.
+
+## Экспериментальный SVD multi-index
+
+`ADP.solver.SVD.solve` / `solve_fixed_coefficients` поддерживают
+`rank_one_search="gradient"`: отбор сингулярных пар Q=-grad(F)/2 по
+точному выигрышу R²/D, шаг R/D и общий refit масштабов.
+Default `"alternating"` сохраняет условные a/v solves и сертификаты.
+Оба rank targets и metric whitening поддержаны; остановки gradient
+эвристические. У него `v_normal_residual_applicable=False` и пустые
+inner/LSMR tuples. Контракт, ограничения и актуальный SRC-SVD-SOLVER:
+[multi-index.md](multi-index.md#явный-svd-решатель-ранг-матрицы-и-ранг-поправки).
 
 ## HPAO-LSMR: current default
 
@@ -104,7 +115,7 @@ Manifold `one_step` на каждом target строит local slopes и реш
 | SRC-HYBRID-HPAO | HPAO delegation and opt-in inner tolerance | `rtk proxy sed -n '327,338p' ADP/solver/HYBRID/HYBRID_multi.py` |
 | SRC-HYBRID-MANIFOLD | manifold PenaltyRoot, block PCG, augmented fallback | `rtk proxy sed -n '1,291p' ADP/solver/HYBRID/HYBRID_manifold.py` |
 | SRC-MULTI-OP | multi forward/adjoint algebra | `rtk proxy sed -n '1,29p' ADP/solver/_multi_operator.py` |
-| SRC-SOLVER-ADAPTER | current vs legacy adapter contracts | `rtk proxy sed -n '23,179p' ADP/core/ADP_Solver.py` |
+| SRC-SOLVER-ADAPTER | current vs legacy adapter contracts | `rtk proxy sed -n '23,186p' ADP/core/ADP_Solver.py` |
 | SRC-LEGACY-SOLVER | older LSMR implementation | `rtk proxy sed -n '1,350p' ADP/solver/legacy_lsmr.py` |
 
 Перед изменением математики прочитайте тесты конкретной задачи и запишите, сохраняется ли цель (`EXACT`/`NUMERICAL`) или меняются solver tolerance/estimator (`APPROXIMATE`/`ESTIMATOR`). Полный каталог — [README.md](README.md#каталог-исходников).

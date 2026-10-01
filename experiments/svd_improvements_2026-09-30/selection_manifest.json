@@ -1,0 +1,107 @@
+{
+  "stage": "selection",
+  "seeds": [
+    110,
+    111,
+    112
+  ],
+  "dimensions": [
+    100,
+    300,
+    600
+  ],
+  "fixed_shape_J_p_m": [
+    120,
+    8,
+    3
+  ],
+  "column_scales": [
+    0.2,
+    5.0
+  ],
+  "options": {
+    "rank": 2,
+    "lambda_penalty": 0.3,
+    "inner_tol": 1e-08,
+    "rank_tol": 0
+  },
+  "inner_maxiter": 20,
+  "repeats": 2,
+  "dtype": "float64",
+  "methods": [
+    "baseline",
+    "fused",
+    "jacobi"
+  ],
+  "seed_scheme": "SeedSequence(seed).spawn(4)",
+  "full_fit": {
+    "n": 220,
+    "d": [
+      50,
+      150
+    ],
+    "m": 3,
+    "noise": 0.05,
+    "N_J": 40,
+    "N_phi": 8,
+    "N_loc": 24,
+    "outer_steps": 3,
+    "seed": "data seed; config seed + 10000",
+    "h_min": 1e-06,
+    "kernel": "default Epanechnikov, squared-distance argument",
+    "estimator": "new",
+    "index_init": "local",
+    "multi_tensor": "orthogonal",
+    "redraw_directions": true,
+    "batch_size": 32,
+    "lambda_penalty": 0.05
+  },
+  "python": "3.13.12",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "threadpool": [
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 1,
+      "prefix": "libscipy_openblas",
+      "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+      "version": "0.3.34.0.0",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    },
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 1,
+      "prefix": "libscipy_openblas",
+      "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+      "version": "0.3.31.dev",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    }
+  ],
+  "threads_env": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "git_commit": "65b7a4327f8c908c5d9309e433e69e04c553874b",
+  "git_dirty": true,
+  "code_sha256": {
+    "baseline_svd.py": "6b40b25bfdda5cddab2038c4b919cf730bf3bed156aab14b85953d79f62bacc5",
+    "candidate_svd.py": "bfa1e33f6fb79ee8afb84e9148617e92522138945fd3badef5742cdd1ab2e38f",
+    "benchmark.py": "b919b06d37155b1040f63c46c21a6aa18d3693c3398976225f87fe6dd6d67ed1"
+  },
+  "memory_method": "separate run, tracemalloc peak excluding inputs; RSS sampled every 5 ms, shared process",
+  "gates": {
+    "relative_matrix_error": 2e-05,
+    "projector_disagreement": 2e-05,
+    "quality_change": 2e-05,
+    "scaled_time_and_pass_ratio": 0.8,
+    "default_isotropic_time_ratio": 1.1,
+    "default_memory_ratio": "1.1 + 1 MiB",
+    "new_failures": 0,
+    "outer_step_count_change": 0
+  }
+}

@@ -30,14 +30,18 @@
 
 Для плотных строк moments вычисляются матричными произведениями батча; при малом support CPU переключается на exact-neighbor loop. Это ветвление статистики не меняет estimator. Максимальный support threshold в live-коде — `4*k_max <= n` (source: **SRC-STAT-CPU**).
 
+Opt-in SVD metric variants получают текущие alpha/eigenvalues/tensor через
+`fit_index(..., solver_metric_context=True)`; старые solver callbacks
+по умолчанию остаются двухаргументными. Маршрут A-нормы: `multi-index.md`.
+
 ## Локаторы
 
 | ID | Что проверять | Команда sed |
 |---|---|---|
-| SRC-IFIT-ENTRY | валидация, seed streams, центры, train/test protocol | `rtk proxy sed -n '187,280p' ADP/engine/common/index_fit.py` |
+| SRC-IFIT-ENTRY | валидация, seed streams, центры, train/test protocol | `rtk proxy sed -n '187,281p' ADP/engine/common/index_fit.py` |
 | SRC-IFIT-INIT | ветвление режимов инициализации | `rtk proxy sed -n '45,171p' ADP/engine/common/index_fit.py` |
-| SRC-IFIT-LOOP | bandwidth, направления, веса, статистики и solver шаг | `rtk proxy sed -n '280,423p' ADP/engine/common/index_fit.py` |
-| SRC-IFIT-STOP | trace, step selection и metadata | `rtk proxy sed -n '423,540p' ADP/engine/common/index_fit.py` |
+| SRC-IFIT-LOOP | bandwidth, направления, веса, статистики и solver шаг | `rtk proxy sed -n '281,435p' ADP/engine/common/index_fit.py` |
+| SRC-IFIT-STOP | trace, step selection и metadata | `rtk proxy sed -n '435,552p' ADP/engine/common/index_fit.py` |
 | SRC-CALC-DIST-H | устойчивые расстояния и поиск bandwidth | `rtk proxy sed -n '16,109p' ADP/engine/common/calculus.py` |
 | SRC-CALC-RHO-DIR | rho и single/isotropic направления | `rtk proxy sed -n '136,258p' ADP/engine/common/calculus.py` |
 | SRC-CALC-ALPHA-DIR | multi alpha, exact support compaction и directions | `rtk proxy sed -n '259,422p' ADP/engine/common/calculus.py` |
