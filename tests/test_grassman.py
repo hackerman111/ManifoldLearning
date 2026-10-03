@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from ADP.solver import grassman as g
+from ADP.solver import grassman as g, grassman_exp as exp
 from ADP.solver.LSMR import _local_refit
 
 
@@ -103,8 +103,10 @@ def test_full_core_jacobian_finite_difference_adjoint_and_dense_ridge(tau):
 @pytest.mark.parametrize("method", ["rank_one", "spectral", "core_gn"])
 def test_solver_monotonicity_gauge_invariance_and_reference(method):
     Y, _, U, I, mass = problem()
-    result = g.solve(Y.T, U, I, mass=mass, method=method, max_steps=8)
-    rotated = g.solve(Y[:, ::-1].T, U, I, mass=mass, method=method, max_steps=8)
+    solver = g.solve if method == "core_gn" else exp.solve
+    options = {} if method == "core_gn" else {"method": method}
+    result = solver(Y.T, U, I, mass=mass, max_steps=8, **options)
+    rotated = solver(Y[:, ::-1].T, U, I, mass=mass, max_steps=8, **options)
     np.testing.assert_allclose(
         result.index.T @ result.index, rotated.index.T @ rotated.index, atol=2e-8
     )
@@ -123,8 +125,8 @@ def test_solver_monotonicity_gauge_invariance_and_reference(method):
 
 def test_schur_refit_solver_pair_and_rank_guard_workspace_fallback():
     Y, _, U, I, mass = problem()
-    fast = g.solve(Y.T, U, I, mass=mass, method="rank_one", max_steps=5)
-    slow = g.solve(
+    fast = exp.solve(Y.T, U, I, mass=mass, method="rank_one", max_steps=5)
+    slow = exp.solve(
         Y.T, U, I, mass=mass, method="rank_one", angle_backend="refit", max_steps=5
     )
     np.testing.assert_allclose(
@@ -163,8 +165,6 @@ def test_recovery_stationary_full_space_and_input_errors():
         {"local_ridge": -1},
         {"rank": 8},
         {"energy_tol": 1},
-        {"method": "bad"},
-        {"angle_backend": "bad"},
         {"max_angle": 2},
     ]:
         with pytest.raises(ValueError):

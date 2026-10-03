@@ -1,5 +1,20 @@
 # Multi-index: алгоритм и API
 
+## Cross-implementation recovery benchmark
+
+The paired ADP/MAVE comparison lives in
+[`benchmarks/adp_mave_benchmark.py`](../../benchmarks/adp_mave_benchmark.py)
+and [`benchmarks/adp_mave_methods.R`](../../benchmarks/adp_mave_methods.R).
+Its current final evidence is
+[`REPORT.md`](../../experiments/adp_mave_comparison_2026-10-02_anchors_final/REPORT.md);
+`protocol.json` and `runs.jsonl` beside it preserve settings and per-fit rows.
+It compares subspaces through projectors/principal angles, not basis entries.
+
+The installed MAVE package has no selectors named dMAVE/rMAVE. The benchmark
+therefore labels dMAVE as a five-response-anchor CSMAVE discretization and
+rMAVE as an isolated projected-kernel refinement initialized by CSOPG. These
+are benchmark variants, not production ADP behavior or package aliases.
+
 ## Представление индекса
 
 Публичный estimator принимает `index_dim=m`. В shared fit-loop basis хранится строками `(m,d)` для solver HPAO; публичный `basis_`/`beta_` и result хранят столбцы `(d,m)`. При возврате из solver индекс приводится к ортонормированному basis, строки канонизируются знаками, а спектр локальных коэффициентов масштабируется относительно старшего eigenvalue. Сравнивать нужно подпространства (projectors/principal angles), а не поэлементно basis. Источники: **SRC-MI-FIT**, **SRC-MI-CANONICAL**, **SRC-MI-ENGINE**, **SRC-MI-RESULT**.
@@ -45,10 +60,8 @@
 ESTIMATOR вариант. `lambda_prox` здесь только damping малого GN solve,
 не постоянный statistical/chordal penalty. Production default не изменён.
 
-`method="rank_one"` использует rank-one геодезику и scalar Schur curve
-(улучшение I; `angle_backend="refit"` — независимая абляция стоимости).
-`method="spectral"` выбирает q по энергии горизонтального градиента и
-проверяет cached geodesic через Armijo. Default `"core_gn"` (улучшение II)
+Основной `grassman.solve` предоставляет только проверенный core_gn
+(улучшение II); параметров `method` и `angle_backend` нет. Он
 решает augmented least squares во всех q*m координатах Z=V K, сохраняя
 полный `T.T*r` член и связи коэффициентов; polar retraction/Armijo.
 Операторные действия U[Y,V] кэшируются только внутри текущего шага.
@@ -69,15 +82,42 @@ local rank loss, orthogonality, stationarity_applicable.
 from functools import partial
 from ADP import ADP_solver
 from ADP.solver.grassman import solve
-solver = ADP_solver(partial(solve, method="core_gn", max_steps=5))
+solver = ADP_solver(partial(solve, max_steps=5))
 ```
 
-Для CPU-оптимизации того же optimizer можно импортировать `solve` из
-`ADP.solver.grassman_optim`: public signature/defaults сохранены. Safe малые
-local QR, bounded reassociated gradient, transpose GEMM и frozen-step caches
-описаны в [solvers.md](solvers.md#профильный-grassmann-opt-in).
-Это EXACT/NUMERICAL относительно исходного grassman, без изменения цели,
-допусков или iteration budget. Исходный модуль остаётся проверяемым эталоном.
+Проверенные CPU-оптимизации QR/SVD, bounded gradient, transpose GEMM
+и батчевого core Jacobian уже находятся в `grassman.py` (default core_gn).
+Цель, допуски и iteration budget сохранены. Paired fullfit median time ratio
+0.942; frozen speedup2.52x. Старый эталон перенесён в
+`experiments/grassman_optim_2026_10_01/reference.py`; подробности в
+[solvers.md](solvers.md#профильный-grassmann-opt-in).
+
+Альтернативные `rank_one`, `spectral` и Schur/refit абляции доступны только
+через `grassman_exp.solve(method=..., angle_backend=...)`. Внутренние
+rank-one/spectral fallback-шаги основного core_gn сохранены как guards.
+
+Совместный q-angle flat из `SVD/glm.tex` доступен отдельным APPROXIMATE
+методом только в `grassman_exp.solve(method="flat_gn", flat_max_steps=8)`.
+Один flat выбирается тонким SVD градиента (rank/energy_tol как прежде),
+после кэширования U[Y,V] все q углов уточняются одновременно с full dg,
+точной геодезической сборкой и true-profile Armijo. Inner стоимость
+не зависит от d, Jacobian имеет q unknowns, не q*m. Сохраняются mass,
+tau=local_ridge, guards и live финальный stationarity check. Локальный box
+[-max_angle,max_angle]^q ограничивает шаг, не гарантирует global torus optimum.
+`flat_angles`, `flat_inner_iterations`, `flat_fallbacks` отделяют работу flat
+от rank_one/spectral fallbacks. Результаты Luna:
+`experiments/grassman_flat_2026_10_02/{PROOF,REPORT}.md`.
+Luna:45 focused tests,120 hash-paired rows. Frozen median objective/gradient
+ratios0.586/0.606 at time2.557; fullfit time1.8555 and projector regressions
+in4/6 pairs fail selection. Heldout skipped; remains experimental option.
+Fullfit final orthogonality absent from raw rows, separately checked in tests.
+
+```python
+from functools import partial
+from ADP import ADP_solver
+from ADP.solver.grassman_exp import solve
+solver = ADP_solver(partial(solve, method="flat_gn", max_steps=5, flat_max_steps=8))
+```
 
 Проверки: `tests/test_grassman.py` (independent lstsq, Schur, FD full Jacobian,
 dense ridge, gauge/rank/stress/noiseless recovery). Paired heavy Spokoiny
@@ -88,6 +128,21 @@ RSS; core20 ratio1.260. Все inner calls capped/unconverged. Schur/refit
 rank-one frozen paired gain5.72x; GN .0949s vsspectral .2157s при близком loss.
 Adaptive-rank advantage не наблюдалось; QR compression при p10<d+1 бесполезен.
 Это bounded outer-budget evidence, не heldout/global/convergence guarantee.
+
+### Исследование интеграции `SVD/glm.tex` (2026-10-02)
+
+Аудит: `experiments/glm_grassmann_2026_10_02/{REPORT,PROOF}.md`.
+Основные profile/Schur/spectral/core/polar идеи уже реализованы; full q*m
+core не является полным tangent (размерность m*(d-m)). `grassman_exp.solve_full_gn` даёт matrix-free полный profiled J/J* и LSMR/polar/Armijo,
+но bounded cap-30 вариант не прошёл R3: frozen d20/100/300 — 45 rejected
+certificates и 11–20x time overhead; adaptive fits — все 27 inner calls
+rank-guarded, 135 fallbacks, paired time ratio1.2143 без meaningful recovery
+gain. 30 уникальных hash-paired rows, 40 focused tests. Production solvers
+не изменены, held-out seeds не использованы. Raw protocol/runs/pairs/gates
+сохранены рядом. Следующие гипотезы: active-center rank audit,
+preconditioned core planes; kappa/GLS требует upstream covariance и является
+ESTIMATOR. TeX содержит уточняемые утверждения о rank/inverse, Ky Fan,
+scalar retraction paths, rational derivative и convergence; см. PROOF.md.
 
 ## Явный SVD-решатель: ранг матрицы и ранг поправки
 
@@ -100,7 +155,7 @@ Grassmann-повороты и tangent Tucker как разные частные 
 [REPORT.md](../../SVD/theory_2026_10_01/REPORT.md) (203 формульных проверки,
 3 frozen-curve seeds, total time ratio .160–.167; не full-fit recovery).
 Теоретическая работа не меняла production solver. Профильный angle-search
-и полный малый GN core теперь реализованы opt-in в `grassman.py` ниже;
+и полный малый GN core реализованы opt-in в `grassman.py`;
 пространственный tangent Tucker остаётся предложением.
 Отдельно различаются localization/residual/penalty/search metrics;
 GLS covariance требует squared kernel weights, не только Sigma/N.
@@ -247,8 +302,8 @@ differ).
 | SRC-MI-INIT | local basis/spectrum initialization paths | `rtk proxy sed -n '70,184p' ADP/engine/common/initialize.py` |
 | SRC-MI-DRIVER | effective tensor, fit/trace/stop/selection | `rtk proxy sed -n '305,552p' ADP/engine/common/index_fit.py` |
 | SRC-MI-ENGINE | basis QR, orientation, subspace/projector distance | `rtk proxy sed -n '12,69p' ADP/engine/multi_index/ADP_multi_index_engine.py` |
-| SRC-GRASSMAN | profile/Schur/Jacobian/polar/solve | `rtk proxy sed -n '1,460p' ADP/solver/grassman.py` |
-| SRC-GRASSMAN-OPTIM | safe local QR/bounded gradient/transpose GEMM/batched full GN; same optimizer | `rtk proxy sed -n '1,574p' ADP/solver/grassman_optim.py` |
+| SRC-GRASSMAN | profile/Schur/Jacobian/polar/solve | `rtk proxy sed -n '1,565p' ADP/solver/grassman.py` |
+| SRC-GRASSMAN-EXP | failed-selection flat GN (30-458), full tangent GN (459-704) | `rtk proxy sed -n '1,704p' ADP/solver/grassman_exp.py` |
 | SRC-SVD-SOLVER | fixed-g rank-r objectives, default certified Cholesky/LSMR or experimental gradient-gain pairs, optional diagonal/metric scaling, prior completion or QR | `rtk proxy sed -n '1,1021p' ADP/solver/SVD.py` |
 
 Все коды извлекаются из `ADP/`; полный каталог файлов — [README.md](README.md#каталог-исходников). Общая статистика и mass contract — [index-pipeline.md](index-pipeline.md).

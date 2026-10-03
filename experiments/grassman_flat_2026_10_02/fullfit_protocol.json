@@ -1,0 +1,243 @@
+{
+  "stage": "fullfit",
+  "seeds": [
+    74100,
+    74101,
+    74102
+  ],
+  "cases": [
+    {
+      "m": 2,
+      "d": 8
+    },
+    {
+      "m": 2,
+      "d": 30
+    }
+  ],
+  "methods": [
+    "core_gn",
+    "spectral",
+    "rank_one",
+    "flat_gn"
+  ],
+  "method_order": "alternating by case and seed",
+  "solver_settings": {
+    "max_steps": 5,
+    "tol": 1e-06,
+    "energy_tol": 0.05,
+    "local_ridge": 0.0,
+    "max_angle": 0.5,
+    "workspace_bytes": 16777216,
+    "flat_max_steps": 8
+  },
+  "frozen_repeats": null,
+  "timeout_sec_per_worker": 120,
+  "thread_env": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "python": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "blas_configuration": "Build Dependencies:\n  blas:\n    detection method: pkgconfig\n    found: true\n    include directory: /usr/include\n    lib directory: /usr/lib\n    name: cblas\n    openblas configuration: unknown\n    pc file directory: /usr/lib/pkgconfig\n    version: 3.12.0\n  lapack:\n    detection method: pkgconfig\n    found: true\n    include directory: /usr/include\n    lib directory: /usr/lib\n    name: lapack\n    openblas configuration: unknown\n    pc file directory: /usr/lib/pkgconfig\n    version: 3.12.0\nCompilers:\n  c:\n    args: -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3,\n      -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection,\n      -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy,\n      -flto=auto, -ffat-lto-objects\n    commands: cc\n    linker: ld.bfd\n    linker args: -Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now,\n      -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2,\n      -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security,\n      -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer,\n      -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto,\n      -ffat-lto-objects\n    name: gcc\n    version: 16.1.1\n  c++:\n    args: -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3,\n      -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection,\n      -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -Wp,-D_GLIBCXX_ASSERTIONS,\n      -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto,\n      -ffat-lto-objects\n    commands: c++\n    linker: ld.bfd\n    linker args: -Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now,\n      -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2,\n      -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security,\n      -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer,\n      -Wp,-D_GLIBCXX_ASSERTIONS, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy,\n      -flto=auto, -ffat-lto-objects\n    name: gcc\n    version: 16.1.1\n  cython:\n    commands: cython\n    linker: cython\n    name: cython\n    version: 3.2.9\nMachine Information:\n  build:\n    cpu: x86_64\n    endian: little\n    family: x86_64\n    system: linux\n  host:\n    cpu: x86_64\n    endian: little\n    family: x86_64\n    system: linux\nPython Information:\n  path: /usr/bin/python\n  version: '3.14'\nSIMD Extensions:\n  found:\n  - X86_V2\n  - X86_V3\n  not found:\n  - X86_V4\n  - AVX512_ICL\n  - AVX512_SPR\n\n",
+  "git_commit": "1b3d1c6e300c39546d530fcdffd9c364143c2d03",
+  "git_dirty": true,
+  "benchmark_sha256": "54f9aaae316ed78c45f680e3f4fe64c63716c07068f38a378b64731adbed1aae",
+  "solver_sha256": "7c48ca081a0023dd6cff36defdaec5b45137bb112ce7a6cb727b8d15467893e3",
+  "freeze_sha256": "8bac03a0ffcb16a18914681fe5ff465f3b1c35b30cc61c2503f93dea42e64a39",
+  "baseline_profile_sha256": "5137034e369bc7c7733a0c7cf28fc9e527c04ff2cd775eccd7046f6a523ccaef",
+  "generator_sha256": "77e1beec7e94496c0690df4737b4ea387423695cf79dcb87db55e284bf583647",
+  "protocol": "Each method/case/seed runs in a fresh process with one BLAS thread. Frozen workers perform one untimed warm-up and three timed repeats; the initial profile/gradient is measured before timing. Full fits use n=400, m=2, d=8/30 and one uninstrumented fit. Every worker has a 120-second timeout; failures remain in JSONL. Peak RSS is ru_maxrss.",
+  "input_hash_pair_check": {
+    "all_successful_method_inputs_match": true,
+    "mismatches": [],
+    "incomplete": []
+  },
+  "rows_file": "experiments/grassman_flat_2026_10_02/fullfit_runs.jsonl",
+  "paired": [
+    {
+      "case": "n400_m2_d30",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 1.2711682069089294,
+      "rss_delta_kib": 8,
+      "projector_error_difference": -0.017570813795931395
+    },
+    {
+      "case": "n400_m2_d30",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.2255415857090315,
+      "rss_delta_kib": 352,
+      "projector_error_difference": 0.0003555690026581515
+    },
+    {
+      "case": "n400_m2_d30",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 1.8724468839813988,
+      "rss_delta_kib": 672,
+      "projector_error_difference": 0.0023023427480152736
+    },
+    {
+      "case": "n400_m2_d30",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 1.290189159340775,
+      "rss_delta_kib": 328,
+      "projector_error_difference": -0.006623937686340425
+    },
+    {
+      "case": "n400_m2_d30",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.2584255477455757,
+      "rss_delta_kib": 432,
+      "projector_error_difference": -0.006212749531424214
+    },
+    {
+      "case": "n400_m2_d30",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 1.8575422276035887,
+      "rss_delta_kib": 100,
+      "projector_error_difference": 0.002074597600231931
+    },
+    {
+      "case": "n400_m2_d30",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 1.2552290666007344,
+      "rss_delta_kib": 144,
+      "projector_error_difference": 0.10432493704451562
+    },
+    {
+      "case": "n400_m2_d30",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.2534833158493766,
+      "rss_delta_kib": 256,
+      "projector_error_difference": 0.1414981129548119
+    },
+    {
+      "case": "n400_m2_d30",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 1.9224886409972652,
+      "rss_delta_kib": -228,
+      "projector_error_difference": -0.02884818081822299
+    },
+    {
+      "case": "n400_m2_d8",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 1.4017998798041162,
+      "rss_delta_kib": -8,
+      "projector_error_difference": -0.002592000592176902
+    },
+    {
+      "case": "n400_m2_d8",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.2927290916340437,
+      "rss_delta_kib": -132,
+      "projector_error_difference": 0.00463078389866306
+    },
+    {
+      "case": "n400_m2_d8",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 1.8534459738011695,
+      "rss_delta_kib": -104,
+      "projector_error_difference": 0.003108981894596574
+    },
+    {
+      "case": "n400_m2_d8",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 1.4503531783978005,
+      "rss_delta_kib": -12,
+      "projector_error_difference": -0.00011901383050082898
+    },
+    {
+      "case": "n400_m2_d8",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.087371415975353,
+      "rss_delta_kib": 168,
+      "projector_error_difference": 0.00021547485558476992
+    },
+    {
+      "case": "n400_m2_d8",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 1.2188082436958005,
+      "rss_delta_kib": 112,
+      "projector_error_difference": -0.0001283695389957193
+    },
+    {
+      "case": "n400_m2_d8",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 1.3895300242893758,
+      "rss_delta_kib": -280,
+      "projector_error_difference": 0.08180421144382913
+    },
+    {
+      "case": "n400_m2_d8",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.2083643824861487,
+      "rss_delta_kib": 68,
+      "projector_error_difference": 0.07278222325968323
+    },
+    {
+      "case": "n400_m2_d8",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 1.4876417379858364,
+      "rss_delta_kib": 0,
+      "projector_error_difference": 0.07115472554132868
+    }
+  ],
+  "failed_runs": []
+}

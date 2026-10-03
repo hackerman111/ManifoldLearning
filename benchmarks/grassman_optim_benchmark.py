@@ -33,10 +33,16 @@ ROOT = Path(__file__).resolve().parents[1]
 FROZEN_ROOT = ROOT / "experiments/grassman_2026_10_01/benchmark/frozen_ablation/frozen"
 THREAD_ENV = ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
 SOLVERS = ("grassman", "grassman_optim")
+SOLVER_MODULES = {
+    "grassman": "experiments.grassman_optim_2026_10_01.reference",
+    "grassman_optim": "ADP.solver.grassman",
+}
+SOLVER_PATHS = {
+    "grassman": ROOT / "experiments/grassman_optim_2026_10_01/reference.py",
+    "grassman_optim": ROOT / "ADP/solver/grassman.py",
+}
 DEFAULT_SEEDS = (0, 1, 2)
 SOLVER_OPTIONS: dict[str, object] = {
-    "method": "core_gn",
-    "angle_backend": "schur",
     "max_steps": 5,
     "tol": 1e-6,
     "energy_tol": 0.05,
@@ -105,7 +111,7 @@ def _config_values(config: Any) -> dict[str, object]:
 
 
 def _solve(module_name: str):
-    module = importlib.import_module(f"ADP.solver.{module_name}")
+    module = importlib.import_module(SOLVER_MODULES[module_name])
     return module.solve
 
 
@@ -271,7 +277,7 @@ def _child(args: argparse.Namespace) -> int:
 
 
 def _run_one(args: argparse.Namespace, solver: str, seed: int) -> dict[str, object]:
-    solver_path = ROOT / f"ADP/solver/{solver}.py"
+    solver_path = SOLVER_PATHS[solver]
     hash_before = _sha256(solver_path)
     command = [
         sys.executable,
@@ -444,9 +450,7 @@ def _driver(args: argparse.Namespace) -> None:
         "git_commit": _git("rev-parse", "HEAD"),
         "git_dirty": bool(_git("status", "--porcelain")),
         "benchmark_sha256": _sha256(Path(__file__)),
-        "solver_sha256": {
-            name: _sha256(ROOT / f"ADP/solver/{name}.py") for name in SOLVERS
-        },
+        "solver_sha256": {name: _sha256(SOLVER_PATHS[name]) for name in SOLVERS},
         "input_source_sha256": {
             path: _sha256(ROOT / path)
             for path in (

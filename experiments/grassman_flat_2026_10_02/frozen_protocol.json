@@ -1,0 +1,879 @@
+{
+  "stage": "frozen",
+  "seeds": [
+    74100,
+    74101,
+    74102
+  ],
+  "cases": [
+    {
+      "m": 2,
+      "d": 20
+    },
+    {
+      "m": 2,
+      "d": 100
+    },
+    {
+      "m": 2,
+      "d": 300
+    },
+    {
+      "m": 2,
+      "d": 600
+    },
+    {
+      "m": 3,
+      "d": 20
+    },
+    {
+      "m": 3,
+      "d": 100
+    },
+    {
+      "m": 3,
+      "d": 300
+    },
+    {
+      "m": 3,
+      "d": 600
+    }
+  ],
+  "methods": [
+    "core_gn",
+    "spectral",
+    "rank_one",
+    "flat_gn"
+  ],
+  "method_order": "alternating by case and seed",
+  "solver_settings": {
+    "max_steps": 5,
+    "tol": 1e-06,
+    "energy_tol": 0.05,
+    "local_ridge": 0.0,
+    "max_angle": 0.5,
+    "workspace_bytes": 16777216,
+    "flat_max_steps": 8
+  },
+  "frozen_repeats": 3,
+  "timeout_sec_per_worker": 120,
+  "thread_env": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "python": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "blas_configuration": "Build Dependencies:\n  blas:\n    detection method: pkgconfig\n    found: true\n    include directory: /usr/include\n    lib directory: /usr/lib\n    name: cblas\n    openblas configuration: unknown\n    pc file directory: /usr/lib/pkgconfig\n    version: 3.12.0\n  lapack:\n    detection method: pkgconfig\n    found: true\n    include directory: /usr/include\n    lib directory: /usr/lib\n    name: lapack\n    openblas configuration: unknown\n    pc file directory: /usr/lib/pkgconfig\n    version: 3.12.0\nCompilers:\n  c:\n    args: -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3,\n      -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection,\n      -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy,\n      -flto=auto, -ffat-lto-objects\n    commands: cc\n    linker: ld.bfd\n    linker args: -Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now,\n      -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2,\n      -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security,\n      -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer,\n      -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto,\n      -ffat-lto-objects\n    name: gcc\n    version: 16.1.1\n  c++:\n    args: -march=x86-64, -mtune=generic, -O2, -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3,\n      -Wformat, -Werror=format-security, -fstack-clash-protection, -fcf-protection,\n      -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer, -Wp,-D_GLIBCXX_ASSERTIONS,\n      -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy, -flto=auto,\n      -ffat-lto-objects\n    commands: c++\n    linker: ld.bfd\n    linker args: -Wl,-O1, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now,\n      -Wl,-z,pack-relative-relocs, -flto=auto, -march=x86-64, -mtune=generic, -O2,\n      -pipe, -fno-plt, -fexceptions, -Wp,-D_FORTIFY_SOURCE=3, -Wformat, -Werror=format-security,\n      -fstack-clash-protection, -fcf-protection, -fno-omit-frame-pointer, -mno-omit-leaf-frame-pointer,\n      -Wp,-D_GLIBCXX_ASSERTIONS, -g, -ffile-prefix-map=/build/python-numpy/src=/usr/src/debug/python-numpy,\n      -flto=auto, -ffat-lto-objects\n    name: gcc\n    version: 16.1.1\n  cython:\n    commands: cython\n    linker: cython\n    name: cython\n    version: 3.2.9\nMachine Information:\n  build:\n    cpu: x86_64\n    endian: little\n    family: x86_64\n    system: linux\n  host:\n    cpu: x86_64\n    endian: little\n    family: x86_64\n    system: linux\nPython Information:\n  path: /usr/bin/python\n  version: '3.14'\nSIMD Extensions:\n  found:\n  - X86_V2\n  - X86_V3\n  not found:\n  - X86_V4\n  - AVX512_ICL\n  - AVX512_SPR\n\n",
+  "git_commit": "1b3d1c6e300c39546d530fcdffd9c364143c2d03",
+  "git_dirty": true,
+  "benchmark_sha256": "54f9aaae316ed78c45f680e3f4fe64c63716c07068f38a378b64731adbed1aae",
+  "solver_sha256": "7c48ca081a0023dd6cff36defdaec5b45137bb112ce7a6cb727b8d15467893e3",
+  "freeze_sha256": "8bac03a0ffcb16a18914681fe5ff465f3b1c35b30cc61c2503f93dea42e64a39",
+  "baseline_profile_sha256": "5137034e369bc7c7733a0c7cf28fc9e527c04ff2cd775eccd7046f6a523ccaef",
+  "generator_sha256": null,
+  "protocol": "Each method/case/seed runs in a fresh process with one BLAS thread. Frozen workers perform one untimed warm-up and three timed repeats; the initial profile/gradient is measured before timing. Full fits use n=400, m=2, d=8/30 and one uninstrumented fit. Every worker has a 120-second timeout; failures remain in JSONL. Peak RSS is ru_maxrss.",
+  "input_hash_pair_check": {
+    "all_successful_method_inputs_match": true,
+    "mismatches": [],
+    "incomplete": []
+  },
+  "rows_file": "experiments/grassman_flat_2026_10_02/frozen_runs.jsonl",
+  "paired": [
+    {
+      "case": "m2_d100",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.7860274263419247,
+      "objective_ratio": 1.0723128154671444,
+      "gradient_ratio": 2.287251604014281,
+      "projector_error_difference": -0.12543815513430795
+    },
+    {
+      "case": "m2_d100",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.420421538593208,
+      "objective_ratio": 1.9395693870590187,
+      "gradient_ratio": 1.5979711547178816,
+      "projector_error_difference": 0.1507822963660297
+    },
+    {
+      "case": "m2_d100",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 3.230148729419471,
+      "objective_ratio": 0.6628343502577444,
+      "gradient_ratio": 1.1751773608615208,
+      "projector_error_difference": -0.11501462073080976
+    },
+    {
+      "case": "m2_d100",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.7841314164167292,
+      "objective_ratio": 0.9251685269408406,
+      "gradient_ratio": 1.2003512927763174,
+      "projector_error_difference": -0.04828423998683695
+    },
+    {
+      "case": "m2_d100",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.3272542856693104,
+      "objective_ratio": 1.242401770316794,
+      "gradient_ratio": 1.1508813836511294,
+      "projector_error_difference": -0.006239036689655086
+    },
+    {
+      "case": "m2_d100",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.9890456321937218,
+      "objective_ratio": 0.6642505552872738,
+      "gradient_ratio": 0.8868964048340164,
+      "projector_error_difference": -0.08875271949807617
+    },
+    {
+      "case": "m2_d100",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.847323400296501,
+      "objective_ratio": 0.7902718257702058,
+      "gradient_ratio": 0.9680668780906654,
+      "projector_error_difference": -0.07358586032636194
+    },
+    {
+      "case": "m2_d100",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.321010625478538,
+      "objective_ratio": 1.2983084964193012,
+      "gradient_ratio": 1.197864343369154,
+      "projector_error_difference": 0.02012078420307517
+    },
+    {
+      "case": "m2_d100",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 3.615818361112012,
+      "objective_ratio": 0.8110203393458776,
+      "gradient_ratio": 0.8150679357689059,
+      "projector_error_difference": -0.06432621047624743
+    },
+    {
+      "case": "m2_d20",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.9521687338446242,
+      "objective_ratio": 1.1191153491982775,
+      "gradient_ratio": 3.8212791747607526,
+      "projector_error_difference": 0.006265719967865475
+    },
+    {
+      "case": "m2_d20",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.5599263366005667,
+      "objective_ratio": 1.773880789103432,
+      "gradient_ratio": 6.615746972501194,
+      "projector_error_difference": 0.06237210257689553
+    },
+    {
+      "case": "m2_d20",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.1097952610657402,
+      "objective_ratio": 0.9973036472059567,
+      "gradient_ratio": 0.9779740564558513,
+      "projector_error_difference": -0.001201043513306306
+    },
+    {
+      "case": "m2_d20",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 1.050574139000056,
+      "objective_ratio": 1.026620984955956,
+      "gradient_ratio": 1.834610745832702,
+      "projector_error_difference": 0.0031938212635238966
+    },
+    {
+      "case": "m2_d20",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.525331719836665,
+      "objective_ratio": 1.286707896516332,
+      "gradient_ratio": 4.020519290656238,
+      "projector_error_difference": 0.03306446111817472
+    },
+    {
+      "case": "m2_d20",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.4978591712813545,
+      "objective_ratio": 0.9938900881494652,
+      "gradient_ratio": 0.7526279329076425,
+      "projector_error_difference": 2.3417268158850563e-05
+    },
+    {
+      "case": "m2_d20",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.8653360866904043,
+      "objective_ratio": 1.0069747501093422,
+      "gradient_ratio": 1.2462933227155488,
+      "projector_error_difference": -0.00682384560639256
+    },
+    {
+      "case": "m2_d20",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.7376949946443412,
+      "objective_ratio": 3.0091227509714003,
+      "gradient_ratio": 3.963455996879205,
+      "projector_error_difference": 0.1126481428749553
+    },
+    {
+      "case": "m2_d20",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.282466154172707,
+      "objective_ratio": 0.9097785668157525,
+      "gradient_ratio": 0.28524027576261757,
+      "projector_error_difference": -0.016403971650294384
+    },
+    {
+      "case": "m2_d300",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.9010488769185967,
+      "objective_ratio": 0.6063574522406528,
+      "gradient_ratio": 0.6698604421082389,
+      "projector_error_difference": -0.030013071988091666
+    },
+    {
+      "case": "m2_d300",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.0491907066336696,
+      "objective_ratio": 1.2152417934334572,
+      "gradient_ratio": 0.984666725675325,
+      "projector_error_difference": -0.0043502753110146175
+    },
+    {
+      "case": "m2_d300",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.2228346982827123,
+      "objective_ratio": 0.6266569177226665,
+      "gradient_ratio": 0.6306171334125891,
+      "projector_error_difference": -0.020709241400728162
+    },
+    {
+      "case": "m2_d300",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.878784849561735,
+      "objective_ratio": 0.8623887869056107,
+      "gradient_ratio": 1.2749355178138921,
+      "projector_error_difference": -0.036008399847793915
+    },
+    {
+      "case": "m2_d300",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.0453556197710738,
+      "objective_ratio": 1.0381008259538496,
+      "gradient_ratio": 0.6898171521141054,
+      "projector_error_difference": -0.005485431866939616
+    },
+    {
+      "case": "m2_d300",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.236758760843446,
+      "objective_ratio": 0.5895497330019911,
+      "gradient_ratio": 0.5142690398823939,
+      "projector_error_difference": -0.024581888385632467
+    },
+    {
+      "case": "m2_d300",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.8942726167935396,
+      "objective_ratio": 0.787414368804771,
+      "gradient_ratio": 1.2171569696784101,
+      "projector_error_difference": -0.06976931637779937
+    },
+    {
+      "case": "m2_d300",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.096856264058826,
+      "objective_ratio": 0.8775207794998526,
+      "gradient_ratio": 0.7930541117656746,
+      "projector_error_difference": -0.02270862878065738
+    },
+    {
+      "case": "m2_d300",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.3808909731948074,
+      "objective_ratio": 0.5823540616042456,
+      "gradient_ratio": 0.6150443601281143,
+      "projector_error_difference": -0.05286819810846166
+    },
+    {
+      "case": "m2_d600",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.8929267429525849,
+      "objective_ratio": 0.8403055793123761,
+      "gradient_ratio": 1.2859218562733512,
+      "projector_error_difference": -0.012331654288143423
+    },
+    {
+      "case": "m2_d600",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 0.9519452615564673,
+      "objective_ratio": 0.9351978902619084,
+      "gradient_ratio": 0.8636162259726156,
+      "projector_error_difference": 0.004143660515087411
+    },
+    {
+      "case": "m2_d600",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 1.816420524254637,
+      "objective_ratio": 0.41654476876506574,
+      "gradient_ratio": 0.4778527132547905,
+      "projector_error_difference": -0.008757129752150816
+    },
+    {
+      "case": "m2_d600",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.995228782290208,
+      "objective_ratio": 0.5862979540587242,
+      "gradient_ratio": 1.0869878506764588,
+      "projector_error_difference": -0.015446845134190035
+    },
+    {
+      "case": "m2_d600",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 0.9557109882002841,
+      "objective_ratio": 0.7953466867519193,
+      "gradient_ratio": 0.8756820572524948,
+      "projector_error_difference": 0.0068897601575470535
+    },
+    {
+      "case": "m2_d600",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 1.8298032728513784,
+      "objective_ratio": 0.4542143383036207,
+      "gradient_ratio": 0.5745987912506827,
+      "projector_error_difference": -0.014015036942980452
+    },
+    {
+      "case": "m2_d600",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.9352479843091118,
+      "objective_ratio": 0.4020693131615829,
+      "gradient_ratio": 0.573963565085159,
+      "projector_error_difference": -0.01912201550050674
+    },
+    {
+      "case": "m2_d600",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 0.9022911324663656,
+      "objective_ratio": 0.9062102695993897,
+      "gradient_ratio": 0.7531224113380908,
+      "projector_error_difference": -0.0212320001244779
+    },
+    {
+      "case": "m2_d600",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 1.8013442431531164,
+      "objective_ratio": 0.39066185878606563,
+      "gradient_ratio": 0.5322103744021484,
+      "projector_error_difference": -0.009822095394878438
+    },
+    {
+      "case": "m3_d100",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.8054588720315693,
+      "objective_ratio": 1.078024276919427,
+      "gradient_ratio": 2.070199254055948,
+      "projector_error_difference": -0.09636155522443735
+    },
+    {
+      "case": "m3_d100",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.0710860267604663,
+      "objective_ratio": 1.440061603113439,
+      "gradient_ratio": 1.3092615798496563,
+      "projector_error_difference": 0.028374367951638058
+    },
+    {
+      "case": "m3_d100",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 3.589894049601117,
+      "objective_ratio": 0.7070451742789803,
+      "gradient_ratio": 0.8853346395857069,
+      "projector_error_difference": -0.09741933753915466
+    },
+    {
+      "case": "m3_d100",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.8249930354213044,
+      "objective_ratio": 0.9037222325895254,
+      "gradient_ratio": 1.986886973519963,
+      "projector_error_difference": -0.15070606529991426
+    },
+    {
+      "case": "m3_d100",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.1386193215486418,
+      "objective_ratio": 1.8613727831180074,
+      "gradient_ratio": 1.4137609257405301,
+      "projector_error_difference": 0.10340906740306799
+    },
+    {
+      "case": "m3_d100",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 3.7475517024220872,
+      "objective_ratio": 0.6456014241469284,
+      "gradient_ratio": 1.037964129025328,
+      "projector_error_difference": -0.13430689396820716
+    },
+    {
+      "case": "m3_d100",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.7407884079206388,
+      "objective_ratio": 0.7745208116909976,
+      "gradient_ratio": 1.2551751213157958,
+      "projector_error_difference": -0.16492229306701134
+    },
+    {
+      "case": "m3_d100",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.1552265820279983,
+      "objective_ratio": 1.8971236513488217,
+      "gradient_ratio": 1.3897737552834262,
+      "projector_error_difference": 0.08131350700033102
+    },
+    {
+      "case": "m3_d100",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 3.5910489092733346,
+      "objective_ratio": 0.5187988358992969,
+      "gradient_ratio": 0.8427266872379578,
+      "projector_error_difference": -0.16631640751983146
+    },
+    {
+      "case": "m3_d20",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 1.0670126852847632,
+      "objective_ratio": 1.0791220818224172,
+      "gradient_ratio": 1.1652343652797323,
+      "projector_error_difference": 0.010409700098338366
+    },
+    {
+      "case": "m3_d20",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.263105654795367,
+      "objective_ratio": 5.481128065435314,
+      "gradient_ratio": 6.305284938594265,
+      "projector_error_difference": 0.13172191931261287
+    },
+    {
+      "case": "m3_d20",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 3.5100337858803097,
+      "objective_ratio": 0.9134191793106147,
+      "gradient_ratio": 0.5308395556557023,
+      "projector_error_difference": -0.008108683280333193
+    },
+    {
+      "case": "m3_d20",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.8936147805025125,
+      "objective_ratio": 0.9157368604699924,
+      "gradient_ratio": 1.5974905125347538,
+      "projector_error_difference": -0.057932274048385524
+    },
+    {
+      "case": "m3_d20",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.5322887118173651,
+      "objective_ratio": 3.6926091882300205,
+      "gradient_ratio": 2.5633079447664353,
+      "projector_error_difference": 0.13440860103532104
+    },
+    {
+      "case": "m3_d20",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 3.1246509270938034,
+      "objective_ratio": 0.2921012743872328,
+      "gradient_ratio": 0.1829586673899602,
+      "projector_error_difference": -0.11145113061835263
+    },
+    {
+      "case": "m3_d20",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 1.0127300454140533,
+      "objective_ratio": 1.1762622626872223,
+      "gradient_ratio": 1.8751814176860384,
+      "projector_error_difference": 0.001847922831861179
+    },
+    {
+      "case": "m3_d20",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 1.4085296860541354,
+      "objective_ratio": 12.195408401939867,
+      "gradient_ratio": 6.709985338289701,
+      "projector_error_difference": 0.2550319772517766
+    },
+    {
+      "case": "m3_d20",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.874296121394799,
+      "objective_ratio": 0.8499616021952628,
+      "gradient_ratio": 0.5174168508241789,
+      "projector_error_difference": -0.019860682486205275
+    },
+    {
+      "case": "m3_d300",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.8980668809686195,
+      "objective_ratio": 0.5339671884093752,
+      "gradient_ratio": 0.6308617550090545,
+      "projector_error_difference": -0.015165412322926453
+    },
+    {
+      "case": "m3_d300",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 0.8405958553280588,
+      "objective_ratio": 1.3440502154190865,
+      "gradient_ratio": 1.3552779034325664,
+      "projector_error_difference": -0.008569372186464363
+    },
+    {
+      "case": "m3_d300",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.6158649439933845,
+      "objective_ratio": 0.5560991661028419,
+      "gradient_ratio": 0.6544062495166177,
+      "projector_error_difference": -0.008462818679394801
+    },
+    {
+      "case": "m3_d300",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.889668279012777,
+      "objective_ratio": 0.5218585017820209,
+      "gradient_ratio": 0.6578731400324318,
+      "projector_error_difference": -0.012496165684114158
+    },
+    {
+      "case": "m3_d300",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 0.9474795931419591,
+      "objective_ratio": 1.6911159354116476,
+      "gradient_ratio": 1.315995768992586,
+      "projector_error_difference": 0.019784763974549535
+    },
+    {
+      "case": "m3_d300",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.8225535638529125,
+      "objective_ratio": 0.5500479840226874,
+      "gradient_ratio": 0.6936834949154881,
+      "projector_error_difference": -0.005367252997555583
+    },
+    {
+      "case": "m3_d300",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.8446939270487114,
+      "objective_ratio": 1.069976011999035,
+      "gradient_ratio": 1.2885586011971855,
+      "projector_error_difference": -0.02882143874618759
+    },
+    {
+      "case": "m3_d300",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 0.9186412147077286,
+      "objective_ratio": 1.262939149579015,
+      "gradient_ratio": 0.8831833455891416,
+      "projector_error_difference": -0.02900617795152982
+    },
+    {
+      "case": "m3_d300",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.7963253038996623,
+      "objective_ratio": 0.5440676202024295,
+      "gradient_ratio": 0.5805973459848078,
+      "projector_error_difference": -0.015356599101075119
+    },
+    {
+      "case": "m3_d600",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.9664587236908568,
+      "objective_ratio": 0.37605325825623076,
+      "gradient_ratio": 0.4872816123096816,
+      "projector_error_difference": -0.01589000744946656
+    },
+    {
+      "case": "m3_d600",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 0.847861251776695,
+      "objective_ratio": 1.480159539342089,
+      "gradient_ratio": 1.0882566548049415,
+      "projector_error_difference": -0.004072487960640747
+    },
+    {
+      "case": "m3_d600",
+      "seed": 74100,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.119512178335738,
+      "objective_ratio": 0.38685539515823736,
+      "gradient_ratio": 0.47444626212587315,
+      "projector_error_difference": -0.009246531117260925
+    },
+    {
+      "case": "m3_d600",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.9153487871770285,
+      "objective_ratio": 1.1492898460271352,
+      "gradient_ratio": 1.297620373700067,
+      "projector_error_difference": -0.016938828636324343
+    },
+    {
+      "case": "m3_d600",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 0.8495375847287377,
+      "objective_ratio": 1.5003378456510454,
+      "gradient_ratio": 1.1761169268721456,
+      "projector_error_difference": 0.005990157941807683
+    },
+    {
+      "case": "m3_d600",
+      "seed": 74101,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.0856078747427285,
+      "objective_ratio": 0.4647255859181632,
+      "gradient_ratio": 0.5967792407097199,
+      "projector_error_difference": -0.010614252829848736
+    },
+    {
+      "case": "m3_d600",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "spectral",
+      "status": "ok",
+      "runtime_ratio": 0.8504677936655495,
+      "objective_ratio": 1.076289560388818,
+      "gradient_ratio": 1.2241258459930953,
+      "projector_error_difference": -0.009515060409132747
+    },
+    {
+      "case": "m3_d600",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "rank_one",
+      "status": "ok",
+      "runtime_ratio": 0.8220535211165215,
+      "objective_ratio": 1.4850342001295709,
+      "gradient_ratio": 1.2766157937579328,
+      "projector_error_difference": 0.0008036444315184799
+    },
+    {
+      "case": "m3_d600",
+      "seed": 74102,
+      "baseline": "core_gn",
+      "method": "flat_gn",
+      "status": "ok",
+      "runtime_ratio": 2.0725238544862443,
+      "objective_ratio": 0.4110881184207631,
+      "gradient_ratio": 0.48822373365874044,
+      "projector_error_difference": -0.005289145615897106
+    }
+  ],
+  "failed_runs": []
+}

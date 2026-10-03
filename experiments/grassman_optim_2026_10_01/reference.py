@@ -1,8 +1,8 @@
-"""CPU-оптимизация профильного Grassmann; эталон — grassman.py.
+"""Профильный Grassmann multi-index: улучшения I/II EDR_unified_theory.tex.
 
-EXACT/NUMERICAL относительно grassman: те же цель, шаги, cutoff и guards.
-Сборка полного GN якобиана батчевая; кэши живут только внутри frozen шага.
-local_ridge>0 — прежний явный ESTIMATOR вариант. CPU, row-basis (m,d).
+APPROXIMATE: ограниченный optimizer прежней finite-sketch цели при tau=0.
+local_ridge>0 — явный ESTIMATOR вариант. CPU, row-basis (m,d), HPAOResult.
+Ни permanent chordal penalty, ни изменение статистик здесь не вводятся.
 """
 
 from __future__ import annotations
@@ -13,49 +13,31 @@ from typing import cast
 import numpy as np
 from scipy.optimize import OptimizeResult, minimize_scalar
 
-from .LSMR import HPAOResult, _normalize_index, _validate_inputs
-
-_GRADIENT_WORKSPACE_BYTES = 4 * 1024**2
+from ADP.solver.LSMR import HPAOResult, _normalize_index, _validate_inputs
 
 
 @dataclass(slots=True)
 class _Profile:
-    """Малые SVD/QR-факторы; local cutoff соответствует lstsq(rcond=None)."""
+    """Малые SVD-факторы; local cutoff соответствует lstsq(rcond=None)."""
 
     M: np.ndarray  # (J,p,m)
     coefficients: np.ndarray  # (J,m)
     residual: np.ndarray  # (J,p)
-    right: np.ndarray | None
-    inverse_squared: np.ndarray | None
+    right: np.ndarray
+    inverse_squared: np.ndarray
     ranks: np.ndarray
     smooth: bool
     value: float  # sum mass * (residual**2 + tau*coefficients**2)
-    triangular: np.ndarray | None = None  # (J,m,m), только safe m<=2
 
     def normal_solve(self, rhs: np.ndarray) -> np.ndarray:
-        """Применить (M.T M + tau I)^-1 через локальные SVD/QR-факторы."""
-        if self.triangular is not None:
-            R = self.triangular
-            if R.shape[1] == 1:
-                return rhs / R[:, :1, :1] / R[:, :1, :1]
-            # Два треугольных solve, без формирования normal matrix/inverse.
-            a, b, c = R[:, 0, 0, None], R[:, 0, 1, None], R[:, 1, 1, None]
-            z0 = rhs[:, 0] / a
-            z1 = (rhs[:, 1] - b * z0) / c
-            result = np.empty_like(rhs)
-            result[:, 1] = z1 / c
-            result[:, 0] = (z0 - b * result[:, 1]) / a
-            return result
-        assert self.right is not None and self.inverse_squared is not None
+        """Применить (M.T M + tau I)^-1 через локальные SVD-факторы."""
         coordinates = self.right @ rhs
         return self.right.swapaxes(1, 2) @ (
             self.inverse_squared[:, :, None] * coordinates
         )
 
 
-def _profile_svd(
-    M: np.ndarray, I: np.ndarray, mass: np.ndarray, tau: float
-) -> _Profile:
+def _profile(M: np.ndarray, I: np.ndarray, mass: np.ndarray, tau: float) -> _Profile:
     J, p, m = M.shape
     if tau:
         design = np.concatenate(
@@ -107,95 +89,16 @@ def _profile_svd(
     )
 
 
-def _profile(M: np.ndarray, I: np.ndarray, mass: np.ndarray, tau: float) -> _Profile:
-    """NUMERICAL: reorthogonalized QR для m<=2; иначе исходный SVD.
-
-    Быстрый путь требует cond(R)^2*eps < sqrt(eps). Более чувствительные
-    задачи целиком идут в эталон, включая minimum-norm и rank/smooth guards.
-    Два столбца ортогонализуются повторно; normal equations не строятся.
-    """
-    J, p, m = M.shape
-    if m > 2 or p < m:
-        return _profile_svd(M, I, mass, tau)
-    if tau:
-        design = np.concatenate(
-            (M, np.broadcast_to(np.sqrt(tau) * np.eye(m), (J, m, m))), axis=1
-        )
-        target = np.concatenate((I, np.zeros((J, m))), axis=1)
-    else:
-        design, target = M, I
-    norms = np.linalg.norm(design, axis=1)  # (J,m)
-    a = norms[:, 0]
-    guard = 64 * np.finfo(float).eps * np.maximum(1.0, np.linalg.norm(norms, axis=1))
-    if np.any(a <= guard) or not np.all(np.isfinite(norms)):
-        return _profile_svd(M, I, mass, tau)
-    Q = np.empty_like(design)
-    Q[:, :, 0] = design[:, :, 0] / a[:, None]
-    R = np.zeros((J, m, m))
-    R[:, 0, 0] = a
-    if m == 2:
-        b = np.einsum("jp,jp->j", Q[:, :, 0], design[:, :, 1])
-        Q[:, :, 1] = design[:, :, 1] - Q[:, :, 0] * b[:, None]
-        correction = np.einsum("jp,jp->j", Q[:, :, 0], Q[:, :, 1])
-        Q[:, :, 1] -= Q[:, :, 0] * correction[:, None]
-        b += correction
-        c = np.linalg.norm(Q[:, :, 1], axis=1)
-        # Сингулярные числа 2x2 upper-triangular: hypot без вычитания корней.
-        largest = (np.hypot(a + c, b) + np.hypot(a - c, b)) * 0.5
-        smallest = a * (c / largest)
-        if np.any(smallest <= np.maximum(guard, np.finfo(float).eps ** 0.25 * largest)):
-            return _profile_svd(M, I, mass, tau)
-        Q[:, :, 1] /= c[:, None]
-        R[:, 0, 1], R[:, 1, 1] = b, c
-    coordinates = (Q.swapaxes(1, 2) @ target[..., None]).squeeze(-1)
-    coefficients = np.empty((J, m))
-    if m == 2:
-        coefficients[:, 1] = coordinates[:, 1] / R[:, 1, 1]
-        coefficients[:, 0] = (coordinates[:, 0] - R[:, 0, 1] * coefficients[:, 1]) / a
-    else:
-        coefficients[:, 0] = coordinates[:, 0] / a
-    residual = I - (M @ coefficients[..., None]).squeeze(-1)
-    value = float(
-        np.sum(
-            mass * (np.sum(residual**2, axis=1) + tau * np.sum(coefficients**2, axis=1))
-        )
-    )
-    if not np.isfinite(value) or not np.all(np.isfinite(coefficients)):
-        raise RuntimeError("non-finite local profile")
-    return _Profile(
-        M, coefficients, residual, None, None, np.full(J, m), True, value, R
-    )
-
-
 def _gradient(
     Y: np.ndarray, U: np.ndarray, state: _Profile, mass: np.ndarray
 ) -> np.ndarray:
-    # sum_j (U_j.T r_j) (mass_j g_j).T: один проход по U вместо m.
-    # Adjoint и weighted coefficients ограничены 4 MiB; cache не сохраняется.
-    J, _, d = U.shape
-    m = Y.shape[1]
-    chunk = max(1, _GRADIENT_WORKSPACE_BYTES // (8 * (d + m)))
-    G = np.zeros((d, m))
-    for start in range(0, J, chunk):
-        stop = min(start + chunk, J)
-        adjoint = (
-            U[start:stop].swapaxes(1, 2) @ state.residual[start:stop, :, None]
-        ).squeeze(-1)  # (chunk,d)
-        weighted = mass[start:stop, None] * state.coefficients[start:stop]
-        G -= 2 * (adjoint.T @ weighted)
+    weighted = (
+        mass[:, None, None]
+        * state.residual[:, :, None]
+        * state.coefficients[:, None, :]
+    ).reshape(-1, Y.shape[1])
+    G = -2 * (U.reshape(-1, Y.shape[0]).T @ weighted)
     return G - Y @ (Y.T @ G)
-
-
-def _project(U: np.ndarray, basis: np.ndarray) -> np.ndarray:
-    """U@basis через wide GEMM; U contiguous, flatten является view.
-
-    Замер frozen J800/p10/d50/k2: transpose GEMM ~3x быстрее tall GEMM.
-    Копируется только малый результат (J,p,k), чтобы local kernels получали
-    contiguous последние оси; дополнительный temporary того же размера.
-    """
-    J, p, d = U.shape
-    projected = (basis.T @ U.reshape(-1, d).T).T
-    return np.ascontiguousarray(projected).reshape(J, p, basis.shape[1])
 
 
 class _AngleProfile:
@@ -215,7 +118,6 @@ class _AngleProfile:
         complement = np.linalg.svd(a[None, :], full_matrices=True)[2][1:].T
         C = M @ complement
         u = (M @ a).reshape(J, p)
-        self.u = u
         data = np.stack((I, u, w), axis=-1)  # (J,p,3)
         self.safe = True
         if m > 1:
@@ -247,30 +149,25 @@ class _AngleProfile:
         gram = data.swapaxes(1, 2) @ data  # PSD bilinear forms, no cancellation
         self.k, self.b, self.c = gram[:, 0, 0], gram[:, 0, 1], gram[:, 0, 2]
         self.a2, self.d, self.e = gram[:, 1, 1], gram[:, 1, 2], gram[:, 2, 2]
-        self.guard = 64 * np.finfo(float).eps * (self.a2 + self.e + tau)
         self.evaluations = 0
 
     def design(self, t: float) -> np.ndarray:
-        delta = self.u * (np.cos(t) - 1) + self.w * np.sin(t)
+        delta = (self.M @ self.a) * (np.cos(t) - 1) + self.w * np.sin(t)
         return self.M + delta[:, :, None] * self.a
 
     def value(self, t: float) -> float:
         self.evaluations += 1
         ct, st = np.cos(t), np.sin(t)
         denominator = self.a2 * ct**2 + 2 * self.d * ct * st + self.e * st**2 + self.tau
-        if not self.safe or np.any(denominator <= self.guard):
+        guard = 64 * np.finfo(float).eps * (self.a2 + self.e + self.tau)
+        if not self.safe or np.any(denominator <= guard):
             return _profile(self.design(t), self.I, self.mass, self.tau).value
         numerator = self.b * ct + self.c * st
         return float(self.mass @ (self.k - numerator**2 / denominator))
 
 
 def _core_jacobian(
-    state: _Profile,
-    W: np.ndarray,
-    mass: np.ndarray,
-    tau: float,
-    *,
-    root_mass: np.ndarray | None = None,
+    state: _Profile, W: np.ndarray, mass: np.ndarray, tau: float
 ) -> tuple[np.ndarray, np.ndarray]:
     """Полный eq:dg Jacobian для Z=V K, K=(q,m); все cross terms сохранены."""
     if not state.smooth:
@@ -280,22 +177,20 @@ def _core_jacobian(
     J, p, m = state.M.shape
     q = W.shape[2]
     rows = p + (m if tau else 0)
-    # eq:dg сразу для всех (k,l); порядок столбцов тот же, что K.ravel().
-    mtw = state.M.swapaxes(1, 2) @ W  # (J,m,q)
-    wr = (state.residual[:, None, :] @ W).squeeze(1)  # (J,q)
-    rhs = -mtw[:, :, :, None] * state.coefficients[:, None, None, :]
-    for l in range(m):
-        rhs[:, l, :, l] += wr
-    del mtw, wr  # Освобождаем scratch до normal solve / сборки jac.
-    dg = state.normal_solve(rhs.reshape(J, m, q * m))  # (J,m,q*m)
-    del rhs
     jac = np.empty((J, rows, q * m))
-    jac[:, :p] = (-W[:, :, :, None] * state.coefficients[:, None, None, :]).reshape(
-        J, p, q * m
-    )
-    jac[:, :p] -= state.M @ dg
-    if tau:
-        jac[:, p:] = -np.sqrt(tau) * dg
+    for k in range(q):
+        w = W[:, :, k]
+        mtw = (state.M.swapaxes(1, 2) @ w[..., None]).squeeze(-1)
+        wr = np.einsum("jp,jp->j", w, state.residual)
+        for l in range(m):
+            rhs = -mtw * state.coefficients[:, l, None]
+            rhs[:, l] += wr
+            dg = state.normal_solve(rhs[..., None]).squeeze(-1)
+            jac[:, :p, k * m + l] = -w * state.coefficients[:, l, None] - (
+                state.M @ dg[..., None]
+            ).squeeze(-1)
+            if tau:
+                jac[:, p:, k * m + l] = -np.sqrt(tau) * dg
     residual = (
         state.residual
         if not tau
@@ -303,9 +198,8 @@ def _core_jacobian(
             (state.residual, -np.sqrt(tau) * state.coefficients), axis=1
         )
     )
-    root = np.sqrt(mass)[:, None] if root_mass is None else root_mass
-    jac *= root[:, :, None]
-    return jac.reshape(J * rows, q * m), (root * residual).ravel()
+    root = np.sqrt(mass)[:, None]
+    return (jac * root[:, :, None]).reshape(J * rows, q * m), (root * residual).ravel()
 
 
 def _polar(
@@ -382,11 +276,9 @@ def solve(
     if angle_backend not in {"schur", "refit"}:
         raise ValueError("angle_backend must be schur or refit")
     U = np.ascontiguousarray(U)
-    root_mass = np.sqrt(mass)[:, None]
-    tangent_limit = np.tan(max_angle)
     Y = _normalize_index(B).T
     m, d = B.shape
-    state = _profile(_project(U, Y), I, mass, local_ridge)
+    state = _profile(U @ Y, I, mass, local_ridge)
     history = [state.value]
     q_history: list[int] = []
     evaluations = gn_solves = fallback_rank = fallback_memory = 0
@@ -437,7 +329,7 @@ def solve(
         V, _ = np.linalg.qr(V, mode="reduced")
         # QR can change signs/gauge; recover the actual gradient coordinates.
         reduced_gradient = V.T @ G
-        W = _project(U, V)
+        W = U @ V
         candidate = None
         if current == "core_gn":
             rows = len(I) * (I.shape[1] + (m if local_ridge else 0))
@@ -447,23 +339,16 @@ def solve(
                 current = "spectral"
                 fallback_memory += 1
             else:
-                jac, residual = _core_jacobian(
-                    state, W, mass, local_ridge, root_mass=root_mass
-                )
+                jac, residual = _core_jacobian(state, W, mass, local_ridge)
                 damping = lambda_prox
-                # Меняется только малый ridge-блок, не копируем Jacobian на trial.
-                coordinates = q * m
-                design = np.empty((rows + coordinates, coordinates))
-                design[:rows] = jac
-                identity = np.eye(coordinates)
-                rhs = np.concatenate((-residual, np.zeros(coordinates)))
                 for _trial in range(8):
-                    design[rows:] = np.sqrt(damping) * identity
+                    design = np.vstack((jac, np.sqrt(damping) * np.eye(q * m)))
+                    rhs = np.concatenate((-residual, np.zeros(q * m)))
                     K = np.linalg.lstsq(design, rhs, rcond=None)[0].reshape(q, m)
                     gn_solves += 1
                     length = np.linalg.norm(K, ord=2)
-                    if length > tangent_limit:
-                        K *= tangent_limit / length
+                    if length > np.tan(max_angle):
+                        K *= np.tan(max_angle) / length
                     slope = float(np.sum(reduced_gradient * K))
                     if slope < 0:
                         for backtrack in range(16):
@@ -520,12 +405,11 @@ def solve(
             rotation_V, rotation_W = V @ L, W @ L
             angular_speed = s / s[0]
             slope = -float(np.sum(s * angular_speed))
-            projected_Y, projected_M = Y @ R.T, state.M @ R.T
             for backtrack in range(20):
                 t = max_angle * 0.5**backtrack
                 angles = t * angular_speed
-                delta = projected_Y * (np.cos(angles) - 1) - rotation_V * np.sin(angles)
-                delta_M = projected_M * (np.cos(angles) - 1) - rotation_W * np.sin(
+                delta = (Y @ R.T) * (np.cos(angles) - 1) - rotation_V * np.sin(angles)
+                delta_M = (state.M @ R.T) * (np.cos(angles) - 1) - rotation_W * np.sin(
                     angles
                 )
                 Yn = Y + delta @ R
@@ -541,7 +425,7 @@ def solve(
         accepted += 1
         history.append(state.value)
     # Final certificate uses the live operator rather than accumulated cached actions.
-    state = _profile(_project(U, Y), I, mass, local_ridge)
+    state = _profile(U @ Y, I, mass, local_ridge)
     final_G = _gradient(Y, U, state, mass)
     gradient_norm = float(np.linalg.norm(final_G))
     if gradient_norm <= tol * scale:

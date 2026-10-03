@@ -120,8 +120,6 @@ def _build_model(method_name: str, *, grassman_steps: int):
 
     if method_name == GRASSMAN:
         settings: dict[str, object] = {
-            "method": "core_gn",
-            "angle_backend": "schur",
             "max_steps": grassman_steps,
             "tol": 1e-6,
             "energy_tol": 0.05,
@@ -167,6 +165,9 @@ def _build_model(method_name: str, *, grassman_steps: int):
         }
     else:
         raise ValueError(f"unknown solver variant: {method_name}")
+    if method_name != GRASSMAN:
+        from ADP.solver.grassman_exp import solve as solve_grassman
+
     # ADP_solver's constructor uses the name `method` for its callable; bind
     # Grassmann's algorithm selector into the callable to avoid that collision.
     return ADP_solver(partial(solve_grassman, **settings))

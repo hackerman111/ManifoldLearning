@@ -3,7 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from ADP.solver import grassman as reference, grassman_optim as optimized
+from ADP.solver import grassman as optimized
+from experiments.grassman_optim_2026_10_01 import reference
 
 
 def _profile_reference(M: np.ndarray, I: np.ndarray, mass: np.ndarray, tau: float):
@@ -191,3 +192,21 @@ def test_gradient_multiple_chunks_matches_flat_reference(
     assert chunk < J
     got = optimized._gradient(Y, U, state, mass)
     np.testing.assert_allclose(got, flat, rtol=3e-12, atol=3e-10)
+
+
+def test_production_and_experimental_entry_points() -> None:
+    from inspect import signature
+
+    from ADP.solver import grassman_exp
+
+    assert "method" not in signature(optimized.solve).parameters
+    assert "angle_backend" not in signature(optimized.solve).parameters
+    assert "flat_max_steps" not in signature(optimized.solve).parameters
+    assert signature(grassman_exp.solve).parameters["method"].default == "flat_gn"
+    assert grassman_exp._profile is optimized._profile
+    assert grassman_exp._core_jacobian is optimized._core_jacobian
+    rng = np.random.default_rng(88500)
+    B = np.eye(2, 7)
+    U, I = rng.normal(size=(4, 6, 7)), rng.normal(size=(4, 6))
+    with pytest.raises(TypeError, match="method"):
+        optimized.solve(B, U, I, method="flat_gn")

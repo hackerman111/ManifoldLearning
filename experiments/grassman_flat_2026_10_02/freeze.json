@@ -1,0 +1,173 @@
+{
+  "task": "grassman-flat-2026-10-02",
+  "classification": "APPROXIMATE opt-in method, unchanged profile objective",
+  "selection": {
+    "seeds": [
+      74100,
+      74101,
+      74102
+    ],
+    "frozen_cases": [
+      {
+        "m": 2,
+        "d": 20,
+        "J": 120,
+        "p": 10
+      },
+      {
+        "m": 2,
+        "d": 100,
+        "J": 120,
+        "p": 10
+      },
+      {
+        "m": 2,
+        "d": 300,
+        "J": 120,
+        "p": 10
+      },
+      {
+        "m": 2,
+        "d": 600,
+        "J": 120,
+        "p": 10
+      },
+      {
+        "m": 3,
+        "d": 20,
+        "J": 120,
+        "p": 10
+      },
+      {
+        "m": 3,
+        "d": 100,
+        "J": 120,
+        "p": 10
+      },
+      {
+        "m": 3,
+        "d": 300,
+        "J": 120,
+        "p": 10
+      },
+      {
+        "m": 3,
+        "d": 600,
+        "J": 120,
+        "p": 10
+      }
+    ],
+    "fullfit_cases": [
+      {
+        "seed": 74100,
+        "n": 400,
+        "m": 2,
+        "d": 8,
+        "N_J": 120,
+        "N_phi": 10,
+        "N_lin": 80
+      },
+      {
+        "seed": 74100,
+        "n": 400,
+        "m": 2,
+        "d": 30,
+        "N_J": 120,
+        "N_phi": 10,
+        "N_lin": 80
+      },
+      {
+        "seed": 74101,
+        "n": 400,
+        "m": 2,
+        "d": 8,
+        "N_J": 120,
+        "N_phi": 10,
+        "N_lin": 80
+      },
+      {
+        "seed": 74101,
+        "n": 400,
+        "m": 2,
+        "d": 30,
+        "N_J": 120,
+        "N_phi": 10,
+        "N_lin": 80
+      },
+      {
+        "seed": 74102,
+        "n": 400,
+        "m": 2,
+        "d": 8,
+        "N_J": 120,
+        "N_phi": 10,
+        "N_lin": 80
+      },
+      {
+        "seed": 74102,
+        "n": 400,
+        "m": 2,
+        "d": 30,
+        "N_J": 120,
+        "N_phi": 10,
+        "N_lin": 80
+      }
+    ]
+  },
+  "methods": [
+    "core_gn",
+    "spectral",
+    "rank_one",
+    "flat_gn"
+  ],
+  "solver_settings": {
+    "max_steps": 5,
+    "tol": 1e-06,
+    "energy_tol": 0.05,
+    "local_ridge": 0.0,
+    "max_angle": 0.5,
+    "workspace_bytes": 16777216,
+    "flat_max_steps": 8
+  },
+  "timing": {
+    "frozen_warmups": 1,
+    "frozen_repeats": 3,
+    "fullfit_repeats": 1,
+    "worker_timeout_sec": 120,
+    "thread_env": {
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1"
+    },
+    "peak_rss": "resource.getrusage(RUSAGE_SELF).ru_maxrss, Linux KiB"
+  },
+  "monotonicity_tolerance": "profile[k+1] <= profile[k] + 1e-10*max(1,profile[0])",
+  "selection_gate": {
+    "all_pairs_failure_free_finite_monotone_orthonormal": true,
+    "per_fullfit_projector_error_delta_max": 0.0001,
+    "median_fullfit_time_ratio_max": 1.1,
+    "rss_delta_max_bytes": 33554432,
+    "minimum_median_relative_gain": 0.1,
+    "gain_metrics": [
+      "frozen profile objective",
+      "frozen gradient norm",
+      "fullfit projector error"
+    ],
+    "gate_target": "flat_gn versus core_gn; no seed retuning"
+  },
+  "heldout_seeds": [
+    74200,
+    74201,
+    74202
+  ],
+  "heldout_rule": "run only if every selection gate passes",
+  "code_sha256": {
+    "solver": "7c48ca081a0023dd6cff36defdaec5b45137bb112ce7a6cb727b8d15467893e3",
+    "benchmark": "54f9aaae316ed78c45f680e3f4fe64c63716c07068f38a378b64731adbed1aae",
+    "fullfit_generator": "77e1beec7e94496c0690df4737b4ea387423695cf79dcb87db55e284bf583647"
+  },
+  "git_commit": "1b3d1c6e300c39546d530fcdffd9c364143c2d03",
+  "git_dirty": true,
+  "python": "3.14.7 (main, Aug 10 2026, 07:46:56) [GCC 16.1.1 20260728]",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44"
+}

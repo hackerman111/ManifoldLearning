@@ -1,0 +1,1052 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage{fontspec}
+\setmainfont{Noto Serif}
+\setsansfont{Noto Sans}
+\usepackage[russian]{babel}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{booktabs,tabularx,array}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\usepackage{microtype}
+\emergencystretch=1.5em
+
+% ---------- Макросы ----------
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Id}{I}
+\newcommand{\T}{^{\!\top}}
+\newcommand{\F}{\mathrm{F}}
+\newcommand{\ip}[2]{\langle #1,\,#2\rangle}
+\newcommand{\Gr}{\mathrm{Gr}}
+\newcommand{\St}{\mathrm{St}}
+\newcommand{\Exp}{\mathrm{Exp}}
+\newcommand{\grad}{\mathrm{grad}}
+\newcommand{\qf}[2]{\ip{#1}{#1 #2}}
+\newcommand{\col}{\mathrm{col}}
+\newcommand{\rank}{\mathrm{rank}}
+\newcommand{\tr}{\mathrm{tr}\,}
+\newcommand{\spanop}{\mathrm{span}}
+\newcommand{\dg}{\mathrm{diag}}
+\newcommand{\sign}{\mathrm{sign}}
+\newcommand{\Lop}{\mathcal{L}}
+\newcommand{\Aop}{\mathcal{A}}
+\newcommand{\Rop}{\mathcal{R}}
+\newcommand{\Pcal}{\mathcal{P}}
+\newcommand{\Bcal}{\mathcal{B}}
+\newcommand{\dist}{\mathrm{dist}}
+\newcommand{\dch}{d_{\mathrm{ch}}}
+\newcommand{\erm}[1]{\left\|#1\right\|_{\F}}
+\newcommand{\opn}[1]{\left\|#1\right\|_{2}}
+\newcommand{\nuc}[1]{\left\|#1\right\|_{*}}
+
+% ---------- Теоремные окружения ----------
+\theoremstyle{plain}
+\newtheorem{theorem}{Теорема}[section]
+\newtheorem{prop}[theorem]{Утверждение}
+\newtheorem{lemma}[theorem]{Лемма}
+\newtheorem{corollary}[theorem]{Следствие}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Определение}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Замечание}
+
+\title{\textbf{Принцип спектральной редукции}\\[2pt]
+\large Единая теория SVD-солвера, вращений на Грассмане и полей подпространств\\
+для мультииндексной EDR-задачи с анизотропией}
+\author{}
+\date{Октябрь 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+Разрозненные записи по оптимизации солвера для мультииндексной задачи эффективного
+понижения размерности (EDR) со средними производными (ADP) и анизотропным тензором
+сводятся к одному принципу: \emph{сложный объект заменяется картой из простых
+координат, в которых шаг оптимизации вычисляется точно и дёшево, после чего
+результат отображается обратно}. Мы формализуем этот принцип спектральной редукции
+(определение~\ref{def:reduction}), выделяем три режима его точности
+(теорема~\ref{thm:three-modes}) и показываем, что все имеющиеся конструкции суть его
+частные случаи: жадный ранк-1 SVD-солвер --- случай аффинной карты
+(раздел~\ref{sec:svd}); вращения на Грассмане --- случай экспоненциальной карты
+(раздел~\ref{sec:grass}); поля подпространств --- случай ретракционной карты с
+Tucker-параметризацией (раздел~\ref{sec:fields}); семейство метрик и анизотропный
+тензор --- случай спектральной параметризации симметрического конуса
+(раздел~\ref{sec:metric}). Для каждого случая приведены замкнутые формулы,
+гарантии и сертификаты; все ключевые формулы численно верифицированы
+(раздел~\ref{sec:verification}). Раздел~\ref{sec:lit} сопоставляет конструкции с
+литературой и отмечает границы переноса. Раздел~\ref{sec:improve} содержит
+конкретные улучшения по скорости, качеству восстановления и памяти, вытекающие из
+обобщённой теории.
+\end{abstract}
+
+\tableofcontents
+\bigskip
+
+\section{Постановка и мастер-задача}\label{sec:master}
+
+\subsection{Модель и локальная статистика}
+
+Данные: пары $(x_i,y_i)\in\R^d\times\R$, $i=1,\dots,n$. Мультииндексная модель
+\begin{equation}\label{eq:model}
+y_i \;=\; f(Px_i)\,+\,\varepsilon_i,\qquad
+P\in\R^{m\times d},\quad PP\T=\Id_m,\quad m\ll d,
+\end{equation}
+где цель восстановления --- не ортонормированный базис $P$ сам по себе, а
+\emph{эффективное подпространство} $\spanop(P\T)\in\Gr(m,d)$, точка
+Грассманова многообразия. Локальная линейная аппроксимация $f$ в окрестности
+точки $x_j$ с анизотропными весами
+\begin{equation}\label{eq:weights}
+w_{ij} \;=\; K\!\bigl(h^{-2}(x_i-x_j)\T D_j\,(x_i-x_j)\bigr),\qquad D_j\succ 0,
+\end{equation}
+порождает в каждом узле $j=1,\dots,J$ локальную статистику: число $N_j=\sum_i w_{ij}$,
+матрицу вторых моментов $\Sigma_j\in\R^{d\times d}$ и вектор средней производной
+$c_j\in\R^d$ (ADP-оценка $\nabla f$ в $x_j$). Скетч-матрица $S_j\in\R^{s_j\times d}$
+сжимает статистику:
+\begin{equation}\label{eq:sketch}
+U_j \;=\; S_j\Sigma_j\;\in\;\R^{s_j\times d},\qquad
+I_j \;=\; S_j c_j\;\in\;\R^{s_j},
+\end{equation}
+и локальная модель читается как $I_j \approx U_j Y g_j$, где $Y\in\R^{d\times m}$,
+$Y\T Y=\Id_m$ --- ортонормированный базис искомого подпространства (столбцы $Y$
+порождают $\spanop(P\T)$), а $g_j\in\R^m$ --- локальный градиент в координатах
+базиса.
+
+\begin{remark}[Оговорка о шуме]\label{rem:noise}
+Условная ковариация оценки $c_j$ имеет вид
+$\mathrm{Cov}(c_j\mid x,w)=\sigma^2 N_j^{-2}\sum_i w_{ij}^2 z_{ij}z_{ij}\T$ и
+содержит \emph{квадраты} весов. Поэтому метрика $\Sigma_j$ является обобщённой
+наименьшеквадратичной (GLS) лишь для $0/1$-весов; для гладких ядер метрика
+$\Sigma_j$ --- приближение, а корректная GLS-метрика требует
+$\widetilde\Sigma_j=\sum_i w_{ij}^2 z_{ij}z_{ij}\T$. Это вернётся в
+разделе~\ref{sec:metric} при построении семейства метрик.
+\end{remark}
+
+\subsection{Сепарабельная мастер-задача}
+
+Все варианты солвера оперируют сепарабельной задачей вида VARPRO
+\begin{equation}\label{eq:master}
+\Phi(\theta)\;=\;\min_{c}\Bigl\{\,\|b-\Aop(\theta)c\|^2+\|\Rop(\theta)c\|^2\Bigr\}\;+\;\Omega(\theta),
+\end{equation}
+где $\theta$ --- нелинейные параметры (подпространство $Y$, углы, Tucker-факторы),
+$c$ --- линейные параметры (локальные градиенты $g_j$), $\Omega$ --- регуляризатор
+(тяга к приору $Y_0$, хордовое расстояние, ранговые штрафы). Профилирование по $c$
+даёт формулу Шура
+\begin{equation}\label{eq:schur}
+\Phi(\theta)\;=\;b\T\Pi(\theta)\,b\;+\;\Omega(\theta),\qquad
+\Pi(\theta)=\Id-\Aop(\theta)\bigl(\Aop(\theta)\T\Aop(\theta)+\Rop(\theta)\T\Rop(\theta)\bigr)^{-1}\Aop(\theta)\T,
+\end{equation}
+и переносит всю сложность на $\theta$. В этом языке три наших объекта суть три
+выбора пространства, в котором живёт $\theta$, и трёх \emph{карт} в простые
+координаты. Классическая линия VARPRO --- Голуб--Перейра~\cite{golub-pereyra-1973},
+ускорение Кауфмана~\cite{kaufman-1975}, алгоритмы типа Руэ--Ведина~\cite{ruhe-wedin-1980}
+(см. раздел~\ref{sec:lit}).
+
+\section{Принцип редукции: общая схема}\label{sec:principle}
+
+\subsection{Карты, атомы, оракулы}
+
+\begin{definition}[Схема спектральной редукции]\label{def:reduction}
+Пусть $\Phi:\mathcal X\to\R$ --- функционал на пространстве параметров $\mathcal X$
+(евклидово пространство матриц, многообразие, многообразие полей). \emph{Схемой
+спектральной редукции} называется четвёрка $(\mathbb A,\chi,\mathcal O,\mathcal C)$:
+\begin{enumerate}[label=(\roman*),leftmargin=2.2em]
+\item \emph{Атомарное пространство} $\mathbb A$ --- параметрическое семейство
+простых объектов (ранк-1 матрицы $av\T$; плоские вращения; Tucker-факторы;
+диагональные спектры).
+\item \emph{Карта} $\chi:\mathbb A\to\mathcal X$, сюръективная (или такая, что
+кривые $\chi(ta)$ покрывают касательное пространство в каждой точке).
+\item \emph{Атомарный оракул} $\mathcal O$: в точке $x$ по невязке/градиенту
+выбирается атом $a^\star\in\arg\max_{a\in\mathbb A}\,G_x(a)$, где $G_x$ ---
+\emph{сцепление} (нормированная проекция градиента на кривую $t\mapsto\chi_x(ta)$),
+и вычисляется \emph{точный одномерный профиль} $t\mapsto\Phi(\chi_x(ta^\star))$.
+\item \emph{Сертификат} $\mathcal C$: из невязки извлекаются границы
+$\dist(x,x^\star)$ и $\Phi(x)-\Phi(x^\star)$.
+\end{enumerate}
+\end{definition}
+
+Слово \emph{спектральная} оправдано тем, что во всех наших случаях атомарный
+оракул --- это сингулярное или собственное разложение: топ-1 сингулярная пара
+невязки (SVD-солвер), CS-разложение касательного вектора (Грассман), топ-собственные
+векторы градиентной матрицы (OPG), спектр $\Lambda$ анизотропного тензора.
+
+\subsection{Три режима точности}
+
+\begin{theorem}[Три режима редукции]\label{thm:three-modes}
+Пусть $\Phi$ квадратичен по данным. Тогда:
+\begin{enumerate}[label=(\Alph*),leftmargin=2.2em]
+\item \emph{Аффинный режим.} Если $\mathcal X$ --- евклидово, $\chi$ аффинна, а
+метрика сепарабельна (кронекерова), то ранк-$r$ профиль редукции точен
+глобально: задача сводится к теореме Экарта--Юнга в белёной норме
+(теорема~\ref{thm:separable}).
+\item \emph{Симметрический режим.} Если $\mathcal X$ --- симметрическое
+пространство ($\Gr(m,d)$), а $\chi$ --- экспоненциальная карта, то редукция точна
+вдоль плоских вращений: CS-разложение сводит любой касательный шаг к $q$
+коммутирующим вращениям, и профиль по каждому углу --- дробно-тригонометрическая
+функция в замкнутой форме (теоремы~\ref{thm:cs},~\ref{thm:angle-profile}).
+\item \emph{Локальный режим.} В общем случае (поля, взвешенные метрики, штрафы)
+профиль по атому точен лишь до второго порядка Тейлора, но остаётся
+\emph{гарантированный спуск} с константой Липшица $L$
+(утверждение~\ref{prop:descent}).
+\end{enumerate}
+\end{theorem}
+
+Режимы упорядочены по убыванию структуры: аффинный $\supset$ симметрический
+$\supset$ локальный. Каждая из записок-предшественниц живёт в одном из режимов,
+и обобщение состоит в том, что \emph{алгоритмический шаблон один и тот же}:
+атом $\to$ сцепление $\to$ точный/почти точный профиль $\to$ шаг $\to$
+сертификат. Меняется только геометрия карты $\chi$.
+
+\subsection{Сертификаты и достаточный спуск}
+
+\begin{prop}[Универсальный сертификат для квадратичного $\Phi$]\label{prop:cert}
+Пусть $\Phi(x)=\tfrac12\ip{x}{\Lop x}-\ip{C}{x}$, $\Lop\succeq\mu\Id$, $\mu>0$,
+$x^\star=\Lop^{-1}C$, $R=\Lop x-C$. Тогда
+\begin{equation}\label{eq:cert}
+\|x-x^\star\| \;\le\; \frac{\|R\|}{\mu},
+\qquad
+\Phi(x)-\Phi(x^\star)\;=\;\tfrac12\ip{R}{\Lop^{-1}R}\;\le\;\frac{\|R\|^2}{2\mu}.
+\end{equation}
+\end{prop}
+
+\begin{prop}[Неточный спуск]\label{prop:inexact}
+Если шаг $D$ вычислен неточно, $D=s+\delta$, где $s$ --- точное направление
+спуска, то $\Phi(x+tD)<\Phi(x)$ при малых $t>0$, как только
+\begin{equation}\label{eq:inexact}
+2\,\bigl|\ip{D}{\delta}\bigr| \;<\; \ip{D}{\Lop D}.
+\end{equation}
+\end{prop}
+
+\begin{prop}[Гарантированный спуск по атому]\label{prop:descent}
+Пусть профиль $t\mapsto\Phi(\chi_x(ta))$ имеет $L$-липшицеву производную
+по $t$, а сцепление определено как нормированная проекция антиградиента
+на направление кривой:
+\[
+G_x(a)\;=\;\langle-\grad\Phi(x),\,\dot\chi_x(0\,a)\rangle\,\big/\,\|\dot\chi_x(0\,a)\| .
+\]
+Тогда оптимальный шаг даёт
+\begin{equation}\label{eq:atom-gain}
+\Phi(x)-\Phi(\chi_x(t^\star a))\;\ge\;\frac{G_x(a)^2}{2L},
+\end{equation}
+а для \emph{квадратичного} профиля с кривизной $D(a)=\frac{d^2}{dt^2}\Phi(\chi_x(ta))\bigr|_{0}$
+точный линейный поиск $t^\star=G/D$ реализует равенство
+$\Phi(x)-\Phi(x+t^\star a)=G^2/(2D)$ без остатка.
+\end{prop}
+
+Последнее равенство --- рабочая лошадь SVD-солвера (раздел~\ref{sec:svd}): весь
+выигрыш ранк-1 шага известен \emph{до} его совершения, что позволяет ранжировать
+атомы по отношению $G^2/D$.
+
+%===================== СЛУЧАЙ A =====================
+\section{Случай A. Аффинная карта: SVD-солвер}\label{sec:svd}
+
+\subsection{Функционал при фиксированных градиентах}
+
+Зафиксируем локальные градиенты $g_j$ (внешний цикл по ним --- отдельная
+задача). Функционал по матрице $B\in\R^{m\times d}$ (здесь $B=YP$-подобный
+блок, $P$ --- приор):
+\begin{equation}\label{eq:FB}
+F(B)\;=\;\sum_{j=1}^{J} N_j\,\erm{I_j-U_jB\T g_j}^2
+\;+\;\lambda\,\erm{(B-P)H^{1/2}}^2,
+\end{equation}
+$H\succeq 0$ --- метрика привязки к приору (чаще $H=\Id$). Это квадратичная
+задача $\tfrac12\ip{B}{\Lop B}-\ip{C}{B}$ с оператором и правой частью
+\begin{equation}\label{eq:Lop}
+\Lop X=\sum_{j}N_j\,g_jg_j\T\,X\,U_j\T U_j+\lambda XH,
+\qquad
+C=\sum_{j}N_j\,g_j I_j\T U_j+\lambda P H .
+\end{equation}
+
+\begin{lemma}[SPD-обрамление]\label{lem:spd}
+Оператор $\Lop$ самосопряжён и
+\begin{equation}\label{eq:spd-bounds}
+\lambda\,\sigma_{\min}(H)\,\|X\|_{\F}^2
+\;\le\;\ip{X}{\Lop X}\;\le\;
+\Bigl(\sum_j N_j\|g_j\|^2\,\sigma_{\max}(U_j\T U_j)+\lambda\,\sigma_{\max}(H)\Bigr)\|X\|_{\F}^2 .
+\end{equation}
+В кронекеровой форме: $\mathrm{vec}(\Lop X)=K\,\mathrm{vec}(X)$,
+$K=\sum_j N_j\,(U_j\T U_j)\T\!\otimes g_jg_j\T+\lambda H\T\!\otimes\Id_m$.
+\end{lemma}
+
+Таким образом, при $\lambda>0$, $H\succ0$ задача~\eqref{eq:FB} строго выпукла,
+сертификаты~\eqref{eq:cert} применимы с
+$\mu=\lambda\sigma_{\min}(H)+\mu_{\mathrm{data}}$, где
+$\mu_{\mathrm{data}}\ge 0$ --- наименьшее собственное число кронекеровой части
+(численно: $\mu=\lambda+\lambda_{\min}(G)\lambda_{\min}(H)$ в сепарабельном случае;
+использование $\mu$ вместо $\lambda$ делает сертификат~\eqref{eq:cert} почти
+точным --- см. раздел~\ref{sec:verification}).
+
+\subsection{Жадная ранк-1 редукция}
+
+Карта: $\chi(a,v,t)=B+t\,av\T$ --- аффинная карта из атомов $\mathbb A=\{av\T\}$
+в пространство матриц. По невязке $R=C-\Lop B$ атом выбирается максимизацией
+нормированного сцепления
+\begin{equation}\label{eq:greedy}
+\Gamma_1(R)\;=\;\max_{\|a\|=\|v\|=1}\frac{(a\T Rv)^2}{\ip{av\T}{\Lop\,av\T}},
+\qquad
+\ip{av\T}{\Lop\,av\T}=\sum_j N_j(g_j\T a)^2\,\|U_jv\|^2+\lambda\,a\T a\,v\T Hv .
+\end{equation}
+Точный масштаб и выигрыш (равенство в утверждении~\ref{prop:descent}):
+\begin{equation}\label{eq:tstar}
+t^\star=\frac{\ip{R}{av\T}}{\ip{av\T}{\Lop av\T}}\equiv\frac{R_{av}}{D_{av}},
+\qquad
+\Delta F=\frac{R_{av}^2}{2D_{av}} .
+\end{equation}
+Поиск атома --- чередование направлений: при фиксированном $v$ вектор $a$
+решает $m\times m$ систему $G_v\,\tilde a = Rv$ с
+$G_v=\sum_j N_j\|U_jv\|^2 g_jg_j\T+\lambda(v\T Hv)\Id_m$; при фиксированном $a$
+вектор $v$ --- минимизатор отношения Релея по большой размерности $d$
+(LSMR/CG на $d\times d$). Накопленное разложение $B_k=\sum t_\ell a_\ell v_\ell\T$
+периодически сжимается QR+SVD до ранга $r$; масштабы $t_\ell$ после сжатия
+переобучаются совместно (малая система $M\sigma=h$,
+$M_{\ell\ell'}=\ip{a_\ell v_\ell\T}{\Lop a_{\ell'}v_{\ell'}\T}$).
+
+\subsection{Точный предел: сепарабельная метрика}
+
+\begin{theorem}[Экарт--Юнг в белёной норме]\label{thm:separable}
+Пусть $\Lop X=GXH$, $G\succ0$, $H\succ0$ (сепарабельная метрика). Тогда задача
+$\min_{\rank(B)\le r}F(B)$ имеет глобальное решение в замкнутой форме
+\begin{equation}\label{eq:whitened-ey}
+B_r^\star \;=\; G^{-1/2}\,\bigl[\,G^{-1/2}CH^{-1/2}\,\bigr]_r\,H^{-1/2},
+\end{equation}
+где $[\,\cdot\,]_r$ --- обрезание SVD до ранга $r$. В частности, при $H=\Id$,
+$G=T\T T$: $B_r^\star=T^{-\top}[T^{-1}C]_r$.
+\end{theorem}
+
+\begin{prop}[Устойчивость к несепарабельности]\label{prop:pert}
+Пусть $\Lop=\Lop_0+\Delta$, $\Lop_0X=GXH$, $\|\Delta\|\le\rho$ в операторной
+норме, $\mu_G=\lambda_{\min}(G)\lambda_{\min}(H)$, и $\theta=\rho/\mu_G<1$.
+Тогда метрики $\ip{\cdot}{\Lop\cdot}$ и $\ip{\cdot}{\Lop_0\cdot}$
+$(1\pm\theta)$-эквивалентны, и решение~\eqref{eq:whitened-ey} по $\Lop_0$
+является $(1+\theta)/(1-\theta)$-квазиоптимальным по $\Lop$; PCG с
+предобуславливателем $M^{-1}R=G^{-1}RH^{-1}$ сходится с константой
+$\kappa\le(1+\theta)/(1-\theta)$.
+\end{prop}
+
+Содержательный смысл: жадная ранк-1 схема --- это \emph{разрежённая} версия
+точной формулы~\eqref{eq:whitened-ey}, работающая тогда, когда сепарабельность
+нарушена ($U_j\T U_j$ различны между узлами) и замкнутой формы нет.
+
+\subsection{Структурные пределы}
+
+\begin{prop}[Ранговый пол]\label{prop:rank-floor}
+Для любой $B$ ранга $\le r$ с $PP\T=\Id_m$:
+$\erm{B-P}^2\ge m-r$. Следовательно, $F(B)\ge\lambda\sigma_{\min}(H)(m-r)$:
+\emph{матричный} режим ($B$ вместо $P$) не может восстановить приор точнее
+пола $m-r$. Поправочный режим $B=P+\Delta$, где $\Delta$ малорангово, пол
+устраняет.
+\end{prop}
+
+\begin{corollary}[Граница проектора]\label{cor:proj}
+Если $\opn{B-P}\le\varepsilon<s=\sigma_m(P)$, то
+\[
+\opn{\Pi_{\col(B\T)}-\Pi_{\col(P\T)}}\;\le\;\varepsilon/s ;
+\]
+сертификат~\eqref{eq:cert} тем самым индуцирует сертификат на $\Gr(m,d)$.
+\end{corollary}
+
+\begin{remark}[Крупнозерновая проекция и PCG-уточнение]
+Проекция системы $\Lop B=C$ на грубое подпространство с последующим
+PCG-уточнением --- тоже редукция: карта $\chi$ образована грубым
+базисом, атомы --- его элементы, а предобуславливателем служит
+сепарабельная часть $\Lop_0$.
+\end{remark}
+
+%===================== СЛУЧАЙ B =====================
+\section{Случай B. Экспоненциальная карта: Грассман}\label{sec:grass}
+
+\subsection{Профилированный функционал и инвариантность}
+
+Профилируем мастер-задачу~\eqref{eq:master} по локальным градиентам $g_j$ и
+переходим к ортонормированному базису $Y\in\St(d,m)=\{Y\in\R^{d\times m}:Y\T Y=\Id_m\}$:
+\begin{equation}\label{eq:grass-profile}
+\Phi(Y)\;=\;\sum_{j=1}^{J}N_j\,\min_{g\in\R^m}\Bigl\{\erm{I_j-U_jYg}^2+\tau\|g\|^2\Bigr\}
+\;+\;\lambda\,\dch^2\!\bigl(\col(Y),\col(Y_0)\bigr),
+\end{equation}
+где хордовое расстояние на Грассмане
+$\dch^2(\col(Y),\col(Y_0))=m-\erm{Y_0\T Y}^2$.
+
+\begin{prop}[$O(m)$-инвариантность]\label{prop:invariance}
+Все три члена~\eqref{eq:grass-profile} инвариантны относительно замены
+$Y\mapsto YQ$, $Q\in O(m)$: квадратичная форма
+$\min_g\erm{I_j-U_jYg}^2$ зависит только от проектора $YY\T$; штраф $\tau\|g\|^2$
+сохраняется ортогональной заменой $g\mapsto Q\T g$; $\dch^2$ зависит только от
+подпространств. Следовательно, $\Phi$ --- корректно определённая функция на
+$\Gr(m,d)$, и оптимизировать следует по подпространству, а не по базису.
+\end{prop}
+
+Градиент (как касательный к $\St(d,m)$; проекция $(\Id-YY\T)$ уже учтена):
+\begin{equation}\label{eq:grass-grad}
+G(Y)\;=\;(\Id-YY\T)\Bigl[-2\sum_j N_j\,U_j\T r_j\,g_j\T\;-\;2\lambda\,Y_0Y_0\T Y\Bigr],
+\qquad
+r_j=I_j-U_jYg_j .
+\end{equation}
+
+\subsection{CS-разложение: любой шаг --- набор плоских вращений}
+
+\begin{theorem}[Коммутирующие плоские вращения]\label{thm:cs}
+Пусть $Z\in T_Y\St(d,m)$, $\rank Z=q\le m$. Существуют ортонормированные
+$v_1,\dots,v_q\perp\col(Y)$, ортонормированные $a_1,\dots,a_q\in\R^m$ и углы
+$\eta_1,\dots,\eta_q>0$ такие, что $Z=\sum_{\ell=1}^q\eta_\ell v_\ell a_\ell\T$
+(это SVD $Z$), и плоские вращения
+$\Omega_\ell=v_\ell(Ya_\ell)\T-(Ya_\ell)v_\ell\T$ попарно коммутируют. Геодезическая
+$\Exp_Y(Z)$ имеет замкнутую форму
+\begin{equation}\label{eq:exp-multi}
+\Exp_Y(Z)\;=\;Y(\Id-AA\T)\;+\;YA\,\cos\Theta\,A\T\;+\;V\sin\Theta\,A\T,
+\qquad \Theta=\dg(\eta_1,\dots,\eta_q),
+\end{equation}
+с покомпонентными $\cos,\sin$. Иными словами, кольцо кривых
+$\{t\mapsto\Exp_Y(tZ)\}$ параметризуется $q$ независимыми плоскими вращениями.
+\end{theorem}
+
+Это CS-разложение --- частный случай разложения Картана симметрического
+пространства $\Gr(m,d)=SO(d)/S(O(m)\times O(d-m))$; максимальный тор (flat)
+образован главными углами. \emph{Редукция}: экспоненциальная карта переводит
+оптимизацию на многообразии в оптимизацию по углам $(\eta_\ell)$ и осям
+$(v_\ell,a_\ell)$ --- объекты, в которых шаг считается точно.
+
+\begin{corollary}[Ранк-1 шаг]\label{cor:rk1-geo}
+Для $Z=\eta\,va\T$ ($\|v\|=\|a\|=1$, $v\perp\col Y$):
+\begin{equation}\label{eq:exp-rk1}
+\Exp_Y(\eta va\T)\;=\;Y(\Id-aa\T)\;+\;\bigl(Ya\cos\eta+v\sin\eta\bigr)a\T .
+\end{equation}
+Затронут только столбец в направлении $Ya$; стоимость шага $O(dm)$, профиль
+по $\eta$ --- функция одного угла (ниже).
+\end{corollary}
+
+\subsection{Семейство спектральных ретракций}
+
+По SVD касательного $Z=U\Sigma V\T$ определим
+$R^\varphi_Y(Z)=\Exp_Y(U\varphi(\Sigma)V\T)$ с покомпонентной
+$\varphi:\R_{\ge0}\to\R_{\ge0}$:
+\begin{equation}\label{eq:phi-family}
+\varphi_{\mathrm{Exp}}(\sigma)=\sigma,\qquad
+\varphi_{\mathrm{QR}}(\sigma)=\arctan\sigma,\qquad
+\varphi_{\mathrm{Cay}}(\sigma)=2\arctan\tfrac{\sigma}{2}.
+\end{equation}
+
+\begin{prop}[Все $\varphi$-ретракции ранк-1 живут на одной геодезической]\label{prop:phi}
+Для ранк-1 шага $Z=\eta va\T$ и любой $\varphi$ из~\eqref{eq:phi-family}
+точка $R^\varphi_Y(Z)\in\Gr(m,d)$ лежит на геодезической
+$\{t\mapsto\Exp_Y(t\,va\T)\}$; три семейства различаются лишь
+перепараметризацией угла: $\eta$, $\arctan\eta$, $2\arctan(\eta/2)$.
+Более точно: polar-ретракция и Cayley-ретракция (Вэнь--Инь~\cite{wen-yin-2013})
+совпадают с вращениями~\eqref{eq:exp-rk1} на углы $\arctan\eta$ и
+$2\arctan(\eta/2)$ \emph{как точки} $\St(d,m)$; QR-ретракция совпадает с
+polar-ретракцией \emph{как точка} $\Gr(m,d)$ (одинаковое подпространство;
+представители в $\St$ различаются внутрибазисным поворотом).
+\end{prop}
+
+Практический смысл: выбор ретракции --- выбор единицы измерения шага, а не
+геометрии; линейный поиск по углу нивелирует различие полностью, что и
+подтверждается численно (раздел~\ref{sec:verification}).
+
+\subsection{Точный профиль по углу: формула Шура}
+
+Вдоль геодезической~\eqref{eq:exp-rk1} каждое слагаемое~\eqref{eq:grass-profile}
+--- дробно-тригонометрическая функция угла $t=\eta$.
+
+\begin{theorem}[Замкнутый угловой профиль]\label{thm:angle-profile}
+Пусть $Y_t=Y\cos$-поворот~\eqref{eq:exp-rk1} с осями $(v,a)$ и $m=1$ по
+вращаемому направлению. Обозначим для узла $j$:
+$u_y=U_jYa$, $u_v=U_jv$; $a_j=\|u_y\|^2$, $e_j=\|u_v\|^2$,
+$d_j=\ip{u_y}{u_v}$, $b_j=\ip{u_y}{I_j}$, $c_j=\ip{u_v}{I_j}$,
+$k_j=\|I_j\|^2$. Тогда
+\begin{equation}\label{eq:angle-schur}
+\min_{g}\Bigl\{N_j\erm{I_j-U_jY_t g}^2+\tau g^2\Bigr\}
+\;=\;N_j k_j\;-\;\frac{N_j^2\,(b_j\cos t+c_j\sin t)^2}
+{N_j\bigl(a_j\cos^2t+2d_j\sin t\cos t+e_j\sin^2t\bigr)+\tau}.
+\end{equation}
+\end{theorem}
+
+После однократной подготовки шести скаляров на узел профиль по \emph{всем}
+$t$ обходится за $O(J)$ на точку сетки; сканирование сетки углов даёт
+почти глобальный по $t$ шаг. Численная сверка с прямым вычислением
+$\Phi(Y_t)$ даёт совпадение до $10^{-14}$ и совпадающий аргминимум
+(раздел~\ref{sec:verification}).
+
+\subsection{Нормированные семейства спуска на касательном пространстве}
+
+Выбор атома в оракуле $\mathcal O$ --- это выбор нормы, в которой измеряется
+градиент. Для $G=G(Y)$ и его SVD $G=U_G\Sigma_G V_G\T$:
+\begin{equation}\label{eq:norms}
+\begin{array}{lll}
+\toprule
+\text{Норма двойственная к} & \text{направление } Z & \text{аналог}\\
+\midrule
+\erm{\cdot}\ (\text{Фробениус}) & -G & \text{градиентный спуск}\\
+\opn{\cdot}\ (\text{операторная}) & -U_GV_G\T\ (\text{полярный фактор}) &
+\text{спектральный/«Muon»-шаг}\\
+\nuc{\cdot}\ (\text{ядерная}) & -\eta\,v_1a_1\T & \text{жадный ранк-1}\\
+\text{Кай Фана }k & -\sum_{\ell\le k}\eta_\ell v_\ell a_\ell\T &
+\text{жадный ранк-}k\\
+\text{Гессианова} & -(\nabla^2)^{-1}G & \text{GN/натуральный градиент}\\
+\bottomrule
+\end{array}
+\end{equation}
+Это единый взгляд «старого оптимизатора в новой норме»
+(Бернстайн--Ньюхаус~\cite{bernstein-newhouse-2024}; Muon~\cite{jordan-2024-muon};
+спектральный предобусловленный спуск~\cite{carlson-2015}; Polar
+Express~\cite{amsel-2025-polar}): полярный фактор $U_GV_G\T$ есть решение
+$\arg\max_{\opn{Z}\le1}\ip{G}{Z}$.
+
+\begin{prop}[Гарантия спуска]\label{prop:grass-descent}
+Пусть $\nabla\Phi$ $L$-липшицев на $\Gr(m,d)$ в канонической метрике, и шаг
+$Z$ выбран по норме~\eqref{eq:norms} ранга $q$ с оптимальным углом. Тогда
+\begin{equation}\label{eq:grass-gain}
+\Phi(Y)-\Phi(\Exp_Y(Z))\;\ge\;\frac{\|[G]_{q}\|_{\F}^2}{2L},
+\qquad
+\|[G]_{q}\|_{\F}^2=\sum_{\ell\le q}\sigma_\ell(G)^2,
+\end{equation}
+а для $q=1$: $\Phi(Y)-\Phi(Y_+)\ge\opn{G}^2/(2L)\ge\erm{G}^2/(2L\,m')$, $m'=\min(m,d-m)$.
+Так как $\Phi$ --- аналитическая функция на компактном аналитическом
+многообразии, выполнено неравенство Лоясевича, и вся последовательность
+итераций сходится к критической точке~\cite{absil-2005-lojasiewicz}.
+\end{prop}
+
+\begin{remark}[Гессианова норма]
+GN-шаг по $(g_j,Y)$ с профилированием $g_j$ (схема Кауфмана~\cite{kaufman-1975})
+--- предельный член таблицы~\eqref{eq:norms}: он использует точную кривизну вместо
+скалярной $L$ и рекомендуется как эталон качества для жадных схем
+(раздел~\ref{sec:improve}).
+\end{remark}
+
+%===================== СЛУЧАЙ C =====================
+\section{Случай C. Ретракционная карта: поля подпространств}\label{sec:fields}
+
+\subsection{От одного подпространства к полю}
+
+Обобщение модели~\eqref{eq:model}: подпространство дрейфует по пространству
+признаков, $B_j\approx B(x_j)$. Прямая параметризация $B_j$ по всем узлам
+стоит $O(Jdm)$ памяти и не связывает соседние узлы. Редукция: карта $\chi$
+строит всё поле из малого числа факторов.
+
+\begin{definition}[Tucker-поле с оболочкой]\label{def:tucker-field}
+Пусть $V\in\R^{d\times R}$, $V\T V=\Id_R$ --- \emph{оболочка} (envelope),
+$A\in\R^{m\times R}$, $M_1,\dots,M_s\in\R^{R\times R}$ --- ядра,
+$w_\ell:\R^d\to\R$ --- скалярные веса (ядра по $x$). Поле
+\begin{equation}\label{eq:tucker-field}
+B(x)\;=\;A\Bigl(\sum_{\ell=1}^{s} w_\ell(x)\,M_\ell\Bigr)V\T\;\in\;\R^{m\times d},
+\qquad
+Y(x)\;=\;\text{базис }\col\bigl(B(x)\T\bigr).
+\end{equation}
+\end{definition}
+
+\begin{prop}[Оболочка должна быть шире ранга]\label{prop:envelope}
+Если $R=m$, то $Y(x)$ лежит в фиксированном подпространстве $\col(V\T)$:
+поле меняет \emph{координаты}, но не \emph{подпространство}. Подлинное
+вращение подпространства по $x$ требует $R>m$: оболочка шире, чем ранг,
+--- поле «протекает» из границы $m$-мерных сечений. Это прямой аналог
+конструкции envelope-моделей Кука--Ли--Кьяромонте~\cite{cook-2010-envelope}.
+\end{prop}
+
+\subsection{Касательное Tucker-поле и бюджет памяти}
+
+В поправочном режиме поле строится от приора $Y_0$: касательное поле
+\begin{equation}\label{eq:tangent-field}
+Z_j\;=\;V\Bigl(\sum_{\ell} w_\ell(x_j)\,M_\ell\Bigr)A\T\;\in\;T_{Y_0},
+\qquad
+Y_j\;=\;R^\varphi_{Y_0}(Z_j),
+\end{equation}
+где $R^\varphi$ --- любая ретракция из~\eqref{eq:phi-family} (по
+утверждению~\ref{prop:phi}, для типичных малоранговых $Z_j$ выбор $\varphi$
+несуществен). Хранятся только факторы: память
+\begin{equation}\label{eq:memory}
+O\bigl(d(m+q)+m k+s q k+J s\bigr)\quad\text{вместо}\quad O(Jdm),
+\end{equation}
+где $q\le R$, $k$ --- ранг ядер. При $J=10^3$, $d=10^2$, $m=5$, $R=8$, $s=4$:
+экономия порядка $10^3$.
+
+\begin{remark}[Связь с литературой]
+Конструкция~\eqref{eq:tangent-field} --- геодезическая регрессия на Грассмане
+(Флетчер~\cite{fletcher-2011}; Хонг и др.~\cite{hong-grassmann-regression})
+с Tucker-сплющиванием касательного поля (тензорные ретракции
+Иштева--Абсил--Ван Хюффель--Де Латауэр~\cite{ishteva-2011}) и с ядерной
+интерполяцией по $x$ в духе Фреше-регрессии
+(Петерсен--Мюллер~\cite{petersen-mueller-2019}). Перенос заканчивается там, где
+начинаются веса $w_\ell(x)$, зависящие от анизотропной метрики $D_j$:
+стандартные доказательства согласованности предполагают фиксированную метрику.
+\end{remark}
+
+%===================== СЛУЧАЙ D =====================
+\section{Случай D. Спектральная параметризация: метрики и анизотропия}\label{sec:metric}
+
+\subsection{Семейство метрик $\kappa$: от OPG к MAVE}
+
+Пусть $\hat\nabla_j$ --- локальная оценка градиента, $\hat\Sigma_j$ --- локальная
+ковариация. Определим семейство функционалов по $Y\in\St(d,m)$ и
+$f_j\in\R^m$:
+\begin{equation}\label{eq:kappa}
+\Phi_\kappa(Y)\;=\;\sum_j n_j\,\min_{f_j}\,
+(\hat\nabla_j-Yf_j)\T\,\hat\Sigma_j^{\,\kappa}\,(\hat\nabla_j-Yf_j),
+\qquad \kappa\in[0,2].
+\end{equation}
+
+\begin{prop}[Крайние и средний члены семейства]\label{prop:kappa}
+\begin{enumerate}[label=(\roman*),leftmargin=2.2em]
+\item $\kappa=0$: OPG. Профиль по $f_j$ точен, $f_j=Y\T\hat\nabla_j$, и
+задача сводится к $\max_Y\tr\bigl(Y\T C_{\mathrm{grad}}Y\bigr)$ с
+$C_{\mathrm{grad}}=\sum_j n_j\hat\nabla_j\hat\nabla_j\T$: замкнутая форма через
+топ-$m$ собственных векторов~\cite{hjps-2001}.
+\item $\kappa=1$: MAVE/GLS-метрика~\cite{xia-2002-mave} --- с оговоркой о
+шуме (замечание~\ref{rem:noise}): точная GLS требует $\widetilde\Sigma_j$
+с квадратами весов.
+\item $\kappa=2$: текущий скетч-функционал~\eqref{eq:sketch}--\eqref{eq:grass-profile}:
+тождество
+\begin{equation}\label{eq:sketch-identity}
+\erm{I_j-U_jYg}^2\;=\;(v_j-Yg)\T\,\Sigma_j S_j\T S_j\Sigma_j\,(v_j-Yg),
+\qquad v_j=\Sigma_j^{-1}c_j,
+\end{equation}
+показывает, что скетч-метрика есть $\Sigma_j^{\,2}$ ровно тогда, когда
+$S_j\T S_j=\Id$ (ортогональный скетч полной размерности); в общем случае
+скетч задаёт \emph{эффективную} метрику $\Sigma_j S_j\T S_j\Sigma_j$ между
+$\kappa=1$ и $\kappa=2$ (численно подтверждено, раздел~\ref{sec:verification}).
+\end{enumerate}
+\end{prop}
+
+Семейство~\eqref{eq:kappa} --- это тоже редукция: карта $\chi$ меняет
+метрику данных, и режим точности меняется вместе с ней: при $\kappa=0$
+работает аффинный режим (собственное разложение), при $\kappa=2$ ---
+локальный. \emph{$\kappa$-гомотопия} (плавный спуск $\kappa:0\to2$ по ходу
+итераций) --- дешёвый способ унаследовать глобальность OPG и точность
+MAVE: старт из замкнутой формы, финиш в истинной метрике.
+
+\subsection{Анизотропный тензор: спектральные функции за $O(dm)$}
+
+Анизотропия весов~\eqref{eq:weights} задаётся тензором
+\begin{equation}\label{eq:dfull}
+D_{\mathrm{full}}\;=\;\alpha^2\Id+Y\Lambda Y\T,
+\qquad\text{или ортогональный вариант}\qquad
+D_{\mathrm{orth}}\;=\;\alpha^2(\Id-YY\T)+Y\Lambda Y\T,
+\end{equation}
+$\Lambda\succ0$ диагонально (или малорангово), $\delta=\alpha^2$ --- фон.
+
+\begin{prop}[Дешёвые спектральные функции]\label{prop:spfun}
+Для любой функции $f$, определённой на спектре, и любого $x\in\R^d$:
+\begin{equation}\label{eq:spfun}
+f(D_{\mathrm{full}})\,x\;=\;f(\delta)\,x\;+\;Y\bigl(f(\delta\Id+\Lambda)-f(\delta)\Id\bigr)\,Y\T x,
+\end{equation}
+и аналогично для $D_{\mathrm{orth}}$ с $\delta$ на ортогональном дополнении.
+Стоимость $O(dm)$ вместо $O(d^3)$; явного разложения $D$ не требуется.
+\end{prop}
+
+\begin{remark}[Многообразие пары $(Y,\Lambda)$]
+Пара $(Y,\Lambda)$ с калибровкой $(Y,\Lambda)\mapsto(YQ,Q\T\Lambda Q)$
+параметризует фактор-многообразие симметрических PSD-матриц ранга $m$
+--- конструкция Бюрера--Монтейро~\cite{journee-2010}. Редукция здесь:
+симметричный конус параметризован спектром $\Lambda$ (диагональ!) и
+базисом $Y$ (Грассман), так что шаг по метрике $D$ распадается на
+$m$ скалярных шагов по осям и~вращение~\eqref{eq:exp-multi}. Это
+закрывает цикл: \emph{все} параметры модели --- подпространство, поле,
+метрика --- оптимизируются одним шаблоном.
+\end{remark}
+
+%===================== ЛИТЕРАТУРА =====================
+\section{Сопоставление с литературой: что заимствовано и где кончается перенос}\label{sec:lit}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}p{3.6cm}p{4.6cm}X@{}}
+\toprule
+\textbf{Конструкция} & \textbf{Ближайшие источники} & \textbf{Что взято / где перенос кончается}\\
+\midrule
+Сепарабельная мастер-задача~\eqref{eq:master}
+& VARPRO~\cite{golub-pereyra-1973}; Kaufman~\cite{kaufman-1975};
+Ruhe--Wedin~\cite{ruhe-wedin-1980}; Wiberg~\cite{wiberg-1976}
+& Профиль~\eqref{eq:schur} и GN по $\theta$ --- классика. Перенос кончается на
+многообразии: VARPRO живёт в евклидовом $\theta$, нам нужны $\Gr$ и поля.
+Ускорение Кауфмана (усечение члена с $\partial\Aop/\partial\theta$)
+применимо дословно.\\[2pt]
+Жадный ранк-1 солвер~\eqref{eq:greedy}--\eqref{eq:tstar}
+& Frank--Wolfe по ядерной норме~\cite{jaggi-2013};
+ORMP~\cite{wang-2014-ormp};
+взвешенный низкий ранг~\cite{srebro-jaakkola-2003,mishra-2014}
+& Ранк-1 атом и выигрыш $R^2/(2D)$ --- частный случай FW-шага по ядерному
+шару; отличие: точный линейный поиск по квадратичному профилю и
+чередование направлений вместо чистого FW.\\[2pt]
+Точный ранк-$r$~\eqref{eq:whitened-ey}
+& Eckart--Young~\cite{eckart-young-1936};
+Khatri--Rao/Кронекер~\cite{vanloan-pitsianis-1993}
+& Белёный Экарт--Юнг известен; новое --- граница устойчивости
+(утверждение~\ref{prop:pert}) как критерий применимости жадной схемы.\\[2pt]
+Вращения на $\Gr$~\eqref{eq:exp-multi}--\eqref{eq:exp-rk1}
+& Edelman--Arias--Smith~\cite{edelman-1998};
+Absil--Malick~\cite{absil-malick-2012};
+Givens CD~\cite{shalit-chechik-2014,massart-2022};
+касательный спуск по подпространствам~\cite{gutman-2019-tsd}
+& Геодезики/ретракции стандартны. Наше --- замкнутый угловой
+профиль~\eqref{eq:angle-schur} по данным (не по абстрактному функционалу):
+$O(J)$ на угол. CD по Гивенсам --- частный случай с осями-единичками.\\[2pt]
+Онлайн-подпространства
+& GROUSE~\cite{balzano-2010-grouse}; PETRELS~\cite{chi-2013-petrels}
+& Те же ранк-1 обновления на $\Gr$; у них --- стриминг по столбцам, у нас ---
+батч по узлам $j$ с точным профилем.\\[2pt]
+Нормированные шаги~\eqref{eq:norms}
+& Muon~\cite{jordan-2024-muon}; антология
+норм~\cite{bernstein-newhouse-2024};
+PSD~\cite{carlson-2015}; Polar Express~\cite{amsel-2025-polar};
+spectral descent
+& Полярный фактор как steepest descent в операторной норме --- известно;
+мы добавляем ретракцию~\eqref{eq:phi-family} и перенос на $\Gr$/поля.\\[2pt]
+Tucker-поле~\eqref{eq:tucker-field}--\eqref{eq:tangent-field}
+& Tucker RTR~\cite{ishteva-2011};
+тензорные разложения~\cite{kolda-bader-2009};
+envelope~\cite{cook-2010-envelope};
+Фреше-регрессия~\cite{petersen-mueller-2019};
+геодезическая регрессия~\cite{fletcher-2011,hong-grassmann-regression}
+& Условие $R>m$ (утверждение~\ref{prop:envelope}) --- аналог envelope;
+касательное поле с ретракцией --- новая сборка известных блоков.\\[2pt]
+Спектральные функции~\eqref{eq:spfun}
+& BBP-шипы~\cite{baik-2005-bbp,johnstone-2001};
+скетчинг~\cite{halko-2011,pilanci-wainwright}
+& «Шип + фон» --- модель BBP; наше $f(D)x$ за $O(dm)$ --- прямое следствие
+ранк-$m$ модификации единичного оператора.\\[2pt]
+$\kappa$-семейство~\eqref{eq:kappa}
+& OPG~\cite{hjps-2001}; MAVE~\cite{xia-2002-mave};
+Cheng--Wu~\cite{cheng-wu-2013}
+& Края известны; вклад --- непрерывное семейство с гомотопией и точное
+место скетч-метрики~\eqref{eq:sketch-identity} внутри него.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\medskip
+\noindent\emph{Итог сопоставления.} Ни одна из конструкций по отдельности не нова;
+новизна --- в единой рамке (определение~\ref{def:reduction}), где SVD-солвер,
+вращения Грассмана, Tucker-поля и $\kappa$-метрики суть смена карты $\chi$ при
+неизменном шаблоне «атом $\to$ профиль $\to$ сертификат», и в нескольких
+замкнутых формулах (угловой профиль~\eqref{eq:angle-schur}, белёный
+Экарт--Юнг с границей устойчивости, скетч-тождество~\eqref{eq:sketch-identity}),
+которых в процитированных источниках нет.
+
+%===================== УЛУЧШЕНИЯ =====================
+\section{Улучшения, вытекающие из обобщённой теории}\label{sec:improve}
+
+\subsection{Скорость}
+
+\begin{enumerate}[label=\textbf{C\arabic*.},leftmargin=2.6em]
+\item \emph{Угловой сканер вместо итеративного линейного поиска.}
+Формула~\eqref{eq:angle-schur} оценивает профиль по всему тору углов за
+$O(J\cdot\text{сетка})$ после однократной подготовки шести скаляров на узел.
+Заменяет $5$--$10$ итераций Армихо на одно сканирование; почти глобальный
+выбор угла устраняет застревание в локальных минимумах по $t$.
+\item \emph{Гибрид «жадный разогрев + PCG-финиш».}
+Жадные ранк-1 шаги~\eqref{eq:greedy} дёшевы и устойчивы вдали от оптимума;
+вблизи него включается PCG с предобуславливателем $M^{-1}R=G^{-1}RH^{-1}$
+(утверждение~\ref{prop:pert}): константа $(1+\theta)/(1-\theta)$ известна
+заранее по $\theta=\rho/\mu_G$. Критерий переключения --- сертификат
+$\|R\|/\mu$ (пропозиция~\ref{prop:cert}).
+\item \emph{Пакетирование по узлам.} Все атомарные операции
+--- $g_j\T a$, $U_jv$, $I_j\T U_j$ --- независимы по $j$ и укладываются в
+один батч GEMM/GPU; жадный шаг стоит $O(J(d+m))$ после кэша.
+\item \emph{Доверительная область Кауфмана.} Для шагов по $\theta$ (не по
+$c$) использовать GN с усечённым членом $\partial\Aop/\partial\theta$
+(Кауфман~\cite{kaufman-1975}) внутри trust-region: дешевле полного GN,
+устойчивее голого спуска.
+\end{enumerate}
+
+\subsection{Качество восстановления}
+
+\begin{enumerate}[label=\textbf{Q\arabic*.},leftmargin=2.6em]
+\item \emph{$\kappa$-гомотопия} (пропозиция~\ref{prop:kappa}): старт из
+замкнутой формы OPG ($\kappa=0$), плавный спуск $\kappa\to2$ с переходом в
+истинную скетч-метрику. Наследует глобальность спектральной инициализации и
+локальную точность MAVE.
+\item \emph{GLS-поправка весов} (замечание~\ref{rem:noise}): заменить
+$\Sigma_j$ на $\widetilde\Sigma_j=\sum_iw_{ij}^2z_{ij}z_{ij}\T$ в метрике,
+сохранив $\Sigma_j$ в скетче $U_j$; убирает систематическое смещение
+оценки подпространства при гладких ядрах.
+\item \emph{Поправочный режим} $B=P+\Delta$ (пропозиция~\ref{prop:rank-floor})
+обязателен при $r<m$: иначе ошибка подпространства ограничена снизу
+полом $\lambda(m-r)$.
+\item \emph{Ранк-$k$ атомы вместо ранк-1}: Ky Fan-$k$ строка
+таблицы~\eqref{eq:norms} убирает слабость жадности (по одному направлению за
+шаг) ценой одного малого SVD $k\times k$; для обделённых данными направлений
+это закрывает главный риск ранк-1 схемы.
+\end{enumerate}
+
+\subsection{Память}
+
+\begin{enumerate}[label=\textbf{M\arabic*.},leftmargin=2.6em]
+\item \emph{Касательное Tucker-поле}~\eqref{eq:tangent-field} с бюджетом
+~\eqref{eq:memory}: факторы вместо $J$ полей.
+\item \emph{Спектральное хранение тензора}~\eqref{eq:dfull}: $(Y,\Lambda,\alpha)$
+--- $O(dm)$ вместо $O(d^2)$; все $f(D)x$ через~\eqref{eq:spfun}.
+\item \emph{Скетч-статистики}~\eqref{eq:sketch}: хранить $(U_j,I_j,N_j)$
+вместо $(\Sigma_j,c_j)$ --- экономия $O(d^2)\to O(ds_j)$ на узел.
+\end{enumerate}
+
+%===================== ВЕРИФИКАЦИЯ =====================
+\section{Верификация}\label{sec:verification}
+
+Все замкнутые формулы документа проверены численно (numpy, двойная точность,
+фиксированный seed):
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}lXl@{}}
+\toprule
+\textbf{Формула} & \textbf{Тест} & \textbf{Результат}\\
+\midrule
+\eqref{eq:angle-schur} & угловой профиль vs прямой пересчёт $\Phi(Y_t)$,
+$400$ точек сетки & $\max|\Delta|=1.4\cdot10^{-14}$; argmin совпал\\
+\eqref{eq:exp-rk1}, \eqref{eq:phi-family} & ранк-1: polar vs вращение
+$\arctan\eta$; Cayley vs $2\arctan(\eta/2)$; QR vs polar на $\Gr$
+(проекторы) & $4.1\cdot10^{-16}$; $4.2\cdot10^{-16}$;
+$6.4\cdot10^{-16}$\\
+\eqref{eq:whitened-ey} & $F(B_r^\star)$ vs $200$ случайных ранк-$r$
+& глобальный минимум подтверждён\\
+\eqref{eq:tstar} & выигрыш $R^2/(2D)$ vs фактический, $60$ жадных шагов
+& $\max|\Delta|=1.2\cdot10^{-15}$\\
+\eqref{eq:cert} & сертификат с $\mu=\lambda+\lambda_{\min}(G)\lambda_{\min}(H)$
+& выполняется; в $2.4$ раза точнее наивного $\lambda$\\
+\eqref{eq:sketch-identity} & скетч-тождество, случайные $S,\Sigma,c$
+& $|\Delta|=2.3\cdot10^{-13}$; совпадение с $\kappa=2$ ровно при
+$S\T S=\Id$\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\medskip
+\noindent Сохранённое ранее сравнение солверов (350 прогонов): жадный SVD
+ранга 1 --- медианная ошибка проектора $0.118$ при $24.8$\,с; полный LSMR ---
+$0.0464$ при $37.1$\,с. Вывод: жадная схема --- разогрев, не финиш
+(ср. пункт C2).
+
+%===================== КАРТА ИСТОЧНИКОВ =====================
+\appendix
+\section{Карта исходных записок}\label{app:sources}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Записка} & \textbf{Куда вошла}\\
+\midrule
+\texttt{SVD\_solver.txt}, \texttt{SVD\_algorithm.txt}, \texttt{SVD\_cur.txt}
+& Раздел~\ref{sec:svd} целиком: оператор~\eqref{eq:Lop}, жадность
+~\eqref{eq:greedy}--\eqref{eq:tstar}, сепарабельный предел
+~\eqref{eq:whitened-ey}, полы (пропозиция~\ref{prop:rank-floor}), PCG
+(утверждение~\ref{prop:pert}), режимы матрица/поправка.\\
+\texttt{grassmann\_rank\_one.txt}
+& Раздел~\ref{sec:grass}: инвариантность (пропозиция~\ref{prop:invariance}),
+градиент~\eqref{eq:grass-grad}, ранк-1 геодезическая~\eqref{eq:exp-rk1},
+жадный алгоритм на $\Gr$.\\
+\texttt{cladue.md}
+& Угловой профиль (теорема~\ref{thm:angle-profile}), $\varphi$-ретракции
+(утверждение~\ref{prop:phi}), таблица норм~\eqref{eq:norms},
+$\kappa$-гомотопия (пропозиция~\ref{prop:kappa}), Łojasiewicz
+(утверждение~\ref{prop:grass-descent}), verdict о слабости ранк-1
+(пункт Q4).\\
+\texttt{multiindex.txt}
+& Модель~\eqref{eq:model}, веса~\eqref{eq:weights}, AO-схема и JEDR-критерий
+как внешний цикл по $g_j$ вокруг~\eqref{eq:FB}.\\
+\texttt{Tucker.md}
+& Раздел~\ref{sec:fields}: поле~\eqref{eq:tucker-field}, условие $R>m$
+(утверждение~\ref{prop:envelope}), касательное поле~\eqref{eq:tangent-field}.\\
+\texttt{EDR\_unified\_theory.txt} & Предыдущая сводка; настоящий документ
+заменяет её, перестраивая вокруг принципа редукции
+(определение~\ref{def:reduction}).\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+%===================== БИБЛИОГРАФИЯ =====================
+\begin{thebibliography}{99}\small
+
+\bibitem{golub-pereyra-1973}
+G.~H. Golub, V.~Pereyra.
+\emph{The differentiation of pseudo-inverses and nonlinear least squares
+problems whose variables separate}.
+SIAM J. Numer. Anal. 10(2):413--432, 1973.
+
+\bibitem{kaufman-1975}
+L.~Kaufman.
+\emph{A variable projection method for solving separable nonlinear least
+squares problems}. BIT 15(1):49--57, 1975.
+
+\bibitem{ruhe-wedin-1980}
+A.~Ruhe, P.~{\AA}.~Wedin.
+\emph{Algorithms for separable nonlinear least squares problems}.
+SIAM Rev. 22(3):318--337, 1980.
+
+\bibitem{wiberg-1976}
+T.~Wiberg.
+\emph{Computation of principal components when data are missing}.
+In: Proc. 2nd Symp. Computational Statistics, 229--236, 1976.
+
+\bibitem{eckart-young-1936}
+C.~Eckart, G.~Young.
+\emph{The approximation of one matrix by another of lower rank}.
+Psychometrika 1(3):211--218, 1936.
+
+\bibitem{vanloan-pitsianis-1993}
+C.~F. Van Loan, N.~Pitsianis.
+\emph{Approximation with Kronecker products}.
+In: Linear Algebra for Large Scale and Real-Time Applications, 293--314,
+Kluwer, 1993.
+
+\bibitem{edelman-1998}
+A.~Edelman, T.~A. Arias, S.~T. Smith.
+\emph{The geometry of algorithms with orthogonality constraints}.
+SIAM J. Matrix Anal. Appl. 20(2):303--353, 1998.
+
+\bibitem{absil-malick-2012}
+P.-A. Absil, J.~Malick.
+\emph{Projection-like retractions on matrix manifolds}.
+SIAM J. Optim. 22(1):135--158, 2012.
+
+\bibitem{absil-2007-rtr}
+P.-A. Absil, C.~G. Baker, K.~A. Gallivan.
+\emph{Trust-region methods on Riemannian manifolds}.
+Found. Comput. Math. 7(3):303--330, 2007.
+
+\bibitem{absil-2005-lojasiewicz}
+P.-A. Absil, R.~Mahony, B.~Andrews.
+\emph{Convergence of the iterates of descent methods for analytic cost
+functions}. SIAM J. Optim. 16(2):531--547, 2005.
+
+\bibitem{wen-yin-2013}
+Z.~Wen, W.~Yin.
+\emph{A feasible method for optimization with orthogonality constraints}.
+Math. Program. 142:397--434, 2013.
+
+\bibitem{shalit-chechik-2014}
+U.~Shalit, G.~Chechik.
+\emph{Coordinate-descent for learning orthogonal matrices}.
+ICML, PMLR 32:548--556, 2014.
+
+\bibitem{massart-2022}
+E.~Massart, P.-A. Absil, J.~Hendrickx.
+\emph{Coordinate descent on the orthogonal group for recurrent neural
+network training}. AAAI, 2022.
+
+\bibitem{gutman-2019-tsd}
+D.~Gutman, N.~Ho-Nguyen.
+\emph{Coordinate descent without coordinates: tangent subspace descent on
+Riemannian manifolds}. arXiv:1912.10627; Math. Oper. Res., 2023.
+
+\bibitem{balzano-2010-grouse}
+L.~Balzano, R.~Nowak, B.~Recht.
+\emph{Online identification and tracking of subspaces from highly
+incomplete information} (GROUSE). Allerton, 2010.
+
+\bibitem{chi-2013-petrels}
+Y.~Chi, Y.~C. Eldar, R.~Calderbank.
+\emph{PETRELS: Parallel subspace estimation and tracking by recursive
+least squares from partial observations}.
+IEEE Trans. Signal Process. 61(23):5947--5959, 2013.
+
+\bibitem{jordan-2024-muon}
+K.~Jordan et al.
+\emph{Muon: An optimizer for hidden layers in neural networks}.
+Blog post, 2024. Newton--Schulz-итерация как приближение полярного фактора.
+
+\bibitem{bernstein-newhouse-2024}
+J.~Bernstein, L.~Newhouse.
+\emph{Old optimizer, new norm: An anthology}. arXiv:2409.20325, 2024.
+
+\bibitem{carlson-2015}
+D.~Carlson, V.~Cevher, L.~Carin.
+\emph{Preconditioned spectral descent for deep learning}. NIPS, 2015.
+
+\bibitem{amsel-2025-polar}
+N.~Amsel et al.
+\emph{The Polar Express: Optimal matrix sign functions}.
+arXiv:2505.16932; ICLR, 2026.
+
+\bibitem{jaggi-2013}
+M.~Jaggi.
+\emph{Revisiting Frank--Wolfe: Projection-free sparse convex optimization}.
+ICML, PMLR 28(1):427--435, 2013.
+
+\bibitem{wang-2014-ormp}
+Z.~Wang, M.-J. Lai, Z.~Lu, W.~Fan, H.~Davulcu, J.~Ye.
+\emph{Orthogonal rank-one matrix pursuit for low rank matrix completion}
+(ORMP). PMLR 2014; SIAM J. Sci. Comput., 2015.
+
+\bibitem{srebro-jaakkola-2003}
+N.~Srebro, T.~Jaakkola.
+\emph{Weighted low-rank approximations}. ICML, 2003.
+
+\bibitem{mishra-2014}
+B.~Mishra, G.~Meyer, F.~Bach, R.~Sepulchre.
+\emph{Low-rank optimization with trace norm penalty}.
+SIAM J. Optim. 24(2):585--618, 2014.
+
+\bibitem{ishteva-2011}
+M.~Ishteva, P.-A. Absil, S.~Van Huffel, L.~De Lathauwer.
+\emph{Best low multilinear rank approximation of higher-order tensors,
+based on the Riemannian trust-region scheme}.
+SIAM J. Matrix Anal. Appl. 32(1):115--135, 2011.
+
+\bibitem{kolda-bader-2009}
+T.~G. Kolda, B.~W. Bader.
+\emph{Tensor decompositions and applications}.
+SIAM Rev. 51(3):455--500, 2009.
+
+\bibitem{cook-2010-envelope}
+R.~D. Cook, B.~Li, F.~Chiaromonte.
+\emph{Envelope models for parsimonious and efficient multivariate linear
+regression}. Statist. Sinica 20(3):927--960, 2010.
+
+\bibitem{petersen-mueller-2019}
+A.~Petersen, H.-G. M\"uller.
+\emph{Fr\'echet regression for random objects with Euclidean predictors}.
+Ann. Statist. 47(2):691--719, 2019.
+
+\bibitem{fletcher-2011}
+P.~T. Fletcher.
+\emph{Geodesic regression and the theory of least squares on Riemannian
+manifolds}. Int. J. Comput. Vis. 105(2):171--185, 2013 (конф. 2011).
+
+\bibitem{hong-grassmann-regression}
+Y.~Hong et al.
+\emph{Regression uncertainty on the Grassmannian}. PMLR 54 (AISTATS), 2017.
+
+\bibitem{baik-2005-bbp}
+J.~Baik, G.~Ben Arous, S.~P\'ech\'e.
+\emph{Phase transition of the largest eigenvalue for nonnull complex sample
+covariance matrices}. Ann. Probab. 33(5):1643--1697, 2005.
+
+\bibitem{johnstone-2001}
+I.~M. Johnstone.
+\emph{On the distribution of the largest eigenvalue in principal components
+analysis}. Ann. Statist. 29(2):295--327, 2001.
+
+\bibitem{halko-2011}
+N.~Halko, P.-G. Martinsson, J.~A. Tropp.
+\emph{Finding structure with randomness: Probabilistic algorithms for
+constructing approximate matrix decompositions}.
+SIAM Rev. 53(2):217--288, 2011.
+
+\bibitem{pilanci-wainwright}
+M.~Pilanci, M.~J. Wainwright.
+\emph{Randomized sketches of convex programs with sharp guarantees}.
+IEEE Trans. Inf. Theory 61(9):5096--5115, 2015.
+
+\bibitem{journee-2010}
+M.~Journ\'ee, F.~Bach, P.-A. Absil, R.~Sepulchre.
+\emph{Low-rank optimization on the cone of positive semidefinite matrices}.
+SIAM J. Optim. 20(5):2327--2351, 2010.
+
+\bibitem{hjps-2001}
+M.~Hristache, A.~Juditsky, J.~Polzehl, V.~Spokoiny.
+\emph{Structure adaptive approach for dimension reduction}.
+Ann. Statist. 29(6):1537--1566, 2001.
+
+\bibitem{xia-2002-mave}
+Y.~Xia, H.~Tong, W.~K. Li, L.-X. Zhu.
+\emph{An adaptive estimation of dimension reduction space}
+(MAVE). J. R. Stat. Soc. B 64(3):363--410, 2002.
+
+\bibitem{cheng-wu-2013}
+M.-Y. Cheng, H.-T. Wu.
+\emph{Local linear regression on manifolds and its geometric
+interpretation}. J. Amer. Statist. Assoc. 108(504):1421--1434, 2013.
+
+\end{thebibliography}
+
+\end{document}

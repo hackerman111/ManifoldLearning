@@ -1,0 +1,131 @@
+{
+  "selection_seeds": [
+    73100,
+    73101,
+    73102
+  ],
+  "held_out_unrun": [
+    73200,
+    73201,
+    73202,
+    73203,
+    73204
+  ],
+  "frozen_dimensions": [
+    20,
+    100,
+    300
+  ],
+  "fullfit_dimensions": [
+    8,
+    30
+  ],
+  "inner_settings": {
+    "max_steps": 5,
+    "lambda_prox": 0.05,
+    "tol": 1e-06,
+    "local_ridge": 0,
+    "max_angle": 0.5
+  },
+  "candidate": {
+    "lsmr_maxiter": 30,
+    "lsmr_tol": 1e-09,
+    "certificate_tol": 1e-06
+  },
+  "baseline": {
+    "method": "core_gn",
+    "energy_tol": 0.05,
+    "workspace_bytes": 16777216
+  },
+  "fullfit_config": {
+    "seed": "derived per seed using fourth SeedSequence stream",
+    "N_loc": 8,
+    "N_lin": 100,
+    "N_J": 100,
+    "N_phi": 12,
+    "outer_steps": 10,
+    "lambda_penalty": 0.05,
+    "local_ridge": 1e-08,
+    "kernel": "ADP.core.ADP_Config.epanechnikov",
+    "a": 1.4142135623730951,
+    "h_min": 1.0,
+    "batch_size": 32,
+    "index_init": "local",
+    "estimator": "new",
+    "direction_mode": "auto",
+    "multi_tensor": "orthogonal",
+    "select_step": "last",
+    "center_displacement": 0.0,
+    "training_set": "all",
+    "redraw_directions": true,
+    "smart_weights": false,
+    "gpu": false,
+    "gpu_solver": false
+  },
+  "kernel": "max(1-q^2,0), q=(alpha^2*orthogonal_distance2+principal2)/h^2",
+  "centers": "uniform without replacement, 100; no displacement",
+  "directions": "current auto/localized multi law; redraw per outer iteration",
+  "statistics": "normalized finite sketch; external mass; current bandwidth search",
+  "streams": "SeedSequence(seed).spawn(4): data/truth/noise/init; ADP spawn(3) centers/init/directions",
+  "thread_environment": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "BLIS_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1"
+  },
+  "python": "3.13.12",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "blas": [
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 1,
+      "prefix": "libscipy_openblas",
+      "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+      "version": "0.3.34.0.0",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    },
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 1,
+      "prefix": "libscipy_openblas",
+      "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+      "version": "0.3.31.dev",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    }
+  ],
+  "git_head": "1b3d1c6e300c39546d530fcdffd9c364143c2d03",
+  "git_status": " M PLAN.md\n M agent-notes/ADP/multi-index.md\n M agent-notes/DECISIONS.md\n M agent-notes/STATE.md\n?? SVD/.latex/\n?? SVD/glm.pdf\n?? SVD/glm.synctex.gz\n?? SVD/glm.tex\n?? SVD/kimi.tex\n?? SVD/txt/\n?? agent-notes/history/plans/adp-vs-mave-dmave-rmave-2026-10-02-complete.md\n?? agent-notes/history/plans/svd-vs-grassman-optim-spokoiny-2026-10-02-complete.md\n?? benchmarks/adp_mave_benchmark.py\n?? benchmarks/adp_mave_methods.R\n?? benchmarks/svd_grassman_optim_benchmark.py\n?? experiments/adp_mave_comparison_2026-10-02/\n?? experiments/adp_mave_comparison_2026-10-02_anchors/\n?? experiments/adp_mave_comparison_2026-10-02_anchors_final/\n?? experiments/glm_grassmann_2026_10_02/\n?? experiments/svd_vs_grassman_optim_spokoiny_2026-10-02/\n?? tests/test_glm_full_gn.py\n",
+  "source_sha256": {
+    "experiments/glm_grassmann_2026_10_02/full_gn.py": "1ef0742eed2b7e8de795f0ac22ffb183592762733fa0f191e9a351b338cbe84d",
+    "experiments/glm_grassmann_2026_10_02/benchmark.py": "56d313e0c7f42a305f383eb78553532aa8b7fc2c9755c8145adacaad5877d8b0",
+    "tests/test_glm_full_gn.py": "dac273beb0e31d695c6a1ea305097376550494d456cc575f79a8ae76e19e2328",
+    "ADP/solver/grassman.py": "070d0bb91962f23610b3e0a647e8f10fb417bac75e049305c3ef38223966c1a2",
+    "ADP/solver/grassman_optim.py": "9e1d91142d5c951f9efb718d8149b2eff3b0d7bed6246803ddc9f44d4d5b6139",
+    "ADP/solver/LSMR.py": "ccae647907f851b63fbca1ecf45ad409835da0b8e1678545e53de6035fc9d242",
+    "ADP/core/ADP_Config.py": "d803afe7cf9e52ddc321bb711bb5adc3eb7721a217f94570dd8aafdc1685a4d3",
+    "ADP/core/ADP_Solver.py": "a49de2c4ab080210d88c72655b74fa77fc28d619a1179de5552a2e4951c3101c",
+    "ADP/core/multi/ADP_multi_index.py": "65a77f3ff7a620b8cf9678d7d30c4346b323711c7adb879f198a4dae847080aa",
+    "ADP/engine/common/index_fit.py": "6ddfa795ba4ac2092dbecac29159b6e91935d64b8a2805a06303d939ba8d8cb5",
+    "ADP/engine/common/weights.py": "0cc5a04bbff3ae60e74da248ccd73b0128090072fdb1267c4334d78a7e7d006e",
+    "ADP/engine/common/statistic.py": "25f8b1e33c3e1280ae5a5959e51a747b2cc9c24661b64358ea7a9da585fa9fa1",
+    "ADP/engine/common/calculus.py": "5d50b69edbfa9363b33d791da24c50fa47a29ccb4e2e4a791ad7ee8e80615c5e",
+    "ADP/engine/common/initialize.py": "8146befd146847d4b88ac3b1f0c27c7eb68d00998ba44a3f334e114718b9b4bc",
+    "ADP/engine/common/utils.py": "3dd3eafbaf8e246054589013eae17259b9abaf314f7be5100c65edaf0162f98a"
+  },
+  "gates": {
+    "per_pair_quality_atol": 1e-10,
+    "median_time_ratio_max": 1.1,
+    "per_pair_rss_extra_mib_max": 32,
+    "advantage_min": 0.1
+  },
+  "timing": "fresh serial processes; import/startup excluded; 5 frozen repetitions after warmup; full fits once",
+  "memory": "Linux ru_maxrss whole fresh worker incl input/imports, MiB; native allocations included",
+  "timeout_seconds": 120
+}

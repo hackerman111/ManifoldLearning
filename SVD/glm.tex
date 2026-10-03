@@ -1,0 +1,763 @@
+%!TEX program = lualatex
+
+% ============================================================================
+% flat_profile_theory.tex  —  самодостаточная сборка (xelatex, дважды):
+%   xelatex -halt-on-error -interaction=nonstopmode flat_profile_theory.tex
+% ============================================================================
+\documentclass[11pt,a4paper]{article}
+\usepackage{fontspec}
+\setmainfont{Noto Serif}
+\setsansfont{Noto Sans}
+\setmonofont{DejaVu Sans Mono}[Scale=MatchLowercase]
+\usepackage[russian]{babel}
+\usepackage[margin=21mm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,booktabs,tabularx,array}
+\usepackage{microtype,enumitem,xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!45!black,citecolor=blue!45!black,urlcolor=blue!45!black]{hyperref}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\setlength{\emergencystretch}{2em}
+\setlist{nosep,leftmargin=*}
+\setcounter{tocdepth}{1}
+\newcommand{\R}{\mathbb R}
+\newcommand{\Id}{\mathrm I}
+\newcommand{\T}{^{\mathsf T}}
+\newcommand{\F}{_{\mathrm F}}
+\newcommand{\ip}[2]{\langle #1,#2\rangle_{\mathrm F}}
+\newcommand{\Gr}{\mathrm{Gr}}
+\newcommand{\Exp}{\operatorname{Exp}}
+\newcommand{\grad}{\operatorname{grad}}
+\newcommand{\qf}{\operatorname{qf}}
+\newcommand{\rot}{\operatorname{rot}}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\spanop}{span}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newtheorem{theorem}{Теорема}[section]
+\newtheorem{proposition}[theorem]{Утверждение}
+\newtheorem{corollary}[theorem]{Следствие}
+\newtheorem{definition}[theorem]{Определение}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Замечание}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{Профильно-плоская схема\\[3pt]
+\large Единая теория SVD-решателя, Grassmann-спуска\\
+и анизотропной адаптации для многоиндексной задачи}
+\author{Исследовательская записка по материалам \texttt{SVD/},
+\texttt{grassmann\_rank\_one}, \texttt{cladue.md}, \texttt{Tucker.md}}
+\date{октябрь 2026 г.}
+
+\begin{document}
+\maketitle
+\vspace{-8mm}
+\begin{abstract}
+Интуиция «разложить подпространство или изменённое многообразие на простое,
+быстро вычислимое» формализуется как схема из трёх операций:
+(О1) \emph{профиль} --- исключение линейных параметров, снимающее
+калибровочную неоднозначность; (О2) \emph{модификация многообразия} ---
+карта или однопараметрическая деформация экспоненты
+ $R^\varphi_Y=\Exp_Y(V\varphi(\Sigma)A\T)$;
+(О3) \emph{плоское разложение} --- картановское разложение шага на
+попарно коммутирующие двумерные вращения с точным скалярным поиском
+в каждом. На симметрических пространствах (евклидово пространство матриц,
+ $\Gr(m,d)$, конус PSD ранга $m$) разложение точное.
+SVD-решатель --- евклидов частный случай: rank-one поправка с
+QR-нормировкой геометрически совпадает с rank-one геодезическим шагом,
+изотропная модель $\mathcal LX=GXH$ решается замкнуто (Эккарт--Янг),
+жадный выбор атома и точный шаг $t_*=R/D$ --- спектральный бюджет и
+скалярный профиль схемы. Сформулированы гарантии спуска и сходимости,
+посчитаны стоимости и предложены улучшения: плоский шаг ранга $q$ с совместным GN по углам, предобусловленный выбор плоскостей,
+рациональная (полярная) параметризация профиля, $\kappa$-гомотопия
+OPG$\to$MAVE, сжатие статистик, двухуровневая доводка.
+\end{abstract}
+\vspace{-3mm}
+\tableofcontents
+\medskip
+\textbf{Статус утверждений.} Все формулы выведены; доказательства либо
+приведены, либо даны ссылкой. Предложения алгоритмов помечены явно;
+сквозные характеристики (wall-clock, качество восстановления) требуют
+замера и не заявляются.
+
+\section{Модель и функционалы}\label{sec:model}
+
+Пусть $y_i=\psi(Y_*\T x_i)+\varepsilon_i$, $Y_*\T Y_*=\Id_m$, $m\ll d$;
+при $\mathbb E[\nabla\psi\,\nabla\psi\T]\succ0$ пространство градиентов
+совпадает с EDR-пространством. Для центра $x_j$:
+ $w_{ij}=K\bigl((x_i-x_j)\T D_j(x_i-x_j)\bigr)$, $N_j=\sum_iw_{ij}$,
+ $\Sigma_j=N_j^{-1}\sum_iw_{ij}z_{ij}z_{ij}\T$, $c_j=N_j^{-1}\sum_iw_{ij}z_{ij}y_i$ с $z_{ij}=x_i-\bar x_j$; для матрицы направлений $S_j$:
+ $U_j=S_j\Sigma_j\in\R^{p\times d}$, $I_j=S_jc_j$, локальная оценка градиента
+ $\hat\nabla_j=\Sigma_j^{-1}c_j$ (в $area{\spanop}$ невырожденности).
+Локальная модель: $I_j\simeq U_jYg_j$, $g_j\in\R^m$, $Y\T Y=\Id_m$.
+
+Четыре различные роли метрик (путать нельзя):
+(1) $D_j$ --- локализация, меняет статистику;
+(2) $W_j\succeq0$ --- метрика невязки;
+(3) $H\succ0$ --- метрика штрафа;
+(4) $\mathcal M_Y\succ0$ на касательном --- метрика шага.
+Далее статистики заморожены; изменение $D_j,S_j,h$ начинает новую задачу.
+
+Профилированный целевой функционал на $\Gr(m,d)$:
+\begin{equation}\label{eq:profile}
+ \Phi(Y)=\sum_jN_j\min_{g\in\R^m}\bigl\{\|I_j-U_jYg\|^2+\tau\|g\|^2\bigr\}
+ +\lambda\,d_{\rm ch}^2(Y,Y_0),\qquad
+ d_{\rm ch}^2=\tfrac12\|YY\T-Y_0Y_0\T\|\F^2=m-\|Y_0\T Y\|\F^2.
+\end{equation}
+При $\tau>0$ профиль аналитичен на компактном $\Gr$; при $\tau=0$ он лишь
+полунепрерывен сверху и минимум может не достигаться.
+При $\tau=0$ и без штрафа свободная полноранговая матрица и её
+ортонормированный базис дают один профиль ($GL(m)$-замена коэффициентов);
+штраф $\|B-P\|\F^2$ по базисам этим свойством не обладает.
+
+\section{Профильно-плоская схема}\label{sec:scheme}
+
+\subsection{Разделимый класс и профиль}\label{sec:master}
+
+\begin{definition}[разделимый класс]\label{def:master}
+\begin{equation}\label{eq:master}
+ \Phi(\theta)=\min_c\bigl\{\|b-\mathcal A(\theta)c\|^2+r(c)\bigr\}+\Omega(\theta),
+\end{equation}
+где $\theta$ --- структура (матрица, подпространство, тензор, поле),
+ $c$ --- линейные коэффициенты, $\mathcal A$ --- эквивариантный словарь.
+\end{definition}
+
+\begin{proposition}[корректность профиля и калибровка]\label{prop:profile}
+Если $\widetilde{\mathcal A}=[\mathcal A;\mathcal R_{r(c)}]$ имеет локально
+постоянный столбцовый ранг, то
+ $\Phi=\|\tilde b\|^2-\tilde b\T\widetilde{\mathcal A}
+(\widetilde{\mathcal A}\T\widetilde{\mathcal A})^{-1}\widetilde{\mathcal A}\T\tilde b+\Omega$,
+ $\tilde b=[b;0]$. Если при $\theta\mapsto\theta Q$ словарь преобразуется как
+ $\Psi_j(\theta Q)=\Psi_j(\theta)\rho(Q)$, а $r,\Omega$ инвариантны при
+ $c_j\mapsto\rho(Q)^{-1}c_j$, то \eqref{eq:master} корректно определён на
+классе эквивалентности $[\theta]$.
+\end{proposition}
+\begin{proof}
+Первая формула --- исключение квадратичной формы по $c$. Вторая: замена
+коэффициентов взаимно однозначна и сохраняет каждое значение минимизируемого
+выражения.
+\end{proof}
+
+Частные случаи \eqref{eq:master}: fixed-$g$ SVD-солвер (калибровка тривиальна,
+ $c$ отсутствует), профиль \eqref{eq:profile} ($\rho$ --- стандартное
+представление $O(m)$), локальный квадратичный джет
+($\rho=\mathrm{std}\oplus\mathrm{Sym}^2$), поле подпространств.
+
+\subsection{Модификации многообразия: карты и $\varphi$-семейство}\label{sec:retr}
+
+\begin{definition}[модификация]\label{def:chart}
+Модификация $\mathcal M$ в точке $Y$ --- пара (простое линейное пространство
+ $E$, отображение $\chi_Y\colon E\to\mathcal M$), $\chi_Y(0)=Y$,
+ $D\chi_Y(0)=\mathrm{id}$. Канонические типы:
+(а) аффинная карта в амбиент со штрафом ($B=P+\Delta$);
+(б) QR/полярная карта $\qf(Y+Z)$;
+(в) $\varphi$-деформация экспоненты.
+\end{definition}
+
+\begin{proposition}[$\varphi$-семейство ретракций]\label{prop:retr}
+Пусть $Z=V\Sigma A\T$ --- тонкое SVD горизонтального $Z$ ($Y\T Z=0$),
+и $R^\varphi_Y(Z)=\Exp_Y\bigl(V\varphi(\Sigma)A\T\bigr)$, где $\varphi$ применяется покоординатно. Тогда:
+(i) при $\varphi(0)=0$, $\varphi'(0)=1$ ($\varphi$ нечётна, гладка)
+ $R^\varphi$ --- ретракция первого порядка;
+(ii) она второго порядка тогда и только тогда, когда $\varphi''(0)=0$;
+(iii) все ретракции второго порядка дают один и тот же шаг Ньютона;
+(iv) $\Exp_Y(Z)=Y+Z-\tfrac12YZ\T Z+O(\|Z\|\F^3)$.
+\end{proposition}
+\begin{proof}
+Из (iv): $R_Y(tZ)=Y+V\varphi(t\Sigma)A\T-\tfrac12YA\varphi(t\Sigma)^2A\top+O(t^3)$.
+Тогда $\tfrac{d^2}{dt^2}\big|_0R_Y(tZ)=\varphi''(0)\,V\Sigma^2A\T-Y\Sigma^2A\top$,
+а у геодезической второй член равен $-YZ\T Z=-YA\Sigma^2A\T$; откуда (i)--(ii).
+(iii) --- стандартно \cite{ams,absilmalick}: направление Ньютона определяется
+внутренними градиентом и гессианом.
+\end{proof}
+
+Примеры: $\varphi(t)=t$ --- $\Exp$; $\varphi(t)=\arctan t$ --- полярная
+ $\qf(Y+Z)$ (углы $\arctan\sigma_\ell$); $\varphi(t)=2\arctan(t/2)$ --- Кэли
+\cite{wenyin}. При точном поиске по скаляру выбор $\varphi$ меняет только
+параметризацию: множества достижимости совпадают с точностью до границы
+карт с ограниченным углом (у полярной $|\theta|<\pi/2$, граница ---
+предел $|\eta|\to\infty$).
+
+\begin{proposition}[полярная карта декалирует плоскости]\label{prop:polardecomp}
+Для $Z=V\diag(\eta)A\T$, $A\T A=V\T V=\Id_q$, $Y\T V=0$:
+\begin{equation}\label{eq:polarplane}
+ R_Y(Z)=Y(\Id-AA\T)+YA\,\diag\!\bigl((1+\eta_\ell^2)^{-1/2}\bigr)A\T
+ +V\,\diag\!\bigl(\eta_\ell(1+\eta_\ell^2)^{-1/2}\bigr)A\T.
+\end{equation}
+Каждая плоскость $(Ya_\ell,v_\ell)$ движется независимо; столбцы $Yb$,
+ $b\perp\spanop(A)$, не меняются; угол поворота $\theta_\ell=\arctan\eta_\ell$.
+\end{proposition}
+\begin{proof}
+ $M=Y+V\diag(\eta)A\T$ даёт $M\T M=\Id+A\diag(\eta)^2A\T$ (так как $Y\T V=0$),
+откуда $(M\T M)^{-1/2}=\Id+A[\diag((1+\eta_\ell^2)^{-1/2})-\Id]A\T$; подстановка.
+\end{proof}
+
+\subsection{Плоское разложение шага}\label{sec:cartan}
+
+\begin{definition}[простое вращение]\label{def:plane}
+Для $y=Ya$, $\|a\|=1$, $v\perp\spanop(Y)$, $\|v\|=1$:
+ $\rot_t(y,v)=\Id+(\cos t-1)(yy\T+vv\T)+\sin t\,(vy\T-yv\T)$;
+ $Y(t)=\rot_t(y,v)\,Y=Y(\Id-aa\T)+(Ya\cos t+v\sin t)a\T$,
+ $\rank(Y(t)-Y)\le1$.
+\end{definition}
+
+\begin{theorem}[плоское разложение; Картан/CS]\label{thm:cartan}
+Пусть $0<m<d$, $Z\in T_Y\Gr$ с тонким SVD $Z=V\Sigma A\T$, $q=\rank Z$.
+Тогда:
+(i) $\Exp_Y(Z)=\prod_{\ell=1}^q\rot_{\sigma_\ell}(Ya_\ell,v_\ell)\,Y$,
+причём вращения попарно коммутируют (плоскости ортогональны);
+(ii) то же верно для любой $R^\varphi_Y(Z)$ с углами $\varphi(\sigma_\ell)$ --- та же плоскость, изменённая экспонента;
+(iii) множество $\{\Exp_Y(V\Theta A\T)\colon\Theta=\diag(\theta_1,\ldots,\theta_q)\}$ --- вполне геодезический тор, период $\pi$ в координатах подпространства;
+максимальный тор имеет размерность $\min(m,d-m)$;
+(iv) $\rank(\Exp_Y(Z)-Y)\le q$.
+\end{theorem}
+\begin{proof}
+(i)--(ii): кососимметрический генератор
+ $\Omega=\sum_\ell\sigma_\ell(v_\ell y_\ell\T-y_\ell v_\ell\T)$ действует в
+попарно ортогональных плоскостях, $\Omega Y=Z$, поэтому
+ $e^\Omega Y=\prod_\ell e^{\sigma_\ell\Omega_\ell}Y$ и $e^{\sigma_\ell\Omega_\ell}
+=\rot_{\sigma_\ell}(y_\ell,v_\ell)$; подробно \cite[\S2.5]{eas}.
+(iii) --- стандартная структура максимальных плоских подмногообразий
+компактных симметрических пространств \cite{helgason,gvl}; (iv) ---
+ $\Exp_Y(Z)-Y=\bigl(YA(\cos\Theta-\Id)+V\sin\Theta\bigr)A\T$.
+\end{proof}
+
+Таким образом, «разложение изменённого многообразия на простое» ---
+это разложение Картана: шаг = тор, координаты тора = углы, а всякая
+ $\varphi$-модификация экспоненты действует только на параметризацию углов.
+
+\begin{remark}
+Жадная траектория (пересчёт градиента после каждого поворота) не совпадает
+с одной геодезической: это метод якобиевского типа, а не движение по
+заранее выбранному тору.
+\end{remark}
+
+\subsection{Спектральный бюджет: какие плоскости выбирать}\label{sec:budget}
+
+\begin{proposition}[наискорейшие направления]\label{prop:budget}
+Пусть $G=\grad\Phi(Y)$, $G=U\Sigma V\T$ --- компактное SVD,
+ $q'=\rank G\le\min(m,d-m)$.
+\begin{enumerate}
+\item \textbf{Ранговая шапка + норма Фробениуса:}
+ $\min_{\rank Z\le q,\,\|Z\|\F\le1}\ip{G}{Z}=-\|[G]_q\|\F$ достигается на
+ $Z_*=-[G]_q/\|[G]_q\|\F$ (фон Нейман + Коши--Буняковский).
+\item \textbf{Шар Шаттена-$p$:} при $1/p+1/q=1$  $Z_*\propto-U\Sigma^{q-1}V\T$. Шар $S_2$ даёт градиентный шаг; шар
+ $S_\infty$ --- полярный фактор $-UV\T$ (ср. Muon\footnote{K. Jordan et al.,
+Muon, 2024: полярный фактор момента как направление спуска.});
+шар $S_1$ --- ведущий атом $-u_1v_1\T$ (ваш rank-one).
+\item \textbf{Метрика $\mathcal L$ (fixed-$g$ квадратика):} полный шаг в шаре
+ $\langle Z,\mathcal LZ\rangle\le1$ есть $Z_*=-\mathcal L^{-1}Q_B$ (Ньютон/GN); для \emph{ранг-один} атома
+\begin{equation}\label{eq:Lball}
+ \Gamma_1(Q_B)=\max_{a,v}\frac{(a\T Q_Bv)^2}
+ {\sum_jN_j(a\T g_j)^2\,v\T(U_j\T U_j)v+\lambda\|a\|^2\|v\|^2},
+\end{equation}
+замкнутой формы нет --- её и ищет попеременный поиск; при surrogate
+ $\mathcal L_0$ с $\rho=\|\mathcal L_0^{-1/2}(\mathcal L-\mathcal L_0)
+\mathcal L_0^{-1/2}\|_2<1$ атом из $\mathcal L_0$-преобразованной невязки
+даёт долю $(1-\theta)/(1+\theta)$ оптимума, $\theta=\rho/\lambda_{\min}$-типа.
+\end{enumerate}
+\end{proposition}
+
+\begin{remark}[исправление]\label{rem:kyfan}
+Утверждение «шар Ky Fan-$k$ даёт rank-$k$ шаг» неверно: линейный функционал
+на шаре Ky Fan концентрируется на ведущем сингулярном направлении
+(получается rank-one). Rank-$q$ шаг возникает из \emph{ранговой шапки} с
+фробениусовой нормировкой --- п.~1 выше (спектральный бюджет).
+\end{remark}
+
+\begin{proposition}[гарантия спуска]\label{prop:descent}
+Пусть вторая производная $\Phi$ вдоль единичных геодезических ограничена
+константой $L>0$ (существует: $\Gr$ компактен, $\Phi$ гладко при $\tau>0$).
+Для $Z=-[G]_q/\|[G]_q\|\F$ и $t=\|[G]_q\|\F/L$:
+\begin{equation}\label{eq:descent}
+ \Phi(Y)-\Phi(R_Y(tZ))\ge\frac{\|[G]_q\|\F^2}{2L}\ \ge\
+ \frac{\|G\|\F^2}{2L\,\min(m,d-m)},
+\end{equation}
+где использовано $\|G\|\F^2=\sum_{\ell\le q'}s_\ell^2\le\min(m,d-m)\,s_1^2$.
+\end{proposition}
+
+\subsection{Точные скалярные профили}\label{sec:angles}
+
+\begin{proposition}[значение профиля в плоскости]\label{prop:angleprofile}
+Пусть $Y(t)$ из Опр.~\ref{def:plane}, $A_\perp\in\R^{m\times(m-1)}$,
+ $[A_\perp,a]\in O(m)$, $C_j=U_jYA_\perp$, $u_j=U_jYa$, $v_j=U_jv$,
+ $\Pi_j=\Id-C_j(C_j\T C_j+\tau\Id)^{-1}C_j\T$. Тогда
+\begin{equation}\label{eq:angleprofile}
+ \min_g\bigl\{\|I_j-U_jY(t)g\|^2+\tau\|g\|^2\bigr\}
+ =k_j-\frac{(\alpha_j\cos t+\beta_j\sin t)^2}
+ {a_j\cos^2t+2b_j\sin t\cos t+e_j\sin^2t+\tau},
+\end{equation}
+где $k_j=I_j\T\Pi_jI_j$, $\alpha_j=u_j\T\Pi_jI_j$, $\beta_j=v_j\T\Pi_jI_j$,
+ $a_j=u_j\T\Pi_ju_j$, $b_j=u_j\T\Pi_jv_j$, $e_j=v_j\T\Pi_jv_j$.
+ $\Pi_j$ не строится: $x\T\Pi y=x\T y-(C_j\T x)\T(C_j\T C_j+\tau)^{-1}(C_j\T y)$.
+Штраф $\lambda d_{\rm ch}^2(Y(t),Y_0)$ --- тригонометрический многочлен
+степени 2 (подготовка $O(m^2+dm)$). После подготовки одна оценка угла стоит
+ $O(J)$, память $O(1)$ на центр.
+\end{proposition}
+\begin{proof}
+Разложение $g=A_\perp g_\perp+a\gamma$ даёт
+ $U_jY(t)g=C_jg_\perp+q(t)\gamma$, $q(t)=u_j\cos t+v_j\sin t$.
+Минимизация по $g_\perp$ --- дополнение Шура (значение
+ $b\T\Pi_jb$), затем по $\gamma$ --- скалярный минимум квадратичной формы.
+\end{proof}
+
+\begin{proposition}[рациональный (полярный) профиль]\label{prop:rational}
+В полярной карте $Y(\eta)=\qf(Y+\eta va\T)$ те же шесть скаляров дают
+\begin{equation}\label{eq:anglepolar}
+ \phi_j(\eta)=k_j-\frac{(\alpha_j+\beta_j\eta)^2}
+ {(e_j+\tau)\eta^2+2b_j\eta+(a_j+\tau)},\qquad \eta\in\R,
+\end{equation}
+без тригонометрии и периодичности; критические точки одного центра ---
+корни кубического уравнения. (В тригонометрической карте --- многочлен
+степени $\le7$ при замене $z=\tan(t/2)$.)
+\end{proposition}
+
+\begin{remark}
+\eqref{eq:angleprofile} и \eqref{eq:anglepolar} --- замкнутые формы
+\emph{значения}, а не аргминимума: сумма по $j$ рациональных функций может
+иметь много минимумов, универсальной замкнутой формы аргминимума нет.
+Практика: сетка + Brent (эвристика глобального поиска) либо плоский
+trust-region (§2.6). Период в координатах подпространства равен $\pi$.
+\end{remark}
+
+\begin{proposition}[плоский refit при $q>1$]\label{prop:flatfit}
+При кэше $U_j[Y,V]$ ($m+q$ столбцов) значение
+ $\Phi\bigl(\Exp_Y(V\Theta A\T)\bigr)$ для любого набора углов вычисляется
+точно малой МНК: $U_jY(\theta)g=[U_jY,\;U_jV]\,\kappa_j(\theta,g)$ с
+ $\kappa_j=\bigl[(\Id-AA\top+A\cos\Theta A\top)g;\ \sin\Theta\,A\top g\bigr]$;
+стоимость $O\bigl(J(p(m+q)^2+(m+q)^3)\bigr)$ на оценку. Якобиан по углам
+также берётся из кэша:
+ $\partial_{\theta_\ell}Y(\theta)=(-\sin\theta_\ell\,Ya_\ell+\cos\theta_\ell\,v_\ell)a_\ell\T$.
+Производные локальных коэффициентов:
+\begin{equation}\label{eq:jacobiandg}
+ A_j\dot g_j=T_j\T r_j-M_j\T T_jg_j,\qquad
+ \dot r_j=-T_jg_j-M_j\dot g_j,\qquad T_j=U_jZ;
+\end{equation}
+отбрасывание $\dot g_j$ даёт аппроксимацию Кауфмана --- допустимо только
+под контролем убывания.
+\end{proposition}
+
+\subsection{Плоский trust-region и сходимость}\label{sec:conv}
+
+Плоский TR: минимизация точного профиля (данные из кэша + точный
+тригонометрический штраф) по $\theta\in\mathbb T^q$ методом GN/TR
+с принятием шага по \emph{истинному} $\Phi$. Стандартные результаты
+о TR на многообразиях \cite{abg} дают глобальную сходимость к
+стационарным точкам.
+
+\begin{proposition}[сходимость]\label{prop:conv}
+Пусть $\tau>0$, статистики фиксированы; шаги выбираются по
+Предл.~\ref{prop:budget}(1) с длиной из \eqref{eq:descent} либо точным
+1D-поиском, либо Armijo. Тогда
+ $\Phi(Y_{k+1})\le\Phi(Y_k)-c\|G_k\|\F^2$,
+ $\sum_k\|G_k\|\F^2<\infty$, все предельные точки стационарны;
+по неравенству Лоясевича \cite{ama05} вся последовательность сходится,
+а длина траектории конечна.
+\end{proposition}
+
+\begin{remark}
+При изменении $h,D_j,S_j$ меняется сама цель; гарантии относятся к
+внутренней задаче с замороженными статистиками. Внешний цикл
+(структурная адаптация $\TEDR_k$) --- неподвижная точка без гарантии
+монотонности по $\Phi$.
+\end{remark}
+
+\subsection{Алгоритм ППС}\label{sec:alg}
+
+\begin{center}
+\fbox{\begin{minipage}{0.96\linewidth}
+\textbf{Профильно-плоский шаг} (вход: $Y$, $\{I_j,U_j,N_j\}$, $\tau>0$,
+ $\lambda$, $\varepsilon$, $q_{\max}$).
+\begin{enumerate}
+\item Профиль: $g_j^\star$, $r_j$; кэш $C_j=U_jY$ --- проход $O(Jpdm)$.
+\item Градиент $G$ (действия, без $d\times d$) --- проход $O(Jpd)$.
+\item Тонкое SVD $G$ ($O(dm^2)$); выбрать $q$ по энергобюджету
+ $\sum_{\ell\le q}s_\ell^2\ge(1-\varepsilon)\|G\|\F^2$, $q\le q_{\max}$.
+\item Кэш $U_jV$ --- проход $O(Jpdq)$, память $Jpq$.
+\item Плоский TR/GN по $\theta\in\mathbb T^q$ с точным профилем
+(Предл.~\ref{prop:flatfit}); допуск итераций --- из условия неточного
+спуска \eqref{eq:inexact}.
+\item Ретракция $R^\varphi_Y$ (по умолчанию полярная:
+декалирование, Предл.~\ref{prop:polardecomp}); принятие по истинному
+ $\Phi$; при отказе --- деление шага.
+\item Численная стабилизация: периодический тонкий QR (не реконструкция
+направлений).
+\end{enumerate}
+Итого на итерацию: 2 прохода по данным, память сверх входа $O(Jp(m+q))$.
+\end{minipage}}
+\end{center}
+
+\section{Частные случаи}\label{sec:instances}
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}p{30mm}LL@{}}
+\toprule
+Элемент схемы & SVD-решатель (fixed-$g$) & Профильный Gr-метод\\
+\midrule
+Многообразие & $\R^{m\times d}$ (плоское) & $\Gr(m,d)$\\
+Калибровка & нет ($GL$-инвариантность нарушена штрафом) & $O(m)$-фактор,
+профиль по $g_j$\\
+Модификация & аффинная карта $B=P+\Delta$, ridge & ретракция $R^\varphi$,
+штраф $d_{\rm ch}^2$\\
+Атомы & $E=av\T$ & плоскости $(Ya,v)$\\
+Выбор атома & SVD $Q_B$ / ALS по $\Gamma_1$ & SVD $G$ (или GN-метрика)\\
+Скалярный поиск & $t_*=R/D$ (точно) & профиль \eqref{eq:angleprofile}/%
+\eqref{eq:anglepolar}\\
+Совместный refit & $M\sigma=h$ в оболочке атомов & $(m+q)$-колоночный
+профиль на $U_j[Y,V]$\\
+Точное решение & Эккарт--Янг при $\mathcal LX=GXH$ & полный шаг
+ $q=\min(m,d-m)$\\
+Сертификат & $\|Q_B\|\F^2/\lambda$ & убывание $\Phi$, TR\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{SVD-решатель как евклидов частный случай}\label{sec:svd}
+
+Fixed-$g$ задача: $F(B)=\sum_jN_j\|I_j-U_jB\T g_j\|^2+\lambda\|(B-P)H^{1/2}\|\F^2$,
+\begin{equation}\label{eq:Lop}
+ \mathcal LX=\sum_jN_j(g_jg_j\T)X\,H_j+\lambda X,\qquad
+ C=\sum_jN_jg_jI_j\T U_j+\lambda P,\qquad
+ F=C_0+\ip{B}{\mathcal LB}-2\ip{C}{B}.
+\end{equation}
+Это \eqref{eq:master} с тривиальной калибровкой и пустым $c$: ППС на
+ $(\R^{m\times d},\|\cdot\|\F)$. Все перекрёстные блоки по $g_j$ сохраняются; решение строк независимо допустимо лишь при дополнительной
+разделимости. При SPD-$H$ замена
+ $\widetilde B=BH^{1/2}$, $\widetilde U_j=U_jH^{-1/2}$ точна и сохраняет
+ранговые ограничения.
+
+\begin{proposition}[геометрическое вложение]\label{prop:embedding}
+Пусть $\Delta=\eta\,va\T$ горизонтальна, $Y_+=\qf(Y+\Delta)$. Тогда
+ $Y_+=Y(\Id-aa\T)+\tfrac{Ya+\eta v}{\sqrt{1+\eta^2}}a\T$ ---
+та же окружность в $\Gr$, что и rank-one геодезический шаг
+\eqref{eq:rotone} с углом $\arctan\eta$; $\rank(Y_+-Y)\le1$.
+Кроме того, для горизонтального $\Delta$:
+ $d_{\rm ch}^2(\qf(Y+\Delta),Y)=\|\Delta\|\F^2+O(\|\Delta\|\F^4)$,
+то есть амбиентный штраф Фробениуса --- модификация chordal-штрафа,
+совпадающая с ним до второго порядка.
+\end{proposition}
+\begin{proof}
+Первое --- прямое вычисление из $\Id+\eta^2aa\T$-нормировки
+(эквивалент \eqref{eq:polarplane} при $q=1$). Второе:
+углы полярной карты $\theta_\ell=\arctan\sigma_\ell$,
+ $d_{\rm ch}^2=\sum_\ell\sin^2\theta_\ell=\sum_\ell\sigma_\ell^2/(1+\sigma_\ell^2)$.
+\end{proof}
+
+\begin{corollary}
+Corrrection-режим SVD-солвера (rank-one $\Delta$ + ортонормировка) и
+rank-one Grassmann-поворот движутся по одной и той же окружности и
+отличаются только параметризацией угла; все различия методов сосредоточены
+в (а) fixed-$g$ против профилированной цели, (б) выборе штрафов,
+(в) выборе плоскостей.
+\end{corollary}
+
+\begin{theorem}[изотропный одноточечный случай]\label{thm:iso}
+Если $\mathcal LX=GXH$, $G,H\succ0$ (в частности
+ $H_j=\eta_j\Id$, $G=\sum_jN_j\eta_jg_jg_j\T+\lambda\Id_m$), то
+\begin{equation}\label{eq:isoopt}
+ B_r=G^{-1/2}\bigl[G^{-1/2}CH^{-1/2}\bigr]_rH^{-1/2}
+\end{equation}
+глобально минимизирует $F$ при $\rank B\le r$; зазор равен сумме квадратов
+отброшенных сингулярных значений $G^{-1/2}CH^{-1/2}$. Для
+ $\rank(B-P)\le r$ то же с $C_\Delta=C-\mathcal LP$.
+\end{theorem}
+\begin{proof}
+Замена $Z=G^{1/2}BH^{1/2}$ даёт $\|Z-W\|\F^2$ с
+ $W=G^{-1/2}CH^{-1/2}$; обратимые множители сохраняют ранг; теорема
+Эккарта--Янга \cite{eckart}.
+\end{proof}
+
+Здесь «весь функционал диагонализуется в один flat» --- плоское разложение
+выполняется сразу для всей задачи. Сертификаты полного условного решения:
+ $\|B-B_*\|\F\le\|Q_B\|\F/\lambda$,
+ $F(B)-F(B_*)\le\|Q_B\|\F^2/\lambda$. Условие неточного спуска для
+приближённой поправки $D$ с $s=\mathcal LD-Q_B$:
+\begin{equation}\label{eq:inexact}
+ F(B+D)-F(B)=-\ip{D}{\mathcal LD}+2\ip{D}{s}
+ \le-\lambda\|D\|\F^2+2\|s\|\F\|D\|\F,
+\end{equation}
+достаточное условие убывания: $2|\ip{D}{s}|<\ip{D}{\mathcal LD}$ ---
+согласование допусков Крылова с реальным шагом. Ограничение ранга самой
+ $B$ принципиально: $\min_{\rank B\le r}\|B-P\|\F^2=m-r$, т.е.
+ $F(B)\ge\lambda(m-r)$; недостающие направления из одной $B_r$ не
+восстанавливаются --- аргумент в пользу профилированной постановки и
+correction-режима. Для $\|\Delta\|_2<1$:
+ $d_{\rm ch}\le\|\Delta\|\F/(1-\|\Delta\|_2)$.
+
+\subsection{Жадный rank-one как якобиев метод}\label{sec:rankone}
+
+Последовательность rank-one поворотов (адаптивный выбор плоскости по
+текущему градиенту, точный угол) --- покоординатный спуск по торам,
+прямой родственник якобиевых методов \cite{jacobi,schonhage} и GROUSE
+\cite{grouse}; в амбиенте --- rank-one matrix pursuit \cite{pursuit,mallat}.
+Гарантии: монотонность и сертификаты --- §2.4, §3.1; для profiled-цели ---
+Предл.~\ref{prop:descent}, \ref{prop:conv}. Слабости: потеря
+ $\min(m,d-m)$; при $m=1$ совпадает с градиентным спуском по геодезической.
+Оправдан: огромный/разреженный $d$ ($v$ из top-$k$ координат $Ga$),
+стриминг, концентрация $s_1^2/\|G\|\F^2$; число шагов тогда служит
+неявной регуляризацией (бустинг на $\Gr$). В основном пути ---
+абляция.
+
+\subsection{Полный шаг и семейство ретракций}\label{sec:fullstep}
+
+ $q=\min(m,d-m)$: полный геодезический шаг замкнутой формы
+\begin{equation}\label{eq:rotone}
+ \Exp_Y(Z)=Y(\Id-AA\T)+YA\cos\Theta\,A\T+V\sin\Theta\,A\T,
+\end{equation}
+углы --- главные углы; совместная оптимизация углов --- Предл.~\ref{prop:flatfit}.
+Выбор $\varphi$ (Exp / полярная / Кэли) не меняет оцениватель при точном
+поиске по скаляру и не меняет шаг Ньютона; полярная карта дешевле
+(без тригонометрии) и декалирует плоскости (Предл.~\ref{prop:polardecomp}).
+
+\subsection{Анизотропный тензор и $\kappa$-семейство метрик}\label{sec:tensor}
+
+Пара $(Y,\Lambda)$ с калибровкой $(YQ,\,Q\T\Lambda Q)$ задаёт объект
+ $Y\Lambda Y\T$ --- PSD-матрицу ранга $m$; локализация
+ $D=\alpha^2\Id+Y\Lambda Y\T$ (или $D_{\rm orth}=\alpha^2(\Id-YY\T)+Y\Lambda Y\T$)
+применяется действиями: $f(D)x=f(\alpha^2)x+Y\bigl(f(\alpha^2\Id+\Lambda)-
+f(\alpha^2)\Id\bigr)Y\T x$, стоимость $O(dm)$. Однопараметрическое
+семейство целей:
+\begin{equation}\label{eq:kappa}
+ \Phi_\kappa(Y)=\sum_jN_j\min_g\,(\hat\nabla_j-Yg)\T\hat\Sigma_j^\kappa
+ (\hat\nabla_j-Yg)+\lambda d_{\rm ch}^2.
+\end{equation}
+\begin{proposition}[три тождества]\label{prop:kappa}
+(i) $\|I_j-U_jYg\|^2=(\hat\nabla_j-Yg)\T\,\Sigma_jS_j\T S_j\Sigma_j\,
+(\hat\nabla_j-Yg)$; при $S_j=\Id$ метрика $=\Sigma_j^2$ ($\kappa=2$).
+(ii) $\sum_iw_{ij}(y_i-\bar y_j-z_{ij}\T Yg)^2
+=\mathrm{const}_j+N_j(\hat\nabla_j-Yg)\T\Sigma_j(\hat\nabla_j-Yg)$ ---
+локальный критерий MAVE \cite{mave} ($\kappa=1$) при тех же центрах,
+весах и intercept.
+(iii) При $\kappa=0$, $\tau=0$ профиль равен
+ $\mathrm{const}-\tr(Y\T C_{\rm grad}Y)$,
+ $C_{\rm grad}=\sum_jN_j\hat\nabla_j\hat\nabla_j\T$ --- точный глобальный
+OPG-оптимум: ведущие $m$ собственных векторов.
+\end{proposition}
+При независимом шуме $\operatorname{Cov}(c_j\,|\,x,w)
+=\frac{\sigma^2}{N_j^2}\sum_iw_{ij}^2z_{ij}z_{ij}\T$; для $w\in\{0,1\}$ это
+ $\sigma^2\Sigma_j/N_j$ --- GLS-метрика $\Sigma_j$, т.е. $\kappa=1$ (эффективный выбор). Идентифицируемость равносильна $H_{GN}\succ0$ (градиенты натягивают $m$-мерное подпространство); в истинной точке
+GN-гессиан равен информации Фишера, асимптотическая ковариация в
+касательном пространстве $\approx\sigma^2H_{GN}^{-1}$ --- при корректной
+гауссовой модели; к исходной finite-sketch цели это без условий не
+относится. Конус PSD ранга $m$ --- симметрическое пространство: его flat
+--- диагональные $\Lambda$, простые движения --- собственные плоскости;
+та же ППС применима к внешнему циклу (без гарантии монотонности
+неподвижной точки по $h$).
+
+\subsection{Поле подпространств}\label{sec:field}
+
+Замена $Y$ на $Y_j$ без связи даёт $J$ независимых задач (гессиан
+блочно-диагонален). Геометрически корректное поле малоранговых шагов ---
+Tucker-параметризация \emph{касательного поля} до ретракции:
+\begin{equation}\label{eq:tangentfield}
+ Z_j=V\Bigl(\sum_{\ell=1}^sw_\ell(x_j)M_\ell\Bigr)A\T,\qquad
+ Y_j=R_{Y_0}(Z_j),
+\end{equation}
+общая оболочка $\spanop[Y_0,V]$ размерности $m+q>R$-ограничений;
+хранение $O(d(m+q)+mk+sqk+Js)$ вместо $O(Jdm)$. Пространственная
+гладкость --- через $w_\ell(x)$ (графовый штраф $\tr(w\T Lw)$), штраф
+соседства --- инвариантно: $\sum\omega_{ij}d_{\rm ch}^2(Y_i,Y_j)$.
+CP/Tucker в терминах самих $B_j$ --- та же идея с оговоркой: при
+ $\rank B_j=m=R$ поле не вращается; нужно $R>m$. Интегрируемость поля
+плоскостей (инволютивность) --- отдельное условие, не требующееся для
+регрессии.
+
+\section{Научные предшественники}\label{sec:lit}
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}p{34mm}L@{}}
+\toprule
+Направление & Что общего; где заканчивается перенос\\
+\midrule
+Якобиевы методы \cite{jacobi,schonhage,bgbm} &
+Жадные/циклические плоские вращения, квадратичная сходимость циклической
+схемы. У нас --- профилированная нелинейная цель и точный угловой поиск,
+а не внедиагональная норма.\\
+CS-разложение, главные углы \cite{gvl} &
+Плоские координаты $\Gr$ --- тор главных углов; основа Теоремы~\ref{thm:cartan}.\\
+Симметрические пространства, Картан \cite{helgason,eas} &
+ $\mathfrak g=\mathfrak k\oplus\mathfrak p$, максимальный flat, вполне
+геодезические торы; атомы --- корневые плоскости.\\
+GROUSE \cite{grouse}; Oja \cite{oja} &
+Rank-one геодезические обновления, стриминг. У нас --- профиль, точный
+линейный поиск, произвольные операторы $U_j$, а не выборка координат.\\
+VARPRO \cite{varpro,varpro2} &
+Профилирование и производные; наши замкнутые скалярные профили ---
+VARPRO с одним нелинейным параметром на центр.\\
+Ретракции \cite{absilmalick,wenyin,ams} &
+Семейство $\varphi$, порядок ретракций, единый Ньютон.\\
+TR на многообразиях \cite{abg}; Лоясевич \cite{ama05} &
+Глобальная сходимость к стационарным точкам; сходимость траектории.\\
+Наискорейший спуск в нормах Шаттена; Muon (2024) &
+Полярный фактор как направление; у нас --- частный случай спектрального
+бюджета (Предл.~\ref{prop:budget}(2)).\\
+Rank-one pursuit, OMP \cite{pursuit,mallat} &
+Жадные атомы в амбиенте с точным масштабом; гарантии matrix completion
+на ADP не переносятся.\\
+Эккарт--Янг \cite{eckart}; weighted low-rank \cite{sw,mishra} &
+Замкнутая форма при $GXH$; в общем случае взвешенная малоранговая
+аппроксимация требует иной оптимизации.\\
+Координатный спуск \cite{tseng}; дефляция/ coarse space \cite{defcg} &
+Циклическая минимизация по углам тора; flat как coarse space.\\
+MAVE/OPG/SIR/HJPS \cite{mave,sir,hjps} &
+Статистические цели; $\kappa$-семейство связывает их алгебраически
+(Предл.~\ref{prop:kappa}).\\
+Envelope-модели \cite{cook} &
+Глобальная низкоразмерная оболочка; аналог --- envelope $V$ в поле.\\
+Случайное SVD \cite{halko} &
+Только при дорогих действиях; при малом $m$ тонкое SVD $d\times m$ дёшево.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+Целостная комбинация «профиль + плоское разложение + точный угловой поиск +
+спектральный бюджет» в известной нам литературе как единый метод не
+представлена; ближайшие точечные прототипы --- GROUSE (без профиля и
+точного поиска) и якобиевы методы (без фактор-многообразия). Новизна
+относительно всей литературы и преимущество в восстановлении здесь не
+доказаны.
+
+\section{Улучшения}\label{sec:improve}
+
+\textbf{И1. Плоский шаг ранга $q$ вместо жадного rank-one} (основной путь).
+Один-два прохода по $U_j$ на итерацию против $\sim$40 проходов на атом
+жадной схемы (ALS с matvec $O(Jpd)$); снимается потеря
+ $\min(m,d-m)$ из \eqref{eq:descent}; убывание $\ge\|[G]_q\|\F^2/(2L)$;
+сходимость --- Предл.~\ref{prop:conv}. [формулы доказаны; wall-clock и
+качество --- замерить]
+
+\textbf{И2. Предобусловленный выбор плоскостей.} Метрика шага
+ $\mathcal M_Y$ = GN-гессиан (или surrogate $\mathcal L_0$ с
+ $\rho$-границей); плоскости --- по $\mathcal M_Y^{-1}$-преобразованному
+градиенту (натуральный градиент/GN); сертификат доли выигрыша через
+ $\rho$. Эффект --- качество при сильной анизотропии после структурной
+адаптации. [доказаны оценки; измерить]
+
+\textbf{И3. Полярно-рациональный профиль.} $\varphi=\arctan$: на центр ---
+кубика \eqref{eq:anglepolar}, без тригонометрии и периодичности; та же
+память (шесть скаляров). Эффект --- скорость и устойчивость углового
+поиска. [доказано; замерить]
+
+\textbf{И4. Статистический контур: $\kappa$-гомотопия.}
+Инициализация $\kappa=0$ (OPG, замкнуто, Предл.~\ref{prop:kappa}(iii));
+далее $\kappa\colon0\to1$ (MAVE/GLS-эффективная метрика) вместе с
+ $h_k\downarrow$; детерминированный GLS-выбор $S_j=\hat\Sigma_j^{-1/2}$;
+chordal-штраф; $\tau>0$ для аналитичности. Эффект --- качество
+восстановления. [тождества доказаны; estimator-часть --- измерить]
+
+\textbf{И5. Двухуровневая доводка.} После плоского шага --- CG/TR в
+касательном пространстве с дефляцией плоских направлений \cite{defcg};
+допуск Крылова --- из \eqref{eq:inexact}; принятие по истинному $\Phi$ гарантирует неувеличение. Снимает внеплоскостную кривизну малым числом
+matvec'ов. [предложение]
+
+\textbf{И6. Память.} Тонкое QR-сжатие $[U_j,I_j]=Q_jR_j\to(\bar U_j,\bar I_j)$ без усечения --- точное тождество (выигрыш при $p>d+1$); факторизованные/
+потоковые $U_j$; кэш $Jp(m+q)$; батчинг $U_j[W]$; запрет плотных $d\times d$.
+[точно/численно]
+
+\textbf{И7. Тензор: ППС на конусе PSD.} Диагональ $\Lambda$ --- flat,
+собственные плоскости --- атомы; та же схема для внешнего цикла; обновление
+ $(Y,\Lambda)$ с согласованной калибровкой. [предложение]
+
+\textbf{И8. Поле: общие плоскости + гладкие веса.} \eqref{eq:tangentfield}
+с $R=m+q$, графовой гладкостью $w_\ell$ и инвариантным штрафом соседства;
+идентифицируемость поля --- отдельно. [предложение]
+
+\medskip
+\textbf{Порядок внедрения.} (1) OPG-инициализация (И4, $\kappa=0$);
+(2) ППС с адаптивным $q$ и TR по углам (И1, И3); (3) гомотопия $\kappa$ (И4); (4) предобусловливание и двухуровневая доводка (И2, И5); (5) память
+(И6); (6) тензор/поле (И7, И8). Baseline сравнения: текущий AO, fixed-$g$ SVD, MAVE, OPG, SIR; метрика $d_{\rm ch}^2(Y,Y_*)$, wall-clock, память;
+протокол --- из \texttt{EDR\_unified\_theory} (paired frozen statistics,
+далее полные фиты по заранее заданным seeds).
+
+\section{Границы результата}\label{sec:limits}
+
+Не доказано и не заявляется: глобальная оптимальность плоских шагов и
+жадных схем (кроме изотропного случая, Теорема~\ref{thm:iso}); скорость
+сходимости (только асимптотика); монотонность внешнего цикла адаптации
+ядра; оптимальность адаптивного $q$; глобальность сетки+Brent
+(эвристика; сертификат требует границ на интервале либо перечисления
+критических точек); идентифицируемость поля. Все новые градиенты и
+Якобианы проверять конечными разностями; численные проверки углового
+профиля и ретракций из исходных записей (совпадение до $10^{-15}$)
+согласуются с Предл.~\ref{prop:angleprofile}, \ref{prop:rational}.
+
+\appendix
+\section{Карта исходных записей и исправления}
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}p{36mm}L@{}}
+\toprule
+Материал & Место и уточнения\\
+\midrule
+\texttt{multiindex.tex} &
+Модель, статистики, AO, структурная адаптация: §\ref{sec:model},
+§\ref{sec:tensor}. Single-index --- $m=1$.\\
+\texttt{SVD\_solver.tex}, \texttt{SVD\_algorithm.tex}, \texttt{SVD\_cur.tex} &
+Оператор, жадные атомы, изотропная форма, сертификаты, rank floor:
+§\ref{sec:svd}. Формализовано как евклидов частный случай ППС;
+вложение --- Предл.~\ref{prop:embedding}.\\
+\texttt{grassmann\_rank\_one.tex} &
+Профиль, градиент, rank-one экспонента: §\ref{sec:cartan}, §\ref{sec:rankone}.
+Уточнено: «Taylor-семейство» --- семейство карт $\varphi$, а не разложение
+функции; жадная траектория $\ne$ одна геодезическая; добавлена сходимость.\\
+\texttt{EDR\_unified\_theory.tex} &
+Мастер-класс, четыре метрики, поле, стоимости: §\ref{sec:master}--%
+\ref{sec:field}, §\ref{sec:improve}. Добавлены полярная декалировка
+(Предл.~\ref{prop:polardecomp}) и рациональный профиль
+(Предл.~\ref{prop:rational}).\\
+\texttt{Tucker.md} &
+Поле и envelope: §\ref{sec:field}. Исправлен знак ridge-штрафа
+(положительный); low rank третей моды сам по себе не даёт гладкости.\\
+\texttt{cladue.md} &
+Schur-поиск угла, семейства норм, GN, гомотопия: §\ref{sec:angles}--%
+\ref{sec:tensor}, §\ref{sec:improve}. Исправлено: шар Ky Fan-$k$ даёт
+rank-one, а не rank-$k$ (Замечание~\ref{rem:kyfan}); covariance
+ $w_{ij}^2$; граница полярной карты; заявления о глобальном поиске и
+сходимости даны с условиями.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{thebibliography}{99}\small
+\bibitem{jacobi} C.~G.~J. Jacobi. \emph{\"Uber ein leichtes Verfahren, die in der
+Theorie der S\"acularst\"orungen vorkommenden Gleichungen numerisch aufzul\"osen}.
+J. Reine Angew. Math. 30, 51--94, 1846.
+\bibitem{schonhage} A. Sch\"onhage. \emph{Zur Konvergenz des Jacobi-Verfahrens}.
+Numer. Math. 3, 374--380, 1961.
+\bibitem{bgbm} A. Bunse-Gerstner, R. Byers, V. Mehrmann.
+\emph{Numerical methods for simultaneous diagonalization}. Linear Algebra Appl. 191, 49--71, 1993.
+\bibitem{gvl} G.~H. Golub, C.~F. Van Loan. \emph{Matrix Computations}, 4th ed.
+Johns Hopkins University Press, 2013.
+\bibitem{helgason} S. Helgason. \emph{Differential Geometry, Lie Groups, and
+Symmetric Spaces}. Academic Press, 1978.
+\bibitem{eas} A. Edelman, T.~A. Arias, S.~T. Smith.
+\emph{The geometry of algorithms with orthogonality constraints}.
+SIAM J. Matrix Anal. Appl. 20(2), 303--353, 1998.
+\bibitem{ams} P.-A. Absil, R. Mahony, R. Sepulchre.
+\emph{Optimization Algorithms on Matrix Manifolds}. Princeton University Press, 2008.
+\bibitem{absilmalick} P.-A. Absil, J. Malick.
+\emph{Projection-like retractions on matrix manifolds}. SIAM J. Optim. 22(1), 135--158, 2012.
+\bibitem{wenyin} Z. Wen, W. Yin.
+\emph{A feasible method for optimization with orthogonality constraints}.
+SIAM J. Optim. 23(4), 2462--2488, 2013.
+\bibitem{ama05} P.-A. Absil, R. Mahony, B. Andrews.
+\emph{Convergence of the iterates of descent methods for analytic cost functions}.
+SIAM J. Optim. 16(2), 541--557, 2005.
+\bibitem{abg} P.-A. Absil, C.~G. Baker, K.~A. Gallivan.
+\emph{Trust-region methods on Riemannian manifolds}. Found. Comput. Math. 7(3), 303--330, 2007.
+\bibitem{varpro} G.~H. Golub, V. Pereyra.
+\emph{The differentiation of pseudo-inverses and nonlinear least squares problems
+whose variables separate}. SIAM J. Numer. Anal. 10(2), 413--432, 1973.
+\bibitem{varpro2} G.~H. Golub, V. Pereyra.
+\emph{Separable nonlinear least squares: the variable projection method and its
+applications}. Inverse Problems 19, R1--R26, 2003.
+\bibitem{eckart} C. Eckart, G. Young.
+\emph{The approximation of one matrix by another of lower rank}. Psychometrika 1, 211--218, 1936.
+\bibitem{grouse} L. Balzano, R. Nowak, B. Recht.
+\emph{Online identification and tracking of subspaces from highly incomplete
+information}. Allerton, 2010; arXiv:1006.4046.
+\bibitem{oja} E. Oja. \emph{Simplified neuron model as a principal component analyzer}.
+J. Math. Biol. 15, 267--273, 1982.
+\bibitem{pursuit} Z. Wang, M.-J. Lai, Z. Lu, W. Fan, H. Davulcu, J. Ye.
+\emph{Rank-one matrix pursuit for matrix completion}. ICML (PMLR 32), 91--99, 2014.
+\bibitem{mallat} S. Mallat, Z. Zhang.
+\emph{Matching pursuits with time-frequency dictionaries}.
+IEEE Trans. Signal Process

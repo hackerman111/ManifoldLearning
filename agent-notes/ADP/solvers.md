@@ -21,25 +21,44 @@ inner/LSMR tuples. Контракт, ограничения и актуальн�
 
 ## Профильный Grassmann (opt-in)
 
-`ADP.solver.grassman.solve`: CPU multi-index HPAOResult, cached Schur
-rank-one / adaptive-q spectral / full q*m-core profiled GN + polar Armijo.
+`ADP.solver.grassman.solve`: только full q*m-core profiled GN + polar Armijo,
+CPU multi-index HPAOResult. Параметры method/angle_backend удалены; альтернативы
+rank_one/spectral и Schur/refit абляции доступны только в grassman_exp.
+Внутренние rank/workspace/no-descent fallback-шаги core_gn сохранены.
 Default tau=0 сохраняет unpenalized finite-sketch профиль; positive tau
 отдельный estimator. GN damping не permanent penalty. No global guarantee;
 rank/workspace guards и uncompleted status диагностируются. API/границы и
 локаторы: [multi-index.md](multi-index.md#профильный-grassmann-solver-opt-in).
 
-`ADP.solver.grassman_optim.solve` — отдельная EXACT/NUMERICAL CPU-версия
-с теми же настройками optimizer и HPAOResult; `grassman.py` сохранён как
-эталон. Safe m<=2 profiles используют reorthogonalized QR и triangular solves;
-при cond²*eps>=sqrt(eps), tiny absolute scale, p<m или m>2 — исходный SVD.
-Градиент сначала считает U_j.T@residual_j, затем weighted global contraction;
-scratch ограничен чанками 4 MiB. U actions — transpose GEMM с contiguous
-малым результатом; полный q*m Jacobian батчевый. Кэш sqrt(mass) живёт в solve,
-остальные кэши — внутри frozen шага. Нет новых dense d*d/normal matrices.
-Финальный сертификат по-прежнему использует live U. Проверки/сравнение:
-`tests/test_grassman_optim.py`, `benchmarks/grassman_optim_benchmark.py`,
-`experiments/grassman_optim_2026_10_01/` (активный paired benchmark).
-Источник **SRC-GRASSMAN-OPTIM**: `sed -n '1,574p' ADP/solver/grassman_optim.py`.
+`grassman.py` теперь содержит проверенную CPU-оптимизацию core_gn:
+EXACT/NUMERICAL при прежних настройках, цели и HPAOResult. Safe m<=2
+profiles используют reorthogonalized QR/triangular solves; unsafe, p<m или
+m>2 — исходный SVD. Градиент с bounded scratch 4 MiB, transpose GEMM,
+батчевый полный q*m Jacobian и live финальный сертификат сохранены.
+Paired evidence: `experiments/grassman_optim_2026_10_01/{REPORT,LEAD_AUDIT}.md`:
+frozen speedup2.52x; fullfit median ratio0.942, final projectors близки.
+Старый SVD эталон: `experiments/grassman_optim_2026_10_01/reference.py`.
+`grassman_optim.py` удалён; экспериментальные режимы — `grassman_exp.py`,
+общие numerical kernels импортируются из `grassman.py`.
+`grassman_exp.solve(method="flat_gn")` (default experimental method) — APPROXIMATE opt-in из glm.tex: выбирает
+q парных SVD-плоскостей и делает до `flat_max_steps=8` совместных GN по
+q углам с точным cached Exp/profile/Jacobian/Armijo. Ambient U отсутствует
+в inner loop; unknowns q вместо q*m. Углы ограничены `max_angle`; глобальный
+минимум тора не обещан. Rank guard -> rank_one, workspace/no descent -> spectral.
+Диагностики добавляют flat_angles, flat_inner_iterations и flat_fallbacks.
+Математический маршрут: `experiments/grassman_flat_2026_10_02/PROOF.md`;
+Luna проверки: `tests/test_grassman_flat.py`, benchmark/report рядом в
+`benchmarks/grassman_flat_benchmark.py`, `experiments/grassman_flat_2026_10_02/`.
+45 tests/120 rows passed execution, but adaptive quality/time selection fails;
+joint flat stays experimental, heldout skipped. REPORT distinguishes frozen
+objective gains from EDR recovery and records missing fullfit orth metric.
+Источники **SRC-GRASSMAN**: `sed -n '1,565p' ADP/solver/grassman.py`;
+**SRC-GRASSMAN-EXP**: `sed -n '1,704p' ADP/solver/grassman_exp.py`;
+flat kernels:30-150, solve:151-458; full tangent J/J*:459-548,
+`solve_full_gn`:549-704. Full tangent GN тоже не прошёл selection; сохранён
+явным экспериментальным entry point. Исторический
+`experiments/glm_grassmann_2026_10_02/full_gn.py` реэкспортирует этот solver.
+Перенос: `experiments/grassman_promotion_2026_10_03/relocation_parity.json`.
 
 ## HPAO-LSMR: current default
 

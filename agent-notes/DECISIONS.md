@@ -538,3 +538,118 @@ promotion; pilot evidence is in experiments/svd_gradient_2026-09-30/.
   {fullfit_final_hash,frozen_final_hash,call106_diagnostic,REPORT,VERIFICATION};
   earlier and invalid-derived benchmark artifacts retained with correction notes.
 - **Status:** active; documentation/static review completion pending.
+
+## 2026-10-02 — Use response-anchor dMAVE discretization for package comparison
+
+- **Decision:** Represent dMAVE in the benchmark by fitting package CSMAVE to
+  Gaussian response-kernel pseudo-responses at five response quantiles and
+  aggregating the fitted subspace projectors. Keep the implementation isolated
+  in the R benchmark worker and label it as an anchor discretization.
+- **Reason/evidence:** MAVE 1.3.12 has no dMAVE method selector. Its
+  MEANMAVE-on-density-feature pilot recovered poorly on three paired seeds
+  (median projector overlap below 0.5); a five-anchor CSMAVE projector
+  aggregate recovered overlap 0.9990 on the frozen seed-0 input. The dMAVE
+  literature defines the kernelized response `K_h(Y-t)` as the MAVE response.
+- **Alternatives rejected:** Calling a nonexistent package method; treating
+  MEANMAVE on one n-dimensional response vector as an adequate dMAVE fit after
+  poor observed recovery; silently substituting MEANOPG.
+- **Affected:** `benchmarks/adp_mave_methods.R`,
+  `benchmarks/adp_mave_benchmark.py`,
+  `experiments/adp_mave_comparison_2026-10-02/` (pilot), and the final
+  `experiments/adp_mave_comparison_2026-10-02_anchors_final/` directory.
+- **Status:** active benchmark-only approximation; not a production estimator.
+
+## 2026-10-02 — Keep rMAVE as a separate benchmark implementation
+
+- **Decision:** Add a benchmark-only refined-MAVE worker initialized by the
+  package's CSOPG fit. Each iteration uses Gaussian weights in the current
+  projected space, fits local intercepts/gradients, updates a shared ambient
+  basis by weighted least squares, then orthonormalizes and shrinks bandwidth.
+- **Reason/evidence:** The installed MAVE package does not expose an rMAVE
+  selector. The implementation preserves the defining projected-space
+  refinement while keeping the package call and custom steps explicit. On the
+  three-seed benchmark it completed all fits with median overlap `0.9974` and
+  median fit time `0.893 s`.
+- **Alternatives rejected:** Claiming a built-in package rMAVE call or
+  substituting CSMAVE without the reduced-space refinement.
+- **Affected:** `benchmarks/adp_mave_methods.R`,
+  `experiments/adp_mave_comparison_2026-10-02_anchors_final/`.
+- **Status:** experimental benchmark implementation; no production change.
+
+
+## 2026-10-02 — glm.tex full tangent GN remains research-only
+
+- Task: glm-grassmann-integration-2026-10-02.
+- Decision: retain the mathematically checked matrix-free profiled full GN
+  in experiments/glm_grassmann_2026_10_02/full_gn.py; do not change public
+  grassman/grassman_optim or run held-out validation after failed R3.
+- Evidence: 40 focused tests, targeted Ruff/Pyright; 30 complete paired rows.
+  Frozen cap-30 solves rejected certificates 45/45 and cost 11-20x extra;
+  all 27 adaptive inner calls rank-guarded. Full-fit time ratio 1.2143,
+  max projector regression 5.51e-8; quality/time/advantage gates fail.
+- Scope: this rejects the bounded unpreconditioned candidate, not the full
+  tangent GN algebra. Preconditioning/enrichment/active-center rank treatment
+  need a fresh hypothesis/proof and seeds. Positive local_ridge, kappa/GLS
+  and chordal penalty are estimator changes, not equivalent speed patches.
+- Sources/artifacts: SVD/glm.tex; PROOF.md, protocol.json, runs.jsonl,
+  pairs.json, gates.json under experiments/glm_grassmann_2026_10_02.
+
+## 2026-10-02 — joint angles in one cached Grassmann flat
+
+- Task: grassman-flat-2026-10-02; user explicitly requested implementation
+  and GPT-6 Luna testing/benchmarking.
+- Decision: add explicit APPROXIMATE `method="flat_gn"` to grassman_optim,
+  preserve existing core_gn default and profile. Optimize all q angles of
+  one SVD-selected flat jointly with full coefficient derivative and
+  exact cached Exp/profile; use existing QR/SVD, augmented LS and Armijo.
+- Reason: several small angle refinements reuse U[Y,V] without repeated
+  ambient passes. q unknowns suffice for this fixed flat. A q*m polar core
+  or one scalar spectral path solves a different constrained subproblem.
+- Boundaries: local box and iteration cap, no global torus/recovery promise;
+  unsafe rank -> value-only rank_one; memory/no descent -> spectral;
+  local_ridge keeps its estimator meaning. Heldout depends on PLAN gate.
+- Evidence/verification route: experiments/grassman_flat_2026_10_02/PROOF.md,
+  tests/test_grassman_flat.py, benchmarks/grassman_flat_benchmark.py.
+  Numerical checks/benchmarks owned by Luna; results pending at this checkpoint.
+
+## 2026-10-02 — joint flat verified, selection fails full adaptive ADP
+
+- Task: grassman-flat-2026-10-02; completes the preceding implementation entry.
+- Evidence: Luna45 tests and targeted Ruff/format/Pyright pass;120 unique,
+  error-free hash-paired rows. Frozen24 flat/core pairs: objective ratio0.586,
+  gradient0.606, time2.557; all q>1,741 inner accepts, zero fallbacks.
+- Fullfit6 pairs: median time1.8555 fails<=1.10;4 projector deltas exceed
+  +1e-4, max+0.071155; RSS passes. All inner calls capped/unconverged.
+  Fullfit final orthogonality not serialized; mark that benchmark criterion
+  unverified, independently tested at solver level. Do not rerun to conceal
+  the already decisive negative quality/time gates.
+- Decision: retain explicit experimental flat_gn, preserve core_gn default;
+  stop validation/promotion, leave heldout74200-74202 untouched, no retuning.
+  Frozen profile improvement does not establish adaptive EDR recovery benefit.
+- Artifacts: experiments/grassman_flat_2026_10_02/{PROOF,REPORT}.md,
+  freeze.json, baseline_profile.txt, raw runs/protocols and gates.json.
+  Root independently verified row uniqueness/input/code hashes and gate count.
+
+## 2026-10-03 — verified Grassmann core promotion (active)
+
+User requested current most effective verified Grassmann as grassman.py and
+experimental modes in grassman_exp instead of grassman_optim. Promote existing
+EXACT/NUMERICAL CPU optimization, preserve core_gn default and existing original
+settings/budget/objective. Evidence: grassman_optim_2026_10_01 REPORT/LEAD_AUDIT,
+frozen2.52x and fullfit median0.942 with close final projectors. This is scoped
+measured evidence, not a universal optimum claim. Failed-selection flat/full
+tangent GN stay explicit in grassman_exp (solve/solve_full_gn); shared kernels
+come from grassman. Original SVD reference moved to experiment reference.py;
+no persistent grassman_optim alias. Executable callers migrated; historical
+series labels and raw artifacts retained. 51 tests and120 exact relocation
+pairs passed; report in experiments/grassman_promotion_2026_10_03/REPORT.md.
+
+## 2026-10-03 — core-only production API (active; supersedes selectable production modes)
+
+User clarified that grassman.py must expose only the most effective verified
+version. Remove method/angle_backend selectors and refit ablation from its
+solve; alternatives remain in grassman_exp. Internal rank-one/spectral guards
+are part of core_gn and must stay to preserve numerical stability and memory
+limits. Explicit user authorization overrides selector compatibility. 51 tests
+and72 exact core comparisons (including rank/workspace guards) pass; benchmarks
+migrated, numerical outputs/diagnostics unchanged. See core_only_parity.json.

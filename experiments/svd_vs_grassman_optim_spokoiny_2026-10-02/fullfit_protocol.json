@@ -1,0 +1,78 @@
+{
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "solver_order_by_seed": {
+    "0": [
+      "svd",
+      "grassman_optim"
+    ],
+    "1": [
+      "grassman_optim",
+      "svd"
+    ],
+    "2": [
+      "svd",
+      "grassman_optim"
+    ]
+  },
+  "thread_env": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+  "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+  "numpy": "2.5.2",
+  "git_commit": "1b3d1c6e300c39546d530fcdffd9c364143c2d03",
+  "git_dirty": true,
+  "source_sha256": {
+    "ADP/solver/SVD.py": "030d42fd6a5e7da26b586dfc15f35aceacbbb0c3aa69d4614b7b1272d183814a",
+    "ADP/solver/grassman_optim.py": "9e1d91142d5c951f9efb718d8149b2eff3b0d7bed6246803ddc9f44d4d5b6139",
+    "benchmarks/grassman_benchmark.py": "77e1beec7e94496c0690df4737b4ea387423695cf79dcb87db55e284bf583647",
+    "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/benchmarks/svd_grassman_optim_benchmark.py": "022ae048256e5e11226f04747a97ebdb639c749fab553b64c5eb8b548c1e90e6"
+  },
+  "paired": [
+    {
+      "seed": 0,
+      "svd_time_sec": 24.28179315200032,
+      "grassman_optim_time_sec": 23.483687208001356,
+      "grassman_over_svd_time_ratio": 0.9671315071748227,
+      "svd_projector_distance": 0.11831340538295308,
+      "grassman_optim_projector_distance": 0.054170795164750485,
+      "svd_rss_kib": 101536,
+      "grassman_optim_rss_kib": 106836,
+      "inputs_match": true,
+      "outer_iterations_match": true
+    },
+    {
+      "seed": 1,
+      "svd_time_sec": 24.90288810200036,
+      "grassman_optim_time_sec": 22.607939034000083,
+      "grassman_over_svd_time_ratio": 0.907844059749201,
+      "svd_projector_distance": 0.0898671312916532,
+      "grassman_optim_projector_distance": 0.047281844416247734,
+      "svd_rss_kib": 105416,
+      "grassman_optim_rss_kib": 109012,
+      "inputs_match": true,
+      "outer_iterations_match": true
+    },
+    {
+      "seed": 2,
+      "svd_time_sec": 25.0668080309988,
+      "grassman_optim_time_sec": 26.7823391969996,
+      "grassman_over_svd_time_ratio": 1.0684383573640208,
+      "svd_projector_distance": 0.09869856188378717,
+      "grassman_optim_projector_distance": 0.044937944312231685,
+      "svd_rss_kib": 104916,
+      "grassman_optim_rss_kib": 108704,
+      "inputs_match": true,
+      "outer_iterations_match": true
+    }
+  ],
+  "median_grassman_over_svd_time_ratio": 0.9671315071748227,
+  "failures": [],
+  "interpretation": "Full ADP_multi_index fit time. SVD and grassman_optim are distinct algorithms; outputs and convergence need not match."
+}

@@ -26,15 +26,14 @@ import numpy as np
 import scipy
 
 from ADP import ADP_multi_index, ADP_solver
-from ADP.solver import grassman, grassman_optim
+from ADP.solver import grassman as grassman_optim
 from benchmarks.grassman_benchmark import PARAMS, _make_problem
+from experiments.grassman_optim_2026_10_01 import reference as grassman
 
 OUT = Path(__file__).resolve().parent / "call106_diagnostic"
 CALL = 106
 SEED = 2
 OPTIONS: dict[str, object] = {
-    "method": "core_gn",
-    "angle_backend": "schur",
     "max_steps": 5,
     "tol": 1e-6,
     "energy_tol": 0.05,
@@ -284,8 +283,10 @@ def main() -> None:
             "truth_basis": _array_hash(truth),
         },
         "solver_sha256": {
-            "grassman": _hash(Path("ADP/solver/grassman.py")),
-            "grassman_optim": _hash(Path("ADP/solver/grassman_optim.py")),
+            "grassman": _hash(
+                Path("experiments/grassman_optim_2026_10_01/reference.py")
+            ),
+            "grassman_optim": _hash(Path("ADP/solver/grassman.py")),
         },
         "source_sha256": {
             path: _hash(Path(path))

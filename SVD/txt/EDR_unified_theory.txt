@@ -1,0 +1,936 @@
+% Standalone build from repository root:
+% xelatex -halt-on-error -interaction=nonstopmode -output-directory=SVD/theory_2026_10_01 SVD/EDR_unified_theory.tex
+% Run twice. Formula verification: python SVD/theory_2026_10_01/check_formulas.py
+\documentclass[11pt,a4paper]{article}
+\usepackage{fontspec}
+\setmainfont{Noto Serif}
+\setsansfont{Noto Sans}
+\setmonofont{DejaVu Sans Mono}[Scale=MatchLowercase]
+\usepackage[russian]{babel}
+\usepackage[margin=21mm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,booktabs,tabularx,array}
+\usepackage{microtype,enumitem,xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!45!black,citecolor=blue!45!black,urlcolor=blue!45!black]{hyperref}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\setlength{\emergencystretch}{2em}
+\setlist{nosep,leftmargin=*}
+\setcounter{tocdepth}{1}
+\newcommand{\R}{\mathbb R}
+\newcommand{\Id}{\mathrm I}
+\newcommand{\T}{^{\mathsf T}}
+\newcommand{\F}{_{\mathrm F}}
+\newcommand{\ip}[2]{\langle #1,#2\rangle_{\mathrm F}}
+\newcommand{\Gr}{\mathrm{Gr}}
+\newcommand{\Exp}{\operatorname{Exp}}
+\newcommand{\grad}{\operatorname{grad}}
+\newcommand{\qf}{\operatorname{qf}}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\spanop}{span}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newtheorem{proposition}{Утверждение}[section]
+\newtheorem{theorem}[proposition]{Теорема}
+\newtheorem{remark}[proposition]{Замечание}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\title{Разделимые модели и простые повороты\\[3pt]
+\large Единая теория SVD, EDR/ADE и анизотропной адаптации}
+\author{Исследовательская записка по материалам \texttt{SVD/}}
+\date{1 октября 2026 г.}
+\begin{document}
+\maketitle
+\vspace{-8mm}
+\begin{abstract}
+Общая конструкция состоит из трёх операций: исключить линейные локальные
+коэффициенты, представить искомую структуру малыми координатами и вычислять
+только действия соответствующих операторов. SVD является точным решением
+при разделимой квадратичной метрике, либо разложением касательного шага на
+независимые плоские повороты. Матричные поправки, Grassmann-обновления,
+CP/Tucker-поля и спектральный локализатор получают место в одной схеме,
+с отдельными условиями точности. Выведены способы сокращения вычислений:
+профилированный поиск угла со скалярной стоимостью, общий малый core,
+адаптивный ранг касательного шага и сжатие статистик без изменения цели.
+\end{abstract}
+\vspace{-3mm}
+\tableofcontents
+\medskip
+\textbf{Статус утверждений.} Формулы с доказательством ниже --- следствия
+указанных моделей. Научные предшественники отмечены ссылками.
+Предлагаемые варианты обозначены явно; качество восстановления и время
+полного алгоритма для них не измерены. Узкий замер вычисления углов
+приведён в разделе~\ref{sec:angles}. Исходные математические ошибки
+исправлены, а несовместимые цели представлены разными частными случаями.
+
+\section{Наблюдаемая модель и четыре различных метрики}\label{sec:model}
+
+Пусть $x_i\in\R^d$, $y_i=f(x_i)+\varepsilon_i$ и в глобальной
+multi-index модели $f(x)=\psi(Y_*\T x)$,
+$Y_*\in\R^{d\times m}$, $Y_*\T Y_*=\Id_m$.
+Тогда $\nabla f(x)=Y_*\nabla\psi(Y_*\T x)$.
+При $\mathbb E[\nabla\psi\nabla\psi\T]\succ0$ пространство градиентов
+совпадает с EDR-пространством. Один средний градиент может обнулиться;
+для $m>1$ нужна семья производных или их внешние произведения.
+Структурная адаптация ADE непосредственно предшествует этой постановке
+\cite{hjps}; исходная MAVE использует локальные регрессии \cite{mave}.
+
+Для центра $x_j$, $j=1,\ldots,J$, положим
+\begin{align}
+ w_{ij}&=K\bigl(h^{-2}(x_i-x_j)\T D_j(x_i-x_j)\bigr),&
+ N_j&=\sum_i w_{ij}>0,\label{eq:weights}\\
+ \bar x_j&=N_j^{-1}\sum_i w_{ij}x_i,&
+ z_{ij}&=x_i-\bar x_j,\nonumber\\
+ \Sigma_j&=N_j^{-1}\sum_i w_{ij}z_{ij}z_{ij}\T,&
+ c_j&=N_j^{-1}\sum_i w_{ij}z_{ij}y_i.\label{eq:moments}
+\end{align}
+$K$ получает \emph{квадрат} расстояния; его определение не меняется при
+реформулировке. Для матрицы направлений $S_j\in\R^{p\times d}$
+ADP-статистики равны $U_j=S_j\Sigma_j\in\R^{p\times d}$,
+$I_j=S_jc_j\in\R^p$. Локальная модель:
+\begin{equation}\label{eq:local}
+ I_j\simeq U_jY_jg_j,\qquad g_j\in\R^m.
+\end{equation}
+Нормирование на $N_j$ сделано в статистиках; внешний множитель $N_j$
+в цели применяется один раз. Множитель $1/4$ исходной TeX-постановки
+поглощаем в масштабы штрафов; при сравнении реализаций его надо учитывать.
+
+В дальнейшем различаются:
+\begin{enumerate}
+\item $D_j$ --- \textbf{локализация}: меняет $w,I,U$ и статистический метод;
+\item $W_j\succeq0$ --- \textbf{метрика невязки}:
+      $\|I_j-U_jY_jg_j\|_{W_j}^2$;
+\item $H\succ0$ --- \textbf{метрика матричного штрафа}:
+      $\|(B-P)H^{1/2}\|\F^2$;
+\item $\mathcal M_Y\succ0$ на касательном пространстве ---
+      \textbf{метрика шага/предобусловливание}: меняет направление поиска.
+\end{enumerate}
+Выбор другой геометрии оптимизатора с проверкой той же цели может сохранять
+оцениватель. Изменение первых трёх объектов обычно меняет его.
+Для вывода ниже $W_j$ включаем в $U_j,I_j$ через $W_j^{1/2}$;
+при базовом finite-sketch ADP $W_j=\Id_p$.
+
+\section{Общая конструкция: профиль, координаты, действия}\label{sec:framework}
+
+Параметр $\theta$ задаёт структуру: матрицу, подпространство, поле
+подпространств или анизотропный PSD-тензор. Локальный словарь
+$\Psi_j(\theta)\in\R^{p\times k}$ и линейные коэффициенты $c$ дают класс
+\begin{equation}\label{eq:master}
+ \Phi(\theta)=\min_c\left\{
+       \|b-\mathcal A(\theta)c\|^2+\|\mathcal R(\theta)c\|^2
+                         \right\}+\Omega(\theta).
+\end{equation}
+Здесь блоки $b_j=\sqrt{N_j}I_j$,
+$\mathcal A_jc=\sqrt{N_j}\Psi_j(\theta)c_j$; $\mathcal R$ может задавать
+ridge или связь между центрами. Это разделимая нелинейная МНК,
+исключение линейных переменных --- variable projection \cite{varpro}.
+Если coefficients фиксированы, минимум отсутствует: получается другая,
+условная задача той же операторной схемы.
+
+\begin{proposition}[Условия корректного профиля]\label{prop:profile}
+Пусть расширенный дизайн $\widetilde{\mathcal A}=[\mathcal A;\mathcal R]$
+имеет локально постоянный ранг; при полном столбцовом ранге
+$c_*=(\widetilde{\mathcal A}\T\widetilde{\mathcal A})^{-1}
+\widetilde{\mathcal A}\T\tilde b$, $\tilde b=[b;0]$, а
+\[
+ \Phi=\|\tilde b\|^2-
+ \tilde b\T\widetilde{\mathcal A}
+ (\widetilde{\mathcal A}\T\widetilde{\mathcal A})^{-1}
+ \widetilde{\mathcal A}\T\tilde b+\Omega.
+\]
+Если при замене представителя $\theta\mapsto\theta\cdot Q$ словарь
+преобразуется как $\Psi_j(\theta\cdot Q)=\Psi_j(\theta)\rho(Q)$,
+а штрафы сохраняются при $c_j\mapsto\rho(Q)^{-1}c_j$, профиль зависит
+только от класса эквивалентности $[\theta]$.
+\end{proposition}
+\begin{proof}
+Первая формула --- результат исключения коэффициентов из квадратичной
+формы. Для второй замена коэффициентов взаимно однозначна и сохраняет
+каждое значение минимизируемого выражения. Формулы с обратными матрицами
+описывают алгебру; вычислять следует QR/SVD или расширенную МНК.
+\end{proof}
+
+\textbf{Упрощение структуры.} В текущей точке выбираем малое линейное
+пространство $\mathcal E(\alpha)=\sum_{\ell=1}^s\alpha_\ell E_\ell$.
+Новая структура получается через
+\begin{equation}\label{eq:chart}
+ \theta_+(\alpha)=\chi_\theta\bigl(\mathcal E(\alpha)\bigr),
+ \qquad\min_\alpha\Phi(\theta_+(\alpha)).
+\end{equation}
+$\chi$ --- аффинное отображение для матриц, экспонента/ретракция для
+подпространств, покомпонентное отображение для поля. На произвольном
+гладком многообразии это \emph{локальная} схема с Taylor-моделью;
+глобальное разложение на коммутирующие повороты существует в специальных
+геометриях, в частности на Grassmann. Универсальной дешёвой глобальной
+линеаризации произвольного многообразия из этой конструкции не следует.
+
+В линейной условной задаче профиль по $\alpha$ --- точная малая МНК.
+В нелинейной задаче Jacobian $\mathcal J\mathcal E$ даёт малую модель
+Gauss--Newton/trust region. Малый core удешевляет \emph{повторные} шаги;
+построение самого пространства и проекций может оставаться дорогим.
+
+\section{SVD-решатель как аффинный частный случай}\label{sec:svd}
+
+Сохраним строковую нотацию живого solver: $B,P\in\R^{m\times d}$,
+$PP\T=\Id_m$, $Y_0=P\T$. При фиксированных $g_j$:
+\begin{equation}\label{eq:fixed}
+ F(B)=\sum_jN_j\|I_j-U_jB\T g_j\|^2+
+                      \lambda\|(B-P)H^{1/2}\|\F^2.
+\end{equation}
+Нужно явно выбрать $\rank(B)\le r$ либо $\rank(B-P)\le r$.
+При $H=\Id$, $\lambda>0$ определим
+\begin{align}
+ (\mathcal AB)_j&=\sqrt{N_j}U_jB\T g_j,&
+ \mathcal A^*e&=\sum_j\sqrt{N_j}g_j(U_j\T e_j)\T,\label{eq:operator}\\
+ \mathcal L X&=\sum_jN_jg_jg_j\T XU_j\T U_j+\lambda X,&
+ C&=\sum_jN_jg_j I_j\T U_j+\lambda P.\label{eq:hessian}
+\end{align}
+$F=\mathrm{const}-2\ip{C}{B}+\ip{B}{\mathcal LB}$;
+$\nabla F=2(\mathcal LB-C)$.
+Нормальный оператор положительно определён, но его явная сборка не нужна:
+\[
+ \operatorname{vec}(\mathcal LX)=
+ \left[\sum_jN_j(U_j\T U_j)\otimes(g_jg_j\T)+\lambda\Id_{md}\right]
+ \operatorname{vec}X.
+\]
+Использована столбцовая $\operatorname{vec}$.
+\textbf{Все перекрёстные блоки по компонентам $g_j$ сохраняются.}
+Решать строки $B$ независимо допустимо лишь при дополнительных условиях
+разделимости, а не вследствие малого $m$.
+
+\subsection{Атомы и точный выигрыш}
+При произвольном SPD-$H$ точная замена
+$\widetilde B=BH^{1/2}$, $\widetilde P=PH^{1/2}$,
+$\widetilde U_j=U_jH^{-1/2}$ приводит \eqref{eq:fixed} к Frobenius penalty
+и сохраняет оба rank constraints. Это объясняет optional metric-whitening
+живого solver. Выбор самого $H$ меняет штраф; преобразование координат
+при уже выбранном $H$ математически точно. Внутренний
+$\widetilde P$ обычно не ортонормирован: итоговый basis извлекается
+после возврата в исходные координаты.
+
+Для $E=av\T$, $\|a\|=\|v\|=1$, $Q=C-\mathcal LB$, положим
+\begin{equation}\label{eq:gain}
+ R=\ip{Q}{E},\qquad
+ D=\ip{E}{\mathcal LE}
+   =\sum_jN_j(g_j\T a)^2\|U_jv\|^2+\lambda.
+\end{equation}
+Тогда $F(B+tE)=F(B)-2tR+t^2D$, и при $D>0$
+\begin{equation}\label{eq:step}
+ t_*=R/D,\qquad F(B)-F(B+t_*E)=R^2/D.
+\end{equation}
+Это точный поиск длины шага для \emph{выбранного} атома, но не доказательство
+оптимальности пары $(a,v)$. SVD градиента максимизирует числитель при
+евклидовой нормировке; переменный знаменатель может изменить лучший атом.
+Жадный SVD имеет близкого предшественника в rank-one matrix pursuit
+\cite{pursuit}; гарантии для matrix completion не переносим на ADP.
+
+Для зафиксированных атомов $E_\ell$ общий refit масштабов решает
+$K\alpha=h$, где $K_{\ell t}=\ip{E_\ell}{\mathcal LE_t}$,
+$h_\ell=\ip{C-\mathcal LB_0}{E_\ell}$ при
+$B=B_0+\sum\alpha_\ell E_\ell$. QR факторов и SVD малого произведения
+меняют представление, сохраняя матрицу точно, если не усекать ранг.
+
+\subsection{Когда одного SVD достаточно}
+\begin{theorem}[Разделимая квадратичная метрика]\label{thm:svd}
+Если \emph{полный} оператор, включая штраф, имеет вид
+$\mathcal LX=G XH$, $G\succ0$, $H\succ0$, то
+\begin{equation}\label{eq:exactsvd}
+ B_r=G^{-1/2}\bigl[G^{-1/2}CH^{-1/2}\bigr]_rH^{-1/2}
+\end{equation}
+глобально минимизирует $F$ при $\rank(B)\le r$.
+Для $\rank(B-P)\le r$ та же формула применяется к $\Delta=B-P$
+с $C_\Delta=C-\mathcal LP$.
+\end{theorem}
+\begin{proof}
+При $Z=G^{1/2}BH^{1/2}$ квадратичная часть равна
+$\|Z-G^{-1/2}CH^{-1/2}\|\F^2$ с точностью до константы.
+Обратимые левые и правые множители сохраняют ранг; применяется
+теорема Эккарта--Янга \cite{eckart}. Разность с полным минимумом равна
+сумме квадратов отброшенных сингулярных значений преобразованной матрицы.
+\end{proof}
+
+Исходная изотропная модель $U_j\T U_j=\eta_j\Id_d$, $H=\Id$ даёт
+$G=\sum_jN_j\eta_jg_jg_j\T+\lambda\Id_m$.
+Общий случай --- \emph{сумма} произведений Кронекера;
+даже $U_j\T U_j=\eta_jH_0$ с обычным ridge $\lambda X$ в общем случае
+не даёт одного $GXH_0$. Произвольное whitening в $md$-мерной
+vectorized задаче обычно не сохраняет матричный ранг.
+Взвешенная малоранговая аппроксимация потому требует иной оптимизации
+\cite{weighted,mishra}, а не обычного усечения SVD полного решения.
+
+\subsection{Полный core и ограничения ранга}
+Более богатые малые координаты:
+\begin{equation}\label{eq:core}
+ B=B_0+A M V\T,\quad A\T A=V\T V=\Id_r,\quad M\in\R^{r\times r}.
+\end{equation}
+При фиксированных $A,V$ это расширенная МНК на $r^2$ неизвестных:
+локальный дизайн применяет $\sqrt{N_j}(U_jV)M\T(A\T g_j)$,
+ridge-цель core равна $A\T(P-B_0)V$ при $H=\Id$.
+Диагональный $M$ восстанавливает refit масштабов исходного SVD.
+Свободный $M$ не ухудшает условный минимум, но требует больше работы;
+последующая оптимизация $A,V$ остаётся невыпуклой \cite{mishra}.
+
+При $r<m$, $\rank(B)\le r$ принципиально не задаёт полный $m$-базис:
+\begin{equation}\label{eq:rankfloor}
+ \min_{\rank(B)\le r}\|B-P\|\F^2=m-r.
+\end{equation}
+Следовательно $F(B)\ge\lambda(m-r)$ при $H=\Id$.
+Недостающие направления после дополнения из $P$ определяются prior.
+Для $B=P+\Delta$ с $\|\Delta\|_2<1$ полный row rank сохраняется, и
+\begin{equation}\label{eq:projectorbound}
+ d_{\rm ch}(\spanop(B\T),\spanop(P\T))
+ \le\frac{\|\Delta\|\F}{1-\|\Delta\|_2}.
+\end{equation}
+Действительно, $\sigma_{\min}(B)\ge1-\|\Delta\|_2$, а ортогональная
+компонента ортонормированного $B\T$ ограничена
+$\|\Delta\T(BB\T)^{-1/2}\|\F$.
+Это контроль изменения относительно prior, а не качества относительно
+неизвестного $Y_*$.
+
+\section{Профилирование и геометрия подпространства}\label{sec:grassmann}
+
+Для фиксированных $I,U,N$ определим
+\begin{align}
+ \Phi(Y)&=\sum_jN_j\min_g\{\|I_j-U_jYg\|^2+\tau\|g\|^2\}
+                    +\lambda d_{\rm ch}^2(Y,Y_0),\label{eq:profile}\\
+ d_{\rm ch}^2(Y,Y_0)&=m-\|Y_0\T Y\|\F^2,
+ \qquad Y\T Y=\Id_m.\nonumber
+\end{align}
+Подстановка $Y\mapsto YQ$, $g\mapsto Q\T g$, $Q\in O(m)$,
+показывает инвариантность. Поэтому $[Y]\in\Gr(m,d)$.
+Для $M_j=U_jY$, $A_j=M_j\T M_j+\tau\Id$:
+\begin{equation}\label{eq:profileformula}
+ A_jg_j=M_j\T I_j,\qquad
+ \Phi=\sum_jN_j(\|I_j\|^2-I_j\T M_jg_j)+\lambda d_{\rm ch}^2.
+\end{equation}
+При $\tau>0$ профиль гладкий, даже если $M_j$ теряет ранг.
+При $\tau=0$ применимы производные на области постоянного ранга;
+cutoff псевдообратной требует отдельной обработки переходов.
+Условия гладкости VARPRO обсуждаются в \cite{varpro}.
+
+При $\tau=0$ и отсутствии basis penalty свободная полноранговая
+матрица и её ортонормированный базис дают один профиль благодаря
+$GL(m)$-замене коэффициентов. При $\tau>0$ штраф $\|g\|^2$ имеет
+этот смысл только в ортонормированном представителе; свободное
+масштабирование базиса меняет его. Fixed-$g$ задача \eqref{eq:fixed}
+и её Frobenius penalty потому не тождественны \eqref{eq:profile}.
+Замена на $\tau>0$ или chordal penalty --- вариант оценивателя,
+а не скрытое численное ускорение.
+
+Пусть $r_j=I_j-M_jg_j$. По условию оптимальности локальных коэффициентов
+и теореме об огибающей:
+\begin{equation}\label{eq:gradient}
+ G=\grad\Phi(Y)=(\Id-YY\T)
+ \left[-2\sum_jN_jU_j\T r_jg_j\T-2\lambda Y_0Y_0\T Y\right].
+\end{equation}
+Ортопроектор реализуется как $X-Y(Y\T X)$, без плотной $d\times d$ матрицы.
+Ортонормированные представления и Grassmann-геодезические исследованы
+в \cite{edelman}; profiled rank-one subspace tracking --- в GROUSE
+\cite{grouse}. Здесь каждый $U_j$ --- общий оператор наблюдения, а не
+только выборка координат GROUSE.
+
+\subsection{Искомое разложение на простые повороты}\label{sec:rotations}
+Здесь предполагается $0<m<d$; при $m=d$ подпространство единственно
+и ненулевых горизонтальных поворотов нет.
+Горизонтальный касательный шаг $Z$ удовлетворяет $Y\T Z=0$.
+Его compact SVD $Z=V\Theta A\T$ имеет ранг
+$q\le\min(m,d-m)$ и $V\T V=A\T A=\Id_q$.
+Для выбранного ортонормированного представителя экспонента равна
+\begin{equation}\label{eq:exp}
+ \Exp_Y(Z)=Y(\Id-AA\T)
+           +YA\cos\Theta\,A\T+V\sin\Theta\,A\T.
+\end{equation}
+Это одновременно $q$ поворотов пар $(Ya_\ell,v_\ell)$.
+Генераторы $v_\ell(Ya_\ell)\T-(Ya_\ell)v_\ell\T$
+действуют в взаимно ортогональных плоскостях и коммутируют.
+Так получается точное разложение \emph{одного} геодезического шага;
+направления, переоцененные после каждого поворота, обычно уже не коммутируют.
+
+При $q=1$:
+\begin{equation}\label{eq:rankoneexp}
+ Y(t)=Y+(Ya(\cos t-1)+v\sin t)a\T,
+ \quad Y\T v=0,\quad\|a\|=\|v\|=1.
+\end{equation}
+В частности, $\rank(Y(t)-Y)\le1$, хотя $\rank Y(t)=m$.
+При общем $q$ разность в \eqref{eq:exp} имеет ранг не выше $q$.
+Это \emph{точная связь} поворотов с малоранговыми поправками базиса.
+Обратная связь условна: произвольная ambient-поправка может содержать
+масштабирование и смену координат. Если она горизонтальна, её QR-образ
+является геометрическим шагом; fixed-$g$ цели всё равно различаются.
+
+\subsection{Экспонента, графовая карта и другие ретракции}
+Polar-представитель $R_Y(Z)=(Y+Z)(\Id+Z\T Z)^{-1/2}$ задаёт то же
+подпространство, что $\qf(Y+Z)$, и имеет углы $\arctan\theta_\ell$.
+При $Z=V\Theta A\T$ семейство
+$\Exp_Y(V\varphi(\Theta)A\T)$ --- локальная ретракция, если
+$\varphi(0)=0$, $\varphi'(0)=1$; условие $\varphi''(0)=0$ даёт
+второй порядок. Нужна достаточная гладкость матричного отображения.
+Экспоненте соответствует $\varphi(t)=t$, polar --- $\arctan t$,
+ортогональному Cayley на этих плоскостях --- $2\arctan(t/2)$.
+Общая теория projection-like retractions: \cite{retractions}.
+
+Все три совпадают до второго порядка в координатах подпространства:
+\begin{equation}\label{eq:taylor}
+ \Exp_Y(Z)=Y+Z-\tfrac12YZ\T Z+O(\|Z\|\F^3).
+\end{equation}
+Это поправка на кривизну. QR-базис может отличаться вертикальной ротацией;
+равенство Taylor-представителей надо понимать с согласованным gauge.
+Для rank-one polar описывает угол $\arctan\eta\in(-\pi/2,\pi/2)$:
+граничная ортогональная линия достигается лишь в пределе $|\eta|\to\infty$.
+Ни одна такая карта не является единственной глобальной картой $\Gr$.
+
+\section{Улучшение I: профильный поиск угла и ранга шага}\label{sec:angles}
+
+\subsection{Угол: линейная алгебра один раз, скаляры многократно}
+Для rank-one $Y(t)$ выберем $A_\perp\in\R^{m\times(m-1)}$,
+$[A_\perp,a]\in O(m)$, и обозначим
+\[
+ C_j=U_jYA_\perp,\quad u_j=U_jYa,\quad v_j=U_jv,\quad
+ q_j(t)=u_j\cos t+v_j\sin t.
+\]
+Локальный дизайн состоит из постоянных столбцов $C_j$ и одного $q_j(t)$.
+При $\tau>0$ положим
+\begin{equation}\label{eq:schur}
+ \Pi_j=\Id-C_j(C_j\T C_j+\tau\Id)^{-1}C_j\T.
+\end{equation}
+$\Pi_j$ симметрична положительно определена, но при $\tau>0$
+не является ортопроектором. Исключение постоянных коэффициентов
+через дополнение Шура даёт
+\begin{equation}\label{eq:scalarprofile}
+ \min_g\{\|I_j-U_jY(t)g\|^2+\tau\|g\|^2\}
+  =k_j-\frac{(b_j\cos t+c_j'\sin t)^2}
+ {a_j\cos^2t+2d_j\sin t\cos t+e_j\sin^2t+\tau},
+\end{equation}
+где $k_j=I_j\T\Pi_jI_j$, $b_j=u_j\T\Pi_jI_j$,
+$c_j'=v_j\T\Pi_jI_j$, $a_j=u_j\T\Pi_ju_j$,
+$d_j=u_j\T\Pi_jv_j$, $e_j=v_j\T\Pi_jv_j$.
+\begin{proof}
+После минимизации по $m-1$ коэффициентам остаётся
+$(I_j-q_j\gamma)\T\Pi_j(I_j-q_j\gamma)+\tau\gamma^2$.
+Её скалярный минимум равен
+$I_j\T\Pi_jI_j-(q_j\T\Pi_jI_j)^2/(q_j\T\Pi_jq_j+\tau)$.
+\end{proof}
+При $\tau=0$ формула сохраняется при невырожденных устраняемых системах
+и положительном знаменателе; вырожденные углы обрабатываются отдельно.
+$\Pi_j$ не строится: для $x,y\in\{I_j,u_j,v_j\}$ вычисляется
+$x\T y-(C_j\T x)\T(C_j\T C_j+\tau\Id)^{-1}(C_j\T y)$.
+Chordal penalty также определяется малыми произведениями $Y_0\T Y$,
+$Y_0\T v$ и тригонометрией. После подготовки одна оценка угла стоит
+$O(J)$ и $O(1)$ дополнительной памяти на центр;
+при $m=1$ постоянных столбцов нет.
+
+Это \textbf{замкнутая формула значения}, а не универсальная замкнутая
+формула оптимального угла. Сумма рациональных функций может иметь много
+минимумов. Armijo достаточно для спуска; сетка плюс локальный Brent
+является эвристикой глобального поиска. Для глобального сертификата
+нужно ограничение интервала с доказанными bounds либо перечисление всех
+критических точек. У функции период $\pi$ в координатах подпространства.
+
+При $q>1$ следует заранее сохранить только
+$U_j[Y,V]$. Тогда любой набор углов в \eqref{eq:exp} оценивается через
+дизайн на $m+q$ столбцах, без повторного применения $U_j$ к $d$-векторам.
+Полная стоимость refit на одну оценку --- $O(J(pm^2+m^3))$;
+для $q=1$ \eqref{eq:scalarprofile} сокращает её до $O(J)$.
+
+\textbf{Узкий численный пример.} Для $J=128$, $p=40$, $d=300$, $m=3$,
+$\tau=0.2$ и 61 пробного угла сравнение с пакетным augmented-SVD refit
+на трёх фиксированных seeds дало отношение времени $0.160$--$0.167$
+с учётом общей проекции $U_j[Y,v]$. Для самих оценок угла вместе с
+подготовкой отношение равно $0.032$--$0.042$;
+относительное расхождение кривых менее $1.7\cdot10^{-16}$.
+Измерение --- медиана семи повторов после прогрева, один BLAS thread.
+Это ускорение вычисления одной frozen-curve; выбор направления,
+минимизация угла, внешние шаги и восстановление EDR не измерялись.
+Исходники, времена и ограничения памяти: \texttt{angle\_results.json}
+и \texttt{REPORT.md} в каталоге проверок.
+
+\subsection{Спектральный бюджет вместо фиксированной жадности}
+Если $G=V\operatorname{diag}(s_\ell)A\T$, то задача
+\[
+ \min_{Y\T Z=0,\,\rank Z\le q,\,\|Z\|\F\le1}\ip{G}{Z}
+\]
+имеет решение $Z=-[G]_q/\|[G]_q\|\F$ при ненулевом числителе.
+Доказательство: неравенство фон Неймана и Коши--Буняковского;
+достижение --- на первых $q$ сингулярных компонентах.
+Практический выбор:
+\begin{equation}\label{eq:energybudget}
+ \sum_{\ell\le q}s_\ell^2\ge(1-\epsilon)\|G\|\F^2.
+\end{equation}
+Он контролирует долю \emph{первопорядковой энергии}, не ошибку EDR.
+В ядерном единичном шаре оптимален один ведущий атом; в операторном
+шаре --- $-VA\T$ по ненулевым singular directions. Различные нормы
+дают разные семейства спусков, без основания считать одно универсально лучшим.
+
+\begin{proposition}[Ограниченная гарантия спуска]\label{prop:descent}
+Пусть профиль гладок и его вторая производная вдоль единичных
+геодезических не превосходит $L>0$. Для
+$Z=-[G]_q/\|[G]_q\|\F$ и $t=\|[G]_q\|\F/L$
+\[
+ \Phi(Y)-\Phi(\Exp_Y(tZ))\ge\|[G]_q\|\F^2/(2L).
+\]
+При $q=1$ это не меньше $\|G\|\F^2/(2L\min(m,d-m))$.
+\end{proposition}
+\begin{proof}
+Taylor-bound равен $t\ip{G}{Z}+Lt^2/2$. Подставляем шаг;
+для rank-one используем
+\[
+ s_1^2\ge\frac{\|G\|\F^2}{\min(m,d-m)}.
+\]
+\end{proof}
+На компактном $\Gr$ при $\tau>0$ и фиксированных конечных статистиках
+можно выбрать конечное $L$. Повторные такие шаги дают $\|G_k\|\F\to0$.
+Armijo со стандартными условиями также даёт достаточный спуск.
+Сходимость всей последовательности к одной точке и глобальный минимум
+из одной этой оценки не следуют. При изменении $h,D,S$ меняется сама цель;
+гарантия относится только к внутреннему frozen-statistics решению.
+
+\section{Улучшение II: кривизна, core и точное сжатие}\label{sec:reduced}
+
+\subsection{Полный профильный Jacobian}
+Для горизонтального $Z$ и $T_j=U_jZ$ дифференцирование локальной
+системы \eqref{eq:profileformula} даёт
+\begin{equation}\label{eq:dg}
+ A_j\dot g_j=T_j\T r_j-M_j\T T_jg_j,
+ \qquad
+ \dot{\tilde r}_j=
+ \begin{bmatrix}-T_jg_j-M_j\dot g_j\\-\sqrt\tau\dot g_j\end{bmatrix},
+ \quad\tilde r_j=\begin{bmatrix}r_j\\-\sqrt\tau g_j\end{bmatrix}.
+\end{equation}
+Все величины относятся к выбранному гладкому gauge.
+Однозначный $\dot g_j$ эта система задаёт при $\tau>0$ либо полном
+столбцовом ранге $M_j$. При $\tau=0$ и постоянном недостаточном ранге
+нужна полная производная псевдообратной; решение одной сингулярной
+нормальной системы её не заменяет.
+Вторая часть профиля может быть представлена невязкой
+$\sqrt\lambda(\Id-Y_0Y_0\T)Y$, её производная ---
+$\sqrt\lambda(\Id-Y_0Y_0\T)Z$.
+В совместный residual включаются блоки $\sqrt{N_j}\tilde r_j$,
+а в $\mathcal J$ --- $\sqrt{N_j}\dot{\tilde r}_j$;
+блок близости добавляется с уже указанным $\sqrt\lambda$.
+Этот взвешенный Jacobian используется в расширенной МНК:
+\begin{equation}\label{eq:gn}
+ \min_\alpha\|
+ \tilde r+\mathcal J\mathcal E(\alpha)\|^2+\mu\|\alpha\|^2,
+ \qquad \mu>0.
+\end{equation}
+Ретракция и проверка исходного $\Phi$ обязательны.
+GN не равен точному Riemannian Hessian: остаются остаточные
+second-derivative terms и геометрическая кривизна.
+Если отбросить в $\dot g_j$ член $T_j\T r_j$, получится дополнительная
+аппроксимация, уместность которой зависит от величины невязки.
+Полное \eqref{eq:dg} не требует независимого разложения по строкам индекса.
+
+\subsection{Разделимые аппроксимации оператора}
+Для матричной задачи можно искать
+$\mathcal L_0X=GXH$ либо
+$\sum_{\ell=1}^sG_\ell XH_\ell$.
+Перестановка индексов превращает приближение одним произведением
+Кронекера в rank-one approximation \cite{kron}.
+Но собирать $(md)^2$ элементов ради этой операции невыгодно;
+нужны действия, малые projected blocks либо аналитическая структура.
+Неограниченное SVD-приближение не гарантирует SPD факторов.
+
+Если проверено $\mathcal L_0\succ0$ и
+\begin{equation}\label{eq:rho}
+ \rho=\|\mathcal L_0^{-1/2}(\mathcal L-\mathcal L_0)
+                    \mathcal L_0^{-1/2}\|_2<1,
+\end{equation}
+то $(1-\rho)\mathcal L_0\preceq\mathcal L\preceq(1+\rho)\mathcal L_0$;
+condition number предобусловленной системы не больше
+$(1+\rho)/(1-\rho)$. Это следствие Rayleigh quotient.
+Небольшой случайный набор probes не доказывает \eqref{eq:rho} для всех
+направлений. Без оценки $\rho$ surrogate-SVD --- инициализация, затем
+проверяется истинный функционал и residual.
+Использование $\mathcal L_0$ как предобусловливателя сохраняет цель;
+замена целевого оператора на $\mathcal L_0$ её меняет.
+
+Полный условный минимум $B_*$ удовлетворяет $\mathcal LB_*=C$.
+При $\mathcal L\succeq\lambda\Id$, $\lambda>0$:
+\begin{equation}\label{eq:certificate}
+ \|B-B_*\|\F\le\|\mathcal LB-C\|\F/\lambda,
+ \quad F(B)-F(B_*)\le\|\mathcal LB-C\|\F^2/\lambda.
+\end{equation}
+Это сертификат \emph{неограниченного} условного решения, не оптимума
+rank-$r$ или profiled задачи. Для приближённой поправки $D$ с
+$s=\mathcal LD-Q$:
+\[
+ F(B+D)-F(B)=-\ip{D}{\mathcal LD}+2\ip{D}{s}.
+\]
+Условие $2|\ip{D}{s}|<\ip{D}{\mathcal LD}$ достаточно для спуска.
+Оно позволяет согласовывать Krylov tolerance с реальным шагом.
+При $\lambda=0$ универсальных bounds \eqref{eq:certificate} нет.
+
+\subsection{Сжатие, сохраняющее finite-sketch цель}
+Если $[U_j,I_j]=Q_jR_j$ --- тонкое QR без rank truncation,
+то $\|I_j-U_jYg\|=\|\bar I_j-\bar U_jYg\|$, где
+$[\bar U_j,\bar I_j]=R_j$.
+Число строк уменьшается до $\min(p,d+1)$;
+выигрыш возможен при $p>d+1$. Нормировки и threshold rules сохраняются.
+Усечение численного ранга --- отдельная аппроксимация.
+Если доступна точная факторизация $U_j=Q_jR_j$, предпочтительны действия
+факторов вместо хранения $Jpd$ элементов. Разложение шумового оператора
+с усечением не является точным само по себе.
+
+Кэши $U_jV$, $U_jY$ и QR/GN workspace допустимы лишь при фиксированных
+статистиках и basis-dependent ключе. После обновления ядра или направлений
+кэш пересчитывается. Coarse-space/SVD направления могут использоваться
+для warm start и дефляции в расширенном LSMR, сохраняя исходный residual
+и оба блока ridge. Дополнение полного решения вне coarse-space не обязано
+сохранять прежний rank bound. Случайный SVD уместен при дорогих действиях
+и большом спектральном блоке; при малом $m$ нужен выигрыш в числе проходов,
+а не только меньший размер факторизации.
+Ядерный штраф $F(B)+\gamma\|B\|_*$ задаёт выпуклый вариант,
+но не эквивалентен жёсткому ограничению ранга.
+
+\section{Улучшение III: пространственное поле и Tucker в касательных координатах}\label{sec:field}
+
+Замена $Y$ на $Y_j$ сама по себе даёт $J$ независимых локальных моделей.
+Для скалярного отклика один центр наблюдает лишь вектор $Y_jg_j$;
+локальное $m>1$ пространство без совместной информации не идентифицируется.
+Поле надо связывать через пространственный словарь, граф или общую оболочку.
+Кроме того, поле регрессионных EDR-плоскостей не обязано быть касательным
+полем многообразия носителя $x$: последняя модель имеет другие
+предположения \cite{manifold}. Для интегрируемости распределения плоскостей
+нужны дополнительные условия, например инволютивность по Фробениусу.
+
+\subsection{Линейное поле и его геометрические ограничения}
+В строковой нотации CP/Tucker \cite{tucker} дают
+\begin{align}
+ B_j&=\sum_{\ell=1}^s w_{j\ell}a_\ell v_\ell\T
+                                     &&\text{(CP)},\label{eq:cp}\\
+ B_j&=A\left(\sum_{\ell=1}^{s}w_{j\ell}M_\ell\right)V\T
+                                     &&\text{(Tucker)}.\label{eq:tucker}
+\end{align}
+При $s=1$, $w_{j1}=1$ и диагональном core получаем общий SVD-index;
+добавление $P_j$ даёт correction-вариант.
+Для фиксированных $g,A,V,w$ общий core решается малой расширенной МНК;
+нельзя независимо решать slices, если они имеют общие неизвестные.
+Штраф близости имеет \emph{положительный} знак $+\lambda\|B-P\|^2$.
+Отрицательный знак из черновика не является регуляризацией и может
+сделать функцию неограниченной снизу.
+
+Если $V\in\R^{d\times R}$ и $\rank B_j=m=R$, все row spaces равны
+$\spanop V$. Для настоящего вращения полноразмерных локальных
+$m$-плоскостей внутри общей оболочки необходимо $R>m$.
+Например $Y_j=VC_j$, $V\T V=\Id_R$, $C_j\T C_j=\Id_m$,
+с $[C_j]\in\Gr(m,R)$; это профилированная reduced-ambient модель.
+Ограничение $R<d$ вносит approximation bias, если поле выходит за оболочку.
+
+Low-rank третья мода сама по себе не даёт пространственной гладкости.
+Нужны $w_{j\ell}=w_\ell(x_j)$ с заданной регулярностью либо,
+например, $\tr(w\T L_{\rm graph}w)$; несвязный граф не связывает компоненты.
+Штраф на различия basis-матриц требует общего gauge; invariant-вариант:
+$\sum_{(i,j)}\omega_{ij}d_{\rm ch}^2(Y_i,Y_j)$.
+
+\subsection{Геометрически корректное поле малоранговых шагов}
+В одной локальной карте около $Y_0$ выберем
+$V\in\R^{d\times q}$, $Y_0\T V=0$, $V\T V=\Id_q$,
+$A\in\R^{m\times k}$, $A\T A=\Id_k$ и зададим
+\begin{equation}\label{eq:tangentfield}
+ Z_j=V\left(\sum_{\ell=1}^s w_\ell(x_j)M_\ell\right)A\T,
+ \qquad Y_j=R_{Y_0}(Z_j),\quad M_\ell\in\R^{q\times k}.
+\end{equation}
+Это Tucker-параметризация \emph{касательного поля}, после которой
+ретракция сохраняет $Y_j\T Y_j=\Id_m$.
+Именно $Z_j$, а не произвольный basis tensor, имеет малый Tucker rank;
+нелинейное отображение в общем случае не сохраняет этот rank для массива $Y_j$.
+При $s=1$ получается общий rank-$\min(q,k)$ геометрический шаг;
+при $q=k=1$ --- поле простых поворотов.
+Оболочка $[Y_0,V]$ имеет размер $m+q$, позволяя $m$-плоскостям меняться.
+
+Хранение параметров --- $O(d(m+q)+mk+sqk+Js)$ вместо $O(Jdm)$,
+если $w$ табулирован; вычисляемый словарь может убрать $Js$.
+Предварительные $U_j[Y_0,V]$ стоят $O(Jpd(m+q))$ работы
+и $O(Jp(m+q))$ памяти; их можно вычислять блоками.
+После этого все локальные профили используют лишь малую оболочку.
+При фиксированном словаре и directions GN по $M_\ell$ --- задача
+на $sqk$ переменных с общим Jacobian; истинный профиль остаётся нелинейным.
+Для большого поля одна карта может не подходить: нужны перекрывающиеся
+карты и согласованный перенос/gauge, а не рост коэффициентов до бесконечности.
+Параметризация без basis-свободы улучшает представление, но сама по себе
+не доказывает статистическую идентифицируемость поля.
+
+\section{Анизотропия и связь ADE, OPG, ADP, MAVE}\label{sec:metrics}
+
+Для ортонормированного $Y$ и $\Lambda\succeq0$ две исходные геометрии:
+\begin{align}
+ D_{\rm full}&=\alpha^2\Id+Y\Lambda Y\T,\label{eq:fulltensor}\\
+ D_{\rm orth}&=\alpha^2(\Id-YY\T)+Y\Lambda Y\T.\label{eq:orthtensor}
+\end{align}
+В \eqref{eq:weights} масштаб $h^{-2}$ вынесен явно.
+Они не совпадают вдоль $Y$: eigenvalues равны
+$\alpha^2+\lambda_\ell$ и $\lambda_\ell$ соответственно.
+$D_{\rm orth}\succ0$ требует $\alpha>0$, $\lambda_\ell>0$;
+нулевые значения допустимы для PSD-локализации, но не для SPD-whitening.
+Для $D=\delta\Id+Y L Y\T$, $L$ диагональна, любая определённая
+спектральная функция применяется как
+\begin{equation}\label{eq:functiontensor}
+ f(D)x=f(\delta)x+
+       Y\bigl(f(\delta\Id+L)-f(\delta)\Id\bigr)Y\T x.
+\end{equation}
+Стоимость $O(dm)$, без $d^2$ хранения.
+Пара $(Y,\Lambda)$ естественно задаёт rank-$m$ PSD-структуру
+$Y\Lambda Y\T$, с преобразованием
+$(Y,\Lambda)\mapsto(YQ,Q\T\Lambda Q)$.
+Положение подпространства и спектральные масштабы --- разные параметры.
+На границе нулевого спектра меняется ранг и гладкая stratum.
+
+\subsection{Какую метрику градиента на самом деле задаёт sketch}
+Если $\Sigma_j\succ0$, положим $\hat v_j=\Sigma_j^{-1}c_j$.
+Тогда directional ADP residual равен
+\begin{equation}\label{eq:sketchmetric}
+ \|I_j-U_jYg\|^2=
+ (\hat v_j-Yg)\T\Sigma_jS_j\T S_j\Sigma_j(\hat v_j-Yg).
+\end{equation}
+При $S_j=\Id$ метрика равна $\Sigma_j^2$.
+Семейство $\Sigma_j^\kappa$ даёт полезную классификацию:
+$\kappa=0$ --- Euclidean gradient fit/OPG,
+$\kappa=1$ --- локальная observation-level МНК,
+$\kappa=2$ --- полный directional moment fit.
+Действительно, центрированный локальный residual удовлетворяет
+\begin{equation}\label{eq:mavemetric}
+ \sum_iw_{ij}(y_i-\bar y_j-z_{ij}\T Yg)^2
+ =\mathrm{const}_j+N_j(\hat v_j-Yg)\T\Sigma_j(\hat v_j-Yg).
+\end{equation}
+Это алгебраическая связь с локальным критерием MAVE \cite{mave},
+при \emph{тех же} центрах, весах и intercept; её внешний алгоритм
+и выбор bandwidth не обязаны совпадать с ADP.
+При $\kappa=0$, $\tau=0$ профиль равен
+$\mathrm{const}-\tr(Y\T C_{\rm grad}Y)$,
+$C_{\rm grad}=\sum_jN_j\hat v_j\hat v_j\T$,
+и ведущие $m$ eigenvectors дают точный global OPG optimum.
+Это второй спектральный частный случай общей схемы \eqref{eq:master}.
+При вырожденной $\Sigma_j$ необходимы ограничения на range,
+псевдообратная либо явная регуляризация; написанный обратный оператор
+нельзя применять буквально.
+
+Чтобы детерминированно получить $\kappa=1$ из \eqref{eq:sketchmetric},
+можно задать $S_j=\Sigma_j^{-1/2}$ в полном локальном пространстве.
+Это меняет finite-sketch estimator и может дорого стоить.
+Для ненормированных случайных строк с ковариацией $\Sigma_j^{-1}$
+совпадение метрик имеется лишь \emph{в ожидании}, с множителем $p$.
+Нормирование каждой Gaussian-строки до единичной длины в общем случае
+нарушает равенство ковариации; текущий anisotropic law не является
+автоматическим GLS-whitening.
+
+\subsection{GLS и информация: необходимые оговорки}
+При независимом homoskedastic шуме, условно на фиксированных $x,w$:
+\begin{equation}\label{eq:noise}
+ \operatorname{Cov}(c_j\mid x,w)=
+   \frac{\sigma^2}{N_j^2}\sum_iw_{ij}^2z_{ij}z_{ij}\T,
+ \quad\operatorname{Cov}(I_j\mid x,w)=S_j\operatorname{Cov}(c_j)S_j\T.
+\end{equation}
+Отсюда метрика $\Sigma_j$ не следует автоматически: присутствуют
+$w_{ij}^2$, а окна разных центров могут иметь коррелированный шум.
+Для $w\in\{0,1\}$ covariance момента равна
+$\sigma^2\Sigma_j/N_j$, что действительно даёт gradient-GLS метрику
+$\Sigma_j$ на невырожденном range. Если веса обучены по тем же $y$,
+простая условная формула требует дополнительного обоснования.
+Равенство GN и информации Фишера справедливо для корректной Gaussian
+likelihood, её ковариационной метрики и идентифицируемого Jacobian;
+к исходной finite-sketch ADP это без этих условий не относится.
+Смена $\kappa$, local ridge, робастный loss/IRLS или quadratic-jet словарь
+$\Psi=\mathrm{std}\oplus\mathrm{Sym}^2$ --- варианты статистической модели.
+Последний может уменьшить bias при достаточной гладкости, но добавляет
+$O(m^2)$ коэффициентов и требует своей проверки variance/идентифицируемости.
+
+\section{Практическая программа и границы результата}\label{sec:program}
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}p{29mm}LL@{}}
+\toprule
+Конструкция & Что получает алгоритм & Статус изменения\\
+\midrule
+Действия $f(D)$, QR без усечения, компактные факторы &
+Убирают $d^2$ tensor или повторный ambient-дизайн & EXACT/NUMERICAL\\
+Общий core $M$ и residual-based tolerances &
+Не хуже диагонального refit при фиксированных spaces; больше неизвестных &
+APPROXIMATE, та же fixed-$g$ цель\\
+Профильный rank-$q$ шаг и скалярный поиск угла &
+Полный rank-$m$ basis; $O(J)$ на угол после подготовки &
+APPROXIMATE при той же profiled цели; переход с fixed-$g$/штрафа --- ESTIMATOR\\
+Tangent Tucker/общая оболочка &
+Сокращение числа параметров и дорогих действий, пространственная связь &
+ESTIMATOR или явная ограниченная модель\\
+OPG $\to$ MAVE-like metric, GLS, jet/robust loss &
+Иная статистическая цель; возможен trade-off bias/variance & ESTIMATOR\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\textbf{Предлагаемый основной вариант.} Frozen-statistics профиль
+\eqref{eq:profile}, thin SVD горизонтального градиента, адаптивный $q$
+по \eqref{eq:energybudget}, подготовка $U_j[Y,V]$ и оптимизация углов.
+Для $q=1$ применяется \eqref{eq:scalarprofile}; при выраженной
+анизотропии --- reduced GN \eqref{eq:gn} с проверкой истинного $\Phi$.
+Rank-one разумен при концентрации $s_1^2/\|G\|\F^2$, дешёвом streaming
+или ограничении памяти. При малом $m$ полный thin SVD стоит $O(dm^2)$,
+так что экономия от жадности не гарантирована.
+Ориентир для поля --- \eqref{eq:tangentfield} с гладким словарём и
+графовой связью, после успешной проверки глобального случая.
+
+Для dense $U$ базовая память --- $O(Jpd)$; работа $U_jY$ ---
+$O(Jpdm)$, local augmented QR --- $O(J(pm^2+m^3))$, хранение градиента ---
+$O(dm)$. Кэш reduced-design добавляет $O(Jp(m+q))$,
+при center blocks $b$ --- $O(bp(m+q))$.
+Factorized/streamed $U$ может сократить $Jpd$, но цену повторных
+действий надо учитывать. Core-refit может выполняться потоковым QR;
+плотный $(r^2)^2$ core-Hessian допустим только при явно малом $r$.
+GPU помогает batched $U V$, refit и reductions; переносы, allocation,
+BLAS threads и число passes остаются частью wall-clock стоимости.
+
+\textbf{Что уже реализовано.} В \texttt{ADP/solver/SVD.py} есть
+fixed-$g$ matrix/correction targets, greedy rank-one, диагональный refit,
+отбор SVD-пар по $R^2/D$, условные direct/LSMR solves и optional penalty
+whitening. Matrix mode дополняет rank-$r$ результат из prior;
+correction mode делает QR сырого полного $P+\Delta$, затем local refit.
+Local ridge $\tau$ в этом пути равен нулю.
+Свободный core, профилированный поиск углов и tangent Tucker здесь
+\emph{теоретические предложения}; производственный solver этой запиской
+не изменён. Убывание сырого $F$ не переносится автоматически через QR,
+refit и изменение kernel на внешний trace.
+
+\textbf{Условия научной проверки.} Сначала независимые малые reference:
+forward/adjoint, whitening, profile invariance, gradient/Jacobian,
+Schur-search, ортонормальность, rank loss, $\tau=0$, $\lambda=0$.
+Затем paired frozen $I,U,N$ с одинаковыми tolerances; далее полные fits
+на нескольких заранее заданных seeds с отдельным validation набором.
+Измеряются wall-clock, peak native memory, operator calls/iterations,
+истинная цель и projector error к $Y_*$. Objective improvement без
+eigengap/идентифицируемости и контроля шумового смещения не даёт recovery
+guarantee. Ранг шага $q$, размер EDR $m$, Tucker ranks и envelope $R$
+нужно выбирать и измерять отдельно.
+
+\appendix
+\section{Карта исходных идей и исправлений}\label{sec:map}
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}p{38mm}L@{}}
+\toprule
+Материал & Место в общей конструкции и необходимые уточнения\\
+\midrule
+\texttt{multiindex.tex}, 957--1236, 1274--1579 &
+EDR/local statistics/AO/structural adaptation: разделы
+\ref{sec:model}, \ref{sec:framework}, \ref{sec:metrics}.
+Single-index --- $m=1$. Prediction/CV и bandwidth schedule --- внешние
+процедуры, не следствия внутренней geometry.\\
+\texttt{SVD\_solver.tex}, 65--817, 833--1135 &
+Оператор, greedy, isotropic SVD, completion, refinement, блоки/GPU:
+разделы \ref{sec:svd}, \ref{sec:reduced}, \ref{sec:program}.
+Полный core расширяет diagonal scales; nuclear/random варианты сохраняют
+отдельные ограничения и статус.\\
+\texttt{SVD\_algorithm.tex}; \texttt{SVD\_cur.tex} &
+Алгоритмическая последовательность и live-поведение:
+разделы \ref{sec:svd}, \ref{sec:program}. Реальные targets, certificate,
+metric и completion проверены по live-коду; краткие заметки не заменяют его.\\
+\texttt{grassmann\_rank\_}\newline\texttt{one.tex}, 40--884 &
+Profile/gradient, tangent SVD, exponential/Taylor и greedy rotations:
+разделы \ref{sec:grassmann}, \ref{sec:angles}.
+Точное разложение относится к фиксированному шагу, не адаптивной траектории.\\
+\texttt{Tucker.md}, 1--508 &
+CP/Tucker и envelope: раздел \ref{sec:field}.
+Исправлен знак ridge; пространственная гладкость не следует из low rank.
+Поле плоскостей не доказывает существование интегрируемого многообразия.\\
+\texttt{cladue.md}, 5--57 &
+Schur angle-search, retractions, norm families, GN, metric homotopy:
+разделы \ref{sec:angles}--\ref{sec:metrics}.
+Исправлены covariance $w^2$, недостающий polar boundary и заявления
+о глобальном поиске/сходимости/Fisher без условий.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+Подкаталоги \texttt{documentatio}, \texttt{documentation},
+\texttt{archive}, \texttt{pdf}/\texttt{PDF} не использованы.
+Проверки формул и сборка находятся в \texttt{SVD/theory\_2026\_10\_01/}.
+Проверки тождеств и узкий benchmark одной angle curve записаны отдельно;
+качество восстановления полного алгоритма не измерено.
+
+\section{Научные предшественники и пределы обобщения}\label{sec:literature}
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}p{36mm}L@{}}
+\toprule
+Направление & Что заимствуется и где заканчивается перенос результата\\
+\midrule
+HJPS; MAVE \cite{hjps,mave} &
+ADE structural adaptation и local regression EDR.
+Наш finite-sketch и штрафы имеют свои statistical assumptions.\\
+VARPRO \cite{varpro} &
+Исключение линейных coefficients и производные профиля;
+constant-rank либо augmented full-rank guard.\\
+Edelman--Arias--Smith; GROUSE \cite{edelman,grouse} &
+SVD exponential и rank-one geodesic updates известны.
+Общие ADP-операторы/anisotropy не совпадают с sampling model GROUSE.\\
+Weighted approximation; quotient low rank \cite{weighted,mishra} &
+Отсутствие обычного SVD closed form и совместная fixed-rank optimization;
+применимы к фиксированной гладкой цели, без EDR guarantee.\\
+Matrix pursuit \cite{pursuit} &
+Greedy singular atoms и refit масштабов; curvature-normalized gain
+выводится здесь из конкретной квадратичной ADP-цели.\\
+Kronecker; CP/Tucker \cite{kron,tucker} &
+Разделимость операторов/поля, разные виды low rank;
+без гарантии SPD, spatial smoothness или точности усечения.\\
+Manifold local regression \cite{manifold} &
+Intrinsic tangent-coordinate regression на manifold predictors;
+не тождественна varying EDR distribution в ambient regression.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+Синтез объединяет эти конструкции через \eqref{eq:master} и
+\eqref{eq:chart}. Основное улучшение для данной задачи --- использовать
+дешёвые точные reduced profiles после выбора простых поворотных плоскостей,
+а для пространственного обобщения факторизовать касательное поле до
+ретракции. Это конкретные выводы и предложения; их новизна относительно
+всей литературы и преимущество в восстановлении здесь не доказаны.
+
+\begin{thebibliography}{99}\small
+\bibitem{hjps} M. Hristache, A. Juditsky, J. Polzehl, V. Spokoiny.
+\emph{Structure Adaptive Approach for Dimension Reduction}.
+Ann. Statist. 29(6), 1537--1566, 2001.
+\href{https://www.wias-berlin.de/preprint/569/wias_preprints_569.pdf}{WIAS preprint 569 (2000)};
+\href{https://doi.org/10.1214/aos/1015345954}{doi:10.1214/aos/1015345954}.
+\bibitem{mave} Y. Xia, H. Tong, W. K. Li, L.-X. Zhu.
+\emph{An Adaptive Estimation of Dimension Reduction Space}.
+JRSS B 64(3), 363--410, 2002.
+\href{https://doi.org/10.1111/1467-9868.03411}{doi:10.1111/1467-9868.03411}.
+\bibitem{varpro} G. H. Golub, V. Pereyra.
+\emph{The Differentiation of Pseudo-Inverses and Nonlinear Least Squares
+Problems Whose Variables Separate}. SIAM J. Numer. Anal. 10(2), 413--432, 1973.
+\href{https://doi.org/10.1137/0710036}{doi:10.1137/0710036}.
+\bibitem{edelman} A. Edelman, T. A. Arias, S. T. Smith.
+\emph{The Geometry of Algorithms with Orthogonality Constraints}.
+SIAM J. Matrix Anal. Appl. 20(2), 303--353, 1998, \S2.5.1--2.5.4.
+\href{https://math.mit.edu/~edelman/publications/geometry_of_algorithms.pdf}{Author PDF}.
+\bibitem{grouse} L. Balzano, R. Nowak, B. Recht.
+\emph{Online Identification and Tracking of Subspaces from Highly Incomplete
+Information}. Allerton, 2010.
+\href{https://arxiv.org/abs/1006.4046}{arXiv:1006.4046}, \S3.
+\bibitem{weighted} N. Srebro, T. Jaakkola.
+\emph{Weighted Low-Rank Approximations}. ICML, 2003.
+\href{https://people.csail.mit.edu/tommi/papers/SreJaa-icml03.pdf}{Author PDF}.
+\bibitem{mishra} B. Mishra, G. Meyer, S. Bonnabel, R. Sepulchre.
+\emph{Fixed-Rank Matrix Factorizations and Riemannian Low-Rank Optimization}.
+Comput. Stat. 29, 591--621, 2014; preprint 2012.
+\href{https://arxiv.org/abs/1209.0430}{arXiv:1209.0430}.
+\bibitem{retractions} P.-A. Absil, J. Malick.
+\emph{Projection-Like Retractions on Matrix Manifolds}.
+SIAM J. Optim. 22(1), 135--158, 2012.
+\href{https://sites.uclouvain.be/absil/2010.038}{Author page and manuscript}.
+\bibitem{pursuit} Z. Wang, M.-J. Lai, Z. Lu, W. Fan, H. Davulcu, J. Ye.
+\emph{Rank-One Matrix Pursuit for Matrix Completion}.
+PMLR 32(2), 91--99, 2014.
+\href{https://proceedings.mlr.press/v32/wanga14.html}{Original paper}.
+\bibitem{kron} C. F. Van Loan, N. Pitsianis.
+\emph{Approximation with Kronecker Products}.
+In: Linear Algebra for Large Scale and Real-Time Applications, 293--314, 1993.
+\href{https://ecommons.cornell.edu/entities/publication/ad6a5c71-2632-4652-b33a-72016d7abc4d}{Cornell technical report 92-109 (1992)}.
+\bibitem{tucker} T. G. Kolda, B. W. Bader.
+\emph{Tensor Decompositions and Applications}.
+SIAM Review 51(3), 455--500, 2009.
+\href{https://www.kolda.net/publication/koba09/}{Author page and manuscript}.
+\bibitem{manifold} M.-Y. Cheng, H.-T. Wu.
+\emph{Local Linear Regression on Manifolds and its Geometric Interpretation}.
+JASA 108(504), 1421--1434, 2013.
+\href{https://arxiv.org/abs/1201.0327}{arXiv:1201.0327}.
+\bibitem{eckart} C. Eckart, G. Young.
+\emph{The Approximation of One Matrix by Another of Lower Rank}.
+Psychometrika 1, 211--218, 1936.
+\href{https://doi.org/10.1007/BF02288367}{doi:10.1007/BF02288367}.
+\end{thebibliography}
+\end{document}
