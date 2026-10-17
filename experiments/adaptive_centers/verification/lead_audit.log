@@ -1,0 +1,213 @@
+{
+  "rows": 120,
+  "paired_blocks": 12,
+  "raw_sha256": "8019e1a69494585c55a3fe3aebb1c533fc999f43c831782139d97a690854e6bc",
+  "frozen_source_files_verified_in_snapshot": 74,
+  "current_source_overlay": {
+    "parent_manifest_sha256": "a4537adb47520f3016c1b8e85c9757ab6576bd79d532f03973f2e41ceff688cc",
+    "original_snapshot_sha256": "0e3e4c38fa2cb91db0008090acce7a1fc807bf7702edb7361858e747c4d005f6",
+    "patch_sha256": "d0dbd5e9a07a790c16f8b3e42996964dd949314e3edd8b41ace554e0c674fdbd",
+    "changed_numerical_source": "ADP/engine/common/index_fit.py",
+    "original_source_sha256": "92361c86fcc64485dbca058e71dac386e39865c68c9f30a99191cf6fa9f2650a",
+    "current_source_sha256": "f7d7886697dd7ff4690642b6e168ba4068549ee39f909ebb515aee56aed9f4ea",
+    "all_other_frozen_sources_unchanged": 73,
+    "AST_matches_expression_substitution_plus_typing_cast": true,
+    "old_expression": "np.random.SeedSequence([config.seed, 92817])",
+    "new_expression": "np.random.SeedSequence([cast(int, center_seed.entropy), 92817])",
+    "reason": "Preserve accepted seed=None; use entropy of the existing root stream.",
+    "integer_seed_equivalence": "center_seed.entropy equals config.seed for every frozen seed",
+    "benchmark_timing_rerun": false,
+    "tests_sha256": "f264be4c3c24c628d81066769d3798c3252d6982e929de3163a1f727cc97eb47",
+    "original_test_hash_matches_retained_prefix": true,
+    "verification": "86 shared tests passed; integer stream test; two fullfit hash replays",
+    "current_compatibility_snapshot_sha256": "e1736d85c40de3ab6914d699a6165cdeb090ebd583c216540922b4997c244950"
+  },
+  "protocol_snapshot_original_math_unchanged": true,
+  "thread_input_initial_coefficient_checks": true,
+  "outer_stop": "all h_min",
+  "inner_converged_certificates": 0,
+  "max_orthogonality_error": 1.7941941523106936e-15,
+  "heldout_rows": 0,
+  "comparisons": [
+    {
+      "candidate": "floor25",
+      "control": "baseline",
+      "median_edr_delta": 0.0,
+      "worst_edr_delta": 0.05059014591184016,
+      "median_fit_time_ratio": 0.9940095993509785,
+      "median_process_peak_rss_ratio": 0.9995089050182886
+    },
+    {
+      "candidate": "floor25_search",
+      "control": "baseline",
+      "median_edr_delta": -1.2561687801060373e-12,
+      "worst_edr_delta": 0.05059014331503153,
+      "median_fit_time_ratio": 1.6353136199070977,
+      "median_process_peak_rss_ratio": 1.1929769646351893
+    },
+    {
+      "candidate": "floor25_search_stats",
+      "control": "baseline",
+      "median_edr_delta": -1.2561687801060373e-12,
+      "worst_edr_delta": 0.05059014331503153,
+      "median_fit_time_ratio": 1.9102783616048127,
+      "median_process_peak_rss_ratio": 1.1911219816555536
+    },
+    {
+      "candidate": "floor50",
+      "control": "baseline",
+      "median_edr_delta": 0.001496222131098346,
+      "worst_edr_delta": 0.048907482976559224,
+      "median_fit_time_ratio": 0.9890825310609637,
+      "median_process_peak_rss_ratio": 1.0007779610661194
+    },
+    {
+      "candidate": "logdet_coverage_equal_j",
+      "control": "baseline",
+      "median_edr_delta": 0.03968303140129476,
+      "worst_edr_delta": 0.2693453343067135,
+      "median_fit_time_ratio": 2.487152984251169,
+      "median_process_peak_rss_ratio": 1.191213894847107
+    },
+    {
+      "candidate": "logdet_coverage_quad_equal_j",
+      "control": "baseline",
+      "median_edr_delta": 0.024222644286019515,
+      "worst_edr_delta": 0.24341845109804813,
+      "median_fit_time_ratio": 2.8137714443372164,
+      "median_process_peak_rss_ratio": 1.196350570908629
+    },
+    {
+      "candidate": "logdet_equal_j",
+      "control": "baseline",
+      "median_edr_delta": 0.04642473307516173,
+      "worst_edr_delta": 0.23634688465190426,
+      "median_fit_time_ratio": 2.4808962644413617,
+      "median_process_peak_rss_ratio": 1.1938788613443942
+    },
+    {
+      "candidate": "random_equal_j",
+      "control": "baseline",
+      "median_edr_delta": 0.08387392796834064,
+      "worst_edr_delta": 0.6112818983350827,
+      "median_fit_time_ratio": 1.84194125305625,
+      "median_process_peak_rss_ratio": 1.184211249236173
+    },
+    {
+      "candidate": "score_equal_j",
+      "control": "baseline",
+      "median_edr_delta": 0.05870599295674184,
+      "worst_edr_delta": 0.322737923489848,
+      "median_fit_time_ratio": 2.18731797767564,
+      "median_process_peak_rss_ratio": 1.1882444578145637
+    },
+    {
+      "candidate": "floor25_search",
+      "control": "floor25",
+      "median_edr_delta": -2.3904635215732384e-10,
+      "worst_edr_delta": 3.709682120378588e-07,
+      "median_fit_time_ratio": 1.6821610778733134,
+      "median_process_peak_rss_ratio": 1.1866450823451153
+    },
+    {
+      "candidate": "floor25_search_stats",
+      "control": "floor25_search",
+      "median_edr_delta": 0.0,
+      "worst_edr_delta": 0.0,
+      "median_fit_time_ratio": 1.179228944482924,
+      "median_process_peak_rss_ratio": 1.0005991500209646
+    },
+    {
+      "candidate": "logdet_coverage_equal_j",
+      "control": "random_equal_j",
+      "median_edr_delta": -0.03772843149539479,
+      "worst_edr_delta": 0.09231538569304193,
+      "median_fit_time_ratio": 1.3375847226262247,
+      "median_process_peak_rss_ratio": 1.0002727556076607
+    },
+    {
+      "candidate": "logdet_coverage_quad_equal_j",
+      "control": "random_equal_j",
+      "median_edr_delta": -0.04923231219512422,
+      "worst_edr_delta": 0.06638850248437661,
+      "median_fit_time_ratio": 1.4372584564323656,
+      "median_process_peak_rss_ratio": 1.0082297067953219
+    },
+    {
+      "candidate": "logdet_equal_j",
+      "control": "random_equal_j",
+      "median_edr_delta": -0.046255778759311986,
+      "worst_edr_delta": 0.05931693603823274,
+      "median_fit_time_ratio": 1.306902526026007,
+      "median_process_peak_rss_ratio": 1.0070559499623792
+    },
+    {
+      "candidate": "score_equal_j",
+      "control": "random_equal_j",
+      "median_edr_delta": -0.028626354487054306,
+      "worst_edr_delta": 0.14570797487617643,
+      "median_fit_time_ratio": 1.1273303322758599,
+      "median_process_peak_rss_ratio": 1.0000780493166592
+    }
+  ],
+  "supplemental_localization_only": {
+    "workers": 24,
+    "comparisons": [
+      {
+        "case": "small",
+        "mode": "weights",
+        "ratios": [
+          2.40906423289295,
+          3.4628756546339514,
+          2.7380002294563552
+        ],
+        "median_projected_baseline_time": 2.7380002294563552
+      },
+      {
+        "case": "small",
+        "mode": "alpha_weights",
+        "ratios": [
+          1.4479855754736233,
+          1.0831624444735857,
+          1.4912671111369555
+        ],
+        "median_projected_baseline_time": 1.4479855754736233
+      },
+      {
+        "case": "large",
+        "mode": "weights",
+        "ratios": [
+          0.4944984357710194,
+          0.49265233378266193,
+          0.4863675966134122
+        ],
+        "median_projected_baseline_time": 0.49265233378266193
+      },
+      {
+        "case": "large",
+        "mode": "alpha_weights",
+        "ratios": [
+          0.4136424413850674,
+          0.4266026904393153,
+          0.40818726209898115
+        ],
+        "median_projected_baseline_time": 0.4136424413850674
+      }
+    ],
+    "sources_hashes_pairing_threads_weights_verified": true
+  },
+  "trajectory_audit": {
+    "states": 12,
+    "max_weight_abs": 0.0,
+    "max_statistics_abs": {
+      "I": 1.3322676295501878e-15,
+      "U": 1.1102230246251565e-15,
+      "mass": 2.842170943040401e-14,
+      "S": 8.881784197001252e-16,
+      "mean": 1.1102230246251565e-15,
+      "n_eff": 1.4210854715202004e-13,
+      "eta": 1.0
+    },
+    "eta_diagnostic_used_in_solver": false
+  }
+}

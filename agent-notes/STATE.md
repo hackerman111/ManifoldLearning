@@ -1,46 +1,51 @@
 # Current state
 
-Task grassman-rank-k-2026-10-16 complete; PLAN.md done.
-Branch SVD-theory; prior dirty research retained. Previous metric plan archived
-at agent-notes/history/plans/metric-spokoiny-2026-10-15-complete.md.
+Task adaptive-centers-2026-10-17 **done**, PLAN.md done. Branch SVD-theory.
+User requested P0-P3 experimental implementation plus Luna benchmarks.
+Initial untracked SVD/adaptive_centers_anisotropic_adp_edr_report.tex preserved.
+Previous plan archived at history/plans/grassman-rank-k-2026-10-16-complete.md.
 
-Explicit grassman.block_rank_k delegates to grassman_exp shared loop. Fixed
-rank/energy/bounded-cost, spectral or joint optimized angles (default2steps).
-Spectral/flat kernels reused. APPROXIMATE optimizer of identical profile;
-true local refit/full-gradient stopping, angle/geometry/Armijo/workspace guards.
-Workspace is extra GN scratch, not total RSS/input/cache. Production solve API
-and AST unchanged HEAD, SHA511142112ec1c69b24192cc57ad55e6f4ba1cf6ed423b5a3101a82240d09320a.
+API AdaptiveCentersConfig through ADP_Config.experimental_centers=None;
+defaults/solver unchanged. CPU,multi,new,builtin Epanechnikov only.
+P0 floor changes localization only; raw canonical spectrum retained.
+P1 projected KDTree candidates/exact residuals/CSR and full-pool alpha.
+P2 cheap projected moments, score/random controls; P3 normalized LogDet with
+coverage, fixed/dynamic budgets, optional unnormalized PoU. Full U only chosen
+centers; full-pool init/sketch/error population preserved; coefficient mapping
+and fallbacks exposed. Existing D=(J0,n) and full-pool sketches remain allocated.
+Guide/routes: agent-notes/ADP/adaptive-centers.md. Math: experiments/
+adaptive_centers/MATH.md (frozen). TeX logdet ratio corrected to centered
+logdet(I+sum uuT/eps); scalar quadrature does not imply operator/recovery.
 
-Evidence: experiments/grassman_rank_k/REPORT.md (tables/plots/inference),
-PROTOCOL.md/MATH.md/REFERENCE_POLISH.md, freeze_manifest.json32sources28inputs,
-source_snapshot.zip/reproducibility_manifest.json for exact dirty-tree sources.
-Luna handled routine tests/harness/serial workers/aggregation; lead audited
-source, numerical invariants, paired provenance, reference and interpretation.
-71 focused tests pass; scoped Ruff/Pyright pass. Full pytest collection blocked
-3 existing KeyError mi-spokoini-m2-n catalog errors; verification.md has paths.
+Luna completed120 paired development fits plus10 excluded smoke fits, all ok.
+4new report-inspired AR1Gaussian cases,n500,d30/40/50,m2,J500,Nphi10,Nloc20,
+local init,default LSMR,hmin1,a sqrt2,select last,dev92800..2,threads1.
+All h_min6/7steps; **zero converged inner certificates**. No global gate passes;
+selection=null,heldout92900..4 untouched. These results are conditional on the
+frozen schedule/solver budget and are not a replication of TeX raw experiments.
 
-All881 numerical workers ok:54 devfits30heldfits792inner5referencepolish.
-Fresh dev81600..81602/held81700..81704. selection.json froze block1 beforeheld;
-no candidate meets20% time gate. Heldout median paired fit/core .99963,
-bootstrap95%[.98914,1.01554]; median EDRdiff0, one positive regression+.000120.
-Core/spectral/block1 each complete10/10, recoverEDR<=.1 in5/10, certificate
-0/840 calls (budget5). Original MI scenario core/optimized all30updates/fit
-use rank guard; spectral lacks that guard, changes trajectory/EDR. Keep this
-limitation; never silently regularize statistics. Original Spokoiny162outer
-steps retained; core solver only~10.1%fit time. Default core stays unchanged.
+Median paired floor25 EDRdiff0,time.994baseline; additive30 medianEDR
+.4190->.2486,not general. Floor50 EDR+.00150,recovery2/12 vs1/12.
+P1/floor25 time1.682; P2/P1 time1.179,no EDR change.
+P3 LogDet+coverage J60/80/100,EDR+.03968,time2.487,RSS1.191baseline;
+vs equal-J random EDR-.03773,time1.338. No fullfit quality/speed promotion.
+Separate24-worker localization benchmark:n10000,d100,J500,h.4,common D,
+P1/baseline time.493weights/.414alpha+weights,exact outputs,n500 slower.
+Timing includes geometry+CSR output; D separately timed/retained. No inference
+of end-to-end speed or native streamed-baseline RSS saving.
 
-Inner768solver24refs, main m2/3/5/8,d20/100/300,J64, extraJ16/256. Counted
-observational wrapper separately frozen, all exact profile counters verified.
-Max orth4.87e-14, no positive F-history drift. Original19/24refs certified;
-independent chart L-BFGS+CG supplement improves all5, certifies3, total22/24.
-Two m2d300 refs remain uncertified, retained; Fref never global-minimum proof.
-All200 adjacent-k comparisons reduce one-step F. Strict independent heldout
-law c=.9779/.9190 (optimized/spectral), logRMSE=.1837/.2269; descriptive trend
-only. 340 lower-F/worse-EDR pair comparisons retained. Matched-prefix budgets
-use EDR at same state, accepted updates exclude duplicate final certificate.
-Direct k>1 block-vs-sequential comparisons200,100pervariant, include no-ref
-cost grid. Typically cheaper single block but worse objective/recovery.
+Same-state divergent-pair replay: identical support/weights/alpha,I/U<1.4e-15;
+two raw initial/final hashes reproduced,finalEDRdiff-.01036 remains. Specific
+solver branching cause unproven. Eta singleton ratio unstable,unused by solver.
+After timings only seed=None compatibility regression fixed, integer streams
+unchanged. Original source snapshot/manifests immutable; explicit AST-verified
+overlay and current-source ZIP in verification/. Original harness frozen check
+intentionally rejects patched tree; reproduce snapshot or use lead_audit.py.
 
-No work pending. Future optimizer tuning requires new protocol/seeds; do not
-reuse consumed heldout as independent validation. Relevant routes: solvers.md,
-experiment report and verification.md; all raw JSONL/CSV/captures saved.
+Final evidence:27feature tests included in86 shared passes,6manifold deselected;
+Ruff check/format clean,Pyright0errors/0warnings. Existing3catalog KeyErrors
+block fullsuite collection;3manifold reference failures m2/local_quadratic
+requiresm1 remain. Logs and independent audits in experiments/adaptive_centers/
+verification/,reports/raw/plots under same root and supplement/.
+No pending authorized work. New research requires fresh protocol; heldout
+seeds remain available. No commit/push performed.

@@ -6,7 +6,7 @@
 
 Каждый ID вида **SRC-IFIT** — устойчивый код фрагмента. Его команда ниже выводит исходник без преобразования. Для дословного повторного чтения используйте диапазон из таблицы; в тематических заметках даны более узкие диапазоны по функциям.
 
-    rtk proxy sed -n '174,540p' ADP/engine/common/index_fit.py
+    rtk proxy sed -n '195,647p' ADP/engine/common/index_fit.py
 
 Команда рассчитана на запуск из корня репозитория. RTK обязателен по локальным инструкциям. Если нужна другая часть файла, используйте тот же путь и собственный диапазон sed.
 
@@ -30,10 +30,10 @@ Manifold — другая модель, с отдельной оркестрац
 
 | ID | Файл и роль | Команда извлечения |
 |---|---|---|
-| SRC-PKG | `ADP/__init__.py` — публичные экспорты и исторические import aliases | `rtk proxy sed -n '1,68p' ADP/__init__.py` |
+| SRC-PKG | `ADP/__init__.py` — публичные экспорты и исторические import aliases | `rtk proxy sed -n '1,70p' ADP/__init__.py` |
 | SRC-GPU | `ADP/gpu.py` — ленивое подключение CuPy, выбор backend и возврат в NumPy | `rtk proxy sed -n '1,36p' ADP/gpu.py` |
 | SRC-CLI-COMPAT | `ADP/cli.py` — совместимый CLI shim | `rtk proxy sed -n '1,8p' ADP/cli.py` |
-| SRC-CFG | `ADP/core/ADP_Config.py` — kernel и конфигурация single/multi | `rtk proxy sed -n '1,112p' ADP/core/ADP_Config.py` |
+| SRC-CFG | `ADP/core/ADP_Config.py` — kernel и конфигурация single/multi | `rtk proxy sed -n '1,119p' ADP/core/ADP_Config.py` |
 | SRC-DATA | `ADP/core/ADP_Data.py` — прежний контейнер данных/состояния | `rtk proxy sed -n '1,55p' ADP/core/ADP_Data.py` |
 | SRC-SOLVER-API | `ADP/core/ADP_Solver.py` — адаптер актуального solver и старый класс solver | `rtk proxy sed -n '1,179p' ADP/core/ADP_Solver.py` |
 | SRC-STAT-RECORD | `ADP/core/ADP_Statistic.py` — запись локальных статистик | `rtk proxy sed -n '1,37p' ADP/core/ADP_Statistic.py` |
@@ -56,10 +56,10 @@ Manifold — другая модель, с отдельной оркестрац
 | SRC-BOX | `ADP/engine/common/box_kernel.py` — отдельный движок компактных sparse neighborhoods | `rtk proxy sed -n '1,1100p' ADP/engine/common/box_kernel.py` |
 | SRC-CALC | `ADP/engine/common/calculus.py` — расстояния, h/rho/alpha, random directions | `rtk proxy sed -n '1,434p' ADP/engine/common/calculus.py` |
 | SRC-GPU-STAT | `ADP/engine/common/gpu_statistics.py` — GPU-расчёт статистик общего fit_index | `rtk proxy sed -n '1,167p' ADP/engine/common/gpu_statistics.py` |
-| SRC-IFIT | `ADP/engine/common/index_fit.py` — общий контроллер single/multi | `rtk proxy sed -n '1,540p' ADP/engine/common/index_fit.py` |
+| SRC-IFIT | `ADP/engine/common/index_fit.py` — общий контроллер single/multi | `rtk proxy sed -n '1,647p' ADP/engine/common/index_fit.py` |
 | SRC-INIT | `ADP/engine/common/initialize.py` — локальный gradient-PCA, pilot, random init | `rtk proxy sed -n '1,424p' ADP/engine/common/initialize.py` |
 | SRC-LOGGER | `ADP/engine/common/logger.py` — старый tracker и IndexProfiler | `rtk proxy sed -n '1,194p' ADP/engine/common/logger.py` |
-| SRC-STAT | `ADP/engine/common/statistic.py` — актуальные normalized/legacy CPU-моменты | `rtk proxy sed -n '1,229p' ADP/engine/common/statistic.py` |
+| SRC-STAT | `ADP/engine/common/statistic.py` — актуальные normalized/legacy CPU-моменты | `rtk proxy sed -n '1,254p' ADP/engine/common/statistic.py` |
 | SRC-UTIL | `ADP/engine/common/utils.py` — проверка входов, форм и weight blocks | `rtk proxy sed -n '1,297p' ADP/engine/common/utils.py` |
 | SRC-WEIGHT | `ADP/engine/common/weights.py` — single/multi kernel weights блоками | `rtk proxy sed -n '1,184p' ADP/engine/common/weights.py` |
 | SRC-SI-ENGINE | `ADP/engine/single_index/ADP_single_index_engine.py` — ориентация линии | `rtk proxy sed -n '1,22p' ADP/engine/single_index/ADP_single_index_engine.py` |
@@ -96,6 +96,7 @@ Manifold — другая модель, с отдельной оркестрац
 - Сквозной путь общей single/multi-модели: [index-pipeline.md](index-pipeline.md).
 - Индекс размерности 1: [single-index.md](single-index.md).
 - Несколько направлений/EDR-базис: [multi-index.md](multi-index.md).
+- Экспериментальные P0–P3, спектральный порог/проекционный поиск/отбор центров: [adaptive-centers.md](adaptive-centers.md).
 - Меняющееся по центрам локальное подпространство: [manifold.md](manifold.md).
 - Объективы, внутренние операторы и сертификаты: [solvers.md](solvers.md).
 - CLI и границы совместимости: [cli-and-compat.md](cli-and-compat.md).

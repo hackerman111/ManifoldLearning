@@ -21,6 +21,13 @@ are benchmark variants, not production ADP behavior or package aliases.
 
 Текущий `transform(X)` — обычная проекция через оцененный общий базис `(d,m)`. Это global multi-index, не локальные проекторы manifold-модели.
 
+## Экспериментальные P0–P3
+
+Спектральный порог, точный projected search, дешёвые проекционные моменты и
+LogDet/coverage отбор подключаются через `ADP_Config.experimental_centers`.
+Явные ESTIMATOR варианты; основной solver/default сохранён. API, источники,
+математические уточнения и evidence: [adaptive-centers.md](adaptive-centers.md).
+
 ## Веса и anisotropy
 
 Пусть `z_q` — q-я координата смещения вдоль ортонормированного EDR basis, `lambda_q` — сохраненный спектр, а `r²` — квадрат ортогонального остатка. Текущая функция `calculate_multi_weight` использует
@@ -295,12 +302,12 @@ differ).
 | SRC-MI-FIT | публичный fit и `(d,m)` publication/transform | `rtk proxy sed -n '20,108p' ADP/core/multi/ADP_multi_index.py` |
 | SRC-MI-RESULT | projector distance result API | `rtk proxy sed -n '12,51p' ADP/core/multi/ADP_multi_index_result.py` |
 | SRC-MI-UTIL | orthogonality/rank/result validation | `rtk proxy sed -n '9,95p' ADP/core/multi/ADP_multi_index_utils.py` |
-| SRC-MI-CANONICAL | weighted coefficient rotation and canonical spectrum | `rtk proxy sed -n '108,185p' ADP/engine/common/index_fit.py` |
+| SRC-MI-CANONICAL | weighted coefficient rotation and canonical spectrum | `rtk proxy sed -n '133,191p' ADP/engine/common/index_fit.py` |
 | SRC-MI-WEIGHTS | projected principal/residual kernel geometry | `rtk proxy sed -n '88,184p' ADP/engine/common/weights.py` |
 | SRC-MI-ALPHA | alpha search and exact compact-support reduction | `rtk proxy sed -n '259,389p' ADP/engine/common/calculus.py` |
 | SRC-MI-DIRECTIONS | principal plus orthogonal random sketch | `rtk proxy sed -n '390,422p' ADP/engine/common/calculus.py` |
 | SRC-MI-INIT | local basis/spectrum initialization paths | `rtk proxy sed -n '70,184p' ADP/engine/common/initialize.py` |
-| SRC-MI-DRIVER | effective tensor, fit/trace/stop/selection | `rtk proxy sed -n '305,552p' ADP/engine/common/index_fit.py` |
+| SRC-MI-DRIVER | effective tensor, fit/trace/stop/selection | `rtk proxy sed -n '318,647p' ADP/engine/common/index_fit.py` |
 | SRC-MI-ENGINE | basis QR, orientation, subspace/projector distance | `rtk proxy sed -n '12,69p' ADP/engine/multi_index/ADP_multi_index_engine.py` |
 | SRC-GRASSMAN | profile/Schur/Jacobian/polar/solve | `rtk proxy sed -n '1,565p' ADP/solver/grassman.py` |
 | SRC-GRASSMAN-EXP | failed-selection flat GN (30-458), full tangent GN (459-704) | `rtk proxy sed -n '1,704p' ADP/solver/grassman_exp.py` |

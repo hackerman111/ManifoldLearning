@@ -1,0 +1,269 @@
+{
+  "arms": [
+    {
+      "budget": null,
+      "floor": null,
+      "name": "baseline",
+      "projected_statistics": false,
+      "quadrature": false,
+      "search": false,
+      "selection": "all"
+    },
+    {
+      "budget": null,
+      "floor": 0.25,
+      "name": "floor25",
+      "projected_statistics": false,
+      "quadrature": false,
+      "search": false,
+      "selection": "all"
+    },
+    {
+      "budget": null,
+      "floor": 0.5,
+      "name": "floor50",
+      "projected_statistics": false,
+      "quadrature": false,
+      "search": false,
+      "selection": "all"
+    },
+    {
+      "budget": null,
+      "floor": 0.25,
+      "name": "floor25_search",
+      "projected_statistics": false,
+      "quadrature": false,
+      "search": true,
+      "selection": "all"
+    },
+    {
+      "budget": null,
+      "floor": 0.25,
+      "name": "floor25_search_stats",
+      "projected_statistics": true,
+      "quadrature": false,
+      "search": true,
+      "selection": "all"
+    },
+    {
+      "budget": "fixed",
+      "floor": 0.25,
+      "name": "random_equal_j",
+      "projected_statistics": true,
+      "quadrature": false,
+      "search": true,
+      "selection": "random"
+    },
+    {
+      "budget": "fixed",
+      "floor": 0.25,
+      "name": "score_equal_j",
+      "projected_statistics": true,
+      "quadrature": false,
+      "search": true,
+      "selection": "score"
+    },
+    {
+      "budget": "fixed",
+      "floor": 0.25,
+      "name": "logdet_equal_j",
+      "projected_statistics": true,
+      "quadrature": false,
+      "search": true,
+      "selection": "logdet"
+    },
+    {
+      "budget": "fixed",
+      "floor": 0.25,
+      "name": "logdet_coverage_equal_j",
+      "projected_statistics": true,
+      "quadrature": false,
+      "search": true,
+      "selection": "logdet_coverage"
+    },
+    {
+      "budget": "fixed",
+      "floor": 0.25,
+      "name": "logdet_coverage_quad_equal_j",
+      "projected_statistics": true,
+      "quadrature": true,
+      "search": true,
+      "selection": "logdet_coverage"
+    }
+  ],
+  "cases": [
+    {
+      "d": 30,
+      "link": "additive",
+      "name": "additive30"
+    },
+    {
+      "d": 30,
+      "link": "multiplicative",
+      "name": "multiplicative30"
+    },
+    {
+      "d": 40,
+      "link": "aniso_curv",
+      "name": "aniso_curv40"
+    },
+    {
+      "d": 50,
+      "link": "additive",
+      "name": "additive50"
+    }
+  ],
+  "development_seeds": [
+    92800,
+    92801,
+    92802
+  ],
+  "environment_at_freeze": {
+    "numpy": "2.5.2",
+    "platform": "Linux-7.2.9-arch1-1-x86_64-with-glibc2.44",
+    "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+    "scipy": "1.18.1",
+    "thread_env": {
+      "MKL_NUM_THREADS": null,
+      "NUMEXPR_NUM_THREADS": null,
+      "OMP_NUM_THREADS": null,
+      "OPENBLAS_NUM_THREADS": null
+    },
+    "threadpools": [
+      {
+        "architecture": "Haswell",
+        "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+        "internal_api": "openblas",
+        "num_threads": 12,
+        "prefix": "libscipy_openblas",
+        "threading_layer": "pthreads",
+        "user_api": "blas",
+        "version": "0.3.34.0.0"
+      }
+    ]
+  },
+  "execution": {
+    "data_generation": "outside fit wall; separately hashed, deterministic",
+    "processes": 1,
+    "rss": "resource.ru_maxrss (KiB on Linux)",
+    "threads": {
+      "MKL_NUM_THREADS": 1,
+      "NUMEXPR_NUM_THREADS": 1,
+      "OMP_NUM_THREADS": 1,
+      "OPENBLAS_NUM_THREADS": 1
+    },
+    "timeout_sec": 120,
+    "wall": "time.perf_counter around ADP_multi_index.fit"
+  },
+  "fit_settings": {
+    "N_J": 500,
+    "N_lin_factor": 2,
+    "N_loc": 20,
+    "N_phi": 10,
+    "a": 1.4142135623730951,
+    "estimator": "new",
+    "h_min": 1.0,
+    "index_init": "local",
+    "select_step": "last",
+    "timeout_sec": 120
+  },
+  "git": {
+    "commit": "1e16f4e9b75ceb9b01590de69dfe7a39d6b0e03e",
+    "dirty": "true"
+  },
+  "heldout_seeds": [
+    92900,
+    92901,
+    92902,
+    92903,
+    92904
+  ],
+  "planned_development_fits": 120,
+  "protocol_sha256": "4ab1f6054c1e1466ab4525187beca20273e375085ef6a030ff7e570f60989d46",
+  "provenance_sha256": {
+    "SVD/adaptive_centers_anisotropic_adp_edr_report.tex": "f52e180955cb1e176104f523aeabf68d755f8051af57912b9deedf7d70157a62",
+    "experiments/adaptive_centers/MATH.md": "a76257cdeb9aaca193ae97aeda6b9458baa09ebe2242f5b00bd21ebf6dbb00fa",
+    "pyproject.toml": "a6b6568ed6ca32c1ed9b4e0a6523ef8b4790597f4b8fab09bf60255e5289f2e1",
+    "tests/test_adaptive_centers.py": "5a232f6e55849abbb15feb3f8752fb424f0e61576046c45d3a3824f8071a6233"
+  },
+  "source_sha256": {
+    "ADP/__init__.py": "c3928d0a7b69c2acd9f4f378a0b3e89eedff2f182fca8f8a990624779919872d",
+    "ADP/cli.py": "6bea069301e4b6ca6014c2e9a286db9a913d9aed0d6c6b944ca9dbafa55cb6b6",
+    "ADP/cli/__init__.py": "2388754dbcbaf9a52f236f6c6d623e39efa28f4ccd41bfd850c2fae478fee6da",
+    "ADP/cli/__main__.py": "e4ff3ad1054fb5ad4c26c3915f8511c9d15bf0b2742c6c7e6eb4aed24b1a99ab",
+    "ADP/cli/experiment.py": "b65bf75576114eb3da0b9640e3a7a45de8d28a6b27525337bcdedabbf5eaa080",
+    "ADP/cli/experiment_plots.py": "9dd26cf6450f6a1376c340b9dc4de41752c6bcac709712c145e7db314729271b",
+    "ADP/cli/experiment_utils.py": "9cd25e964580952fbbeab663538e1a9555c638a5ad5b5978592bd1fda2ccf7e9",
+    "ADP/cli/main.py": "202addc74d99c72beba3bee8dda1c654bf3bc45994332097e5282d7d20a3539d",
+    "ADP/core/ADP_Config.py": "f241194edbed37994da9156a0fb8829dfc4dd7c9e80f14c728606f203eee4427",
+    "ADP/core/ADP_Data.py": "faf02f014c6a6d05327b287eb5a05dae77d07f8a99d916aeeaf604e765ad3cdc",
+    "ADP/core/ADP_Solver.py": "a49de2c4ab080210d88c72655b74fa77fc28d619a1179de5552a2e4951c3101c",
+    "ADP/core/ADP_Statistic.py": "be6f5e9d215180a0101dd25f1fb2a79f1e9afeb6652c5cc8dfa38ea48c77a8a5",
+    "ADP/core/__init__.py": "8459652afe34f924c5a479e6c215e5b72be6bf8d3447b0a217f07d1d6d009a38",
+    "ADP/core/experimental_centers.py": "1241d171fd437f1c28613c00079ca71d9f3a9e71141df901dc36952a89af007a",
+    "ADP/core/manifold/ADP_Manifold.py": "34f0085a25d7c1b9e24596a25bdc1940261dc85ac9a081b26795ebf9e9a368cd",
+    "ADP/core/manifold/ADP_Manifold_result.py": "630f39c6ee4c6757b7c0db19240e59aec2e406c30279b2ed69030485b316d5e3",
+    "ADP/core/manifold/ADP_Manifold_utils.py": "ff6ff4b9433cb123eeefa0b693119b9d0e6e159e9d306c83d31fdcd3ec8eb27e",
+    "ADP/core/manifold/__init__.py": "cc393ddf77b47d0522ebd4219b69667788d962d94f3d87453552f9a35b7695af",
+    "ADP/core/multi/ADP_multi_index.py": "65a77f3ff7a620b8cf9678d7d30c4346b323711c7adb879f198a4dae847080aa",
+    "ADP/core/multi/ADP_multi_index_result.py": "b0aa2d22b65c582a95b3214ffe225b5cb92c87013971cc0bb4a16b570ad56ef1",
+    "ADP/core/multi/ADP_multi_index_utils.py": "e128ce603f513ef48d53e1d823fdc0a1c0c350c1ddbd2d53ec660da040d91229",
+    "ADP/core/multi/__init__.py": "ec56c6b805208b2b558e999089d75d9458ebabdfda75c1d3072951d2f677bc3f",
+    "ADP/core/single/ADP_single_index.py": "d636b1b1eddc5cdbdfe61e567e899e92399c3e666b75f0efe85c2a8d43c91b95",
+    "ADP/core/single/ADP_single_index_result.py": "6f539f9f285911f4776261f2346ad6a51fc3a42faeaf80c067ef8c8df4eafaf1",
+    "ADP/core/single/ADP_single_index_utils.py": "982fb26681d3b6b4547d55c2520c17252ec93c9a4b9e997fc0c128c57c32650e",
+    "ADP/core/single/__init__.py": "38c5b31c28225e064dd22aed9abce4fbc929690d4091cb02d264a6ca1d7de48d",
+    "ADP/engine/__init__.py": "580333799aa34f8147779b45ddede43d88587212c001ae97f3e13d1f3910cc0a",
+    "ADP/engine/common/ADP_Statistic_engine.py": "74276b3a0a70e4efa36611c48fe53ed4305c02f7bda0414842d45cb71c42cc3b",
+    "ADP/engine/common/__init__.py": "a1e486353e43b9473fa1068a87b0e84481f17fadc06adc552de77d35672826d8",
+    "ADP/engine/common/box_kernel.py": "2776cf53404da905372be854fcb5c0001ef25453973b17bcd09b51fa6b6382ae",
+    "ADP/engine/common/calculus.py": "5d50b69edbfa9363b33d791da24c50fa47a29ccb4e2e4a791ad7ee8e80615c5e",
+    "ADP/engine/common/experimental_centers.py": "950a5bc43a5337a0eebae1cd9f5affbbe194c84a783533aee2d1e9c1d4ed1a7a",
+    "ADP/engine/common/experimental_geometry.py": "01862843c329322bc88b1b5929aa2cb81a0d3cac40292f553fab768eda73e3e5",
+    "ADP/engine/common/experimental_step.py": "7eebb8514c3c998d378e0f428d9a2108a22b838fc16b629fa64ec593e210b9fc",
+    "ADP/engine/common/gpu_statistics.py": "564d95e8204dc728c83904d93ee446d4a992ac160a00abc72308aa51fe445edd",
+    "ADP/engine/common/index_fit.py": "92361c86fcc64485dbca058e71dac386e39865c68c9f30a99191cf6fa9f2650a",
+    "ADP/engine/common/initialize.py": "8146befd146847d4b88ac3b1f0c27c7eb68d00998ba44a3f334e114718b9b4bc",
+    "ADP/engine/common/logger.py": "05fd5d8bc3082c4410b33b585d054fdf693f3d39e51d1e21703201b43a2f377a",
+    "ADP/engine/common/statistic.py": "32e3cd877044eeea0d05fdb37d2af80a474c9b2c72240a4e362b1b163122d977",
+    "ADP/engine/common/utils.py": "3dd3eafbaf8e246054589013eae17259b9abaf314f7be5100c65edaf0162f98a",
+    "ADP/engine/common/weights.py": "0cc5a04bbff3ae60e74da248ccd73b0128090072fdb1267c4334d78a7e7d006e",
+    "ADP/engine/manifol_engine/__init__.py": "657c1941611c974126b68da000053322261d7eae80c79f43360f9a029baa9d5c",
+    "ADP/engine/manifol_engine/fit.py": "a9eede0e06f6657087d43fc0fa391ac83b934a598bbf2372e6ca0ea69cf978d1",
+    "ADP/engine/manifol_engine/graphs.py": "71f8b0b9a31260cb09e8158a022a793056b467adb6463fb9896e3067187d6c71",
+    "ADP/engine/manifol_engine/optimisation.py": "ed8e74e709841e9a8b14646174d60ab76caf5501d1e3da78227e51ddbf705d11",
+    "ADP/engine/manifol_engine/utils.py": "467f66dc6b93cf513aba8bce5d1cc96f90adf750b4c2a026574c1ebc0af65d55",
+    "ADP/engine/manifol_engine/weights.py": "f475d459702651900d5a57e2a759aab03538f5397cab67adbca72160640d5240",
+    "ADP/engine/multi_index/ADP_multi_index_engine.py": "19a86165375ed267b898f1fb18fb750d909a3d1da98a442592aa062fb072bb09",
+    "ADP/engine/multi_index/__init__.py": "ecffff79930f2262696edc0c8af9d884681dc0df1474dc451e9bfb64e52299d4",
+    "ADP/engine/single_index/ADP_single_index_engine.py": "4bcaad15ccbe249f6311d3660b0f9cc6268ce1af405e676af109babc6c0ef2ca",
+    "ADP/engine/single_index/__init__.py": "1a0d3013732cbf557046b6dcca340f140434f58b2bfda8924259df5af55dbc7b",
+    "ADP/gpu.py": "560d3de7bb1c84428b8b4f0d204094fe6d533b681ebff5ed6e9ecac4a19258da",
+    "ADP/solver/CG.py": "b30566dfd036b8e13c8f00758641ab65a904e00a3bb166664a9c40973ffd59d3",
+    "ADP/solver/HYBRID/HYBRID.py": "5d6b93883f99825d60e3b6c45c46a4be2ecf70afbd7e78a6aea0d469464b578b",
+    "ADP/solver/HYBRID/HYBRID_manifold.py": "78693749429f9916528a5e4f8beb283df5a6c5ccee08a781ddf11b322d5fb3ad",
+    "ADP/solver/HYBRID/HYBRID_multi.py": "2808c66ece1e9e465659511a6038a5cb2cf8528cb6d75e356de5ade500c4cd12",
+    "ADP/solver/HYBRID/HYBRID_single.py": "5186d85338b58637aad14f7fcadb1424e7c047f0ce2e681117d96e43f420b821",
+    "ADP/solver/HYBRID/__init__.py": "8678c963359c7ec33f0f65aacc8df3323890015d2d4f848f80e1e29259952106",
+    "ADP/solver/LSMR.py": "ccae647907f851b63fbca1ecf45ad409835da0b8e1678545e53de6035fc9d242",
+    "ADP/solver/SVD.py": "030d42fd6a5e7da26b586dfc15f35aceacbbb0c3aa69d4614b7b1272d183814a",
+    "ADP/solver/_grassman_schur.py": "6f629909fb23854d839ac3c66b47a5134feb64aede1d3712e6f42abf7addfd7f",
+    "ADP/solver/_multi_operator.py": "f10629519425fb042cef58b3d4f9b2ec5c0fe41f946a20f6117a0d57ea6cd2ae",
+    "ADP/solver/grassman.py": "6d5aa753da9d9c8532545fa7519e63ba479c0f4082a8a6d52358cd4c66af72a0",
+    "ADP/solver/grassman_exp.py": "5c96b145af109102ba705a6962d86dab2421b6a87a3106807e34fcc812db8071",
+    "ADP/solver/grassman_research.py": "ce6a64dbaef76d1378e35d5f1027609ab1ff3fd09e2b9132faeb24c82148128e",
+    "ADP/solver/legacy_lsmr.py": "c97b0ff519ba43afdbe11d1eb48f68fa275a9aa32b37b804ff9c6684fac13016",
+    "ADP/solver/statistic_operator.py": "698051352514f56ad6e03d03bee0d71cb46f2e0a0dda987bb6496200a7f1e052",
+    "experiments/adaptive_centers/common.py": "15091cfefdc01aab871fc5fc142917d698dc849a9cb4ee95872ec6dba9918c9e",
+    "experiments/adaptive_centers/data.py": "d72823a75d874ed71406c5e25dfd3889a70f1c0a06ec1343fc78bb8f034a5eea",
+    "experiments/adaptive_centers/execute.py": "401767019ca5949ddcaf524aaa973cc79d79fb429497ec82518840c940fce5dc",
+    "experiments/adaptive_centers/paired.py": "7b989183fe47c175500b875b0b94a4b799e3c0d41a106c7139242dc576b080e8",
+    "experiments/adaptive_centers/run.py": "bfe2d32a2f8b96707768bb3e7db15a33abe800097ec7c93a8b0a652010087062",
+    "experiments/adaptive_centers/summarize.py": "c0cf0b0494adf1bc23f3dc133b9d47f3ce8b729cadffade7872295482194326f",
+    "experiments/adaptive_centers/worker.py": "d8c1b43dd757bda3a6833dfcef26399a5eeb9cc76c21159e29439e407cb2778d"
+  },
+  "source_snapshot": "experiments/adaptive_centers/results/source_snapshot.zip",
+  "source_snapshot_sha256": "0e3e4c38fa2cb91db0008090acce7a1fc807bf7702edb7361858e747c4d005f6",
+  "status": "frozen-before-runs",
+  "task": "adaptive-centers-fullfit-2026-10"
+}

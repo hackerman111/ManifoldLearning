@@ -1,0 +1,21 @@
+--- frozen/ADP/engine/common/index_fit.py
++++ current/ADP/engine/common/index_fit.py
+@@ -5,6 +5,7 @@
+ from collections.abc import Callable
+ from copy import deepcopy
+ from dataclasses import dataclass
++from typing import cast
+ 
+ import numpy as np
+ 
+@@ -321,7 +322,9 @@
+         or experiment.projected_statistics
+         or experiment.selection != "all"
+     )
+-    selection_rng = np.random.default_rng(np.random.SeedSequence([config.seed, 92817]))
++    selection_rng = np.random.default_rng(
++        np.random.SeedSequence([cast(int, center_seed.entropy), 92817])
++    )
+     geometry = None
+ 
+     while True:

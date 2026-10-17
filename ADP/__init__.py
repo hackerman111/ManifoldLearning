@@ -5,6 +5,7 @@ from .core.ADP_Config import ADP_Config
 from .core.ADP_Data import ADP_Data
 from .core.ADP_Solver import ADP_Solver, ADP_solver, ADP_SolverResult
 from .core.ADP_Statistic import ADP_Statistics
+from .core.experimental_centers import AdaptiveCentersConfig
 from .core.manifold.ADP_Manifold import ADP_Manifold, ADP_manifold
 from .core.manifold.ADP_Manifold_result import ADP_Manifold_result
 from .core.multi.ADP_multi_index import ADP_multi_index
@@ -54,6 +55,7 @@ __all__ = [
     "ADP_single_index",
     "ADP_single_index_result",
     "ADP_solver",
+    "AdaptiveCentersConfig",
     "calculate_alpha_k",
     "calculate_h0",
     "calculate_multi_weight",

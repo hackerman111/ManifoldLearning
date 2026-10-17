@@ -816,3 +816,47 @@ Production algorithm/API/estimator unchanged. Status active measurement policy.
   fullfit_summary,inner_descriptive,lead_audit}.json; analysis_polished and
   analysis_certified CSV/plots; source_snapshot.zip and reproducibility manifest.
   New tuning needs fresh protocol/seeds; current heldout has been consumed.
+
+## 2026-10-17: experimental adaptive centers P0-P3
+
+Active. All features use explicit AdaptiveCentersConfig; defaults/solver remain
+unchanged. P0 and center selection are ESTIMATOR; P1 is exact compact-support
+search modulo roundoff; projected moments preserve current weights. Preserve
+full-pool alpha, initialization, per-center sketches and step-error population.
+Use normalized logdet(I+sum uuT/eps), because the TeX uncentered logdet ratio can
+have a nonpositive denominator. Cap min centers by pool size. Lazy greedy
+guarantees only the fixed-vector surrogate; scalar PoU mass conservation is
+not operator equivalence or recovery proof. Sources/evidence: experimental
+geometry/centers/step modules, tests/test_adaptive_centers.py (24 passed),
+experiments/adaptive_centers/MATH.md. Luna runs fresh paired full-fit experiments
+before any claim of empirical benefit; no default promotion in this task.
+
+## 2026-10-17: adaptive-centers development rejected global promotion
+
+- Completed Luna120 paired fullfits(4cases,3seeds,10arms) and24 localization
+  workers under separate frozen protocols. Inputs/init/threads/source/mapping
+  audits pass. Every fullfit reaches h_min; zero inner convergence certificates.
+  All global development gates fail; selection=null,heldout92900..4 untouched.
+- P0 floor25 median paired EDRdiff0,time.994baseline; additive30 median
+  .4190->.2486 but other cases do not support a general improvement. Floor50
+  recovery2/12 vs baseline1/12 but pooled paired EDR+.00150. Do not promote.
+- P1 fullfit/floor25 time1.682 atn500; P2 moment diagnostics add1.179time
+  without EDR change. P3 LogDet+coverage reduces J500->60/80/100 but baseline
+  EDR+.03968,time2.487,peakRSS1.191. Vs equal-J random EDR-.03773,time1.338;
+  surrogate selection improves that control but does not justify replacement.
+- P1 localization atn10000,d100,J500,h.4 yields projected/baseline time.493
+  weights,.414alpha+weights; exact support/weights/alpha on3 paired seeds.
+  Common D excluded from timer and retained in memory; CSR output common.
+  This supports workload-dependent localization benefit only, not faster fits
+  or lower memory than native streamed baseline. No automatic dispatch added.
+- Same-state P1 I/U agree<1.4e-15 but one fullfit EDR differs-.01036 under
+  adaptive iterative sensitivity. Exact geometry is not bitwise trajectory
+  equivalence. Singleton eta diagnostic can differ1 and is unused by solver.
+- Post-timing seed=None regression fixed using root SeedSequence entropy.
+  For frozen integer seeds streams identical; two current-source fullfit
+  hashes replay. Original snapshots immutable; compatibility overlay/patch
+  AST audited and saved separately. Final27feature/86sharedtests pass;
+  known unrelated full-suite catalog/manifold failures remain.
+- Evidence:experiments/adaptive_centers/{REPORT.md,verification.md},supplement/
+  REPORT.md,results/selection.json,verification/{lead_audit,trajectory_audit,
+  compatibility_overlay}.json. No solver/default promotion or heldout tuning.

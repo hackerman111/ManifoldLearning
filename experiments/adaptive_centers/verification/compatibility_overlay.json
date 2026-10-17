@@ -1,0 +1,19 @@
+{
+  "parent_manifest_sha256": "a4537adb47520f3016c1b8e85c9757ab6576bd79d532f03973f2e41ceff688cc",
+  "original_snapshot_sha256": "0e3e4c38fa2cb91db0008090acce7a1fc807bf7702edb7361858e747c4d005f6",
+  "patch_sha256": "d0dbd5e9a07a790c16f8b3e42996964dd949314e3edd8b41ace554e0c674fdbd",
+  "changed_numerical_source": "ADP/engine/common/index_fit.py",
+  "original_source_sha256": "92361c86fcc64485dbca058e71dac386e39865c68c9f30a99191cf6fa9f2650a",
+  "current_source_sha256": "f7d7886697dd7ff4690642b6e168ba4068549ee39f909ebb515aee56aed9f4ea",
+  "all_other_frozen_sources_unchanged": 73,
+  "AST_matches_expression_substitution_plus_typing_cast": true,
+  "old_expression": "np.random.SeedSequence([config.seed, 92817])",
+  "new_expression": "np.random.SeedSequence([cast(int, center_seed.entropy), 92817])",
+  "reason": "Preserve accepted seed=None; use entropy of the existing root stream.",
+  "integer_seed_equivalence": "center_seed.entropy equals config.seed for every frozen seed",
+  "benchmark_timing_rerun": false,
+  "tests_sha256": "f264be4c3c24c628d81066769d3798c3252d6982e929de3163a1f727cc97eb47",
+  "original_test_hash_matches_retained_prefix": true,
+  "verification": "86 shared tests passed; integer stream test; two fullfit hash replays",
+  "current_compatibility_snapshot_sha256": "e1736d85c40de3ab6914d699a6165cdeb090ebd583c216540922b4997c244950"
+}

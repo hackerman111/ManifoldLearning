@@ -5,11 +5,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
 from ...core.ADP_Config import ADP_Config
 from ...core.ADP_Statistic import ADP_Statistics
+from ...core.experimental_centers import AdaptiveCentersConfig
 from ...solver.LSMR import HPAOResult
 from . import utils
 from .calculus import (
@@ -20,6 +22,12 @@ from .calculus import (
     generate_proj,
     pairwise_distance2,
     search_bandwidth,
+)
+from .experimental_geometry import projected_components
+from .experimental_step import (
+    experimental_metadata,
+    experimental_statistics,
+    validate_experiment,
 )
 from .initialize import (
     initialize_basis_local_with_spectrum,
@@ -207,6 +215,9 @@ def fit_index(
     меняет local refit, нормировку и seed scheme; CLI-формулы сохранены.
     """
     X, Y = utils._prepare_xy(X, Y, require_overdetermined=config.index_init != "random")
+    n, d = X.shape
+    n_lin, n_centers, n_directions = validate_sizes(config, mode, n, d, index_dim)
+    validate_experiment(config, mode, n_centers, d, index_dim)
     if statistics_function is None:
         statistics_function = calculate_statistics
     gpu_statistics = None
@@ -214,8 +225,6 @@ def fit_index(
         from ...gpu import require_cupy
 
         require_cupy()  # Ошибка CUDA до дорогой CPU-инициализации.
-    n, d = X.shape
-    n_lin, n_centers, n_directions = validate_sizes(config, mode, n, d, index_dim)
     if config.h_min is None:
         raise ValueError("h_min must be configured for the current index engine")
     center_seed, init_seed, direction_seed = np.random.SeedSequence(config.seed).spawn(
@@ -306,6 +315,17 @@ def fit_index(
     stop_reason = "h_min"
     outer_iteration = 0
     fixed_directions: np.ndarray | None = None
+    experiment = config.experimental_centers or AdaptiveCentersConfig()
+    experimental_active = experiment.active
+    sparse_experiment = experimental_active and (
+        experiment.projection_search
+        or experiment.projected_statistics
+        or experiment.selection != "all"
+    )
+    selection_rng = np.random.default_rng(
+        np.random.SeedSequence([cast(int, center_seed.entropy), 92817])
+    )
+    geometry = None
 
     while True:
         with profiler.stage("directions"):
@@ -342,52 +362,78 @@ def fit_index(
                 directions = fixed_directions
 
         with profiler.stage("statistics"):
+            localization_eigenvalues = (
+                np.maximum(eigenvalues, experiment.lambda_floor)
+                if experimental_active
+                else eigenvalues
+            )
+            experimental_diagnostic = None
+            full_response_mean = None
             effective_tensor = (
                 "orthogonal"
                 if mode == "multi" and outer_iteration == 0
                 else config.multi_tensor
             )
-            if mode == "single":
-                weights = calculate_weight(
-                    training_X,
-                    centers,
-                    index,
-                    h,
-                    factor,
-                    config.kernel,
-                    block_size=config.batch_size,
-                    distance2=distance2,
-                    estimator=config.estimator,
+            if sparse_experiment:
+                statistics, full_response_mean, experimental_diagnostic = (
+                    experimental_statistics(
+                        training_X,
+                        training_Y,
+                        centers,
+                        index.T,
+                        localization_eigenvalues,
+                        h,
+                        factor,
+                        distance2,
+                        directions,
+                        config,
+                        effective_tensor,
+                        selection_rng,
+                        geometry,
+                    )
                 )
             else:
-                weights = calculate_multi_weight(
-                    training_X,
-                    centers,
-                    index.T,
-                    eigenvalues,
-                    h,
-                    factor,
-                    config.kernel,
-                    block_size=config.batch_size,
-                    distance2=distance2,
-                    tensor=effective_tensor,
-                )
-            if gpu_statistics is None:
-                statistics = statistics_function(
-                    training_X,
-                    training_Y,
-                    weights,
-                    directions,
-                    batch_size=config.batch_size,
-                    normalized=normalized,
-                )
-            else:
-                statistics = gpu_statistics.calculate(
-                    weights,
-                    directions,
-                    batch_size=config.batch_size,
-                    normalized=normalized,
-                )
+                if mode == "single":
+                    weights = calculate_weight(
+                        training_X,
+                        centers,
+                        index,
+                        h,
+                        factor,
+                        config.kernel,
+                        block_size=config.batch_size,
+                        distance2=distance2,
+                        estimator=config.estimator,
+                    )
+                else:
+                    weights = calculate_multi_weight(
+                        training_X,
+                        centers,
+                        index.T,
+                        localization_eigenvalues,
+                        h,
+                        factor,
+                        config.kernel,
+                        block_size=config.batch_size,
+                        distance2=distance2,
+                        tensor=effective_tensor,
+                    )
+                if gpu_statistics is None:
+                    statistics = statistics_function(
+                        training_X,
+                        training_Y,
+                        weights,
+                        directions,
+                        batch_size=config.batch_size,
+                        normalized=normalized,
+                    )
+                else:
+                    statistics = gpu_statistics.calculate(
+                        weights,
+                        directions,
+                        batch_size=config.batch_size,
+                        normalized=normalized,
+                    )
 
         with profiler.stage("solver"):
             if solver_metric_context:
@@ -397,13 +443,15 @@ def fit_index(
                     index,
                     statistics,
                     metric_alpha=float(factor),
-                    metric_eigenvalues=eigenvalues.copy(),
+                    metric_eigenvalues=localization_eigenvalues.copy(),
                     metric_tensor=effective_tensor,
                 )
             else:
                 result = solve(index, statistics)
             expected_coefficients = (
-                (n_centers,) if mode == "single" else (n_centers, index_dim)
+                (len(statistics.mass),)
+                if mode == "single"
+                else (len(statistics.mass), index_dim)
             )
             if result.coefficients.shape != expected_coefficients or not np.all(
                 np.isfinite(result.coefficients)
@@ -424,7 +472,18 @@ def fit_index(
             diagnostics = dict(result.diagnostics)
 
         outer_iteration += 1
-        fit_error = float(np.sum(np.square(test_Y - statistics.S)))
+        fit_error = float(
+            np.sum(
+                np.square(
+                    test_Y
+                    - (
+                        statistics.S
+                        if full_response_mean is None
+                        else full_response_mean
+                    )
+                )
+            )
+        )
         step_quality = quality(index) if quality is not None else None
         trace.append(
             {
@@ -440,6 +499,15 @@ def fit_index(
                 "solver": diagnostics,
             }
         )
+        if experimental_active:
+            trace[-1]["experimental_centers"] = experimental_diagnostic or {
+                "selection": "all",
+                "selected_centers": n_centers,
+                "step_error_centers": n_centers,
+                "mass_coverage": 1.0,
+                "fallback": None,
+                "localization_eigenvalues": tuple(map(float, localization_eigenvalues)),
+            }
         if trace_indices:
             row = trace[-1]
             row.update(diagnostics)
@@ -487,18 +555,35 @@ def fit_index(
                     estimator=config.estimator,
                 )
             else:
-                next_factor = calculate_alpha_k(
-                    training_X,
-                    centers,
-                    index.T,
-                    eigenvalues,
-                    next_h,
-                    config.N_loc,
-                    config.kernel,
-                    distance2=distance2,
-                    tensor=config.multi_tensor,
-                    block_size=config.batch_size,
+                next_eigenvalues = (
+                    np.maximum(eigenvalues, experiment.lambda_floor)
+                    if experimental_active
+                    else eigenvalues
                 )
+                if experimental_active and experiment.projection_search:
+                    geometry = projected_components(
+                        training_X,
+                        centers,
+                        index.T,
+                        next_eigenvalues,
+                        next_h,
+                        distance2,
+                        tensor=config.multi_tensor,
+                    )
+                    next_factor = geometry.alpha(config.N_loc)
+                else:
+                    next_factor = calculate_alpha_k(
+                        training_X,
+                        centers,
+                        index.T,
+                        next_eigenvalues,
+                        next_h,
+                        config.N_loc,
+                        config.kernel,
+                        distance2=distance2,
+                        tensor=config.multi_tensor,
+                        block_size=config.batch_size,
+                    )
             if next_factor is None:
                 stop_reason = "local_mass_limit"
                 break
@@ -517,6 +602,7 @@ def fit_index(
         selected_iteration = best_iteration
 
     metadata: dict[str, object] = {
+        "experimental_centers": experimental_metadata(config),
         "gpu": bool(config.gpu),
         "gpu_solver": bool(config.gpu_solver),
         "N_lin": n_lin,
@@ -549,4 +635,13 @@ def fit_index(
         "diagnostics": diagnostics,
         "last_diagnostics": last_diagnostics,
     }
+    if experimental_active:
+        selected_diagnostic = trace[selected_iteration]["experimental_centers"]
+        assert isinstance(selected_diagnostic, dict)
+        selected_pool = selected_diagnostic.get(
+            "selected_pool_indices", tuple(range(n_centers))
+        )
+        metadata["coefficient_center_indices"] = tuple(
+            map(int, center_indices[np.asarray(selected_pool, dtype=np.intp)])
+        )
     return IndexFitResult(initial_index, index, coefficients, eigenvalues, metadata)

@@ -1,88 +1,59 @@
-# Plan: simultaneous Grassmann rank-k recovery
+# Plan: experimental adaptive centers P0-P3
 
-Task grassman-rank-k-2026-10-16; status **done**.
-Goal: explicit block_rank_k; rank/error law and paired whole-fit EDR/time
-versus core_gn and spectral. User authorizes Luna for routine work.
-Non-goals: replace core defaults, change statistics/estimator, claim global F*.
-Previous plan archived: agent-notes/history/plans/metric-spokoiny-2026-10-15-complete.md.
-Existing dirty work is preserved.
+Task adaptive-centers-2026-10-17; status **done**.
+Goal: audit SVD/adaptive_centers_anisotropic_adp_edr_report.tex; implement
+opt-in P0 spectral floor, P1 exact projected neighbor search, P2 cheap
+projected statistics/prefilter, P3 LogDet plus mass coverage; paired recovery,
+full-fit time and RSS evidence with Luna benchmarking. Preserve defaults.
+Previous completed plan: agent-notes/history/plans/grassman-rank-k-2026-10-16-complete.md.
 
-Known evidence: spectral already uses simultaneous truncated-gradient geodesic;
-flat_gn jointly optimizes angles with cached projections. Prior flat selection
-failed; fresh seeds and disclosure of this overlap are required.
-Class APPROXIMATE optimizer of identical finite-sketch profile. No ESTIMATOR
-change. k limits selected tangent space, not EDR dimension m.
-Invariants: float64, true local refit on trials/final, full-gradient stop,
-orthonormality, angle bound, Armijo, rank/workspace guards, no d*d arrays.
-Workspace bounds extra block/GN scratch, not input U or baseline profile state.
+Classes: P0/P2-selection/P3 ESTIMATOR; P1 EXACT modulo roundoff; P2 moments
+EXACT for current weights. No solver/default/ridge/density changes. No claim
+that surrogate selection or scalar quadrature guarantees EDR recovery.
+Known: shared fit_index uses raw normalized spectrum for weights/alpha;
+Epanechnikov K(q)=(1-q*q)+, q is squared localized distance. Existing alpha
+compacts after projection but weight path computes all pairs. Existing
+box engine is kernel-specific and cannot encode Epanechnikov weights.
+Invariants: float64, common pool/init/sketch streams, floor only localization,
+alpha uses full pool, canonical spectrum raw; sparse O(E) weights, bounded
+row scratch, no J*n*d or d*d. Coverage nonnegative fixed observation masses;
+normalized logdet(I+sum uuT/eps), fixed u during greedy; no inverse; optional
+PoU masses unnormalized. Full-pool S prediction selects best on common pool.
 
-Exact read set: AGENTS/RTK, WORKFLOW, numerics/research/engineering contracts,
-solvers.md; grassman.py profile/gradient/solve; grassman_exp flat/spectral/loop;
-tests/test_grassman*.py; pyproject; Luna-cited ADP adapter/generators/harnesses.
+Exact read set: AGENTS/RTK, contracts/numerics,research,engineering; WORKFLOW;
+ADP/multi-index,index-pipeline routes; report lines180-270,330-410,510-580,
+659-680; ADP/core/{ADP_Config,ADP_Statistic}.py, ADP/__init__.py;
+engine/common/{index_fit,weights,calculus,statistic,box_kernel}.py;
+relevant tests/config; Luna-cited harness/generators.
 
-## Bounded units and acceptance
+## Bounded units and evidence
+1. [done] Formula audit, small independent reference tests, freeze protocol.
+2. [done] Config plus separate experimental geometry/moments/selection
+   modules; minimal shared fit hooks. Exact weight/statistics/alpha comparisons,
+   boundary/zero-eigen/offset/degenerate/validation/PoU/greedy tests.
+   Evidence:24 new tests pass,83 shared non-manifold tests pass, scoped
+   Ruff/Pyright clean; MATH.md records formula corrections and boundaries.
+3. [done] Luna owns experiments/adaptive_centers only: frozen protocol,
+   isolated one-thread workers, fresh development/heldout seeds, raw pairing
+   hashes, failures, EDR/orthogonality/stops/inner certificates/time/RSS.
+   Smoke10/10 ok (92799), common input/init hashes, threads1, coefficient
+   mapping valid; development120/120 ok under frozen source snapshot.
+   Controls isolate floor, search, projected-statistics overhead, score,
+   equal-J random, pure LogDet, LogDet+coverage, optional PoU. Lead audits.
+   Lead raw audit:74 source hashes/common inputs/threads/mapping pass;
+   no global gate passes, selection=null, heldout untouched. All inner
+   certificates unconverged. P1 divergent-pair replay preserves same-state
+   weights/alpha/I/U; full adaptive trajectories differ under roundoff.
+   Supplement:24workers under separate manifest,exact weights/support/alpha;
+   n10000 localization time.493weights/.414alpha+weights baseline,n500 slower.
+   Does not establish full-fit improvement. Reports/raw/plots preserved.
+4. [done] Final27 feature tests included in86 shared passes; scoped Ruff/
+   Pyright clean. Full suite blocked by existing catalog/manifold issues.
+   Post-timing seed=None regression fixed; original integer streams and two
+   fullfit hashes preserved. Immutable source snapshot plus explicit patch
+   overlay audited by verification/lead_audit.py. Routes/STATE/DECISIONS current.
+   No default promotion; all findings conditional on measured solver schedule.
 
-1. [done] Audit overlap/math, freeze experiments/grassman_rank_k/PROTOCOL.md.
-   Independent numerical F_ref is reference, never global minimum. Fresh seeds:
-   development81600..81602; heldout81700..81704. Inner grid m2/3/5/8,
-   d20/100/300, same frozen U/I/mass/Y. Freeze task train/validation split.
-2. [done] Tests first; preserve grassman.solve API/default; separate
-   grassman.block_rank_k forwards to exp method. Reuse spectral/flat with
-   fixed/energy/cost rank, bounded joint work. Cost probes <=2 evaluations
-   once per solve; cache winner as fallback. Validate rank/geometry, direct
-   refit/finite differences, stress, full-gradient stop, fallback/workspace.
-   Evidence:71 final solver/reference/counter/polish tests pass; scoped lint/type pass. Independent
-   AST comparison proves core solve identical HEAD. Luna read-only diff audit
-   reports no new defect; reference profile/FD/multistart independently checked.
-3. [done] Luna bounded harness: serial fresh workers,
-   pinned threads, hashes/environment/failures/RSS. Inner convergence and
-   one-step k sweep plus k sequential rank-one; independent multi-start ref;
-   fixed-time/evaluation/outer-budget comparisons.
-   Source manifest frozen32 files,28 input snapshots. Lead split launcher into
-   run/run_inner/common; scoped lint/type and nine-arm smoke pass. Full-suite
-   collection blocked known catalog failures. No numerical source edits after
-   freeze. SELECTION_RULES.md clarifies four optimized candidates before
-   development numerical analysis; spectral block is identity control.
-   Separate observational run_counted_inner wrapper (outside numerical freeze)
-   counts all exact profile trials, including rank-one Schur values;5 counter
-   tests and worker smoke pass. Separate source manifest before inner stage.
-4. [done] Paired ADP multi-index and original hard Spokoiny full fits,
-   all baselines and fixed/adaptive blocks. Development then frozen choice
-   and heldout5 seeds. Retain regressions; normalized projector EDR,
-   fit/solver wall, success/iterations/orthogonality. Success median fit<=.8
-   core, no worse median EDR/failure rate; compare spectral too.
-   Timeout180s fit/60s frozen. Keep all failures.
-   Development54/54 ok, hashes/threads/geometry pass. Frozen candidate block1:
-   paired median fit/core .99914; no candidate passes .8 gate. Original MI
-   case core/optimized all30 updates/fit use rank guard, same recovery;
-   spectral does not use that guard and has different/worse EDR. Retain and
-   disclose limitation. selection.json pins dev SHA before heldout.
-   Heldout30/30 completed ok; pairing/selection hashes pass, max final
-   orthogonality2.28e-15. Inner792/792 completed, no retuning.
-5. [done] Lead raw pairing/reference audit; fit c on training only,
-   heldout prediction violations; plots/tables/raw REPORT.md. Focused/shared
-   solver tests, scoped lint/type, full suite once documenting unrelated
-   failures. Update routes/STATE/DECISIONS; mark done with evidence.
-   Reference quality gate: keep original1000-step CG evidence. For endpoints
-   missing tol1e-9, add separate independent local-chart L-BFGS polish,
-   max5000/start, three same starts, then independent CG certificate polish.
-   Tau0 basis-invariant profile; B=Y0+(I-Y0Y0.T)Z has full column rank;
-   chart gradient is horizontal-to-Y0 Euclidean envelope gradient. No d*d.
-   Separate source/inputs manifest and raw JSONL; only after main timed stage.
-   Test direct chart gradient by FD before runs. Preserve original results,
-   report reference sensitivity/certification, no solver/rank retuning.
-   Main792/792 ok incl24refs/768solverrows. Lead finalaudit32sources28inputs,
-   coreAST unchanged, allpairing/counters/threads pass; maxorth4.87e-14,
-   no positive history drift. Original19/24refs meettol; separate5/5 supplement
-   improves all5, certifies3 more, total22/24. Two chartFD/gauge/reference tests
-   pass before supplement. Strict heldout law c=.9779/.9190 (optimized/spectral),
-   logRMSE=.1837/.2269; finite trend, no universal guarantee. All200 adjacent-k
-   comparisons improve F; preserve340 lower-F/worse-EDR pairs. Final heldout
-   fit/core median .99963,95% bootstrap[.98914,1.01554], no20% gain. Report,
-   raw JSONL/CSV/plots, exact source snapshot and hash manifest saved. Default
-   core remains unchanged; experimental alternative only. Full-suite collection
-   blocked3 existing multiv2 catalog errors, documented in verification.md.
-
-Stop/revise on wrong generator, uncontrolled threads, refit/geometry mismatch,
-nonfinite or objective increase. No retuning after validation; no default
-promotion. No performance theorem from finite empirical samples.
+Stop/revise on false-negative search, wrong formula/generator, pairing/thread
+mismatch, rank/nonfinite hidden by regularization. Retain failures; no tuning
+on heldout. Benchmark limits and feasibility stops reported explicitly.

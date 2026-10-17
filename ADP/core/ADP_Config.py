@@ -6,6 +6,8 @@ from math import sqrt
 
 import numpy as np
 
+from .experimental_centers import AdaptiveCentersConfig
+
 
 def epanechnikov(value: np.ndarray) -> np.ndarray:
     """Вычислить профиль ядра Епанечникова ``max(1 - value**2, 0)``.
@@ -46,6 +48,7 @@ class ADP_Config:
     smart_weights: bool = False
     gpu: bool = False
     gpu_solver: bool = False
+    experimental_centers: AdaptiveCentersConfig | None = None
 
     def __post_init__(self) -> None:
         """Проверить границы конфигурации до запуска численного алгоритма.
@@ -110,3 +113,7 @@ class ADP_Config:
             raise TypeError("gpu_solver must be boolean")
         if self.gpu_solver and not self.gpu:
             raise ValueError("gpu_solver requires gpu=True")
+        if self.experimental_centers is not None and not isinstance(
+            self.experimental_centers, AdaptiveCentersConfig
+        ):
+            raise TypeError("experimental_centers must be AdaptiveCentersConfig")

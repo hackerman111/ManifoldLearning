@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
+from scipy.sparse import csr_matrix
 
 from ...core.ADP_Statistic import ADP_Statistics
 from . import utils
@@ -29,7 +30,7 @@ class _DenseMoments:
 def calculate_statistics(
     X: np.ndarray,
     Y: np.ndarray,
-    weights: np.ndarray | Iterator[tuple[int, np.ndarray]],
+    weights: np.ndarray | csr_matrix | Iterator[tuple[int, np.ndarray]],
     directions: np.ndarray,
     batch_size: int = 32,
     *,
@@ -55,18 +56,37 @@ def calculate_statistics(
     eta = np.empty((J, P))
     S = np.empty(J)
 
+    sparse = isinstance(weights, csr_matrix)
+    if isinstance(weights, csr_matrix):
+        sparse_weights = csr_matrix(weights, copy=True)
+        if sparse_weights.shape != (J, len(X)):
+            raise ValueError("sparse weights must have shape (J, n)")
+        sparse_weights.sum_duplicates()
+        sparse_weights.eliminate_zeros()
+        blocks = (
+            (s, sparse_weights[s : s + batch_size]) for s in range(0, J, batch_size)
+        )
+    else:
+        blocks = utils._weight_blocks(weights, J, X.shape[0], batch_size)
     expected_start = 0
-    for start, W in utils._weight_blocks(weights, J, X.shape[0], batch_size):
+    for start, W in blocks:
         utils._check_weight_block_order(start, expected_start, J)
 
-        W, mass_block = utils._prepare_weight_block(W, X.shape[0])
-        stop = start + W.shape[0]
+        if isinstance(W, csr_matrix):
+            if np.any(~np.isfinite(W.data)) or np.any(W.data < 0):
+                raise ValueError("weights must be finite and nonnegative")
+            mass_block = np.asarray(W.sum(axis=1)).ravel()
+            if np.any(mass_block <= 0):
+                raise ValueError("local mass must be positive")
+        else:
+            W, mass_block = utils._prepare_weight_block(W, X.shape[0])
+        stop = start + cast(tuple[int, int], W.shape)[0]
 
         batch = slice(start, stop)
         Phib = Phi[batch]
         # ponytail: 25% is an empirical dense/local crossover; benchmark-based
         # dispatch is only needed if substantially different kernels are added.
-        if 4 * int(np.count_nonzero(W, axis=1).max()) <= X.shape[0]:
+        if sparse or 4 * int(np.count_nonzero(W, axis=1).max()) <= X.shape[0]:
             block_values = _local_block(
                 Xc,
                 Y,
@@ -171,7 +191,7 @@ def _dense_moments(
 def _local_block(
     Xc: np.ndarray,
     Y: np.ndarray,
-    W: np.ndarray,
+    W: np.ndarray | csr_matrix,
     Phi: np.ndarray,
     mass: np.ndarray,
     normalized: bool,
@@ -189,8 +209,13 @@ def _local_block(
     eta = np.empty((B, P))
     y_bar = np.empty(B)
     for j in range(B):
-        indices = np.flatnonzero(W[j])
-        A = W[j, indices] / mass[j]
+        if isinstance(W, csr_matrix):
+            section = slice(W.indptr[j], W.indptr[j + 1])
+            indices = W.indices[section]
+            A = W.data[section] / mass[j]
+        else:
+            indices = np.flatnonzero(W[j])
+            A = W[j, indices] / mass[j]
         local_X = Xc[indices]
         local_Y = Y[indices]
         mean[j] = A @ local_X
