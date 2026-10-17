@@ -1,0 +1,568 @@
+% !TEX program = lualatex
+% Corrected research note; compile twice with LuaLaTeX.
+\documentclass[10.5pt,a4paper]{article}
+\usepackage{fontspec}
+\setmainfont{Noto Serif}
+\setsansfont{Noto Sans}
+\setmonofont{DejaVu Sans Mono}[Scale=.79]
+\usepackage[english,russian]{babel}
+\usepackage[margin=22mm,headheight=18pt,headsep=10mm,footskip=12mm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm,mathrsfs}
+\usepackage{booktabs,tabularx,array,longtable,multirow}
+\usepackage{xcolor,graphicx,microtype,enumitem,titlesec,fancyhdr,tikz}
+\usepackage[most]{tcolorbox}
+\usepackage[colorlinks=true,linkcolor=navy,citecolor=teal,urlcolor=teal]{hyperref}
+\usepackage{cleveref}
+\definecolor{navy}{HTML}{18344B}
+\definecolor{teal}{HTML}{146B76}
+\definecolor{ink}{HTML}{24323B}
+\definecolor{muted}{HTML}{687883}
+\definecolor{pale}{HTML}{EEF3F5}
+\definecolor{rule}{HTML}{D6E1E5}
+\definecolor{amber}{HTML}{A85B32}
+\definecolor{amberpale}{HTML}{FCF4ED}
+\hypersetup{pdftitle={EDR/ADP: проверенная геометрия, вычислительные редукции и аудит утверждений},pdfauthor={Исследовательская записка, редакция 2026-10-15}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\setlength{\emergencystretch}{3em}
+\renewcommand{\arraystretch}{1.19}
+\setlist[itemize]{leftmargin=5mm,itemsep=2pt,topsep=3pt}
+\setlist[enumerate]{leftmargin=6mm,itemsep=2pt,topsep=3pt}
+\titleformat{\section}{\sffamily\Large\bfseries\color{navy}}{\thesection}{.7em}{}
+\titleformat{\subsection}{\sffamily\large\bfseries\color{navy}}{\thesubsection}{.65em}{}
+\titleformat{\subsubsection}{\sffamily\bfseries\color{teal}}{\thesubsubsection}{.6em}{}
+\titlespacing*{\section}{0pt}{17pt}{7pt}
+\titlespacing*{\subsection}{0pt}{11pt}{4pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\sffamily\footnotesize\color{muted} EDR / ADP \textbullet\ ТЕОРИЯ И АУДИТ}
+\fancyhead[R]{\sffamily\footnotesize\color{muted} ОКТЯБРЬ 2026}
+\fancyfoot[L]{\sffamily\footnotesize\color{muted} Исследовательская редакция \textbullet\ v1.0}
+\fancyfoot[R]{\sffamily\footnotesize\color{muted} \thepage}
+\renewcommand{\headrulewidth}{.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\St}{\mathrm{St}}
+\newcommand{\Gr}{\mathrm{Gr}}
+\newcommand{\I}{\mathrm{I}}
+\newcommand{\T}{^{\mathsf T}}
+\newcommand{\F}{_{\mathrm F}}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+\newcommand{\inn}[2]{\left\langle #1,#2\right\rangle_{\mathrm F}}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\polar}{polar}
+\DeclareMathOperator{\svd}{SVD}
+\DeclareMathOperator{\spanop}{span}
+\DeclareMathOperator{\grad}{grad}
+\DeclareMathOperator{\Exp}{Exp}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\numberwithin{equation}{section}
+\theoremstyle{plain}
+\newtheorem{theorem}{Теорема}[section]
+\newtheorem{proposition}[theorem]{Утверждение}
+\newtheorem{lemma}[theorem]{Лемма}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Определение}
+\newtheorem{remark}[theorem]{Замечание}
+\tcbset{enhanced,breakable,boxrule=.65pt,arc=1.6mm,left=3mm,right=3mm,top=2.5mm,bottom=2.5mm,before skip=6pt,after skip=7pt}
+\newtcolorbox{mainbox}[1][]{colback=pale,colframe=rule,#1}
+\newtcolorbox{auditbox}[1][]{colback=amberpale,colframe=amber!45,#1}
+\newtcolorbox{proofbox}[1][]{colback=white,colframe=rule,#1}
+\newcommand{\verified}{\textcolor{teal}{\textsf{[Точно]}}}
+\newcommand{\conditional}{\textcolor{amber}{\textsf{[Условно]}}}
+\newcommand{\unproved}{\textcolor{amber}{\textsf{[Не доказано]}}}
+\newcommand{\falseclaim}{\textcolor{amber}{\textsf{[Неверно]}}}
+\newcommand{\smallcaps}[1]{{\sffamily\bfseries\MakeUppercase{#1}}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+\begin{document}
+\thispagestyle{empty}
+\vspace*{17mm}
+{\sffamily\color{teal}\bfseries\large ИССЛЕДОВАТЕЛЬСКАЯ ЗАПИСКА \quad / \quad МАТЕМАТИЧЕСКИЙ АУДИТ}\par
+\vspace{5mm}
+{\color{navy}\rule{\linewidth}{1.5pt}}\par
+\vspace{7mm}
+{\sffamily\bfseries\fontsize{27}{31}\selectfont\color{navy} Геометрия, SVD и\\[1mm] быстрые операторы\\[1mm] для многоиндексного EDR}\par
+\vspace{5mm}
+{\sffamily\large\color{muted} VARPRO \textbullet\ Grassmann \textbullet\ Block Schur \textbullet\ ADP-статистики}\par
+\vspace{10mm}
+{\color{teal}\rule{.25\linewidth}{2pt}}\par
+\vspace{5mm}
+\begin{minipage}[t]{.48\linewidth}
+\smallcaps{Содержание}\par
+\small Исходный оцениватель, малоразмерные карты, горизонтальный SVD, точный профиль Шура, структура статистик $U=CX$, алгоритм и критерии выбора backend.
+\end{minipage}\hfill
+\begin{minipage}[t]{.45\linewidth}
+\smallcaps{Стандарт доказательности}\par
+\small Проверенные равенства и доказательства отделены от условных выводов, эвристик и опровергнутых утверждений предыдущих версий.
+\end{minipage}
+\vfill
+\begin{mainbox}
+\textbf{Главный вывод.} Общая перспективная схема состоит из \emph{точного профилирования локальных коэффициентов}, оптимизации низкоразмерного активного ядра и \emph{структурированного применения статистического оператора}. Блочный Шур уменьшает стоимость \emph{пробных шагов}; факторизация $U_{\rm flat}=CX$ может уменьшить стоимость \emph{градиента и проекций}, но только если её построение и умножения действительно дешевле плотного $U$.
+\end{mainbox}
+\vspace{4mm}
+{\sffamily\small\color{muted} Редакция: 15 октября 2026 г.\hfill Основной источник: исследовательская записка, редакция 3}\par
+\newpage
+\tableofcontents
+\clearpage
+
+\section{Постановка и краткая карта результатов}
+Рассматривается модель достаточного снижения размерности
+\begin{equation}
+ y_i=\psi(Y_\star\T x_i)+\varepsilon_i,\qquad
+ Y_\star\in\St(d,m),\quad Y_\star\T Y_\star=\I_m,\quad m\ll d.
+ \label{eq:model}
+\end{equation}
+Целевой объект --- подпространство $[Y_\star]\in\Gr(m,d)$, а не конкретный ортонормированный репер. Квадрат хордового расстояния
+\begin{equation}
+ d_{\rm ch}^2(Y,Y_\star)=\tfrac12\norm{YY\T-Y_\star Y_\star\T}_F^2
+ =m-\norm{Y_\star\T Y}_F^2
+ \label{eq:chord}
+\end{equation}
+инвариантен относительно замены $Y\mapsto YQ$, $Q\in O(m)$.
+
+Для $J$ локальных узлов направленные статистики представляются как $U_j\in\R^{p\times d}$, $I_j\in\R^p$, $N_j>0$. Центральная \emph{замороженная} задача:
+\begin{equation}
+ \Phi(Y)=\sum_{j=1}^J N_j\min_{g_j\in\R^m}
+ \bigl\{\norm{I_j-U_jYg_j}_2^2+\tau\norm{g_j}_2^2\bigr\},
+ \quad Y\in\St(d,m),\ \tau\ge0.
+ \label{eq:varpro}
+\end{equation}
+При $\tau=0$ функция может быть негладкой на границах ранга $U_jY$; при $\tau>0$ гладкая на всей $\St(d,m)$. Отдельный штраф $\lambda d_{\rm ch}^2(Y,Y_0)$ возможен, но \emph{не входит} в текущую цель \texttt{grassman.py}: там параметр \texttt{lambda\_prox} --- демпфирование шага Гаусса--Ньютона. Смешивание этих двух величин меняет постановку.
+
+\begin{mainbox}
+\textbf{Карта статусов.}\quad \verified\ Условный SVD при сепарабельном операторе; VARPRO; полярные карты; Шур; точное $U=CX$ при сохранённой линейной статистике.\\[2pt]
+\conditional\ Глобальная сходимость при контроле градиента и шагов; локальная наблюдаемость при дополнительных ранговых условиях.\\[2pt]
+\unproved\ Безусловный выигрыш по времени, статистическая оптимальность внешнего ADP, универсальный \emph{JL-сертификат}, квадратная сходимость в малом активном ядре.
+\end{mainbox}
+
+\begin{table}[ht]
+\centering\small
+\caption{Что является точным преобразованием, а что меняет задачу}
+\begin{tabularx}{\linewidth}{@{}P{36mm}L P{31mm}@{}}
+\toprule
+Конструкция & Действие & Статус\\\midrule
+VARPRO по $g_j$ & Исключение линейных коэффициентов без изменения минимума & Точное тождество\\
+Полярная карта / gauge & Перепараметризация открытого Grassmann-чарта с переносом штрафа коэффициентов & Точное тождество\\
+Schur при $V,A$ & Исключение $m-q$ неактивных координат & Точное в карте\\
+Диагональный тор, полный core & Ограничение подпространства шага при фиксированных остовах & Ограниченный поиск\\
+Чистый $\rank B\le r<m$ SVD & Иной допустимый класс, полная потеря $m-r$ мод & Не эквивалентен Grassmann\\
+Изменение $\tau$, $\kappa$, $W_j$ & Меняет регуляри­зацию или статистический критерий & Новый оцениватель\\
+$U=CX$ и $I=Cy$ & Меняет представление оператора, не математику & Точное при согласовании\\
+\bottomrule
+\end{tabularx}
+\label{tab:taxonomy}
+\end{table}
+
+\section{Точный VARPRO, градиент и геометрическая калибровка}
+\subsection{Профиль и горизонтальный градиент}
+Положим $M_j=U_jY$, $A_j=M_j\T M_j+\tau\I_m$, $b_j=M_j\T I_j$. При $\tau>0$:
+\begin{equation}
+ g_j=A_j^{-1}b_j,\quad r_j=I_j-M_jg_j,\quad
+ \Phi(Y)=\sum_jN_j\bigl(\norm{I_j}^2-b_j\T A_j^{-1}b_j\bigr).
+ \label{eq:varpro-profile}
+\end{equation}
+Теорема об огибающей даёт
+\begin{equation}
+ \grad\Phi(Y)=(\I_d-YY\T)\Bigl[-2\sum_jN_jU_j\T r_jg_j\T\Bigr].
+ \label{eq:grad}
+\end{equation}
+Если добавить $\lambda d_{\rm ch}^2(Y,Y_0)$, в квадратные скобки добавляется $-2\lambda Y_0Y_0\T Y$. При $\tau=0$ формула применима лишь на областях постоянного полного столбцового ранга. Пороговое SVD/\texttt{lstsq} не устраняет математическую негладкость.
+
+\subsection{Проективный подъём без ложной эквивалентности}
+Для $Y\T Z=0$ положим $B_Z\T=Y+Z$ и
+\begin{equation}
+ Y_+(Z)=(Y+Z)(\I_m+Z\T Z)^{-1/2}.
+ \label{eq:polar}
+\end{equation}
+Отображение $Z\mapsto[Y_+(Z)]$ параметризует ровно те подпространства, чьи главные углы с $[Y]$ меньше $\pi/2$. Замена $g=(\I+Z\T Z)^{-1/2}\widetilde g$ даёт точное тождество
+\begin{align}
+ &\min_{\widetilde g}\bigl\{\norm{I-UY_+(Z)\widetilde g}^2+\tau\norm{\widetilde g}^2\bigr\}\notag\\
+ &\qquad=\min_{g}\bigl\{\norm{I-U(Y+Z)g}^2+\tau g\T(\I+Z\T Z)g\bigr\}.
+ \label{eq:gauge}
+\end{align}
+Кроме того,
+\begin{equation}
+ d_{\rm ch}^2(Y_+(Z),Y)=\tr\bigl[Z\T Z(\I+Z\T Z)^{-1}\bigr]
+ =\sum_{i=1}^q\frac{\sigma_i^2(Z)}{1+\sigma_i^2(Z)}.
+ \label{eq:chordpolar}
+\end{equation}
+Следовательно, удаление из \eqref{eq:gauge} множителя $\I+Z\T Z$ в штрафе $g$ и замена \eqref{eq:chordpolar} на $\norm{Z}_F^2$ --- \emph{две разные аппроксимации}. Их ошибки имеют противоположные возможные знаки.
+
+\begin{auditbox}
+\textbf{Опровергнута односторонняя оценка из поздней редакции:}
+$0\le \Phi_{\rm flat}-\Phi_{\rm Gr}$. При $m=1,d=p=2$, $Y=e_1$, $Z=e_2$, $U=\I_2$, $I=(1,1)\T$, $\tau=1$, $\lambda=0$ точный профиль равен $1$, а «сплющенный» --- $2/3$. Разность $-1/3<0$. Корректно оценивать \emph{модуль} ошибки, разделяя вклад двух регуляризаторов; знак в общем случае не фиксирован.
+\end{auditbox}
+
+Для горизонтальной поправки $\Delta=Z\T$ выполнено $(P+\Delta)Y=\I_m$; следовательно, $\rank(P+\Delta)=m$. Поэтому
+\begin{equation}
+ \begin{aligned}\{B:\rank B\le r<m\}\cap\\
+ \{P+\Delta:\Delta Y=0,\ \rank\Delta\le r\}&=\varnothing.\end{aligned}
+ \label{eq:disjoint}
+\end{equation}
+\emph{Чистый SVD}, \emph{коррекционный SVD} и \emph{геометрическая ретракция} не являются тремя калибровками одной задачи.
+
+\subsection{Синус-карта: что верно на границе}
+На $\{W:Y\T W=0,\ \norm{W}_2\le1\}$ определено
+\begin{equation}
+ \chi^{\sin}_Y(W)=Y(\I-W\T W)^{1/2}+W,\qquad
+ d_{\rm ch}^2(\chi_Y^{\sin}(W),Y)=\norm{W}_F^2.
+ \label{eq:sine}
+\end{equation}
+При $\norm{W}_2<1$ карта аналитична и взаимно однозначна на открытом чарте; на границе может терять инъективность и дифференцируемость. Тождество справа --- \emph{радиальное}, оно не делает карту изометрией между произвольными $W_1,W_2$. Синус-карта удобна для квадратичного хордового штрафа, но переносит нелинейность в словарь $U\chi_Y^{\sin}(W)$ и накладывает спектральную область $\norm{W}_2\le1$. Универсального превосходства над полярной картой нет.
+
+\section{SVD как точный частный случай: сепарабельная метрика}
+При фиксированных $g_j$ имеем условную квадратичную цель
+\begin{equation}
+ F(B)=\sum_jN_j\norm{I_j-U_jB\T g_j}^2
+ +\lambda\norm{(B-P)H^{1/2}}_F^2,\quad H\succ0.
+ \label{eq:fixed}
+\end{equation}
+Её нормальный оператор
+\begin{equation}
+ \mathcal L(X)=\sum_jN_jg_jg_j\T X(U_j\T U_j)+\lambda XH
+ \label{eq:normal}
+\end{equation}
+обычно не является левоправо сепарабельным. Если $\mathcal L_0(X)=GXH$, $G,H\succ0$, и $Q=C-\mathcal L_0(P)$ --- антиградиент относительно поправки, то
+\begin{equation}
+ \Delta_r^\star=G^{-1/2}\bigl[G^{-1/2}QH^{-1/2}\bigr]_r H^{-1/2}
+ \label{eq:svd}
+\end{equation}
+минимизирует суррогат по $\rank\Delta\le r$; $[\cdot]_r$ обозначает усечённое SVD. Это точное следствие Эккарта--Янга, но \emph{только для суррогатного квадратичного оператора}, а не для произвольной \eqref{eq:normal}.
+
+\begin{theorem}[Горизонтальный белёный SVD]
+Пусть $P=Y\T$, $Y\T Y=\I_m$, $G,H\succ0$. Обозначим
+\begin{equation}
+ \Pi_H^\perp=\I_d-H^{-1/2}Y(Y\T H^{-1}Y)^{-1}Y\T H^{-1/2}.
+ \label{eq:weighted-proj}
+\end{equation}
+Тогда глобальный минимум сепарабельной квадратичной задачи при $\rank\Delta\le r$ и $\Delta Y=0$ задаётся формулой
+\begin{equation}
+ \boxed{\ \Delta_{r,\perp}^\star=G^{-1/2}
+ \bigl[G^{-1/2}QH^{-1/2}\Pi_H^\perp\bigr]_r H^{-1/2}.\ }
+ \label{eq:svd-horizontal}
+\end{equation}
+\end{theorem}
+\begin{proof}
+Замена $T=G^{1/2}\Delta H^{1/2}$ сводит функцию к $\norm{T-G^{-1/2}QH^{-1/2}}_F^2+\mathrm{const}$. Ограничение $\Delta Y=0$ означает $T(H^{-1/2}Y)=0$, т.е. $T=T\Pi_H^\perp$. Ортогональное разложение по $\Pi_H^\perp$ и Эккарт--Янг дают \eqref{eq:svd-horizontal}.
+\end{proof}
+
+\begin{proposition}[Гарантия одного шага]
+Если $0\le\theta<1$ и для всех $X$ выполнено $(1-\theta)\inn{X}{\mathcal L_0X}\le\inn{X}{\mathcal LX}\le(1+\theta)\inn{X}{\mathcal L_0X}$, то направление ранга $\le r$, максимизирующее суррогатное отношение Рэлея, с точным скалярным поиском для $\mathcal L$ сохраняет не меньше $\frac{1-\theta}{1+\theta}$ лучшего \emph{одношагового} уменьшения истинной функции среди направлений того же допустимого класса.
+\end{proposition}
+Это \emph{не} доказывает такую же границу для суммы $r$ жадных rank-one шагов и не гарантирует скорость всего внешнего ADP-цикла.
+
+\section{Центральная редукция: точный блочный Шур}
+Пусть $V\in\St(d,q)$, $A\in\St(m,q)$, $Y\T V=0$, $q\le\min(m,d-m)$. При фиксированных остовах параметризуем
+\begin{equation}
+ Y_+(K)=\polar(Y+VKA\T),\qquad K\in\R^{q\times q}.
+ \label{eq:core}
+\end{equation}
+Здесь $K$ --- \emph{полное} ядро; $K=\diag(\eta)$ определяет ограниченный тор коммутирующих вращений. При фиксированных $V,A$ ни один из них не покрывает вообще всё касательное пространство.
+
+\subsection{Профиль после исключения $m-q$ направлений}
+Дополним $A$ до $[A_\perp,A]\in O(m)$ и положим
+\begin{align}
+ C_j&=U_jYA_\perp,& D_j&=U_jYA,&W_j&=U_jV,\\
+ \Pi_j&=\I_p-C_j(C_j\T C_j+\tau\I_{m-q})^{-1}C_j\T.
+ \label{eq:schurPi}
+\end{align}
+В случае $q=m$ пустое дополнение интерпретируется как $\Pi_j=\I_p$. Определим \emph{однократно на фиксированную пару $(V,A)$}
+\begin{align}
+ k_j&=I_j\T\Pi_j I_j,&\alpha_j&=D_j\T\Pi_j I_j,&\beta_j&=W_j\T\Pi_j I_j,\\
+ E_j&=D_j\T\Pi_jD_j,&F_j&=D_j\T\Pi_jW_j,&H_j&=W_j\T\Pi_jW_j.
+ \label{eq:schurstats}
+\end{align}
+Пусть $T_j=H_j+\tau\I_q$ и
+\begin{equation}
+ \begin{split}
+ S_j(K)&=E_j+F_jK+K\T F_j\T+K\T T_jK+\tau\I_q,\\
+ h_j(K)&=\alpha_j+K\T\beta_j,\qquad g_j(K)=S_j(K)^{-1}h_j(K).
+ \end{split}\label{eq:S}
+\end{equation}
+Тогда $S_j(K)\succeq\tau(\I_q+K\T K)\succ0$ при $\tau>0$ и
+\begin{equation}
+ \boxed{\quad\Phi_{\rm data}(Y_+(K))
+ =\sum_jN_j\left[k_j-h_j(K)\T S_j(K)^{-1}h_j(K)\right].\quad}
+ \label{eq:schur}
+\end{equation}
+Формула \eqref{eq:schur} \emph{точная}: полярная нормировка перенесена в метрику регуляризации коэффициентов, а $m-q$ коэффициентов исключены дополнением Шура. Для $\tau=0$ можно использовать псевдообращение на областях постоянного ранга, но гладкость нужно проверять отдельно.
+
+\subsection{Проверенные производные, пригодные для CG}
+Положим $B_j(K)=F_j\T+T_jK$, $\rho_j(K)=\beta_j-B_j(K)g_j(K)$. Тогда
+\begin{equation}
+ \nabla_K\Phi_{\rm data}=-2\sum_jN_j\rho_jg_j\T.
+ \label{eq:schurgrad}
+\end{equation}
+Для приращения $E\in\R^{q\times q}$ обозначим $\dot g_j=Dg_j(K)[E]$. Верны формулы
+\begin{align}
+ S_j\dot g_j&=E\T\rho_j-B_j\T E g_j,\label{eq:dg}\\
+ \dot\rho_j&=-T_jE g_j-B_j\dot g_j,\label{eq:drho}\\
+ \nabla^2\Phi_{\rm data}(K)[E]
+ &=-2\sum_jN_j(\dot\rho_jg_j\T+\rho_j\dot g_j\T),\label{eq:hvp}\\
+ D^2\Phi_{\rm data}(K)[E,E]
+ &=2\sum_jN_j\left[\norm{T_j^{1/2}Eg_j}^2-\dot g_j\T S_j\dot g_j\right].
+ \label{eq:hessquad}
+\end{align}
+Последняя формула получается из первых трёх и \emph{не содержит} дополнительного смешанного члена. Она может быть отрицательной: профилированная цель в общем случае не выпукла.
+
+При наличии хордового штрафа $\lambda d_{\rm ch}^2(Y_+(K),Y_0)$ введём
+\begin{align}
+ N&=\I_q+K\T K,\quad D=N^{-1},\quad
+ \Xi(K)=\Xi_{AA}+\Xi_{AV}K+K\T\Xi_{AV}\T+K\T\Xi_{VV}K,\notag\\
+ F&=\Xi_{AV}\T+\Xi_{VV}K,\qquad C_\Xi=D\Xi(K)D.
+\end{align}
+Тогда градиент штрафа $-2\lambda(FD-KC_\Xi)$, а его производная вычисляется с
+\begin{equation}
+ \begin{split}
+ \dot N&=E\T K+K\T E,\quad \dot D=-D\dot N D,\quad
+ \dot\Xi=F\T E+E\T F,\\
+ \boxed{\dot C_\Xi=-D\dot N C_\Xi+D\dot\Xi D-C_\Xi\dot N D.}
+ \end{split}
+ \label{eq:correctC}
+\end{equation}
+Эта запись предотвращает распространённую ошибку: лишние внешние множители $D$ в производной $C_\Xi$.
+
+\begin{auditbox}
+\textbf{Контрпример к опубликованной квадратичной форме HVP.} При $q=m=1$, $\tau=1$, $U_A=(1,0)\T$, $W=(0,1)\T$, $I=(1,2)\T$ профиль
+$\phi(t)=-(1+2t)^2/(2+2t^2)$ имеет $\phi''(0)=-3$; некорректная формула с лишним $-2\rho\,t\dot g$ даёт $-11$.\\
+\textbf{Контрпример к HVP хордового штрафа.} Для $\Omega(t)=t^2/(1+t^2)$ верно $\Omega''(1)=-1/2$. Формула с лишними $N^{-1}$ из позднего текста даёт $0$.
+\end{auditbox}
+
+\subsection{Реальная стоимость, а не рекламная асимптотика}
+После формирования инвариантов \eqref{eq:schurstats} и при обычных плотных $q\times q$ факторизациях:
+\begin{table}[ht]
+\centering\small
+\caption{Стоимость операций в полном $q\times q$-ядре (оценки сверху)}
+\begin{tabularx}{\linewidth}{@{}L P{48mm}@{}}\toprule
+Операция & Вычислительная сложность\\\midrule
+Предвычисление $U_jV$ & $O(Jpdq)$ для плотного $U$\\
+Подготовка $\Pi_j$ и инвариантов & $O(J[p(m-q)^2+(m-q)^3+pq^2+pq(m-q)])$; вариант зависит от кэша\\
+Функция и факторизации $S_j$ & $O(Jq^3)$\\
+Градиент при готовом $S_j$ & $O(Jq^2)$ плюс нужные решения\\
+Один HVP при готовых факторах & $O(Jq^2)$; плюс $O(q^3)$ для общего штрафа при пересчёте\\
+Полный гессиан & Как минимум $\Omega(q^4)$ памяти для плотной матрицы размера $q^2\times q^2$\\
+CG или trust region & Число HVP $\times$ стоимость HVP; не одна операция $O(Jq^3)$\\
+Обновление проекционного кэша & $O(Jpmq+Jpm^2)$ при общей полярной нормировке\\
+\bottomrule\end{tabularx}
+\label{tab:costs}
+\end{table}
+В частности, значение «$O(Jq^3)$» относится к \emph{внутреннему профилю после подготовки}. Оно не включает $O(Jpdq)$ для новых направлений и не означает, что весь солвер имеет такую стоимость.
+
+\section{Предобусловленные шаги и честные границы сходимости}
+\subsection{Метрический малоранговый спуск}
+Пусть $G=\grad\Phi(Y)$ и $R\succ0$ --- правый предобусловливатель. Задача
+\begin{equation}
+ \min_{Y\T Z=0,\ \rank Z\le q,\ \norm{ZR^{1/2}}_F\le1}\inn{G}{Z}
+ \label{eq:metric}
+\end{equation}
+сводится к $\widetilde G=GR^{-1/2}$. Один оптимум при $[\widetilde G]_q\ne0$ равен
+\begin{equation}
+ Z_q=-\frac{[\widetilde G]_q R^{-1/2}}{\norm{[\widetilde G]_q}_F}.
+ \label{eq:metricstep}
+\end{equation}
+Правый множитель $R^{-1/2}$ \emph{обязателен}. Если после SVD просто взять исходные правые сингулярные векторы и диагональные коэффициенты, получится иной шаг. Чтобы реализовать \eqref{eq:metricstep} через ортонормированные остовы, следует заново QR/SVD-факторизовать \emph{всю} матрицу $[\widetilde G]_qR^{-1/2}$, а не забывать беление.
+
+\subsection{Глобальное убывание против локального Ньютона}
+При $\tau>0$ замороженная $\Phi$ гладкая на компактном Grassmann. Для аналитической полярной ретракции и ограниченной нормы пробных шагов существует равномерная оценка спуска. Если направление $Z_k$ удовлетворяет
+\begin{equation}
+ \inn{G_k}{Z_k}\le-c_1\norm{G_k}_F^2,
+ \qquad \norm{Z_k}_F\le c_2\norm{G_k}_F
+ \label{eq:gradrelated}
+\end{equation}
+с постоянными $c_1,c_2>0$, backtracking Armijo даёт достаточное убывание; при стандартных дополнительных условиях можно доказать $\norm{G_k}\to0$. Сходимость всей последовательности по аналитическому неравенству Лоясевича требует отдельной проверки условий длины шага/ошибки градиента; компактность \emph{сама по себе} не доказывает произвольную константу $L$ для всей семьи любых ретракций.
+
+\begin{auditbox}
+\textbf{Неверная квадратичная сходимость из поздней редакции.} Полное ядро $K\in\R^{q\times q}$ имеет $q^2$ параметров, а $\dim T_Y\Gr(m,d)=m(d-m)$. Даже при $q=\min(m,d-m)$ часто $q^2<m(d-m)$: для $m=2,d=10$ это $4$ против $16$. Следовательно, оптимизация в таком ядре \emph{не равна} полному Newton-шагу и не имеет общей гарантии квадратичной сходимости.
+\end{auditbox}
+
+\section{Структура реальных ADP-статистик: $U=CX$}
+Эта часть отделена от геометрического Шура: она устраняет \emph{другой} bottleneck, а именно чтение высокоразмерных $U_j$. Проверка касается модулей расчёта статистик: \path{ADP/engine/common/statistic.py} и \path{ADP_Statistic_engine.py}. Объект \texttt{ADP\_Statistics} сегодня хранит готовый $U$, но не коэффициенты $C$.
+
+\subsection{Точное тождество, включая обе нормировки}
+Пусть $X\in\R^{n\times d}$, $y\in\R^n$, локальные нормированные веса $a_{ji}=w_{ji}/N_j$ имеют сумму $1$, а $\Phi_j\in\R^{p\times d}$ --- локальные направления. Обозначим $\bar x_j=\sum_i a_{ji}x_i$, $\bar y_j=\sum_i a_{ji}y_i$ и
+\begin{equation}
+ Q_{ji}=\Phi_j(x_i-\bar x_j),\quad
+ \overline Q_j=\sum_i a_{ji}Q_{ji},\quad
+ H_{ji}=a_{ji}(Q_{ji}-\overline Q_j),\quad s_j=\sum_iH_{ji}.
+ \label{eq:cweights}
+\end{equation}
+Здесь $Q_{ji},H_{ji},s_j\in\R^p$; в точной арифметике $s_j=0$, но вычислительная реализация вычитает его явно. Определим в точности в стиле действующего кода
+\begin{equation}
+ C_{ji}=\gamma_j(H_{ji}-a_{ji}s_j),\qquad
+ \gamma_j=\begin{cases}1,&\texttt{normalized=True},\\N_j,&\texttt{normalized=False}.\end{cases}
+ \label{eq:cdef}
+\end{equation}
+Объединим $p\times n$ матрицы $C_j$ вертикально: $C\in\R^{Jp\times n}$. Тогда
+\begin{equation}
+ \boxed{\qquad U_{\rm flat}=CX,\qquad I_{\rm flat}=Cy.\qquad}
+ \label{eq:CX}
+\end{equation}
+\begin{proof}
+Вычисление статистик имеет вид $U_j=\gamma_j(\sum_i H_{ji}x_i\T-s_j\bar x_j\T)$ и $I_j=\gamma_j(\sum_iH_{ji}y_i-s_j\bar y_j)$. Подставляя определения $\bar x_j,\bar y_j$ как взвешенных средних, получаем коэффициенты \eqref{eq:cdef}. Линейность даёт \eqref{eq:CX} без статистических приближений.
+\end{proof}
+При разреженных окнах хранение $C$ в формате CSR возможно с числом ненулевых коэффициентов не больше $Jp\bar n$ (за исключением удалённых нулей). При плотных окнах $C$ может быть огромной и заведомо невыгодной.
+
+\subsection{Operator API и оценка стоимости}
+Пусть $P_j=-2N_jr_jg_j\T$, а $P_{\rm flat}\in\R^{Jp\times m}$ --- их вертикальная конкатенация. Имеем
+\begin{equation}
+ U_jV=(C(XV))_j,\qquad
+ G_{\rm raw}=X\T(C\T P_{\rm flat}).
+ \label{eq:CXops}
+\end{equation}
+Здесь обозначение $N_j$ соответствует нормированной версии статистик; для legacy-режима, где масса уже встроена в $I,U$, внешний вес в \eqref{eq:CXops} должен быть равен единице --- \emph{не допускается двойное взвешивание}.
+
+\begin{table}[ht]
+\centering\small
+\caption{Цена получения $U_jV$ и $U_j\T r_j$ из разных представлений}
+\begin{tabularx}{\linewidth}{@{}P{27mm}L L@{}}\toprule
+Backend & Новое $UV$, ранг $q$ & Градиент, ранг $m$\\\midrule
+Dense $U$ & $O(Jpdq)$ & $O(Jpd+Jdm)$\\
+CSR $C$ + общая $X$ & $O(ndq+Jp\bar n q)$ & $O(ndm+J\bar n(p+m))$\\
+Общая оболочка $R$, $U_jR$ & $O(Jpsq)$ внутри оболочки & $O(Jps+Jsm)$ внутри оболочки\\
+\bottomrule\end{tabularx}
+\label{tab:backend}
+\end{table}
+Это только стоимости применения: построение $C$ всё ещё использует проекции $\Phi_j(x_i-\bar x_j)$, а точный алгоритм внешнего ADP перестраивает коэффициенты при обновлении весов и скетчей. Для $\bar n\ge p$, небольшого $d$ или плотных весов CSR вполне может проиграть плотному $U$.
+
+\begin{mainbox}
+\textbf{Архитектурный вывод.} Не менять математический контракт солвера, но заменить хранилище \texttt{U} на интерфейс оператора: \texttt{project(V)} и \texttt{adjoint(P)}. Реализации: \texttt{DenseOperator(U)} и \texttt{FactorizedOperator(C,X)}; код VARPRO/GN/Armijo остаётся общим. Отдельно сохранять прежнюю ветку для CUDA и legacy-совместимости.
+\end{mainbox}
+
+\subsection{Recycling: точный шаг внутри оболочки, но не точная стационарность}
+Если накоплена ортонормированная оболочка $R_t\in\R^{d\times s}$, $Y=R_t\widetilde Y$ и $A_{j,t}=U_jR_t$ уже вычислены, то
+\begin{equation}
+ \widetilde G=(\I_s-\widetilde Y\widetilde Y\T)
+ \left[-2\sum_jN_j A_{j,t}\T r_jg_j\T\right]
+ \label{eq:recycle}
+\end{equation}
+является \emph{точным градиентом ограниченной на оболочку задачи}. Он может быть нулевым при ненулевом полном $G$. Поэтому принимаемые шаги можно проверять точным значением $\Phi$, однако окончательное \texttt{converged=True} требует расчёта полного градиента исходной задачи.
+
+Для фиксированной JL-матрицы $\Omega$ величина $\norm{\Omega\T G_\perp}^2$ не является универсальным сертификатом в адаптивной последовательности. Для равномерной ортонормированной матрицы из $k$ столбцов без масштабирования верно
+\begin{equation*}\mathbb E\norm{\Omega\T G_\perp}_F^2=\frac{k}{d}\norm{G_\perp}_F^2.\end{equation*}
+Такой тест можно использовать как эвристику контроля, но не как замену полного градиента.
+
+
+\begin{proofbox}
+\textbf{Независимая численная проверка (NumPy, фиксированные seeds).} Для случайных локальных весов проверены обе нормировки: ошибки $\norm{CX-U}_F=7.8\cdot10^{-16}$ и $\norm{Cy-I}_2=5.0\cdot10^{-16}$. Для случайного блочного Шура ($J=5,p=8,m=4,q=2$, $\tau=0.43$) ошибка направленного градиента по центральной разности составила $9.5\cdot10^{-11}$, HVP --- $4.7\cdot10^{-10}$. Воспроизводимый файл: \texttt{edr\_note\_checks.py}. Тесты подтверждают согласованность формул на этих данных, но не заменяют доказательства.
+\end{proofbox}
+
+\section{Идентифицируемость, анизотропия и побочные модели}
+\subsection{Что действительно следует из числа измерений}
+Для бесшумной линейной задачи $I_j=U_jY_\star g_j^\star$ при полноранговом $U_jY_\star$ и \emph{нештрафуемых} локальных коэффициентах наблюдаемая вариация $Z\in T_{Y_\star}\Gr(m,d)$ имеет вид
+\begin{equation}
+ \mathcal I(Z)=\sum_jN_j\norm{\Pi_{U_jY_\star}^\perp U_jZg_j^\star}_2^2.
+ \label{eq:info}
+\end{equation}
+Положительная определённость этой квадратичной формы на касательном пространстве достаточна для локальной \emph{идентифицируемости первого порядка}. Каждая локальная остаточная компонента имеет не более $p-m$ независимых координат, поэтому необходимо
+\begin{equation}
+ p>m,\qquad J(p-m)\ge m(d-m).
+ \label{eq:necessary}
+\end{equation}
+Размерностный порог \emph{не достаточен}: одинаковые $g_j^\star$ могут не возбуждать одно из индексных направлений, даже при большом $J$. Наблюдаемость конечных разностей и статистическая состоятельность с шумом требуют отдельных условий.
+
+\begin{auditbox}
+\textbf{Неверная «теорема для гауссовских скетчей».} В одной из поздних версий положительная граница информационного оператора выводилась из $p\gtrsim\log(d/\delta)$ при $J=1$. Но при $m=1$, $p<d-1$ отображение из $(d-1)$-мерного касательного пространства в $\R^p$ не может быть инъективным, независимо от случайного распределения скетча. Утверждение опровергается рангом, прежде любого концентрационного аргумента.
+\end{auditbox}
+
+\subsection{Энергетический тензор, Tucker и $\kappa$-семейство}
+Для полнорангового $B\in\R^{m\times d}$ полярное представление $B\T=Y\Lambda^{1/2}$ даёт $B\T B=Y\Lambda Y\T$. При фиксированной регуляризации это координатное тождество; замена квадратичного штрафа на ядерную норму уже определяет \emph{другой оцениватель}. Вариационная формула
+\begin{equation}
+ \norm{V}_*=\frac12\inf_{V=AB\T}\bigl(\norm{A}_F^2+\norm{B}_F^2\bigr)
+ \label{eq:nuclear}
+\end{equation}
+верна для фактора с внутренней размерностью не меньше $\rank V$. Если требовать $\rank V>m$ при внутреннем размере $m$, допустимых факторов нет.
+
+Для пространственно переменного поля $[Y(x)]$ фиксированная оболочка размерности $R=m$ не позволяет вращать $m$-мерное подпространство внутри неё: все такие $Y(x)$ имеют одну и ту же оболочку. Поэтому $R>m$ необходимо для нетривиального поля в общей оболочке, но не гарантирует ни гладкости, ни хорошей аппроксимации. Tucker-факторизация и графовые штрафы требуют явного определения индексов и геометрии узлов.
+
+Семейство метрик $\Sigma_{j,\delta}^{\kappa}$ (OPG/MAVE/ADP-подобные режимы) может служить способом анализа разных оценивателей, но равенство крайних точек с \emph{точными} OPG/MAVE/ADP зависит от скетч-метрики и регуляризации. Степень $\kappa=2$ \emph{не восстанавливает} невидимые компоненты из ядра вырожденной $\Sigma_j$.
+
+\section{Проверяемый алгоритм и дорожная карта экспериментов}
+\begin{mainbox}
+{\sffamily\bfseries\color{navy} Алгоритм: operator-aware Grassmann VARPRO}\par\smallskip
+\begin{enumerate}
+\item Заморозить локальные статистики $(I_j,N_j)$ и определить один из \texttt{DenseOperator(U)} / \texttt{FactorizedOperator(C,X)} по фактическим затратам.
+\item Получить $M_j=U_jY$; профилировать $g_j$ с безопасным QR/SVD и контролем ранга.
+\item Вычислить полный $G=\grad\Phi(Y)$ через \texttt{adjoint}; выбрать $q$ по спектру, при необходимости использовать метрическое беление.
+\item Построить $W_j=U_jV_q$ через \texttt{project}; выбрать режим \texttt{rank1} / \texttt{core\_gn} / \texttt{Schur} по числу параметров и доступной памяти.
+\item Минимизировать внутри активной карты; принимать шаг \emph{только после} проверки исходной $\Phi$ по Armijo; обновить $M_j$ по полярной формуле.
+\item При recycling выполнять несколько шагов на ограниченной оболочке, затем пересчитать \emph{полный} градиент; вернуть статус стационарности только по полной норме.
+\item Во внешнем ADP-цикле при обновлении весов пересобрать $C$ (или $U$); не считать прежние сокращённые операторы действующими без проверки.
+\end{enumerate}
+\end{mainbox}
+
+\subsection{Контроль реализации}
+В текущем \texttt{grassman.py} малое ядро имеет размер $q\times m$, а не $q\times q$: функция \texttt{\_core\_jacobian} собирает $qm$ столбцов, и \texttt{\_polar} обновляет $M_j=U_jY$ по точной формуле. Это существенно для корректного сравнения с новой теорией Шура. Другая особенность: \texttt{local\_ridge=0} по умолчанию, а значит, все теоремы с $\tau>0$ необходимо применять к коду с осторожностью. Диагностический финальный профиль и градиент --- сертификаты, а не «холостые операции»: убирать их допустимо только с формально сопоставимым контролем ошибки кэша и статуса остановки.
+
+\begin{table}[ht]
+\centering\small
+\caption{Минимальный протокол paired benchmarking}
+\begin{tabularx}{\linewidth}{@{}P{36mm}L@{}}\toprule
+Сравнение & Что считать\\\midrule
+Dense против $CX$ & Полное \texttt{statistics+solver}, время построения $C$, RAM, разреженность, одинаковую функцию и градиент\\
+Schur против core-GN & Число факторизаций, время подготовки кэша, время пробных шагов, число принятий Armijo\\
+Recycling против полного градиента & Число реальных чтений $U$, отклонение от полной нормы градиента, качество EDR\\
+Математическая точность & $\norm{U-CX}_F$, $\norm{I-Cy}_F$, конечные разности $\nabla\Phi$, HVP и градиента хордового штрафа\\
+Статистическая точность & Главные углы, ошибки weak-index, различные $n,d,p,m,J$, кривизна, шум, режимы внешнего ADP\\
+\bottomrule\end{tabularx}
+\label{tab:bench}
+\end{table}
+
+\section{Реестр ложных, условных и завышенных утверждений}
+Ниже перечислены \emph{ошибки рассмотренных редакций}, а не доказательства злонамеренности модели. Статус «не доказано» не означает, что результат математически невозможен.
+
+\small
+\begin{longtable}{@{}P{8mm}P{58mm}P{76mm}@{}}
+\toprule
+ID & Что утверждалось & Исправление / причина\\\midrule\endfirsthead
+\toprule ID & Что утверждалось & Исправление / причина\\\midrule\endhead
+01 & $\Phi_{\rm flat}-\Phi_{\rm Gr}\ge0$ & \textbf{Неверно:} пример даёт $-1/3$; два члена аппроксимации имеют разные знаки.\\
+02 & «Синус-карта хордово-изометрична» & \textbf{Неверно без уточнения:} сохраняет расстояние только от центра, не между двумя произвольными точками.\\
+03 & Чистый $\rank B<m$ --- Grassmann-геометрическая поправка & \textbf{Неверно:} горизонтальное $P+\Delta$ имеет полный ранг $m$.\\
+04 & Взвешенный ортопроектор использует $H^{1/2}Y$ & \textbf{Неверно:} в белёных координатах нужен $H^{-1/2}Y$, см. \eqref{eq:weighted-proj}.\\
+05 & Квадратичная форма HVP содержит смешанный $-2\rho\T E\dot g$ & \textbf{Неверно:} он уже учтён в уравнении для $\dot g$; верна \eqref{eq:hessquad}.\\
+06 & Производная $D\Xi D$ с лишними внешними $D$ & \textbf{Неверно:} верное правило дифференцирования --- \eqref{eq:correctC}.\\
+07 & Явный гессиан по $q^2$ переменным стоит $O(Jq^3)$ & \textbf{Неверно:} хранение плотного гессиана требует $\Omega(q^4)$ памяти.\\
+08 & При $q=\min(m,d-m)$ полный core равен всему касательному пространству & \textbf{Неверно:} $q^2<m(d-m)$ в общем случае.\\
+09 & Сходимость по Армихо автоматически квадратична & \textbf{Неверно:} гарантия стационарности не равна локальной скорости Ньютона.\\
+10 & $J(p-m)\ge m(d-m)$ достаточно для идентифицируемости & \textbf{Неверно:} необходимо разнообразие локальных коэффициентов и операторов.\\
+11 & Гауссовский скетч $p=O(\log d)$ всегда даёт наблюдаемость & \textbf{Неверно:} размерностный контрпример с $J=1,m=1$.\\
+12 & Замена обычной регуляризации на ядерную норму --- смена калибровки & \textbf{Неверно:} меняется статистический функционал; учитывать ограничение ранга.\\
+13 & $\kappa=2$ восстанавливает направления из $\ker\Sigma$ & \textbf{Неверно:} возведение сингулярной ковариации в степень не создаёт информации.\\
+14 & Прибавление вертикальной компоненты всегда избыточно при ridge $\tau\norm g^2$ & \textbf{Неверно:} масштаб репера меняет штраф, если метрика коэффициентов не трансформирована.\\
+15 & JL с $k=4$ или $8$ --- строгий сертификат для адаптивной последовательности & \textbf{Не обосновано:} требуется корректная нормировка, независимость/адаптивная теория и оценка вероятности.\\
+16 & «Слияние» $G_t$ и $U_jV_t$ устраняет второй полный проход & \textbf{Неверно в общем случае:} $V_t$ неизвестно до вычисления $G_t$.\\
+17 & Плотный, CSR или recycling всегда быстрее & \textbf{Не доказано:} нужно учитывать сборку, память, $n_j$, bandwidth и весь outer-loop.\\
+18 & Полная сходимость ADP следует из внутренней оптимизации & \textbf{Не доказано:} изменение весов и тензора меняет $U_j,I_j$ и свойства внешнего отображения.\\
+\bottomrule
+\end{longtable}
+\normalsize
+
+\section{Что можно считать научным вкладом}
+Предлагаемая конструкция --- не новая теорема Эккарта--Янга, не изобретение VARPRO и не новая геометрия Грассмана. Их математические основы давно известны. Предметом дальнейшего исследования может стать \emph{специализированная вычислительная композиция}:
+\begin{equation}
+ \text{ADP weights}\ \longrightarrow\ C,X\ \longrightarrow\
+ \text{VARPRO}\ \longrightarrow\ \text{active core/Schur}\
+ \longrightarrow\ \text{polar update}.
+ \label{eq:pipeline}
+\end{equation}
+Реальную ценность сочетания необходимо показать сравнением с актуальной базой: полным \texttt{grassman.py}, матричным SVD/LSMR, а также разными способами статистического сжатия. Теоретическая работа должна доказать точность сохранения оценивателя и честно оценить стоимость одной \emph{внешней} итерации; экспериментальная --- показать ускорение и неухудшение восстановления на общих seeds и одинаковом бюджете.
+
+\section*{Литература и происхождение утверждений}
+\addcontentsline{toc}{section}{Литература и происхождение утверждений}
+\begin{sloppypar}
+\begin{enumerate}[leftmargin=7mm,itemsep=4pt]
+\item G.~H. Golub, V.~Pereyra. \emph{The Differentiation of Pseudo-Inverses and Nonlinear Least Squares Problems Whose Variables Separate}. SIAM J. Numer. Anal. 10 (1973), 413--432. DOI: \href{https://doi.org/10.1137/0710036}{10.1137/0710036}. Основа VARPRO.
+\item A.~Edelman, T.~A. Arias, S.~T. Smith. \emph{The Geometry of Algorithms with Orthogonality Constraints}. SIAM J. Matrix Anal. Appl. 20 (1998), 303--353. DOI: \href{https://doi.org/10.1137/S0895479895290954}{10.1137/S0895479895290954}. Grassmann/Stiefel, геодезические алгоритмы.
+\item Y.~Xia, H.~Tong, W.~K. Li, L.-X.~Zhu. \emph{An Adaptive Estimation of Dimension Reduction Space}. JRSS B 64 (2002), 363--410. DOI: \href{https://doi.org/10.1111/1467-9868.03411}{10.1111/1467-9868.03411}. MAVE и снижение размерности.
+\item N.~Halko, P.-G.~Martinsson, J.~A. Tropp. \emph{Finding Structure with Randomness}. SIAM Review 53 (2011), 217--288. DOI: \href{https://doi.org/10.1137/090771806}{10.1137/090771806}. Рандомизированная малоранговая аппроксимация.
+\item Исследовательские материалы пользователя: \emph{Разделимые модели, малоразмерные карты и плоские вращения}, ред.~3; последующие ответы Argon по проективному подъёму, блочному Шуру и ускорению \texttt{grassman.py}; исходные модули \texttt{grassman.py}, \texttt{ADP\_Statistic.py}, \texttt{ADP\_multi\_index.py} и публичный вычислительный движок. Проверенные собственные алгебраические результаты в этой записке отделены от недоказанных утверждений этих материалов.
+\end{enumerate}
+\end{sloppypar}
+
+\begin{mainbox}
+\textbf{Итоговый статус.} Наиболее надёжное новое для проекта направление --- точная операторная факторизация статистик $U=CX$ в сочетании с уже существующим кэшированием $U_jY$, ограниченными шагами и корректным VARPRO. Второй кандидат --- полный блочный Schur core с HVP, исправленными как в \eqref{eq:hvp}--\eqref{eq:correctC}. Их ускорение и точность \emph{проверяемы}; универсальные статистические и квадратичные гарантии пока отсутствуют.
+\end{mainbox}
+\end{document}

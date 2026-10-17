@@ -1,6 +1,7 @@
 """Экспериментальные Grassmann режимы, не прошедшие time/quality selection.
 
 solve(method="flat_gn") — совместные q углов; solve_full_gn — полный tangent GN.
+block_rank_k — те же cached шаги, bounded joint budget и явный выбор ранга.
 Режимы APPROXIMATE, цель и rank guards сохранены. Core baseline доступен для пар.
 Evidence: experiments/{grassman_flat,glm_grassmann}_2026_10_02/REPORT.md.
 """
@@ -8,6 +9,7 @@ Evidence: experiments/{grassman_flat,glm_grassmann}_2026_10_02/REPORT.md.
 from __future__ import annotations
 
 from collections.abc import Callable
+from time import perf_counter
 from typing import cast
 
 import numpy as np
@@ -148,6 +150,36 @@ def _flat_optimize(
     return theta, state, accepted, evaluations, solves
 
 
+def _spectral_step(
+    Y: np.ndarray,
+    state: _Profile,
+    V: np.ndarray,
+    W: np.ndarray,
+    reduced_gradient: np.ndarray,
+    I: np.ndarray,
+    mass: np.ndarray,
+    tau: float,
+    max_angle: float,
+    backtracks: int = 20,
+) -> tuple[tuple[np.ndarray, _Profile] | None, int]:
+    """Общий cached шаг -G_q; один trial также служит cost-пилотом."""
+    L, s, R = np.linalg.svd(reduced_gradient, full_matrices=False)
+    rotation_V, rotation_W = V @ L, W @ L
+    angular_speed = s / s[0]
+    slope = -float(np.sum(s * angular_speed))
+    projected_Y, projected_M = Y @ R.T, state.M @ R.T
+    for backtrack in range(backtracks):
+        t = max_angle * 0.5**backtrack
+        angles = t * angular_speed
+        delta = projected_Y * (np.cos(angles) - 1) - rotation_V * np.sin(angles)
+        delta_M = projected_M * (np.cos(angles) - 1) - rotation_W * np.sin(angles)
+        Yn = Y + delta @ R
+        trial = _profile(state.M + delta_M @ R, I, mass, tau)
+        if trial.value <= state.value + 1e-4 * t * slope:
+            return (Yn, trial), backtrack + 1
+    return None, backtracks
+
+
 def solve(
     index_init: np.ndarray,
     U: np.ndarray,
@@ -165,6 +197,10 @@ def solve(
     max_angle: float = 0.5,
     workspace_bytes: int = 16 * 1024**2,
     flat_max_steps: int = 8,
+    rank_k: int | None = None,
+    rank_strategy: str = "energy",
+    block_variant: str = "optimized",
+    block_max_steps: int = 2,
 ) -> HPAOResult:
     """Минимизировать sum mass*min_g(||I-U Y g||²+local_ridge||g||²).
 
@@ -176,6 +212,8 @@ def solve(
     core_gn: полный q*m core Jacobian (II), polar retraction + Armijo.
     flat_gn: до flat_max_steps совместных q-angle GN внутри одного cached flat,
     точная экспонента, full profiled Jacobian и Armijo на истинном профиле.
+    block_rank_k: rank_k фиксирован или None; energy/cost политика ранга,
+    spectral общий шаг или optimized до block_max_steps совместных GN.
     При tau=0 около rank boundary используется value-based rank-one вместо GN.
     При лимите workspace GN заменяется spectral; причина видна в diagnostics.
     Кэши O(J*p*(m+q)); GN workspace O(J*(p+m)*q*m), ограничен явно.
@@ -183,6 +221,23 @@ def solve(
     """
     if hasattr(U, "__cuda_array_interface__"):
         raise NotImplementedError("Grassmann solver requires CPU statistics")
+    block = method == "block_rank_k"
+    if block:
+        if rank is not None:
+            raise ValueError("block_rank_k uses rank_k, not rank")
+        rank = rank_k
+        if rank_strategy not in {"energy", "cost"}:
+            raise ValueError("rank_strategy must be energy or cost")
+        if block_variant not in {"spectral", "optimized"}:
+            raise ValueError("block_variant must be spectral or optimized")
+        if (
+            isinstance(block_max_steps, bool)
+            or not isinstance(block_max_steps, (int, np.integer))
+            or block_max_steps <= 0
+        ):
+            raise ValueError("block_max_steps must be a positive integer")
+    elif rank_k is not None:
+        raise ValueError("rank_k requires method=block_rank_k")
     B, U, I, mass = _validate_inputs(index_init, U, I, mass)
     assert mass is not None
     if B.ndim != 2:
@@ -201,7 +256,8 @@ def solve(
         or not isinstance(rank, (int, np.integer))
         or not 1 <= rank <= min(B.shape[0], B.shape[1] - B.shape[0])
     ):
-        raise ValueError("rank must be between 1 and min(m,d-m)")
+        name = "rank_k" if block else "rank"
+        raise ValueError(f"{name} must be between 1 and min(m,d-m)")
     for name, value in (
         ("lambda_prox", lambda_prox),
         ("tol", tol),
@@ -215,8 +271,10 @@ def solve(
         raise ValueError("local_ridge must be finite and nonnegative")
     if not np.isfinite(energy_tol) or not 0 <= energy_tol < 1:
         raise ValueError("energy_tol must be in [0,1)")
-    if method not in {"rank_one", "spectral", "core_gn", "flat_gn"}:
-        raise ValueError("method must be rank_one, spectral, core_gn or flat_gn")
+    if method not in {"rank_one", "spectral", "core_gn", "flat_gn", "block_rank_k"}:
+        raise ValueError(
+            "unknown method; expected rank_one/spectral/core_gn/flat_gn/block_rank_k"
+        )
     if angle_backend not in {"schur", "refit"}:
         raise ValueError("angle_backend must be schur or refit")
     U = np.ascontiguousarray(U)
@@ -230,6 +288,10 @@ def solve(
     evaluations = gn_solves = fallback_rank = fallback_memory = 0
     flat_iterations = flat_fallbacks = 0
     flat_angles: list[tuple[float, ...]] = []
+    cost_cap: int | None = None
+    cost_probe_evaluations = 0
+    cost_probe_seconds = 0.0
+    cost_scores: list[tuple[int, float]] = []
     accepted = 0
     stop = "max_steps"
     scale = max(1.0, float(np.sum(mass[:, None] * I**2)))
@@ -264,21 +326,67 @@ def solve(
                 + 1,
             )
         )
-        current = method
+        if block and rank is None and cost_cap is not None:
+            q = min(q, cost_cap)
+        current = (
+            ("flat_gn" if block_variant == "optimized" else "spectral")
+            if block
+            else method
+        )
         if current in {"core_gn", "flat_gn"} and not state.smooth:
             current = "rank_one"
             fallback_rank += 1
         if current == "rank_one":
             q = 1
-        q_history.append(q)
         V, At = V[:, :q], At[:q]
         # Horizontalize once more before cached actions: roundoff only.
         V -= Y @ (Y.T @ V)
         V, _ = np.linalg.qr(V, mode="reduced")
         # QR can change signs/gauge; recover the actual gradient coordinates.
         reduced_gradient = V.T @ G
+        projection_start = perf_counter() if block and rank_strategy == "cost" else 0.0
         W = _project(U, V)
+        projection_seconds = (
+            perf_counter() - projection_start if projection_start else 0.0
+        )
         candidate = None
+        pilot = None
+        if block and rank is None and rank_strategy == "cost" and cost_cap is None:
+            # Максимум два profile trials за solve, без повторных U-действий.
+            probe_start = perf_counter()
+            best_score = 0.0
+            selected = q
+            for probe_q in sorted({max(1, q // 2), q}):
+                started = perf_counter()
+                proposal, neval = _spectral_step(
+                    Y,
+                    state,
+                    V[:, :probe_q],
+                    W[:, :, :probe_q],
+                    reduced_gradient[:probe_q],
+                    I,
+                    mass,
+                    local_ridge,
+                    max_angle,
+                    backtracks=1,
+                )
+                seconds = perf_counter() - started + projection_seconds * probe_q / q
+                evaluations += neval
+                cost_probe_evaluations += neval
+                score = (
+                    (state.value - proposal[1].value) / max(seconds, 1e-12)
+                    if proposal
+                    else 0.0
+                )
+                cost_scores.append((probe_q, score))
+                if score > best_score:
+                    selected, pilot, best_score = probe_q, proposal, score
+            cost_cap = selected
+            q = selected
+            V, W, At = V[:, :q], W[:, :, :q], At[:q]
+            reduced_gradient = reduced_gradient[:q]
+            cost_probe_seconds = perf_counter() - probe_start
+        q_history.append(q)
         if current == "flat_gn":
             rows = len(I) * (I.shape[1] + (m if local_ridge else 0))
             # D, dg/rhs и refit scratch + Jacobian/augmented lstsq copies.
@@ -300,7 +408,7 @@ def solve(
                     local_ridge,
                     damping=lambda_prox,
                     max_angle=max_angle,
-                    max_steps=flat_max_steps,
+                    max_steps=block_max_steps if block else flat_max_steps,
                     tol=tol,
                 )
                 flat_iterations += inner_steps
@@ -390,25 +498,21 @@ def solve(
                     break
             evaluations += curve.evaluations
         elif current == "spectral":
-            # Recompute the tiny SVD after V's QR; keeps the same rank-q descent.
-            L, s, R = np.linalg.svd(reduced_gradient, full_matrices=False)
-            rotation_V, rotation_W = V @ L, W @ L
-            angular_speed = s / s[0]
-            slope = -float(np.sum(s * angular_speed))
-            projected_Y, projected_M = Y @ R.T, state.M @ R.T
-            for backtrack in range(20):
-                t = max_angle * 0.5**backtrack
-                angles = t * angular_speed
-                delta = projected_Y * (np.cos(angles) - 1) - rotation_V * np.sin(angles)
-                delta_M = projected_M * (np.cos(angles) - 1) - rotation_W * np.sin(
-                    angles
+            if pilot is not None:
+                candidate = pilot
+            else:
+                candidate, neval = _spectral_step(
+                    Y,
+                    state,
+                    V,
+                    W,
+                    reduced_gradient,
+                    I,
+                    mass,
+                    local_ridge,
+                    max_angle,
                 )
-                Yn = Y + delta @ R
-                trial = _profile(state.M + delta_M @ R, I, mass, local_ridge)
-                evaluations += 1
-                if trial.value <= state.value + 1e-4 * t * slope:
-                    candidate = Yn, trial
-                    break
+                evaluations += neval
         if candidate is None:
             stop = "line_search_failed"
             break
@@ -446,12 +550,23 @@ def solve(
         "workspace_fallbacks": fallback_memory,
         "local_ridge": local_ridge,
     }
-    if method == "flat_gn":
+    if method == "flat_gn" or block:
         diagnostics.update(
             flat_max_steps=flat_max_steps,
             flat_inner_iterations=flat_iterations,
             flat_angles=tuple(flat_angles),
             flat_fallbacks=flat_fallbacks,
+        )
+    if block:
+        diagnostics.update(
+            rank_k=rank_k,
+            rank_strategy="fixed" if rank_k is not None else rank_strategy,
+            block_variant=block_variant,
+            block_max_steps=block_max_steps,
+            cost_probe_evaluations=cost_probe_evaluations,
+            cost_probe_seconds=cost_probe_seconds,
+            cost_scores=tuple(cost_scores),
+            cost_rank_cap=cost_cap,
         )
     return HPAOResult(Y.T, state.coefficients, diagnostics)
 

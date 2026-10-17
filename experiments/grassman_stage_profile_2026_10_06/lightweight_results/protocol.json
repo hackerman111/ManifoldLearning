@@ -1,0 +1,502 @@
+{
+  "command": "UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.grassman_stage_profile_2026_10_06.run_profile",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "modes": [
+    "timed"
+  ],
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "timeout_sec": 900,
+  "commit": "f7a33fde6c881736ee0cee576c8344fac144dadb",
+  "dirty": [
+    " M PLAN.md",
+    " M agent-notes/ADP/README.md",
+    " M agent-notes/STATE.md",
+    "?? agent-notes/history/plans/grassman-core-only-2026-10-03-complete.md",
+    "?? experiments/grassman_stage_profile_2026_10_06/"
+  ],
+  "source_sha256": "f30c1d3596f5092a1e96d7275790384f9a3206b149f5fb8fa395e0344b3ab333",
+  "harness_sha256": "e1795edf8ae973faf9a1bc858a32552d73be05546761c451b1bb50339bad8edc",
+  "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+  "numpy": "2.5.2",
+  "scipy": "1.18.1",
+  "results": [
+    {
+      "seed": 0,
+      "mode": "timed",
+      "status": "ok",
+      "shape": {
+        "n": 800,
+        "d": 50,
+        "m": 2,
+        "N_J": 800,
+        "N_phi": 10,
+        "N_lin": 100
+      },
+      "dtype": "float64",
+      "solver_settings": {
+        "max_steps": 5,
+        "tol": 1e-06,
+        "energy_tol": 0.05,
+        "local_ridge": 0.0,
+        "max_angle": 0.5,
+        "workspace_bytes": 16777216,
+        "lambda_prox": 0.05
+      },
+      "input_hashes": {
+        "X": "e52159bbfb96e9838752d0ea551e8170241be9ae0d6fd5f59b25a8f7a342bb2d",
+        "y": "e233641bbdec13798ae10a8ec309badb0b5dee3ebfb16ab7aa436ca12819193e",
+        "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+      },
+      "basis_hash": "bd3e7d66729a81afa3ad2f89317e6a2c67b01a72c42addf94e1affdaab4dc381",
+      "fit_time_sec": 24.842940714996075,
+      "solver_wall_sec": 3.106084158993326,
+      "peak_rss_kib": 108924,
+      "projector_distance_to_truth": 0.054170795164750485,
+      "outer_iterations": 162,
+      "selected_iteration": 161,
+      "fit_stop_reason": "h_min",
+      "solver_calls": 162,
+      "diagnostics_hash": "327e9e2759aa4ea61529e65baaceb12c4d635d2c6008d890174d9efeb87c17d2",
+      "aggregate_diagnostics": {
+        "accepted_steps": 810,
+        "iterations": 810,
+        "gn_solves": 620,
+        "profile_evaluations": 3191,
+        "rank_guard_fallbacks": 190,
+        "workspace_fallbacks": 0,
+        "max_orthogonality_error": 2.956214152863562e-15
+      },
+      "last_solver_diagnostics": {
+        "iterations": 5,
+        "converged": false,
+        "stop_reason": "max_steps",
+        "profile_objective": 13.734168839602226,
+        "loss": 6.867084419801114,
+        "gn_solves": 5,
+        "profile_evaluations": 5,
+        "step_ranks": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "workspace_fallbacks": 0
+      },
+      "environment": {
+        "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+        "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+        "numpy": "2.5.2",
+        "scipy": "1.18.1",
+        "threadpools": [
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+            "version": "0.3.34.0.0",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          },
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+            "version": "0.3.31.dev",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          }
+        ],
+        "threads": {
+          "OPENBLAS_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1"
+        }
+      },
+      "stages": {
+        "geometry_qr": {
+          "inclusive_sec": 0.06958026598294964,
+          "exclusive_sec": 0.06958026598294964,
+          "calls": 972
+        },
+        "_project": {
+          "inclusive_sec": 0.24656009503087262,
+          "exclusive_sec": 0.24656009503087262,
+          "calls": 1134
+        },
+        "_profile": {
+          "inclusive_sec": 1.1465786579574342,
+          "exclusive_sec": 0.8457788049927331,
+          "calls": 1134
+        },
+        "_gradient": {
+          "inclusive_sec": 0.16396447902661748,
+          "exclusive_sec": 0.16396447902661748,
+          "calls": 972
+        },
+        "geometry_svd": {
+          "inclusive_sec": 0.1581474239792442,
+          "exclusive_sec": 0.1581474239792442,
+          "calls": 1190
+        },
+        "_core_jacobian": {
+          "inclusive_sec": 0.3072166010097135,
+          "exclusive_sec": 0.3072166010097135,
+          "calls": 620
+        },
+        "gn_lstsq": {
+          "inclusive_sec": 0.1144614930235548,
+          "exclusive_sec": 0.1144614930235548,
+          "calls": 620
+        },
+        "_polar": {
+          "inclusive_sec": 0.11696707994997269,
+          "exclusive_sec": 0.11696707994997269,
+          "calls": 620
+        },
+        "solve": {
+          "inclusive_sec": 3.107094589016924,
+          "exclusive_sec": 0.7836184930565651,
+          "calls": 162
+        },
+        "profile_svd": {
+          "inclusive_sec": 0.28530721495189937,
+          "exclusive_sec": 0.28530721495189937,
+          "calls": 266
+        },
+        "profile_lstsq": {
+          "inclusive_sec": 0.015492638012801763,
+          "exclusive_sec": 0.015492638012801763,
+          "calls": 266
+        },
+        "solve_remainder": {
+          "inclusive_sec": 0.782608063032967,
+          "exclusive_sec": 0.782608063032967,
+          "calls": 1
+        }
+      },
+      "wall_including_startup_sec": 25.135777333998703
+    },
+    {
+      "seed": 1,
+      "mode": "timed",
+      "status": "ok",
+      "shape": {
+        "n": 800,
+        "d": 50,
+        "m": 2,
+        "N_J": 800,
+        "N_phi": 10,
+        "N_lin": 100
+      },
+      "dtype": "float64",
+      "solver_settings": {
+        "max_steps": 5,
+        "tol": 1e-06,
+        "energy_tol": 0.05,
+        "local_ridge": 0.0,
+        "max_angle": 0.5,
+        "workspace_bytes": 16777216,
+        "lambda_prox": 0.05
+      },
+      "input_hashes": {
+        "X": "41cb3c9cf71ef6c7ef001ebe2440969827f7ce45b812e40a80f0d9553f8e9bc7",
+        "y": "306ad1146dca61fc993bdb216625c9913a4c85bf508fe644716494c573912d05",
+        "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+      },
+      "basis_hash": "98f12717686822730f1b7caa2eea04113ef3f1001a543d78b80942d330deb6a6",
+      "fit_time_sec": 23.407167860998015,
+      "solver_wall_sec": 2.4382880789707997,
+      "peak_rss_kib": 113488,
+      "projector_distance_to_truth": 0.047281844416247734,
+      "outer_iterations": 162,
+      "selected_iteration": 161,
+      "fit_stop_reason": "h_min",
+      "solver_calls": 162,
+      "diagnostics_hash": "51b22f3c2cce81a1ac674fc842974535286b82f2a46fef6a97d7ab57900dca67",
+      "aggregate_diagnostics": {
+        "accepted_steps": 810,
+        "iterations": 810,
+        "gn_solves": 810,
+        "profile_evaluations": 810,
+        "rank_guard_fallbacks": 0,
+        "workspace_fallbacks": 0,
+        "max_orthogonality_error": 2.869625489971319e-15
+      },
+      "last_solver_diagnostics": {
+        "iterations": 5,
+        "converged": false,
+        "stop_reason": "max_steps",
+        "profile_objective": 10.837552214866516,
+        "loss": 5.418776107433258,
+        "gn_solves": 5,
+        "profile_evaluations": 5,
+        "step_ranks": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "workspace_fallbacks": 0
+      },
+      "environment": {
+        "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+        "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+        "numpy": "2.5.2",
+        "scipy": "1.18.1",
+        "threadpools": [
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+            "version": "0.3.34.0.0",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          },
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+            "version": "0.3.31.dev",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          }
+        ],
+        "threads": {
+          "OPENBLAS_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1"
+        }
+      },
+      "stages": {
+        "geometry_qr": {
+          "inclusive_sec": 0.06879016091988888,
+          "exclusive_sec": 0.06879016091988888,
+          "calls": 972
+        },
+        "_project": {
+          "inclusive_sec": 0.2596746851486387,
+          "exclusive_sec": 0.2596746851486387,
+          "calls": 1134
+        },
+        "_profile": {
+          "inclusive_sec": 0.8112618070081226,
+          "exclusive_sec": 0.8112618070081226,
+          "calls": 1134
+        },
+        "_gradient": {
+          "inclusive_sec": 0.14757134397950722,
+          "exclusive_sec": 0.14757134397950722,
+          "calls": 972
+        },
+        "geometry_svd": {
+          "inclusive_sec": 0.035122719054925255,
+          "exclusive_sec": 0.035122719054925255,
+          "calls": 810
+        },
+        "_core_jacobian": {
+          "inclusive_sec": 0.3981296879501315,
+          "exclusive_sec": 0.3981296879501315,
+          "calls": 810
+        },
+        "gn_lstsq": {
+          "inclusive_sec": 0.1475667648774106,
+          "exclusive_sec": 0.1475667648774106,
+          "calls": 810
+        },
+        "_polar": {
+          "inclusive_sec": 0.15325083190691657,
+          "exclusive_sec": 0.15325083190691657,
+          "calls": 810
+        },
+        "solve": {
+          "inclusive_sec": 2.439352321991464,
+          "exclusive_sec": 0.4179843211459229,
+          "calls": 162
+        },
+        "solve_remainder": {
+          "inclusive_sec": 0.41692007812525844,
+          "exclusive_sec": 0.41692007812525844,
+          "calls": 1
+        }
+      },
+      "wall_including_startup_sec": 23.690016827000363
+    },
+    {
+      "seed": 2,
+      "mode": "timed",
+      "status": "ok",
+      "shape": {
+        "n": 800,
+        "d": 50,
+        "m": 2,
+        "N_J": 800,
+        "N_phi": 10,
+        "N_lin": 100
+      },
+      "dtype": "float64",
+      "solver_settings": {
+        "max_steps": 5,
+        "tol": 1e-06,
+        "energy_tol": 0.05,
+        "local_ridge": 0.0,
+        "max_angle": 0.5,
+        "workspace_bytes": 16777216,
+        "lambda_prox": 0.05
+      },
+      "input_hashes": {
+        "X": "8a399a8afec975f1d15e298cf01418c18b21d7c369d16f164e0471f78c5a7e04",
+        "y": "84a557129765353a4c8014bee532d8cd92cb5395955b4d19bac1361aeda75b6d",
+        "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+      },
+      "basis_hash": "f7dc61f333dbad05f325bb2168376d40157c193dd32307547624c4a37f911d4f",
+      "fit_time_sec": 27.833613329996297,
+      "solver_wall_sec": 6.343844864073617,
+      "peak_rss_kib": 108584,
+      "projector_distance_to_truth": 0.044937944312231685,
+      "outer_iterations": 162,
+      "selected_iteration": 161,
+      "fit_stop_reason": "h_min",
+      "solver_calls": 162,
+      "diagnostics_hash": "0174a5bc43354776c1f85c09816718c56f99e60f4f689e980be131575b23fa7b",
+      "aggregate_diagnostics": {
+        "accepted_steps": 810,
+        "iterations": 810,
+        "gn_solves": 205,
+        "profile_evaluations": 8373,
+        "rank_guard_fallbacks": 605,
+        "workspace_fallbacks": 0,
+        "max_orthogonality_error": 3.953409549950116e-15
+      },
+      "last_solver_diagnostics": {
+        "iterations": 5,
+        "converged": false,
+        "stop_reason": "max_steps",
+        "profile_objective": 11.391410847272365,
+        "loss": 5.695705423636182,
+        "gn_solves": 5,
+        "profile_evaluations": 5,
+        "step_ranks": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "workspace_fallbacks": 0
+      },
+      "environment": {
+        "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+        "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+        "numpy": "2.5.2",
+        "scipy": "1.18.1",
+        "threadpools": [
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+            "version": "0.3.34.0.0",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          },
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+            "version": "0.3.31.dev",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          }
+        ],
+        "threads": {
+          "OPENBLAS_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1"
+        }
+      },
+      "stages": {
+        "geometry_qr": {
+          "inclusive_sec": 0.06902726089174394,
+          "exclusive_sec": 0.06902726089174394,
+          "calls": 972
+        },
+        "_project": {
+          "inclusive_sec": 0.19413234590319917,
+          "exclusive_sec": 0.19413234590319917,
+          "calls": 1134
+        },
+        "_profile": {
+          "inclusive_sec": 3.668623505269352,
+          "exclusive_sec": 1.4661165733778034,
+          "calls": 2251
+        },
+        "_gradient": {
+          "inclusive_sec": 0.17131769483967219,
+          "exclusive_sec": 0.17131769483967219,
+          "calls": 972
+        },
+        "geometry_svd": {
+          "inclusive_sec": 0.4277016000341973,
+          "exclusive_sec": 0.4277016000341973,
+          "calls": 2020
+        },
+        "_core_jacobian": {
+          "inclusive_sec": 0.10180347700224956,
+          "exclusive_sec": 0.10180347700224956,
+          "calls": 205
+        },
+        "gn_lstsq": {
+          "inclusive_sec": 0.03802556195296347,
+          "exclusive_sec": 0.03802556195296347,
+          "calls": 205
+        },
+        "_polar": {
+          "inclusive_sec": 0.039536367017717566,
+          "exclusive_sec": 0.039536367017717566,
+          "calls": 205
+        },
+        "solve": {
+          "inclusive_sec": 6.344945006065245,
+          "exclusive_sec": 1.6347771931541502,
+          "calls": 162
+        },
+        "profile_svd": {
+          "inclusive_sec": 2.103278364884318,
+          "exclusive_sec": 2.103278364884318,
+          "calls": 1964
+        },
+        "profile_lstsq": {
+          "inclusive_sec": 0.0992285670072306,
+          "exclusive_sec": 0.0992285670072306,
+          "calls": 1964
+        },
+        "solve_remainder": {
+          "inclusive_sec": 1.6336770511625218,
+          "exclusive_sec": 1.6336770511625218,
+          "calls": 1
+        }
+      },
+      "wall_including_startup_sec": 28.12287589799962
+    }
+  ]
+}

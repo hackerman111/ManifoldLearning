@@ -21,6 +21,13 @@ inner/LSMR tuples. Контракт, ограничения и актуальн�
 
 ## Профильный Grassmann (opt-in)
 
+Замер production core_gn (2026-10-06):
+`experiments/grassman_stage_profile_2026_10_06/report.md`. На трёх тяжёлых
+Spokoiny fit n800/d50/m2/J800/P10, один BLAS thread, local profile/refit
+занимает pooled47.3% solver wall (33.3–57.8% по сидам); solve10.3–22.2% fit.
+Timer-only профили и baseline имеют точное совпадение basis/diagnostics;
+цифры зависят от fallback-пути и не являются общей оценкой всех задач.
+
 `ADP.solver.grassman.solve`: только full q*m-core profiled GN + polar Armijo,
 CPU multi-index HPAOResult. Параметры method/angle_backend удалены; альтернативы
 rank_one/spectral и Schur/refit абляции доступны только в grassman_exp.
@@ -52,13 +59,100 @@ Luna проверки: `tests/test_grassman_flat.py`, benchmark/report рядо�
 45 tests/120 rows passed execution, but adaptive quality/time selection fails;
 joint flat stays experimental, heldout skipped. REPORT distinguishes frozen
 objective gains from EDR recovery and records missing fullfit orth metric.
-Источники **SRC-GRASSMAN**: `sed -n '1,565p' ADP/solver/grassman.py`;
-**SRC-GRASSMAN-EXP**: `sed -n '1,704p' ADP/solver/grassman_exp.py`;
-flat kernels:30-150, solve:151-458; full tangent J/J*:459-548,
-`solve_full_gn`:549-704. Full tangent GN тоже не прошёл selection; сохранён
+Источники **SRC-GRASSMAN**: `sed -n '1,567p' ADP/solver/grassman.py`;
+**SRC-GRASSMAN-EXP**: `sed -n '1,819p' ADP/solver/grassman_exp.py`;
+flat kernels:32-150, cached spectral:153-180, solve:183-571;
+full tangent J/J*:574-661, `solve_full_gn`:664-819.
+Full tangent GN тоже не прошёл selection; сохранён
 явным экспериментальным entry point. Исторический
 `experiments/glm_grassmann_2026_10_02/full_gn.py` реэкспортирует этот solver.
 Перенос: `experiments/grassman_promotion_2026_10_03/relocation_parity.json`.
+
+`grassman.block_rank_k` (569-613) — отдельный явный экспериментальный вход,
+`grassman.solve` и его сигнатура сохранены. Делегирует
+`grassman_exp.solve(method="block_rank_k")`: rank_k фиксирован или None;
+rank_strategy energy/cost; block_variant spectral/optimized. Spectral точно
+переиспользует существующий общий шаг; optimized тот же flat GN, по умолчанию
+два совместных шага. Cost-пилот проверяет максимум два prefix ranks один раз
+за solve, использует true-profile decrease / measured trial+projection time,
+затем ограничивает energy rank выбранным cap. Это эвристика с timer noise.
+Rank guard -> rank_one; workspace/no descent -> spectral, live full-gradient
+сертификат. Workspace относится к extra GN scratch, не input/profile cache.
+APPROXIMATE, цель прежняя; новая теория глобальной сходимости не заявляется.
+Протокол/условная математика/результаты: `experiments/grassman_rank_k/`;
+тесты `tests/test_grassman_rank_k.py`, независимый reference
+`tests/test_grassman_rank_reference.py`, counter/polish tests. Исследование
+2026-10-16 завершено: `REPORT.md`, 71 focused tests pass, 881 workers ok.
+Heldout block1/core fit ratio .99963; порог .8 не пройден. Одношаговый F
+улучшается с k, но EDR/time advantage не подтверждён. Core оставлен основным.
+Сырые результаты и точные исходники сохранены, reference22/24 certified;
+глобальная экспоненциальная гарантия не доказана, см. MATH.md.
+
+## Структурированный Grassmann: явный research entry point
+
+`ADP.solver.grassman_research.solve` — opt-in APPROXIMATE optimizer той же
+finite-sketch профильной цели. Методы `schur_gn`, `schur_newton`, `metric`;
+параметры `precondition`, `recycle_steps`, `core_steps`, `metric_floor`.
+`lambda_prox` — damping, `local_ridge` — tau (положительный меняет estimator).
+`precondition` применяется только к Newton CG; Schur GN решает augmented
+least squares напрямую. В Newton lambda_prox задаёт положительный floor
+предобусловливателя, без добавления штрафа к целевой функции.
+Production `grassman.solve` и текущие defaults не менялись.
+
+`statistic_operator.py`: `DenseOperator(U)` и `FactorizedOperator(C,X,...)`
+предоставляют `project(V)`, `adjoint(P)`, `shape`, `nbytes`. Функция
+`factorized_statistics(X,y,weights,directions,normalized=...)` возвращает
+`(operator,I,mass)` без dense U; ordered weight blocks поддержаны. C хранится
+в CSR, X/y центрируются для устойчивости. При normalized=True передать mass
+solver-у; при False передать mass=None (масса уже в C/I). API existing
+`calculate_statistics` не менялся; CX выбирается явным frozen вызовом.
+
+`_grassman_schur.SchurCore` поддерживает полный rectangular q*a core и A=(m,a)
+с исключением m-a коэффициентов через augmented SVD. Производные учитывают
+ridge-метрику полярного чарта. `hvp` точный внутри выбранного чарта;
+Steihaug сохраняет отрицательную кривизну. Положительные block-diagonal
+предобусловливатели изменяют CG, не цель. Shared solver использует a=m
+(q*m, как baseline); kernel API дополнительно поддерживает a<m.
+
+Recycling использует cached U[Y,V] лишь внутри одного frozen solve; ограниченный
+градиент не является сертификатом. Финальный UY и полный gradient всегда
+пересчитываются; счётчики operator/full-gradient/recycled/Newton действий
+есть в diagnostics. Tau=0 rank guard и workspace guard дают metric fallback.
+
+Доказательство, протокол и Luna evidence:
+`experiments/edr_structured_2026_10_15/{PROOF,REPORT}.md`, `protocol.json`,
+`results/`; tests `test_edr_{operators,schur,research}.py`.
+Локаторы: `rg -n '^class |^def ' ADP/solver/statistic_operator.py
+ADP/solver/_grassman_schur.py ADP/solver/grassman_research.py`.
+
+## Метрический спуск: hard Spokoiny, 2026-10-15
+
+Маршрут углублённой проверки с GPT-6 Luna:
+`experiments/metric_spokoiny_2026_10_15/{PROTOCOL,MATH,REPORT,LEAD_AUDIT}.md`,
+raw/PNG/manifest/audits в `results_repaired/`, independent tests:
+`tests/test_metric_spokoiny.py`. Численный код и defaults в этой задаче не
+менялись. Original benchmark n800/d50/m2/J800/P10, tau0, seeds0/1/2.
+
+При пяти inner шагах median metric2/core fit ratio.981649, solver.857432;
+seed1 recovery regression5.666e-4 нарушает frozen selection gate, heldout3..7
+не запускались. При20 шагах fit ratio1.015490, recovery почти совпадает.
+На пяти jointly smooth-certified frozen парах (budget100,tol1e-6) metric2
+медленнее2.040x; budget5 не даёт ни одного сертификата. Rank1 не имеет
+устойчивого преимущества; local rank-boundary endpoints не сертифицированы.
+
+R=sum mass*g*gT — coefficient metric, не Hessian. При m=q2/full rank
+не меняет col(G); rank1 добавляет ограничение. Для точного генератора
+population OPG=(5557/1155)I2, поэтому intrinsically weak-index premise здесь
+не подтверждается; empirical R отличается от OPG. На9 input snapshots
+condition R1.057..4.801, floor/caps неактивны. Common mass scaling c меняет
+предложение на1/sqrt(c), не минимизатор. MATH и proposal_audit описывают
+scale confound, isotropic и matched controls; нет общего geometry benefit.
+
+Untimed profile только seed1/call160: metric36 accepted/core48, но249/50
+profile calls и247/48 polar. Это evidence extra line-search work на данном
+входе, не общий профиль всех фаз. Current metric остаётся experimental.
+Original90 launcher failures (missing --snapshot) сохранены; repaired90/90
+успешны в отдельном manifest с byte-identical imported fits/captures.
 
 ## HPAO-LSMR: current default
 

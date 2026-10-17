@@ -1,0 +1,46 @@
+{
+  "task": "edr-structured-2026-10-15",
+  "protocol_sha256": "84fda7bf978e8528ee079bd7ba9243ff51f71db6fd90897b05d51a0579bb4115",
+  "harness_sha256": "d4c4d96b9d12ed9ab50d6b591135daa035f67053664a08ea00d4fb5b46f2c8ef",
+  "commit": "f7a33fde6c881736ee0cee576c8344fac144dadb",
+  "dirty": [
+    " M PLAN.md",
+    " M agent-notes/ADP/README.md",
+    " M agent-notes/ADP/index-pipeline.md",
+    " M agent-notes/ADP/solvers.md",
+    " M agent-notes/DECISIONS.md",
+    " M agent-notes/STATE.md",
+    "?? ADP/solver/_grassman_schur.py",
+    "?? ADP/solver/grassman_research.py",
+    "?? ADP/solver/statistic_operator.py",
+    "?? SVD/argon.md",
+    "?? SVD/edr_research_note.tex",
+    "?? agent-notes/history/plans/grassman-core-only-2026-10-03-complete.md",
+    "?? agent-notes/history/plans/grassman-stage-profile-2026-10-06-complete.md",
+    "?? agent-notes/history/plans/outer-stage-profile-2026-10-06-complete.md",
+    "?? experiments/edr_structured_2026_10_15/",
+    "?? experiments/grassman_stage_profile_2026_10_06/",
+    "?? experiments/outer_stage_profile_2026_10_06/",
+    "?? tests/test_edr_operators.py",
+    "?? tests/test_edr_research.py",
+    "?? tests/test_edr_schur.py"
+  ],
+  "stage": "cx",
+  "variants": [
+    "core_gn"
+  ],
+  "tau": 0.0,
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "timeout_sec_per_arm": 120,
+  "command": "UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.edr_structured_2026_10_15.bench",
+  "row_count": 12,
+  "failures": [],
+  "sha256_relevant_sources": {
+    "ADP/solver/grassman.py": "f30c1d3596f5092a1e96d7275790384f9a3206b149f5fb8fa395e0344b3ab333",
+    "ADP/solver/grassman_research.py": "584affe2a73ac64b089556125024b530a522fac90726b22c03ac3acb0646f1ea"
+  }
+}

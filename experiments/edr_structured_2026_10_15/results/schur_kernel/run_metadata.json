@@ -1,0 +1,231 @@
+{
+  "protocol_sha256": "84fda7bf978e8528ee079bd7ba9243ff51f71db6fd90897b05d51a0579bb4115",
+  "harness_sha256": "10db2cd104cf8a74b70f45dda821ba2b0f2fe9416479ebc22c1df0502d7de5e6",
+  "commit": "f7a33fde6c881736ee0cee576c8344fac144dadb",
+  "dirty": [
+    " M PLAN.md",
+    " M agent-notes/ADP/README.md",
+    " M agent-notes/ADP/index-pipeline.md",
+    " M agent-notes/ADP/solvers.md",
+    " M agent-notes/DECISIONS.md",
+    " M agent-notes/STATE.md",
+    "?? ADP/solver/_grassman_schur.py",
+    "?? ADP/solver/grassman_research.py",
+    "?? ADP/solver/statistic_operator.py",
+    "?? SVD/argon.md",
+    "?? SVD/edr_research_note.tex",
+    "?? agent-notes/history/plans/grassman-core-only-2026-10-03-complete.md",
+    "?? agent-notes/history/plans/grassman-stage-profile-2026-10-06-complete.md",
+    "?? agent-notes/history/plans/outer-stage-profile-2026-10-06-complete.md",
+    "?? experiments/edr_structured_2026_10_15/",
+    "?? experiments/grassman_stage_profile_2026_10_06/",
+    "?? experiments/outer_stage_profile_2026_10_06/",
+    "?? tests/test_edr_operators.py",
+    "?? tests/test_edr_research.py",
+    "?? tests/test_edr_schur.py"
+  ],
+  "command": "UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.edr_structured_2026_10_15.schur_kernel",
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "rows": [
+    {
+      "seed": 0,
+      "status": "ok",
+      "shape": {
+        "J": 100,
+        "p": 12,
+        "d": 40,
+        "m": 6,
+        "q": 2,
+        "active_a": 2
+      },
+      "dtype": "float64",
+      "tau": 0.0,
+      "repeats": 3,
+      "setup_sec": 0.0007194129993877141,
+      "schur_evaluate_hvp_sec": [
+        9.338699965155683e-05,
+        7.87780008977279e-05,
+        8.213499859266449e-05
+      ],
+      "polar_profile_sec": [
+        0.0008498539991705911,
+        0.0008428970013483195,
+        0.0008399779999308521
+      ],
+      "schur_median_sec": 8.213499859266449e-05,
+      "polar_profile_median_sec": 0.0008428970013483195,
+      "base_profile_value_abs_error": 2.914335439641036e-16,
+      "trial_profile_value_gap": 4.3021142204224816e-16,
+      "peak_rss_platform_units": 82200,
+      "additional_peak_rss_platform_units": 1244,
+      "environment": {
+        "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+        "platform": "Linux-7.2.9-arch1-1-x86_64-with-glibc2.44",
+        "numpy": "2.5.2",
+        "scipy": "1.18.1",
+        "threadpools": [
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+            "version": "0.3.34.0.0",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          },
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+            "version": "0.3.31.dev",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          }
+        ],
+        "threads": {
+          "OPENBLAS_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1"
+        }
+      }
+    },
+    {
+      "seed": 1,
+      "status": "ok",
+      "shape": {
+        "J": 100,
+        "p": 12,
+        "d": 40,
+        "m": 6,
+        "q": 2,
+        "active_a": 2
+      },
+      "dtype": "float64",
+      "tau": 0.0,
+      "repeats": 3,
+      "setup_sec": 0.0007496660000470001,
+      "schur_evaluate_hvp_sec": [
+        9.52219997998327e-05,
+        8.974399861472193e-05,
+        8.383800013689324e-05
+      ],
+      "polar_profile_sec": [
+        0.000861008000356378,
+        0.0008462690002488671,
+        0.0008207270002458245
+      ],
+      "schur_median_sec": 8.974399861472193e-05,
+      "polar_profile_median_sec": 0.0008462690002488671,
+      "base_profile_value_abs_error": 9.43689570931383e-16,
+      "trial_profile_value_gap": 4.163336342344337e-17,
+      "peak_rss_platform_units": 82104,
+      "additional_peak_rss_platform_units": 1308,
+      "environment": {
+        "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+        "platform": "Linux-7.2.9-arch1-1-x86_64-with-glibc2.44",
+        "numpy": "2.5.2",
+        "scipy": "1.18.1",
+        "threadpools": [
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+            "version": "0.3.34.0.0",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          },
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+            "version": "0.3.31.dev",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          }
+        ],
+        "threads": {
+          "OPENBLAS_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1"
+        }
+      }
+    },
+    {
+      "seed": 2,
+      "status": "ok",
+      "shape": {
+        "J": 100,
+        "p": 12,
+        "d": 40,
+        "m": 6,
+        "q": 2,
+        "active_a": 2
+      },
+      "dtype": "float64",
+      "tau": 0.0,
+      "repeats": 3,
+      "setup_sec": 0.0007517379999626428,
+      "schur_evaluate_hvp_sec": [
+        9.297999895352405e-05,
+        8.327500108862296e-05,
+        8.269599857158028e-05
+      ],
+      "polar_profile_sec": [
+        0.0008687999998073792,
+        0.0008480199994664872,
+        0.0008296119995065965
+      ],
+      "schur_median_sec": 8.327500108862296e-05,
+      "polar_profile_median_sec": 0.0008480199994664872,
+      "base_profile_value_abs_error": 1.942890293094024e-16,
+      "trial_profile_value_gap": 4.996003610813204e-16,
+      "peak_rss_platform_units": 82228,
+      "additional_peak_rss_platform_units": 1244,
+      "environment": {
+        "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+        "platform": "Linux-7.2.9-arch1-1-x86_64-with-glibc2.44",
+        "numpy": "2.5.2",
+        "scipy": "1.18.1",
+        "threadpools": [
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+            "version": "0.3.34.0.0",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          },
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+            "version": "0.3.31.dev",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          }
+        ],
+        "threads": {
+          "OPENBLAS_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1"
+        }
+      }
+    }
+  ],
+  "failures": []
+}

@@ -653,3 +653,166 @@ are part of core_gn and must stay to preserve numerical stability and memory
 limits. Explicit user authorization overrides selector compatibility. 51 tests
 and72 exact core comparisons (including rank/workspace guards) pass; benchmarks
 migrated, numerical outputs/diagnostics unchanged. See core_only_parity.json.
+
+## 2026-10-06: production Grassmann stage profiling
+
+Use timer-only semantic stage timings as primary evidence for this workload;
+cProfile adds24–41% solver overhead and remains supplementary for hotspots.
+Local profile/refit is largest on all3 Spokoiny seeds (pooled47.3%).
+Rank fallback prevalence materially affects shares; do not generalize across
+solvers/dimensions or infer an optimization without paired correctness checks.
+Evidence: experiments/grassman_stage_profile_2026_10_06/report.md and lead_audit.json.
+Production algorithm/API/estimator unchanged. Status active measurement policy.
+
+## 2026-10-15 — structured EDR candidates remain opt-in (complete)
+
+- Task edr-structured-2026-10-15, user requested Schur/CX, recycling, metric
+  SVD/descent and exact VARPRO Newton/TR, with Luna tests/benchmarks.
+- Add separate grassman_research entry point, statistic_operator and small
+  Schur kernels; production grassman/core_gn and defaults stay unchanged.
+  CX preserves finite-sketch statistics; bounded optimizer variants target
+  the same profile. Positive local_ridge stays an explicit estimator setting.
+- Choose full q*m solver chart for direct core_gn comparison; lower-level
+  SchurCore supports A=(m,a), inactive elimination and q*a charts separately.
+  Newton is exact only in the chosen chart, without a full Grassmann Newton or
+  quadratic convergence claim. Preconditioner changes CG only. Recycling
+  never certifies stationarity without a fresh full ambient gradient.
+- Evidence: main 30-step synthetic suite has no certified endpoints. Separate
+  near-truth 100-step calibration certifies all six methods on three seeds;
+  candidates are slower (Schur GN~1.9x, Newton~4.6–5.4x). Do not promote or
+  retune on these seeds. Schur inactive kernel can benefit repeated small
+  trials, which does not establish whole-solver speed.
+- CX backend stays explicit: sparse support8/d100 storage .625x dense U,
+  support400 storage6.505x and slower applications; setup must be counted.
+  No automatic backend policy inferred from this small experiment.
+- Independent review found stale Schur screening after a conditioning guard;
+  two-case RED regression established the issue, lead clears core before
+  value-checked metric fallback. Final evidence lives in experiment REPORT,
+  raw results and Luna test logs, linked from STATE/PLAN.
+- Artifacts: experiments/edr_structured_2026_10_15/{PROOF,REPORT,README}.md,
+  protocol.json, results/; tests/test_edr_{operators,schur,research}.py.
+
+### Same-task supplemental evidence
+
+- A separately frozen weak-signal calibration (second planted coefficient
+  scaled .03, three seeds) supports a narrow positive metric result:
+  3/3 certificates versus core_gn2/3, paired speedup1.662x on two certified
+  pairs, projector median9.00e-6 versus9.22e-4. Keep as a three-seed pilot;
+  it does not override default/no-promotion decision or establish full-fit
+  recovery. Earlier weak_index case is only an anisotropic proxy.
+- Corrected Schur microbenchmark changes K each trial: evaluate+HVP .175–.188ms
+  versus cached polar/full refit .810–.851ms, setup~.76ms. The initial ~10x
+  same-K result reused Schur factors and is retained as cache-biased evidence,
+  not a new-trial performance claim. Distinct-K benefit is about4.5x locally.
+- Recycling reduces median full adjoints31->23 and projects32->24 in primary
+  Newton runs, but produces no overall wall-time gain. Preconditioning reduces
+  total CG iterations789->763 (unpre789, pre763), with
+  no wall-time gain; pass/iteration reduction alone is insufficient.
+
+## 2026-10-15 — hard Spokoiny metric study: keep validation untouched
+
+- Task metric-spokoiny-2026-10-15 uses original hard _make_problem point
+  n800,d50,m2,J800,P10, original data/seed/init/weights/schedule, solver tau0.
+  Existing metric search is an APPROXIMATE optimizer, no estimator/default
+  change. Separate full-fit, frozen-objective and truth-recovery conclusions.
+- Freeze PROTOCOL.md before timing: development0/1/2, explicit budget5/20,
+  rank1/2 and frozen isotropic/spectral-matched controls. Held-out3..7 require
+  per-seed nonregression plus a predeclared speed or recovery improvement.
+- Original budget5 main9fits completed. Metric2 seed1 projector error .0478484
+  vs core .0472818, regression .0005666 >1e-4 allowed. Gate fails; preserve
+  seeds3..7 untouched regardless of other development results. Continue only
+  already-frozen diagnostic/budget experiments, without retuning/promoting.
+- MATH.md separates coefficient Gram R from ambient covariance and outer
+  localization eigenvalues. For exact generator the population OPG is
+  (5557/1155)I2 (lead rational proof, independent Luna proof/quadrature), so
+  the earlier artificially weak-coefficient pilot is a different geometry.
+- Initial frozen90 launches failed before numeric work (path/snapshot key
+  mismatch). Preserve original manifest/errors and successful cold fullfit/
+  capture rows; repair only launcher in a separately manifested result tree,
+  with independent argv-route regression. This is harness repair, not a
+  changed solver or a valid negative numerical result.
+- Evidence: experiments/metric_spokoiny_2026_10_15/{PROTOCOL,MATH}.md,
+  results/fullfit5.jsonl, capture.jsonl, frozen.jsonl; subsequent repaired
+  artifacts carry their own manifest and import provenance.
+
+### Final hard Spokoiny evidence (active, no promotion)
+
+- Complete9 budget5 fits,4 diagnostic captures,90 repaired frozen solves,
+  6 budget20 fits. Independent lead audit verifies18 source hashes,14
+  byte-identical imports, paired input hashes, unique jobs, one BLAS thread,
+  monotone frozen objectives and max orthogonality error6.22e-15. Only run.py
+  changed between original/repaired manifests. Ten focused tests pass.
+- Metric2/core paired median whole-fit ratio.981649 at5steps,1.015490 at20.
+  Seed1 five-step projector regression5.666e-4 fails selection. Keep heldout
+  seeds3..7 untouched; do not retune or promote from development results.
+- Five jointly smooth-certified frozen pairs have median time ratio2.039975;
+  recovery/objectives nearly coincide. Budget5 has no certified endpoints.
+  Rank1 does not establish a stable gain. Separate lower iteration counts
+  from actual solver/fit costs and frozen Phi from truth recovery.
+- Nine sampled input R condition numbers1.057..4.801, floor/caps inactive.
+  Common mass multiplication by c preserves tau0 minimizer but divides
+  metric proposal by sqrt(c). Matched isotropic control removes per-call
+  spectral magnitude difference, not trajectory or diagnostic overhead.
+  No stable recovery advantage from orientation is demonstrated.
+- Supplementary seed1/call160 cProfiles: metric36 accepted vs core48,
+  but249/50 profile calls and247/48 polar calls. Extra trial work explains
+  cost on this example; profiler timings are not benchmark evidence.
+  Proposal scale calibration and cheaper profile trials are untested future
+  hypotheses, requiring a new protocol; no optimizer changes in this study.
+- Evidence: experiments/metric_spokoiny_2026_10_15/{REPORT,MATH,LEAD_AUDIT}.md,
+  results_repaired/{lead_audit,proposal_audit}.json and profiles/.
+
+## 2026-10-16: explicit block-rank experiment, existing mechanisms retained
+
+- Active APPROXIMATE variant: grassman.block_rank_k forwards into experimental
+  shared loop; production solve signature and numerical path unchanged.
+  Spectral already supplies common-step rank-k geodesic; flat_gn supplies joint
+  angle optimization. Reuse both instead of duplicating their mathematics.
+- New degrees of freedom are fixed/energy/bounded-cost rank policy and two
+  joint angle steps by default. Cost policy has at most two pilot evaluations
+  once per solve; includes measured overhead and may be timing sensitive.
+- Fresh development81600..81602/validation81700..81704; retain regressions and
+  compare complete EDR fit against core and spectral. Validation will run for
+  a frozen candidate even after a negative development result, explicitly as
+  negative-result validation under this new user's requested experiment.
+- Exponential error law is conditional on unestablished smoothness/PL/step
+  assumptions; numerical F_ref is no global-minimum proof. Full EDR recovery
+  has priority over frozen objective. No default promotion authorized.
+- Evidence: experiments/grassman_rank_k/{PROTOCOL,MATH}.md; independent refit,
+  finite-difference and geometry tests. Timings/results pending at decision.
+
+## 2026-10-16: rank-k validation candidate frozen after development
+
+- All54 development fits completed with paired input/first-stat hashes and
+  controlled threads. All four optimized rank policies eligible on pooled
+  EDR/completion; none meets .8 fit/core gate. Predeclared selector chooses
+  block1 (median paired fit/core .9991409237). Selection pins development
+  SHA588f87e083fb8edf40f2610958c2fb19bf2482d0669ec43349c34214f8c85bee.
+- Heldout30 will validate this unchanged candidate plus core/spectral. No
+  retuning. MI original case has rank loss4..9/250 at initial statistics;
+  core/optimized use rank guard on all30 updates/fit. Keep case and disclose
+  that it cannot distinguish joint-angle policies; spectral has a distinct
+  unguarded path and worse EDR. Do not silently regularize to avoid guard.
+
+## 2026-10-16: rank-k full-fit hypothesis not confirmed; no default promotion
+
+- Completed84 full fits,792 inner workers and5 independent reference polishes.
+  All workers ok, geometry/profile monotonicity/pairing/source hashes pass.
+  71 focused tests pass; unrelated full-suite catalog collection failures remain.
+- Frozen block1 heldout fit/core median .99963, bootstrap95%[.98914,1.01554];
+  no20% gain. Median EDRdiff0 but one+.000120 regression. Selection of k1
+  does not establish simultaneous multiple-direction recovery advantage.
+  Preserve experimental explicit API only; production core_gn unchanged.
+- Spectral already implements common-step block update; flat already jointly
+  optimizes angles. Reused mechanisms cannot count as novel algorithmic gains.
+  Extra block GN/refits and cost pilots do not amortize in measured full fits.
+  Original MI rank-guard case retained; no statistics/ridge modification.
+- One-step F improves in all200 adjacent-k comparisons; approximate exponential
+  trend predicts heldout subset, with task-dependent c. No global guarantee:
+  smooth nonoptimal stationary counterexample exists. Numerical Fref has22/24
+  stationary certificates after separate independent polish, never global proof.
+  Preserve340 lower-F/worse-EDR pair comparisons and failed recovery cases.
+- Evidence: experiments/grassman_rank_k/REPORT.md, results/{selection,
+  fullfit_summary,inner_descriptive,lead_audit}.json; analysis_polished and
+  analysis_certified CSV/plots; source_snapshot.zip and reproducibility manifest.
+  New tuning needs fresh protocol/seeds; current heldout has been consumed.

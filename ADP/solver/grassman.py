@@ -1,7 +1,8 @@
 """Проверенный CPU Grassmann: QR/SVD профиль, cached core GN и Armijo.
 
 EXACT/NUMERICAL оптимизация прежней finite-sketch цели и bounded optimizer.
-Только core_gn; local_ridge>0 — явный ESTIMATOR вариант. Row-basis (m,d).
+solve: только core_gn; local_ridge>0 — ESTIMATOR вариант. Row-basis (m,d).
+block_rank_k: отдельный opt-in вход в экспериментальный shared solver.
 Экспериментальные flat/full tangent GN находятся в grassman_exp.py.
 Эталон и paired evidence: experiments/grassman_optim_2026_10_01/.
 """
@@ -563,3 +564,50 @@ def solve(
         "local_ridge": local_ridge,
     }
     return HPAOResult(Y.T, state.coefficients, diagnostics)
+
+
+def block_rank_k(
+    index_init: np.ndarray,
+    U: np.ndarray,
+    I: np.ndarray,
+    *,
+    mass: np.ndarray | None = None,
+    lambda_prox: float = 0.05,
+    max_steps: int = 5,
+    tol: float = 1e-6,
+    rank_k: int | None = None,
+    rank_strategy: str = "energy",
+    block_variant: str = "optimized",
+    block_max_steps: int = 2,
+    energy_tol: float = 0.05,
+    local_ridge: float = 0.0,
+    max_angle: float = 0.5,
+    workspace_bytes: int = 16 * 1024**2,
+) -> HPAOResult:
+    """Явный экспериментальный rank-k solver; solve/core_gn не изменён.
+
+    rank_k=None: energy или bounded cost-пилот; иначе фиксированный ранг.
+    spectral — общая длина, optimized — совместные углы, local refit.
+    workspace_bytes ограничивает дополнительный GN scratch, не вход U и
+    базовое состояние профиля. Алгоритм и диагностики — в grassman_exp.
+    """
+    from .grassman_exp import solve as experimental_solve
+
+    return experimental_solve(
+        index_init,
+        U,
+        I,
+        mass=mass,
+        lambda_prox=lambda_prox,
+        max_steps=max_steps,
+        tol=tol,
+        method="block_rank_k",
+        rank_k=rank_k,
+        rank_strategy=rank_strategy,
+        block_variant=block_variant,
+        block_max_steps=block_max_steps,
+        energy_tol=energy_tol,
+        local_ridge=local_ridge,
+        max_angle=max_angle,
+        workspace_bytes=workspace_bytes,
+    )

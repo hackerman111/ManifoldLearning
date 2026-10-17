@@ -1,0 +1,338 @@
+{
+  "command": "UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.outer_stage_profile_2026_10_06.run_outer",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "timeout_sec": 900,
+  "paired_parity": [
+    {
+      "seed": 0,
+      "same_inputs": true,
+      "same_basis": true,
+      "same_diagnostics": true
+    },
+    {
+      "seed": 1,
+      "same_inputs": true,
+      "same_basis": true,
+      "same_diagnostics": true
+    },
+    {
+      "seed": 2,
+      "same_inputs": true,
+      "same_basis": true,
+      "same_diagnostics": true
+    }
+  ],
+  "source_sha256": {
+    "ADP/engine/common/index_fit.py": "6ddfa795ba4ac2092dbecac29159b6e91935d64b8a2805a06303d939ba8d8cb5",
+    "ADP/engine/common/statistic.py": "25f8b1e33c3e1280ae5a5959e51a747b2cc9c24661b64358ea7a9da585fa9fa1",
+    "ADP/engine/common/weights.py": "0cc5a04bbff3ae60e74da248ccd73b0128090072fdb1267c4334d78a7e7d006e",
+    "ADP/engine/common/calculus.py": "5d50b69edbfa9363b33d791da24c50fa47a29ccb4e2e4a791ad7ee8e80615c5e",
+    "ADP/engine/common/logger.py": "05fd5d8bc3082c4410b33b585d054fdf693f3d39e51d1e21703201b43a2f377a"
+  },
+  "harness_sha256": "6c974a9d2491f557b4d6bfa3254fab1a55500355d4cb66fed627e2a04b106bfb",
+  "rows": [
+    {
+      "seed": 0,
+      "mode": "baseline",
+      "status": "ok",
+      "shape": {
+        "n": 800,
+        "d": 50,
+        "m": 2,
+        "N_J": 800,
+        "N_phi": 10,
+        "N_lin": 100
+      },
+      "dtype": "float64",
+      "solver_settings": {
+        "max_steps": 5,
+        "tol": 1e-06,
+        "energy_tol": 0.05,
+        "local_ridge": 0.0,
+        "max_angle": 0.5,
+        "workspace_bytes": 16777216,
+        "lambda_prox": 0.05
+      },
+      "input_hashes": {
+        "X": "e52159bbfb96e9838752d0ea551e8170241be9ae0d6fd5f59b25a8f7a342bb2d",
+        "y": "e233641bbdec13798ae10a8ec309badb0b5dee3ebfb16ab7aa436ca12819193e",
+        "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+      },
+      "basis_hash": "bd3e7d66729a81afa3ad2f89317e6a2c67b01a72c42addf94e1affdaab4dc381",
+      "fit_time_sec": 25.08827492900309,
+      "solver_wall_sec": 3.054446906025987,
+      "peak_rss_kib": 107768,
+      "projector_distance_to_truth": 0.054170795164750485,
+      "outer_iterations": 162,
+      "selected_iteration": 161,
+      "fit_stop_reason": "h_min",
+      "solver_calls": 162,
+      "diagnostics_hash": "327e9e2759aa4ea61529e65baaceb12c4d635d2c6008d890174d9efeb87c17d2",
+      "aggregate_diagnostics": {
+        "accepted_steps": 810,
+        "iterations": 810,
+        "gn_solves": 620,
+        "profile_evaluations": 3191,
+        "rank_guard_fallbacks": 190,
+        "workspace_fallbacks": 0,
+        "max_orthogonality_error": 2.956214152863562e-15
+      },
+      "last_solver_diagnostics": {
+        "iterations": 5,
+        "converged": false,
+        "stop_reason": "max_steps",
+        "profile_objective": 13.734168839602226,
+        "loss": 6.867084419801114,
+        "gn_solves": 5,
+        "profile_evaluations": 5,
+        "step_ranks": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "workspace_fallbacks": 0
+      },
+      "environment": {
+        "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+        "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+        "numpy": "2.5.2",
+        "scipy": "1.18.1",
+        "threadpools": [
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+            "version": "0.3.34.0.0",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          },
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+            "version": "0.3.31.dev",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          }
+        ],
+        "threads": {
+          "OPENBLAS_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1"
+        }
+      },
+      "wall_including_startup_sec": 25.400717321004777
+    },
+    {
+      "seed": 1,
+      "mode": "baseline",
+      "status": "ok",
+      "shape": {
+        "n": 800,
+        "d": 50,
+        "m": 2,
+        "N_J": 800,
+        "N_phi": 10,
+        "N_lin": 100
+      },
+      "dtype": "float64",
+      "solver_settings": {
+        "max_steps": 5,
+        "tol": 1e-06,
+        "energy_tol": 0.05,
+        "local_ridge": 0.0,
+        "max_angle": 0.5,
+        "workspace_bytes": 16777216,
+        "lambda_prox": 0.05
+      },
+      "input_hashes": {
+        "X": "41cb3c9cf71ef6c7ef001ebe2440969827f7ce45b812e40a80f0d9553f8e9bc7",
+        "y": "306ad1146dca61fc993bdb216625c9913a4c85bf508fe644716494c573912d05",
+        "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+      },
+      "basis_hash": "98f12717686822730f1b7caa2eea04113ef3f1001a543d78b80942d330deb6a6",
+      "fit_time_sec": 23.916313467998407,
+      "solver_wall_sec": 2.412025377001555,
+      "peak_rss_kib": 113684,
+      "projector_distance_to_truth": 0.047281844416247734,
+      "outer_iterations": 162,
+      "selected_iteration": 161,
+      "fit_stop_reason": "h_min",
+      "solver_calls": 162,
+      "diagnostics_hash": "51b22f3c2cce81a1ac674fc842974535286b82f2a46fef6a97d7ab57900dca67",
+      "aggregate_diagnostics": {
+        "accepted_steps": 810,
+        "iterations": 810,
+        "gn_solves": 810,
+        "profile_evaluations": 810,
+        "rank_guard_fallbacks": 0,
+        "workspace_fallbacks": 0,
+        "max_orthogonality_error": 2.869625489971319e-15
+      },
+      "last_solver_diagnostics": {
+        "iterations": 5,
+        "converged": false,
+        "stop_reason": "max_steps",
+        "profile_objective": 10.837552214866516,
+        "loss": 5.418776107433258,
+        "gn_solves": 5,
+        "profile_evaluations": 5,
+        "step_ranks": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "workspace_fallbacks": 0
+      },
+      "environment": {
+        "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+        "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+        "numpy": "2.5.2",
+        "scipy": "1.18.1",
+        "threadpools": [
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+            "version": "0.3.34.0.0",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          },
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+            "version": "0.3.31.dev",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          }
+        ],
+        "threads": {
+          "OPENBLAS_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1"
+        }
+      },
+      "wall_including_startup_sec": 24.23041289200046
+    },
+    {
+      "seed": 2,
+      "mode": "baseline",
+      "status": "ok",
+      "shape": {
+        "n": 800,
+        "d": 50,
+        "m": 2,
+        "N_J": 800,
+        "N_phi": 10,
+        "N_lin": 100
+      },
+      "dtype": "float64",
+      "solver_settings": {
+        "max_steps": 5,
+        "tol": 1e-06,
+        "energy_tol": 0.05,
+        "local_ridge": 0.0,
+        "max_angle": 0.5,
+        "workspace_bytes": 16777216,
+        "lambda_prox": 0.05
+      },
+      "input_hashes": {
+        "X": "8a399a8afec975f1d15e298cf01418c18b21d7c369d16f164e0471f78c5a7e04",
+        "y": "84a557129765353a4c8014bee532d8cd92cb5395955b4d19bac1361aeda75b6d",
+        "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+      },
+      "basis_hash": "f7dc61f333dbad05f325bb2168376d40157c193dd32307547624c4a37f911d4f",
+      "fit_time_sec": 27.833294571006263,
+      "solver_wall_sec": 6.218851332974737,
+      "peak_rss_kib": 110428,
+      "projector_distance_to_truth": 0.044937944312231685,
+      "outer_iterations": 162,
+      "selected_iteration": 161,
+      "fit_stop_reason": "h_min",
+      "solver_calls": 162,
+      "diagnostics_hash": "0174a5bc43354776c1f85c09816718c56f99e60f4f689e980be131575b23fa7b",
+      "aggregate_diagnostics": {
+        "accepted_steps": 810,
+        "iterations": 810,
+        "gn_solves": 205,
+        "profile_evaluations": 8373,
+        "rank_guard_fallbacks": 605,
+        "workspace_fallbacks": 0,
+        "max_orthogonality_error": 3.953409549950116e-15
+      },
+      "last_solver_diagnostics": {
+        "iterations": 5,
+        "converged": false,
+        "stop_reason": "max_steps",
+        "profile_objective": 11.391410847272365,
+        "loss": 5.695705423636182,
+        "gn_solves": 5,
+        "profile_evaluations": 5,
+        "step_ranks": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "workspace_fallbacks": 0
+      },
+      "environment": {
+        "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+        "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+        "numpy": "2.5.2",
+        "scipy": "1.18.1",
+        "threadpools": [
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+            "version": "0.3.34.0.0",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          },
+          {
+            "user_api": "blas",
+            "internal_api": "openblas",
+            "num_threads": 1,
+            "prefix": "libscipy_openblas",
+            "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+            "version": "0.3.31.dev",
+            "threading_layer": "pthreads",
+            "architecture": "Haswell"
+          }
+        ],
+        "threads": {
+          "OPENBLAS_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1"
+        }
+      },
+      "wall_including_startup_sec": 28.133822829993733
+    }
+  ]
+}

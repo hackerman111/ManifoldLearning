@@ -1,0 +1,2126 @@
+{
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "all_pairs_exact_input_basis_diagnostics_match": true,
+  "protocol": {
+    "cprofile": {
+      "command": "UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.grassman_stage_profile_2026_10_06.run_profile",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "modes": [
+        "baseline",
+        "profiled"
+      ],
+      "threads": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      },
+      "timeout_sec": 900,
+      "commit": "f7a33fde6c881736ee0cee576c8344fac144dadb",
+      "dirty": [
+        " M PLAN.md",
+        " M agent-notes/ADP/README.md",
+        " M agent-notes/STATE.md",
+        "?? agent-notes/history/plans/grassman-core-only-2026-10-03-complete.md",
+        "?? experiments/grassman_stage_profile_2026_10_06/"
+      ],
+      "source_sha256": "f30c1d3596f5092a1e96d7275790384f9a3206b149f5fb8fa395e0344b3ab333",
+      "harness_sha256": "de51ba7ccd2a5c45d3574df7ee96c8720803390a9f51d55121f04d7acdb2fa12",
+      "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+      "numpy": "2.5.2",
+      "scipy": "1.18.1",
+      "results": [
+        {
+          "seed": 0,
+          "mode": "baseline",
+          "status": "ok",
+          "shape": {
+            "n": 800,
+            "d": 50,
+            "m": 2,
+            "N_J": 800,
+            "N_phi": 10,
+            "N_lin": 100
+          },
+          "dtype": "float64",
+          "solver_settings": {
+            "max_steps": 5,
+            "tol": 1e-06,
+            "energy_tol": 0.05,
+            "local_ridge": 0.0,
+            "max_angle": 0.5,
+            "workspace_bytes": 16777216,
+            "lambda_prox": 0.05
+          },
+          "input_hashes": {
+            "X": "e52159bbfb96e9838752d0ea551e8170241be9ae0d6fd5f59b25a8f7a342bb2d",
+            "y": "e233641bbdec13798ae10a8ec309badb0b5dee3ebfb16ab7aa436ca12819193e",
+            "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+          },
+          "basis_hash": "bd3e7d66729a81afa3ad2f89317e6a2c67b01a72c42addf94e1affdaab4dc381",
+          "fit_time_sec": 24.635834560001967,
+          "solver_wall_sec": 3.0090547949439497,
+          "peak_rss_kib": 107576,
+          "projector_distance_to_truth": 0.054170795164750485,
+          "outer_iterations": 162,
+          "selected_iteration": 161,
+          "fit_stop_reason": "h_min",
+          "solver_calls": 162,
+          "diagnostics_hash": "327e9e2759aa4ea61529e65baaceb12c4d635d2c6008d890174d9efeb87c17d2",
+          "aggregate_diagnostics": {
+            "accepted_steps": 810,
+            "iterations": 810,
+            "gn_solves": 620,
+            "profile_evaluations": 3191,
+            "rank_guard_fallbacks": 190,
+            "workspace_fallbacks": 0,
+            "max_orthogonality_error": 2.956214152863562e-15
+          },
+          "last_solver_diagnostics": {
+            "iterations": 5,
+            "converged": false,
+            "stop_reason": "max_steps",
+            "profile_objective": 13.734168839602226,
+            "loss": 6.867084419801114,
+            "gn_solves": 5,
+            "profile_evaluations": 5,
+            "step_ranks": [
+              2,
+              2,
+              2,
+              2,
+              2
+            ],
+            "workspace_fallbacks": 0
+          },
+          "environment": {
+            "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+            "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+            "numpy": "2.5.2",
+            "scipy": "1.18.1",
+            "threadpools": [
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+                "version": "0.3.34.0.0",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              },
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+                "version": "0.3.31.dev",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              }
+            ],
+            "threads": {
+              "OPENBLAS_NUM_THREADS": "1",
+              "OMP_NUM_THREADS": "1",
+              "MKL_NUM_THREADS": "1"
+            }
+          },
+          "wall_including_startup_sec": 24.93034490699938
+        },
+        {
+          "seed": 0,
+          "mode": "profiled",
+          "status": "ok",
+          "shape": {
+            "n": 800,
+            "d": 50,
+            "m": 2,
+            "N_J": 800,
+            "N_phi": 10,
+            "N_lin": 100
+          },
+          "dtype": "float64",
+          "solver_settings": {
+            "max_steps": 5,
+            "tol": 1e-06,
+            "energy_tol": 0.05,
+            "local_ridge": 0.0,
+            "max_angle": 0.5,
+            "workspace_bytes": 16777216,
+            "lambda_prox": 0.05
+          },
+          "input_hashes": {
+            "X": "e52159bbfb96e9838752d0ea551e8170241be9ae0d6fd5f59b25a8f7a342bb2d",
+            "y": "e233641bbdec13798ae10a8ec309badb0b5dee3ebfb16ab7aa436ca12819193e",
+            "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+          },
+          "basis_hash": "bd3e7d66729a81afa3ad2f89317e6a2c67b01a72c42addf94e1affdaab4dc381",
+          "fit_time_sec": 27.21259575500153,
+          "solver_wall_sec": 4.24917311596073,
+          "peak_rss_kib": 112456,
+          "projector_distance_to_truth": 0.054170795164750485,
+          "outer_iterations": 162,
+          "selected_iteration": 161,
+          "fit_stop_reason": "h_min",
+          "solver_calls": 162,
+          "diagnostics_hash": "327e9e2759aa4ea61529e65baaceb12c4d635d2c6008d890174d9efeb87c17d2",
+          "aggregate_diagnostics": {
+            "accepted_steps": 810,
+            "iterations": 810,
+            "gn_solves": 620,
+            "profile_evaluations": 3191,
+            "rank_guard_fallbacks": 190,
+            "workspace_fallbacks": 0,
+            "max_orthogonality_error": 2.956214152863562e-15
+          },
+          "last_solver_diagnostics": {
+            "iterations": 5,
+            "converged": false,
+            "stop_reason": "max_steps",
+            "profile_objective": 13.734168839602226,
+            "loss": 6.867084419801114,
+            "gn_solves": 5,
+            "profile_evaluations": 5,
+            "step_ranks": [
+              2,
+              2,
+              2,
+              2,
+              2
+            ],
+            "workspace_fallbacks": 0
+          },
+          "environment": {
+            "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+            "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+            "numpy": "2.5.2",
+            "scipy": "1.18.1",
+            "threadpools": [
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+                "version": "0.3.34.0.0",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              },
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+                "version": "0.3.31.dev",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              }
+            ],
+            "threads": {
+              "OPENBLAS_NUM_THREADS": "1",
+              "OMP_NUM_THREADS": "1",
+              "MKL_NUM_THREADS": "1"
+            }
+          },
+          "profile_file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/experiments/grassman_stage_profile_2026_10_06/results/grassman_seed0.prof",
+          "stages": {
+            "gradient_qr": {
+              "inclusive_sec": 0.14552786393323913,
+              "exclusive_sec": 0.14552786393323913,
+              "calls": 972
+            },
+            "_project": {
+              "inclusive_sec": 0.29270425709546544,
+              "exclusive_sec": 0.29270425709546544,
+              "calls": 1134
+            },
+            "_profile": {
+              "inclusive_sec": 1.4634688231599284,
+              "exclusive_sec": 1.1335112982415012,
+              "calls": 1134
+            },
+            "_gradient": {
+              "inclusive_sec": 0.20974134105199482,
+              "exclusive_sec": 0.20974134105199482,
+              "calls": 972
+            },
+            "gradient_svd": {
+              "inclusive_sec": 0.2157156948305783,
+              "exclusive_sec": 0.2157156948305783,
+              "calls": 1190
+            },
+            "_core_jacobian": {
+              "inclusive_sec": 0.3503811450354988,
+              "exclusive_sec": 0.3503811450354988,
+              "calls": 620
+            },
+            "gn_lstsq": {
+              "inclusive_sec": 0.16094388011697447,
+              "exclusive_sec": 0.16094388011697447,
+              "calls": 620
+            },
+            "_polar": {
+              "inclusive_sec": 0.14659638701414224,
+              "exclusive_sec": 0.14659638701414224,
+              "calls": 620
+            },
+            "solve": {
+              "inclusive_sec": 4.250417503964854,
+              "exclusive_sec": 1.2653381117270328,
+              "calls": 162
+            },
+            "profile_svd": {
+              "inclusive_sec": 0.3007678959038458,
+              "exclusive_sec": 0.3007678959038458,
+              "calls": 266
+            },
+            "profile_lstsq": {
+              "inclusive_sec": 0.029189629014581442,
+              "exclusive_sec": 0.029189629014581442,
+              "calls": 266
+            },
+            "solve_remainder": {
+              "inclusive_sec": 1.2640937237229082,
+              "exclusive_sec": 1.2640937237229082,
+              "calls": 1
+            }
+          },
+          "cprofile_top_cumulative": [
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:321(solve)",
+              "calls": 162,
+              "tottime_sec": 0.39123026600000005,
+              "cumtime_sec": 4.229819579
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/experiments/grassman_stage_profile_2026_10_06/run_profile.py:57(wrapped)",
+              "calls": 7794,
+              "tottime_sec": 0.12445747800000001,
+              "cumtime_sec": 3.10190395
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:111(_profile)",
+              "calls": 1134,
+              "tottime_sec": 0.559947426,
+              "cumtime_sec": 1.455751617
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:1666(svd)",
+              "calls": 2238,
+              "tottime_sec": 0.499120508,
+              "cumtime_sec": 0.559769882
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:57(_profile_svd)",
+              "calls": 266,
+              "tottime_sec": 0.08039713500000001,
+              "cumtime_sec": 0.47777197200000004
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:2598(norm)",
+              "calls": 5422,
+              "tottime_sec": 0.11835824,
+              "cumtime_sec": 0.40220608100000005
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy/optimize/_minimize.py:831(minimize_scalar)",
+              "calls": 190,
+              "tottime_sec": 0.005170203,
+              "cumtime_sec": 0.351971794
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:268(_core_jacobian)",
+              "calls": 620,
+              "tottime_sec": 0.27923605100000004,
+              "cumtime_sec": 0.34677617600000005
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy/optimize/_optimize.py:2289(_minimize_scalar_bounded)",
+              "calls": 190,
+              "tottime_sec": 0.210734459,
+              "cumtime_sec": 0.34379021400000004
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:190(_project)",
+              "calls": 1134,
+              "tottime_sec": 0.259438092,
+              "cumtime_sec": 0.287659306
+            },
+            {
+              "function": "~:0(<method 'reduce' of 'numpy.ufunc' objects>)",
+              "calls": 18407,
+              "tottime_sec": 0.249233264,
+              "cumtime_sec": 0.249233264
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:205(__init__)",
+              "calls": 190,
+              "tottime_sec": 0.068791113,
+              "cumtime_sec": 0.22962478700000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:171(_gradient)",
+              "calls": 972,
+              "tottime_sec": 0.199357941,
+              "cumtime_sec": 0.20486800500000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:2417(lstsq)",
+              "calls": 886,
+              "tottime_sec": 0.14612117900000002,
+              "cumtime_sec": 0.183998567
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:312(_polar)",
+              "calls": 620,
+              "tottime_sec": 0.10585963000000001,
+              "cumtime_sec": 0.143928426
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:976(qr)",
+              "calls": 972,
+              "tottime_sec": 0.066488537,
+              "cumtime_sec": 0.14004729000000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:258(value)",
+              "calls": 2381,
+              "tottime_sec": 0.112988716,
+              "cumtime_sec": 0.128506221
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:2566(_multi_svd_norm)",
+              "calls": 620,
+              "tottime_sec": 0.003421617,
+              "cumtime_sec": 0.078615722
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:66(_wrapreduction)",
+              "calls": 5776,
+              "tottime_sec": 0.024939390000000002,
+              "cumtime_sec": 0.077755684
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:2342(sum)",
+              "calls": 5156,
+              "tottime_sec": 0.007438370000000001,
+              "cumtime_sec": 0.07570620800000001
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py:341(_validate_inputs)",
+              "calls": 162,
+              "tottime_sec": 0.011317946,
+              "cumtime_sec": 0.06076205900000001
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py:408(_normalize_index)",
+              "calls": 162,
+              "tottime_sec": 0.002163674,
+              "cumtime_sec": 0.05778412300000001
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:86(_wrapreduction_any_all)",
+              "calls": 8373,
+              "tottime_sec": 0.031416284,
+              "cumtime_sec": 0.057369657000000004
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:36(normal_solve)",
+              "calls": 620,
+              "tottime_sec": 0.054270423000000005,
+              "cumtime_sec": 0.054367742000000004
+            },
+            {
+              "function": "~:0(<built-in method builtins.all>)",
+              "calls": 162,
+              "tottime_sec": 0.00062657,
+              "cumtime_sec": 0.042712795000000005
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/_ufunc_config.py:472(__enter__)",
+              "calls": 5688,
+              "tottime_sec": 0.018199832000000003,
+              "cumtime_sec": 0.042442127
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py:368(<genexpr>)",
+              "calls": 648,
+              "tottime_sec": 0.035006405000000004,
+              "cumtime_sec": 0.042086225000000005
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:2474(any)",
+              "calls": 4811,
+              "tottime_sec": 0.004545263,
+              "cumtime_sec": 0.036453889
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/lib/_twodim_base_impl.py:537(triu)",
+              "calls": 972,
+              "tottime_sec": 0.00802401,
+              "cumtime_sec": 0.034634926
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:1513(eigh)",
+              "calls": 620,
+              "tottime_sec": 0.018035678,
+              "cumtime_sec": 0.032160987
+            },
+            {
+              "function": "~:0(<method 'astype' of 'numpy.ndarray' objects>)",
+              "calls": 13364,
+              "tottime_sec": 0.030356042000000003,
+              "cumtime_sec": 0.030356042000000003
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:2586(all)",
+              "calls": 3562,
+              "tottime_sec": 0.0036042920000000003,
+              "cumtime_sec": 0.029065323
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/numeric.py:1489(moveaxis)",
+              "calls": 620,
+              "tottime_sec": 0.009654131,
+              "cumtime_sec": 0.026081188
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/einsumfunc.py:1242(einsum)",
+              "calls": 2268,
+              "tottime_sec": 0.0017172180000000002,
+              "cumtime_sec": 0.025481178
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/lib/_twodim_base_impl.py:390(tri)",
+              "calls": 972,
+              "tottime_sec": 0.008128903,
+              "cumtime_sec": 0.024377898000000002
+            },
+            {
+              "function": "~:0(<built-in method numpy.ascontiguousarray>)",
+              "calls": 1296,
+              "tottime_sec": 0.024228284000000003,
+              "cumtime_sec": 0.024228284000000003
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:2034(matrix_rank)",
+              "calls": 162,
+              "tottime_sec": 0.004514558,
+              "cumtime_sec": 0.024145079
+            },
+            {
+              "function": "~:0(<built-in method numpy._core._multiarray_umath.c_einsum>)",
+              "calls": 2268,
+              "tottime_sec": 0.02376396,
+              "cumtime_sec": 0.02376396
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:201(_commonType)",
+              "calls": 4716,
+              "tottime_sec": 0.013614972000000001,
+              "cumtime_sec": 0.022865521
+            },
+            {
+              "function": "~:0(<method 'squeeze' of 'numpy.ndarray' objects>)",
+              "calls": 5012,
+              "tottime_sec": 0.018693289000000002,
+              "cumtime_sec": 0.018693289000000002
+            }
+          ],
+          "wall_including_startup_sec": 27.508163053003955
+        },
+        {
+          "seed": 1,
+          "mode": "baseline",
+          "status": "ok",
+          "shape": {
+            "n": 800,
+            "d": 50,
+            "m": 2,
+            "N_J": 800,
+            "N_phi": 10,
+            "N_lin": 100
+          },
+          "dtype": "float64",
+          "solver_settings": {
+            "max_steps": 5,
+            "tol": 1e-06,
+            "energy_tol": 0.05,
+            "local_ridge": 0.0,
+            "max_angle": 0.5,
+            "workspace_bytes": 16777216,
+            "lambda_prox": 0.05
+          },
+          "input_hashes": {
+            "X": "41cb3c9cf71ef6c7ef001ebe2440969827f7ce45b812e40a80f0d9553f8e9bc7",
+            "y": "306ad1146dca61fc993bdb216625c9913a4c85bf508fe644716494c573912d05",
+            "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+          },
+          "basis_hash": "98f12717686822730f1b7caa2eea04113ef3f1001a543d78b80942d330deb6a6",
+          "fit_time_sec": 25.24190196300333,
+          "solver_wall_sec": 2.5885386880327133,
+          "peak_rss_kib": 111052,
+          "projector_distance_to_truth": 0.047281844416247734,
+          "outer_iterations": 162,
+          "selected_iteration": 161,
+          "fit_stop_reason": "h_min",
+          "solver_calls": 162,
+          "diagnostics_hash": "51b22f3c2cce81a1ac674fc842974535286b82f2a46fef6a97d7ab57900dca67",
+          "aggregate_diagnostics": {
+            "accepted_steps": 810,
+            "iterations": 810,
+            "gn_solves": 810,
+            "profile_evaluations": 810,
+            "rank_guard_fallbacks": 0,
+            "workspace_fallbacks": 0,
+            "max_orthogonality_error": 2.869625489971319e-15
+          },
+          "last_solver_diagnostics": {
+            "iterations": 5,
+            "converged": false,
+            "stop_reason": "max_steps",
+            "profile_objective": 10.837552214866516,
+            "loss": 5.418776107433258,
+            "gn_solves": 5,
+            "profile_evaluations": 5,
+            "step_ranks": [
+              2,
+              2,
+              2,
+              2,
+              2
+            ],
+            "workspace_fallbacks": 0
+          },
+          "environment": {
+            "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+            "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+            "numpy": "2.5.2",
+            "scipy": "1.18.1",
+            "threadpools": [
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+                "version": "0.3.34.0.0",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              },
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+                "version": "0.3.31.dev",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              }
+            ],
+            "threads": {
+              "OPENBLAS_NUM_THREADS": "1",
+              "OMP_NUM_THREADS": "1",
+              "MKL_NUM_THREADS": "1"
+            }
+          },
+          "wall_including_startup_sec": 25.539224739004567
+        },
+        {
+          "seed": 1,
+          "mode": "profiled",
+          "status": "ok",
+          "shape": {
+            "n": 800,
+            "d": 50,
+            "m": 2,
+            "N_J": 800,
+            "N_phi": 10,
+            "N_lin": 100
+          },
+          "dtype": "float64",
+          "solver_settings": {
+            "max_steps": 5,
+            "tol": 1e-06,
+            "energy_tol": 0.05,
+            "local_ridge": 0.0,
+            "max_angle": 0.5,
+            "workspace_bytes": 16777216,
+            "lambda_prox": 0.05
+          },
+          "input_hashes": {
+            "X": "41cb3c9cf71ef6c7ef001ebe2440969827f7ce45b812e40a80f0d9553f8e9bc7",
+            "y": "306ad1146dca61fc993bdb216625c9913a4c85bf508fe644716494c573912d05",
+            "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+          },
+          "basis_hash": "98f12717686822730f1b7caa2eea04113ef3f1001a543d78b80942d330deb6a6",
+          "fit_time_sec": 24.640630824003892,
+          "solver_wall_sec": 3.2779628880962264,
+          "peak_rss_kib": 113928,
+          "projector_distance_to_truth": 0.047281844416247734,
+          "outer_iterations": 162,
+          "selected_iteration": 161,
+          "fit_stop_reason": "h_min",
+          "solver_calls": 162,
+          "diagnostics_hash": "51b22f3c2cce81a1ac674fc842974535286b82f2a46fef6a97d7ab57900dca67",
+          "aggregate_diagnostics": {
+            "accepted_steps": 810,
+            "iterations": 810,
+            "gn_solves": 810,
+            "profile_evaluations": 810,
+            "rank_guard_fallbacks": 0,
+            "workspace_fallbacks": 0,
+            "max_orthogonality_error": 2.869625489971319e-15
+          },
+          "last_solver_diagnostics": {
+            "iterations": 5,
+            "converged": false,
+            "stop_reason": "max_steps",
+            "profile_objective": 10.837552214866516,
+            "loss": 5.418776107433258,
+            "gn_solves": 5,
+            "profile_evaluations": 5,
+            "step_ranks": [
+              2,
+              2,
+              2,
+              2,
+              2
+            ],
+            "workspace_fallbacks": 0
+          },
+          "environment": {
+            "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+            "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+            "numpy": "2.5.2",
+            "scipy": "1.18.1",
+            "threadpools": [
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+                "version": "0.3.34.0.0",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              },
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+                "version": "0.3.31.dev",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              }
+            ],
+            "threads": {
+              "OPENBLAS_NUM_THREADS": "1",
+              "OMP_NUM_THREADS": "1",
+              "MKL_NUM_THREADS": "1"
+            }
+          },
+          "profile_file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/experiments/grassman_stage_profile_2026_10_06/results/grassman_seed1.prof",
+          "stages": {
+            "gradient_qr": {
+              "inclusive_sec": 0.13759431504149688,
+              "exclusive_sec": 0.13759431504149688,
+              "calls": 972
+            },
+            "_project": {
+              "inclusive_sec": 0.28325636299996404,
+              "exclusive_sec": 0.28325636299996404,
+              "calls": 1134
+            },
+            "_profile": {
+              "inclusive_sec": 1.0331200190412346,
+              "exclusive_sec": 1.0331200190412346,
+              "calls": 1134
+            },
+            "_gradient": {
+              "inclusive_sec": 0.17184669806010788,
+              "exclusive_sec": 0.17184669806010788,
+              "calls": 972
+            },
+            "gradient_svd": {
+              "inclusive_sec": 0.07055217498418642,
+              "exclusive_sec": 0.07055217498418642,
+              "calls": 810
+            },
+            "_core_jacobian": {
+              "inclusive_sec": 0.4310923959928914,
+              "exclusive_sec": 0.4310923959928914,
+              "calls": 810
+            },
+            "gn_lstsq": {
+              "inclusive_sec": 0.1914524659368908,
+              "exclusive_sec": 0.1914524659368908,
+              "calls": 810
+            },
+            "_polar": {
+              "inclusive_sec": 0.17798644214781234,
+              "exclusive_sec": 0.17798644214781234,
+              "calls": 810
+            },
+            "solve": {
+              "inclusive_sec": 3.279074896017846,
+              "exclusive_sec": 0.7821740218132618,
+              "calls": 162
+            },
+            "solve_remainder": {
+              "inclusive_sec": 0.781062013891642,
+              "exclusive_sec": 0.781062013891642,
+              "calls": 1
+            }
+          },
+          "cprofile_top_cumulative": [
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:321(solve)",
+              "calls": 162,
+              "tottime_sec": 0.348827565,
+              "cumtime_sec": 3.2596315230000004
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/experiments/grassman_stage_profile_2026_10_06/run_profile.py:57(wrapped)",
+              "calls": 7452,
+              "tottime_sec": 0.11101298300000001,
+              "cumtime_sec": 2.6093911690000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:111(_profile)",
+              "calls": 1134,
+              "tottime_sec": 0.601489021,
+              "cumtime_sec": 1.026206247
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:268(_core_jacobian)",
+              "calls": 810,
+              "tottime_sec": 0.343012796,
+              "cumtime_sec": 0.42688262200000004
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:2598(norm)",
+              "calls": 5346,
+              "tottime_sec": 0.10627132900000001,
+              "cumtime_sec": 0.394667796
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:190(_project)",
+              "calls": 1134,
+              "tottime_sec": 0.24811943100000003,
+              "cumtime_sec": 0.278459081
+            },
+            {
+              "function": "~:0(<method 'reduce' of 'numpy.ufunc' objects>)",
+              "calls": 15228,
+              "tottime_sec": 0.22844297700000002,
+              "cumtime_sec": 0.22844297700000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:2417(lstsq)",
+              "calls": 810,
+              "tottime_sec": 0.154301133,
+              "cumtime_sec": 0.186227038
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:312(_polar)",
+              "calls": 810,
+              "tottime_sec": 0.12907310500000002,
+              "cumtime_sec": 0.17472468600000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:171(_gradient)",
+              "calls": 972,
+              "tottime_sec": 0.162317113,
+              "cumtime_sec": 0.167351089
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:976(qr)",
+              "calls": 972,
+              "tottime_sec": 0.062953722,
+              "cumtime_sec": 0.13235475500000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:1666(svd)",
+              "calls": 1782,
+              "tottime_sec": 0.08195880700000001,
+              "cumtime_sec": 0.125785627
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:2566(_multi_svd_norm)",
+              "calls": 810,
+              "tottime_sec": 0.0038987080000000003,
+              "cumtime_sec": 0.09641603
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:66(_wrapreduction)",
+              "calls": 6156,
+              "tottime_sec": 0.025536346,
+              "cumtime_sec": 0.078711194
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:2342(sum)",
+              "calls": 5346,
+              "tottime_sec": 0.0073546110000000005,
+              "cumtime_sec": 0.07452070200000001
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:36(normal_solve)",
+              "calls": 810,
+              "tottime_sec": 0.067318916,
+              "cumtime_sec": 0.067450694
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py:408(_normalize_index)",
+              "calls": 162,
+              "tottime_sec": 0.0020736820000000003,
+              "cumtime_sec": 0.055584060000000005
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py:341(_validate_inputs)",
+              "calls": 162,
+              "tottime_sec": 0.010579045,
+              "cumtime_sec": 0.054222784
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:1513(eigh)",
+              "calls": 810,
+              "tottime_sec": 0.021315203,
+              "cumtime_sec": 0.038683471000000004
+            },
+            {
+              "function": "~:0(<built-in method builtins.all>)",
+              "calls": 162,
+              "tottime_sec": 0.000548507,
+              "cumtime_sec": 0.037360523
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/_ufunc_config.py:472(__enter__)",
+              "calls": 5346,
+              "tottime_sec": 0.015888679,
+              "cumtime_sec": 0.037348783
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:86(_wrapreduction_any_all)",
+              "calls": 5346,
+              "tottime_sec": 0.02019666,
+              "cumtime_sec": 0.037183204000000004
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py:368(<genexpr>)",
+              "calls": 648,
+              "tottime_sec": 0.030629594000000003,
+              "cumtime_sec": 0.036812016
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/numeric.py:1489(moveaxis)",
+              "calls": 810,
+              "tottime_sec": 0.01224774,
+              "cumtime_sec": 0.032403323000000005
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/lib/_twodim_base_impl.py:537(triu)",
+              "calls": 972,
+              "tottime_sec": 0.007329675000000001,
+              "cumtime_sec": 0.032121608
+            },
+            {
+              "function": "~:0(<built-in method numpy.ascontiguousarray>)",
+              "calls": 1296,
+              "tottime_sec": 0.026690182000000003,
+              "cumtime_sec": 0.026690182000000003
+            },
+            {
+              "function": "~:0(<method 'astype' of 'numpy.ndarray' objects>)",
+              "calls": 11502,
+              "tottime_sec": 0.02534414,
+              "cumtime_sec": 0.02534414
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/einsumfunc.py:1242(einsum)",
+              "calls": 2268,
+              "tottime_sec": 0.001716875,
+              "cumtime_sec": 0.023645108
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:2034(matrix_rank)",
+              "calls": 162,
+              "tottime_sec": 0.004322111,
+              "cumtime_sec": 0.023313807000000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/lib/_twodim_base_impl.py:390(tri)",
+              "calls": 972,
+              "tottime_sec": 0.007695632000000001,
+              "cumtime_sec": 0.022799543000000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:2586(all)",
+              "calls": 2916,
+              "tottime_sec": 0.002636022,
+              "cumtime_sec": 0.022235110000000002
+            },
+            {
+              "function": "~:0(<built-in method numpy._core._multiarray_umath.c_einsum>)",
+              "calls": 2268,
+              "tottime_sec": 0.021928233000000002,
+              "cumtime_sec": 0.021928233000000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:201(_commonType)",
+              "calls": 4374,
+              "tottime_sec": 0.012258300000000001,
+              "cumtime_sec": 0.02066424
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:2474(any)",
+              "calls": 2430,
+              "tottime_sec": 0.002700245,
+              "cumtime_sec": 0.020284361
+            },
+            {
+              "function": "~:0(<method 'reshape' of 'numpy.ndarray' objects>)",
+              "calls": 5508,
+              "tottime_sec": 0.019589532,
+              "cumtime_sec": 0.019589532
+            },
+            {
+              "function": "~:0(<method 'squeeze' of 'numpy.ndarray' objects>)",
+              "calls": 4860,
+              "tottime_sec": 0.018500085,
+              "cumtime_sec": 0.018500085
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/lib/_twodim_base_impl.py:178(eye)",
+              "calls": 1782,
+              "tottime_sec": 0.013009707,
+              "cumtime_sec": 0.016403096000000002
+            },
+            {
+              "function": "~:0(<built-in method numpy.empty>)",
+              "calls": 3888,
+              "tottime_sec": 0.016310582,
+              "cumtime_sec": 0.016310582
+            },
+            {
+              "function": "~:0(<built-in method numpy.zeros>)",
+              "calls": 5670,
+              "tottime_sec": 0.015333667,
+              "cumtime_sec": 0.015333667
+            },
+            {
+              "function": "~:0(<method 'append' of 'list' objects>)",
+              "calls": 10044,
+              "tottime_sec": 0.015248900000000001,
+              "cumtime_sec": 0.015248900000000001
+            }
+          ],
+          "wall_including_startup_sec": 24.938057557999855
+        },
+        {
+          "seed": 2,
+          "mode": "baseline",
+          "status": "ok",
+          "shape": {
+            "n": 800,
+            "d": 50,
+            "m": 2,
+            "N_J": 800,
+            "N_phi": 10,
+            "N_lin": 100
+          },
+          "dtype": "float64",
+          "solver_settings": {
+            "max_steps": 5,
+            "tol": 1e-06,
+            "energy_tol": 0.05,
+            "local_ridge": 0.0,
+            "max_angle": 0.5,
+            "workspace_bytes": 16777216,
+            "lambda_prox": 0.05
+          },
+          "input_hashes": {
+            "X": "8a399a8afec975f1d15e298cf01418c18b21d7c369d16f164e0471f78c5a7e04",
+            "y": "84a557129765353a4c8014bee532d8cd92cb5395955b4d19bac1361aeda75b6d",
+            "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+          },
+          "basis_hash": "f7dc61f333dbad05f325bb2168376d40157c193dd32307547624c4a37f911d4f",
+          "fit_time_sec": 28.156354170998384,
+          "solver_wall_sec": 6.255089498969028,
+          "peak_rss_kib": 107692,
+          "projector_distance_to_truth": 0.044937944312231685,
+          "outer_iterations": 162,
+          "selected_iteration": 161,
+          "fit_stop_reason": "h_min",
+          "solver_calls": 162,
+          "diagnostics_hash": "0174a5bc43354776c1f85c09816718c56f99e60f4f689e980be131575b23fa7b",
+          "aggregate_diagnostics": {
+            "accepted_steps": 810,
+            "iterations": 810,
+            "gn_solves": 205,
+            "profile_evaluations": 8373,
+            "rank_guard_fallbacks": 605,
+            "workspace_fallbacks": 0,
+            "max_orthogonality_error": 3.953409549950116e-15
+          },
+          "last_solver_diagnostics": {
+            "iterations": 5,
+            "converged": false,
+            "stop_reason": "max_steps",
+            "profile_objective": 11.391410847272365,
+            "loss": 5.695705423636182,
+            "gn_solves": 5,
+            "profile_evaluations": 5,
+            "step_ranks": [
+              2,
+              2,
+              2,
+              2,
+              2
+            ],
+            "workspace_fallbacks": 0
+          },
+          "environment": {
+            "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+            "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+            "numpy": "2.5.2",
+            "scipy": "1.18.1",
+            "threadpools": [
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+                "version": "0.3.34.0.0",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              },
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+                "version": "0.3.31.dev",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              }
+            ],
+            "threads": {
+              "OPENBLAS_NUM_THREADS": "1",
+              "OMP_NUM_THREADS": "1",
+              "MKL_NUM_THREADS": "1"
+            }
+          },
+          "wall_including_startup_sec": 28.45036614000128
+        },
+        {
+          "seed": 2,
+          "mode": "profiled",
+          "status": "ok",
+          "shape": {
+            "n": 800,
+            "d": 50,
+            "m": 2,
+            "N_J": 800,
+            "N_phi": 10,
+            "N_lin": 100
+          },
+          "dtype": "float64",
+          "solver_settings": {
+            "max_steps": 5,
+            "tol": 1e-06,
+            "energy_tol": 0.05,
+            "local_ridge": 0.0,
+            "max_angle": 0.5,
+            "workspace_bytes": 16777216,
+            "lambda_prox": 0.05
+          },
+          "input_hashes": {
+            "X": "8a399a8afec975f1d15e298cf01418c18b21d7c369d16f164e0471f78c5a7e04",
+            "y": "84a557129765353a4c8014bee532d8cd92cb5395955b4d19bac1361aeda75b6d",
+            "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+          },
+          "basis_hash": "f7dc61f333dbad05f325bb2168376d40157c193dd32307547624c4a37f911d4f",
+          "fit_time_sec": 28.965320789000543,
+          "solver_wall_sec": 7.75257009996858,
+          "peak_rss_kib": 108656,
+          "projector_distance_to_truth": 0.044937944312231685,
+          "outer_iterations": 162,
+          "selected_iteration": 161,
+          "fit_stop_reason": "h_min",
+          "solver_calls": 162,
+          "diagnostics_hash": "0174a5bc43354776c1f85c09816718c56f99e60f4f689e980be131575b23fa7b",
+          "aggregate_diagnostics": {
+            "accepted_steps": 810,
+            "iterations": 810,
+            "gn_solves": 205,
+            "profile_evaluations": 8373,
+            "rank_guard_fallbacks": 605,
+            "workspace_fallbacks": 0,
+            "max_orthogonality_error": 3.953409549950116e-15
+          },
+          "last_solver_diagnostics": {
+            "iterations": 5,
+            "converged": false,
+            "stop_reason": "max_steps",
+            "profile_objective": 11.391410847272365,
+            "loss": 5.695705423636182,
+            "gn_solves": 5,
+            "profile_evaluations": 5,
+            "step_ranks": [
+              2,
+              2,
+              2,
+              2,
+              2
+            ],
+            "workspace_fallbacks": 0
+          },
+          "environment": {
+            "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+            "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+            "numpy": "2.5.2",
+            "scipy": "1.18.1",
+            "threadpools": [
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+                "version": "0.3.34.0.0",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              },
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+                "version": "0.3.31.dev",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              }
+            ],
+            "threads": {
+              "OPENBLAS_NUM_THREADS": "1",
+              "OMP_NUM_THREADS": "1",
+              "MKL_NUM_THREADS": "1"
+            }
+          },
+          "profile_file": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/experiments/grassman_stage_profile_2026_10_06/results/grassman_seed2.prof",
+          "stages": {
+            "gradient_qr": {
+              "inclusive_sec": 0.1363239860002068,
+              "exclusive_sec": 0.1363239860002068,
+              "calls": 972
+            },
+            "_project": {
+              "inclusive_sec": 0.1881295799248619,
+              "exclusive_sec": 0.1881295799248619,
+              "calls": 1134
+            },
+            "_profile": {
+              "inclusive_sec": 4.350667025108123,
+              "exclusive_sec": 1.9938403021151316,
+              "calls": 2251
+            },
+            "_gradient": {
+              "inclusive_sec": 0.16737303521949798,
+              "exclusive_sec": 0.16737303521949798,
+              "calls": 972
+            },
+            "gradient_svd": {
+              "inclusive_sec": 0.5071749610142433,
+              "exclusive_sec": 0.5071749610142433,
+              "calls": 2020
+            },
+            "_core_jacobian": {
+              "inclusive_sec": 0.10811451401968952,
+              "exclusive_sec": 0.10811451401968952,
+              "calls": 205
+            },
+            "gn_lstsq": {
+              "inclusive_sec": 0.04773622904031072,
+              "exclusive_sec": 0.04773622904031072,
+              "calls": 205
+            },
+            "_polar": {
+              "inclusive_sec": 0.04486752398952376,
+              "exclusive_sec": 0.04486752398952376,
+              "calls": 205
+            },
+            "solve": {
+              "inclusive_sec": 7.753707816977112,
+              "exclusive_sec": 2.203320962660655,
+              "calls": 162
+            },
+            "profile_svd": {
+              "inclusive_sec": 2.1548364990085247,
+              "exclusive_sec": 2.1548364990085247,
+              "calls": 1964
+            },
+            "profile_lstsq": {
+              "inclusive_sec": 0.20199022398446687,
+              "exclusive_sec": 0.20199022398446687,
+              "calls": 1964
+            },
+            "solve_remainder": {
+              "inclusive_sec": 2.2021832456521224,
+              "exclusive_sec": 2.2021832456521224,
+              "calls": 1
+            }
+          },
+          "cprofile_top_cumulative": [
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:321(solve)",
+              "calls": 162,
+              "tottime_sec": 0.41054303000000003,
+              "cumtime_sec": 7.734335221
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/experiments/grassman_stage_profile_2026_10_06/run_profile.py:57(wrapped)",
+              "calls": 11892,
+              "tottime_sec": 0.178711256,
+              "cumtime_sec": 5.669283651000001
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:111(_profile)",
+              "calls": 2251,
+              "tottime_sec": 0.37309938800000003,
+              "cumtime_sec": 4.338816134
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:57(_profile_svd)",
+              "calls": 1964,
+              "tottime_sec": 0.564310689,
+              "cumtime_sec": 3.412122026
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy/optimize/_minimize.py:831(minimize_scalar)",
+              "calls": 605,
+              "tottime_sec": 0.016320735,
+              "cumtime_sec": 3.37584024
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy/optimize/_optimize.py:2289(_minimize_scalar_bounded)",
+              "calls": 605,
+              "tottime_sec": 0.6640260530000001,
+              "cumtime_sec": 3.3502701490000004
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:258(value)",
+              "calls": 7563,
+              "tottime_sec": 0.333105376,
+              "cumtime_sec": 2.672184344
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:1666(svd)",
+              "calls": 4351,
+              "tottime_sec": 2.54820757,
+              "cumtime_sec": 2.666467116
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:205(__init__)",
+              "calls": 605,
+              "tottime_sec": 0.21239165100000001,
+              "cumtime_sec": 0.71666344
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:2598(norm)",
+              "calls": 8813,
+              "tottime_sec": 0.22434573400000002,
+              "cumtime_sec": 0.648072104
+            },
+            {
+              "function": "~:0(<method 'reduce' of 'numpy.ufunc' objects>)",
+              "calls": 34923,
+              "tottime_sec": 0.48975927700000005,
+              "cumtime_sec": 0.48975927700000005
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:2417(lstsq)",
+              "calls": 2169,
+              "tottime_sec": 0.14707176400000002,
+              "cumtime_sec": 0.23717795600000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:190(_project)",
+              "calls": 1134,
+              "tottime_sec": 0.167489246,
+              "cumtime_sec": 0.18366010700000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:171(_gradient)",
+              "calls": 972,
+              "tottime_sec": 0.157638779,
+              "cumtime_sec": 0.162818338
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:254(design)",
+              "calls": 1722,
+              "tottime_sec": 0.137756535,
+              "cumtime_sec": 0.137756535
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:976(qr)",
+              "calls": 972,
+              "tottime_sec": 0.06215269700000001,
+              "cumtime_sec": 0.130983921
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:2342(sum)",
+              "calls": 8092,
+              "tottime_sec": 0.010475743000000001,
+              "cumtime_sec": 0.128594243
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:66(_wrapreduction)",
+              "calls": 8297,
+              "tottime_sec": 0.034663923,
+              "cumtime_sec": 0.12006364700000001
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:86(_wrapreduction_any_all)",
+              "calls": 16864,
+              "tottime_sec": 0.060192447,
+              "cumtime_sec": 0.10804870000000001
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:268(_core_jacobian)",
+              "calls": 205,
+              "tottime_sec": 0.08609101400000001,
+              "cumtime_sec": 0.10705729500000001
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:2474(any)",
+              "calls": 9873,
+              "tottime_sec": 0.00763677,
+              "cumtime_sec": 0.067671601
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/_ufunc_config.py:472(__enter__)",
+              "calls": 8669,
+              "tottime_sec": 0.026154276,
+              "cumtime_sec": 0.061280484
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/numeric.py:483(count_nonzero)",
+              "calls": 3098,
+              "tottime_sec": 0.010186053,
+              "cumtime_sec": 0.057222771000000006
+            },
+            {
+              "function": "~:0(<method 'astype' of 'numpy.ndarray' objects>)",
+              "calls": 25250,
+              "tottime_sec": 0.054696796000000006,
+              "cumtime_sec": 0.054696796000000006
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py:408(_normalize_index)",
+              "calls": 162,
+              "tottime_sec": 0.001955168,
+              "cumtime_sec": 0.05437985
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:2586(all)",
+              "calls": 6991,
+              "tottime_sec": 0.0063482880000000005,
+              "cumtime_sec": 0.054362157
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py:341(_validate_inputs)",
+              "calls": 162,
+              "tottime_sec": 0.010411657000000001,
+              "cumtime_sec": 0.051688169000000006
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/grassman.py:312(_polar)",
+              "calls": 205,
+              "tottime_sec": 0.032617842,
+              "cumtime_sec": 0.044056917
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/getlimits.py:169(__new__)",
+              "calls": 14017,
+              "tottime_sec": 0.025108541,
+              "cumtime_sec": 0.040547883
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:201(_commonType)",
+              "calls": 7697,
+              "tottime_sec": 0.022112755,
+              "cumtime_sec": 0.037610314000000006
+            },
+            {
+              "function": "~:0(<built-in method builtins.all>)",
+              "calls": 162,
+              "tottime_sec": 0.000552875,
+              "cumtime_sec": 0.035190447
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/ADP/solver/LSMR.py:368(<genexpr>)",
+              "calls": 648,
+              "tottime_sec": 0.028661705000000003,
+              "cumtime_sec": 0.034637572000000005
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/lib/_twodim_base_impl.py:537(triu)",
+              "calls": 972,
+              "tottime_sec": 0.007379371000000001,
+              "cumtime_sec": 0.032034554
+            },
+            {
+              "function": "~:0(<method 'sum' of 'numpy.ndarray' objects>)",
+              "calls": 2126,
+              "tottime_sec": 0.0038000560000000004,
+              "cumtime_sec": 0.031973423
+            },
+            {
+              "function": "~:0(<method 'squeeze' of 'numpy.ndarray' objects>)",
+              "calls": 9812,
+              "tottime_sec": 0.029145873000000003,
+              "cumtime_sec": 0.029145873000000003
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/_methods.py:47(_sum)",
+              "calls": 2126,
+              "tottime_sec": 0.000857324,
+              "cumtime_sec": 0.028173367
+            },
+            {
+              "function": "~:0(<method 'get' of 'dict' objects>)",
+              "calls": 45673,
+              "tottime_sec": 0.026297821000000002,
+              "cumtime_sec": 0.026297821000000002
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:2566(_multi_svd_norm)",
+              "calls": 205,
+              "tottime_sec": 0.0009619240000000001,
+              "cumtime_sec": 0.023872746
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:48(_wrapfunc)",
+              "calls": 4189,
+              "tottime_sec": 0.004670594,
+              "cumtime_sec": 0.022874313
+            },
+            {
+              "function": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy/lib/_twodim_base_impl.py:390(tri)",
+              "calls": 972,
+              "tottime_sec": 0.007929038000000001,
+              "cumtime_sec": 0.022762317
+            }
+          ],
+          "wall_including_startup_sec": 29.27520629100036
+        }
+      ]
+    },
+    "lightweight": {
+      "command": "UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.grassman_stage_profile_2026_10_06.run_profile",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "modes": [
+        "timed"
+      ],
+      "threads": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      },
+      "timeout_sec": 900,
+      "commit": "f7a33fde6c881736ee0cee576c8344fac144dadb",
+      "dirty": [
+        " M PLAN.md",
+        " M agent-notes/ADP/README.md",
+        " M agent-notes/STATE.md",
+        "?? agent-notes/history/plans/grassman-core-only-2026-10-03-complete.md",
+        "?? experiments/grassman_stage_profile_2026_10_06/"
+      ],
+      "source_sha256": "f30c1d3596f5092a1e96d7275790384f9a3206b149f5fb8fa395e0344b3ab333",
+      "harness_sha256": "e1795edf8ae973faf9a1bc858a32552d73be05546761c451b1bb50339bad8edc",
+      "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+      "numpy": "2.5.2",
+      "scipy": "1.18.1",
+      "results": [
+        {
+          "seed": 0,
+          "mode": "timed",
+          "status": "ok",
+          "shape": {
+            "n": 800,
+            "d": 50,
+            "m": 2,
+            "N_J": 800,
+            "N_phi": 10,
+            "N_lin": 100
+          },
+          "dtype": "float64",
+          "solver_settings": {
+            "max_steps": 5,
+            "tol": 1e-06,
+            "energy_tol": 0.05,
+            "local_ridge": 0.0,
+            "max_angle": 0.5,
+            "workspace_bytes": 16777216,
+            "lambda_prox": 0.05
+          },
+          "input_hashes": {
+            "X": "e52159bbfb96e9838752d0ea551e8170241be9ae0d6fd5f59b25a8f7a342bb2d",
+            "y": "e233641bbdec13798ae10a8ec309badb0b5dee3ebfb16ab7aa436ca12819193e",
+            "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+          },
+          "basis_hash": "bd3e7d66729a81afa3ad2f89317e6a2c67b01a72c42addf94e1affdaab4dc381",
+          "fit_time_sec": 24.842940714996075,
+          "solver_wall_sec": 3.106084158993326,
+          "peak_rss_kib": 108924,
+          "projector_distance_to_truth": 0.054170795164750485,
+          "outer_iterations": 162,
+          "selected_iteration": 161,
+          "fit_stop_reason": "h_min",
+          "solver_calls": 162,
+          "diagnostics_hash": "327e9e2759aa4ea61529e65baaceb12c4d635d2c6008d890174d9efeb87c17d2",
+          "aggregate_diagnostics": {
+            "accepted_steps": 810,
+            "iterations": 810,
+            "gn_solves": 620,
+            "profile_evaluations": 3191,
+            "rank_guard_fallbacks": 190,
+            "workspace_fallbacks": 0,
+            "max_orthogonality_error": 2.956214152863562e-15
+          },
+          "last_solver_diagnostics": {
+            "iterations": 5,
+            "converged": false,
+            "stop_reason": "max_steps",
+            "profile_objective": 13.734168839602226,
+            "loss": 6.867084419801114,
+            "gn_solves": 5,
+            "profile_evaluations": 5,
+            "step_ranks": [
+              2,
+              2,
+              2,
+              2,
+              2
+            ],
+            "workspace_fallbacks": 0
+          },
+          "environment": {
+            "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+            "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+            "numpy": "2.5.2",
+            "scipy": "1.18.1",
+            "threadpools": [
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+                "version": "0.3.34.0.0",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              },
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+                "version": "0.3.31.dev",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              }
+            ],
+            "threads": {
+              "OPENBLAS_NUM_THREADS": "1",
+              "OMP_NUM_THREADS": "1",
+              "MKL_NUM_THREADS": "1"
+            }
+          },
+          "stages": {
+            "geometry_qr": {
+              "inclusive_sec": 0.06958026598294964,
+              "exclusive_sec": 0.06958026598294964,
+              "calls": 972
+            },
+            "_project": {
+              "inclusive_sec": 0.24656009503087262,
+              "exclusive_sec": 0.24656009503087262,
+              "calls": 1134
+            },
+            "_profile": {
+              "inclusive_sec": 1.1465786579574342,
+              "exclusive_sec": 0.8457788049927331,
+              "calls": 1134
+            },
+            "_gradient": {
+              "inclusive_sec": 0.16396447902661748,
+              "exclusive_sec": 0.16396447902661748,
+              "calls": 972
+            },
+            "geometry_svd": {
+              "inclusive_sec": 0.1581474239792442,
+              "exclusive_sec": 0.1581474239792442,
+              "calls": 1190
+            },
+            "_core_jacobian": {
+              "inclusive_sec": 0.3072166010097135,
+              "exclusive_sec": 0.3072166010097135,
+              "calls": 620
+            },
+            "gn_lstsq": {
+              "inclusive_sec": 0.1144614930235548,
+              "exclusive_sec": 0.1144614930235548,
+              "calls": 620
+            },
+            "_polar": {
+              "inclusive_sec": 0.11696707994997269,
+              "exclusive_sec": 0.11696707994997269,
+              "calls": 620
+            },
+            "solve": {
+              "inclusive_sec": 3.107094589016924,
+              "exclusive_sec": 0.7836184930565651,
+              "calls": 162
+            },
+            "profile_svd": {
+              "inclusive_sec": 0.28530721495189937,
+              "exclusive_sec": 0.28530721495189937,
+              "calls": 266
+            },
+            "profile_lstsq": {
+              "inclusive_sec": 0.015492638012801763,
+              "exclusive_sec": 0.015492638012801763,
+              "calls": 266
+            },
+            "solve_remainder": {
+              "inclusive_sec": 0.782608063032967,
+              "exclusive_sec": 0.782608063032967,
+              "calls": 1
+            }
+          },
+          "wall_including_startup_sec": 25.135777333998703
+        },
+        {
+          "seed": 1,
+          "mode": "timed",
+          "status": "ok",
+          "shape": {
+            "n": 800,
+            "d": 50,
+            "m": 2,
+            "N_J": 800,
+            "N_phi": 10,
+            "N_lin": 100
+          },
+          "dtype": "float64",
+          "solver_settings": {
+            "max_steps": 5,
+            "tol": 1e-06,
+            "energy_tol": 0.05,
+            "local_ridge": 0.0,
+            "max_angle": 0.5,
+            "workspace_bytes": 16777216,
+            "lambda_prox": 0.05
+          },
+          "input_hashes": {
+            "X": "41cb3c9cf71ef6c7ef001ebe2440969827f7ce45b812e40a80f0d9553f8e9bc7",
+            "y": "306ad1146dca61fc993bdb216625c9913a4c85bf508fe644716494c573912d05",
+            "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+          },
+          "basis_hash": "98f12717686822730f1b7caa2eea04113ef3f1001a543d78b80942d330deb6a6",
+          "fit_time_sec": 23.407167860998015,
+          "solver_wall_sec": 2.4382880789707997,
+          "peak_rss_kib": 113488,
+          "projector_distance_to_truth": 0.047281844416247734,
+          "outer_iterations": 162,
+          "selected_iteration": 161,
+          "fit_stop_reason": "h_min",
+          "solver_calls": 162,
+          "diagnostics_hash": "51b22f3c2cce81a1ac674fc842974535286b82f2a46fef6a97d7ab57900dca67",
+          "aggregate_diagnostics": {
+            "accepted_steps": 810,
+            "iterations": 810,
+            "gn_solves": 810,
+            "profile_evaluations": 810,
+            "rank_guard_fallbacks": 0,
+            "workspace_fallbacks": 0,
+            "max_orthogonality_error": 2.869625489971319e-15
+          },
+          "last_solver_diagnostics": {
+            "iterations": 5,
+            "converged": false,
+            "stop_reason": "max_steps",
+            "profile_objective": 10.837552214866516,
+            "loss": 5.418776107433258,
+            "gn_solves": 5,
+            "profile_evaluations": 5,
+            "step_ranks": [
+              2,
+              2,
+              2,
+              2,
+              2
+            ],
+            "workspace_fallbacks": 0
+          },
+          "environment": {
+            "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+            "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+            "numpy": "2.5.2",
+            "scipy": "1.18.1",
+            "threadpools": [
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+                "version": "0.3.34.0.0",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              },
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+                "version": "0.3.31.dev",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              }
+            ],
+            "threads": {
+              "OPENBLAS_NUM_THREADS": "1",
+              "OMP_NUM_THREADS": "1",
+              "MKL_NUM_THREADS": "1"
+            }
+          },
+          "stages": {
+            "geometry_qr": {
+              "inclusive_sec": 0.06879016091988888,
+              "exclusive_sec": 0.06879016091988888,
+              "calls": 972
+            },
+            "_project": {
+              "inclusive_sec": 0.2596746851486387,
+              "exclusive_sec": 0.2596746851486387,
+              "calls": 1134
+            },
+            "_profile": {
+              "inclusive_sec": 0.8112618070081226,
+              "exclusive_sec": 0.8112618070081226,
+              "calls": 1134
+            },
+            "_gradient": {
+              "inclusive_sec": 0.14757134397950722,
+              "exclusive_sec": 0.14757134397950722,
+              "calls": 972
+            },
+            "geometry_svd": {
+              "inclusive_sec": 0.035122719054925255,
+              "exclusive_sec": 0.035122719054925255,
+              "calls": 810
+            },
+            "_core_jacobian": {
+              "inclusive_sec": 0.3981296879501315,
+              "exclusive_sec": 0.3981296879501315,
+              "calls": 810
+            },
+            "gn_lstsq": {
+              "inclusive_sec": 0.1475667648774106,
+              "exclusive_sec": 0.1475667648774106,
+              "calls": 810
+            },
+            "_polar": {
+              "inclusive_sec": 0.15325083190691657,
+              "exclusive_sec": 0.15325083190691657,
+              "calls": 810
+            },
+            "solve": {
+              "inclusive_sec": 2.439352321991464,
+              "exclusive_sec": 0.4179843211459229,
+              "calls": 162
+            },
+            "solve_remainder": {
+              "inclusive_sec": 0.41692007812525844,
+              "exclusive_sec": 0.41692007812525844,
+              "calls": 1
+            }
+          },
+          "wall_including_startup_sec": 23.690016827000363
+        },
+        {
+          "seed": 2,
+          "mode": "timed",
+          "status": "ok",
+          "shape": {
+            "n": 800,
+            "d": 50,
+            "m": 2,
+            "N_J": 800,
+            "N_phi": 10,
+            "N_lin": 100
+          },
+          "dtype": "float64",
+          "solver_settings": {
+            "max_steps": 5,
+            "tol": 1e-06,
+            "energy_tol": 0.05,
+            "local_ridge": 0.0,
+            "max_angle": 0.5,
+            "workspace_bytes": 16777216,
+            "lambda_prox": 0.05
+          },
+          "input_hashes": {
+            "X": "8a399a8afec975f1d15e298cf01418c18b21d7c369d16f164e0471f78c5a7e04",
+            "y": "84a557129765353a4c8014bee532d8cd92cb5395955b4d19bac1361aeda75b6d",
+            "truth": "7148012cb2ff2236a23304630792a3591a37bf411b0848dfd0fa644b7db932bc"
+          },
+          "basis_hash": "f7dc61f333dbad05f325bb2168376d40157c193dd32307547624c4a37f911d4f",
+          "fit_time_sec": 27.833613329996297,
+          "solver_wall_sec": 6.343844864073617,
+          "peak_rss_kib": 108584,
+          "projector_distance_to_truth": 0.044937944312231685,
+          "outer_iterations": 162,
+          "selected_iteration": 161,
+          "fit_stop_reason": "h_min",
+          "solver_calls": 162,
+          "diagnostics_hash": "0174a5bc43354776c1f85c09816718c56f99e60f4f689e980be131575b23fa7b",
+          "aggregate_diagnostics": {
+            "accepted_steps": 810,
+            "iterations": 810,
+            "gn_solves": 205,
+            "profile_evaluations": 8373,
+            "rank_guard_fallbacks": 605,
+            "workspace_fallbacks": 0,
+            "max_orthogonality_error": 3.953409549950116e-15
+          },
+          "last_solver_diagnostics": {
+            "iterations": 5,
+            "converged": false,
+            "stop_reason": "max_steps",
+            "profile_objective": 11.391410847272365,
+            "loss": 5.695705423636182,
+            "gn_solves": 5,
+            "profile_evaluations": 5,
+            "step_ranks": [
+              2,
+              2,
+              2,
+              2,
+              2
+            ],
+            "workspace_fallbacks": 0
+          },
+          "environment": {
+            "python": "3.13.12 (main, Feb 12 2026, 00:45:41) [Clang 21.1.4 ]",
+            "platform": "Linux-7.1.11-arch1-1-x86_64-with-glibc2.44",
+            "numpy": "2.5.2",
+            "scipy": "1.18.1",
+            "threadpools": [
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-61654e39.so",
+                "version": "0.3.34.0.0",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              },
+              {
+                "user_api": "blas",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "filepath": "/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-5f890258.so",
+                "version": "0.3.31.dev",
+                "threading_layer": "pthreads",
+                "architecture": "Haswell"
+              }
+            ],
+            "threads": {
+              "OPENBLAS_NUM_THREADS": "1",
+              "OMP_NUM_THREADS": "1",
+              "MKL_NUM_THREADS": "1"
+            }
+          },
+          "stages": {
+            "geometry_qr": {
+              "inclusive_sec": 0.06902726089174394,
+              "exclusive_sec": 0.06902726089174394,
+              "calls": 972
+            },
+            "_project": {
+              "inclusive_sec": 0.19413234590319917,
+              "exclusive_sec": 0.19413234590319917,
+              "calls": 1134
+            },
+            "_profile": {
+              "inclusive_sec": 3.668623505269352,
+              "exclusive_sec": 1.4661165733778034,
+              "calls": 2251
+            },
+            "_gradient": {
+              "inclusive_sec": 0.17131769483967219,
+              "exclusive_sec": 0.17131769483967219,
+              "calls": 972
+            },
+            "geometry_svd": {
+              "inclusive_sec": 0.4277016000341973,
+              "exclusive_sec": 0.4277016000341973,
+              "calls": 2020
+            },
+            "_core_jacobian": {
+              "inclusive_sec": 0.10180347700224956,
+              "exclusive_sec": 0.10180347700224956,
+              "calls": 205
+            },
+            "gn_lstsq": {
+              "inclusive_sec": 0.03802556195296347,
+              "exclusive_sec": 0.03802556195296347,
+              "calls": 205
+            },
+            "_polar": {
+              "inclusive_sec": 0.039536367017717566,
+              "exclusive_sec": 0.039536367017717566,
+              "calls": 205
+            },
+            "solve": {
+              "inclusive_sec": 6.344945006065245,
+              "exclusive_sec": 1.6347771931541502,
+              "calls": 162
+            },
+            "profile_svd": {
+              "inclusive_sec": 2.103278364884318,
+              "exclusive_sec": 2.103278364884318,
+              "calls": 1964
+            },
+            "profile_lstsq": {
+              "inclusive_sec": 0.0992285670072306,
+              "exclusive_sec": 0.0992285670072306,
+              "calls": 1964
+            },
+            "solve_remainder": {
+              "inclusive_sec": 1.6336770511625218,
+              "exclusive_sec": 1.6336770511625218,
+              "calls": 1
+            }
+          },
+          "wall_including_startup_sec": 28.12287589799962
+        }
+      ]
+    }
+  },
+  "per_seed": [
+    {
+      "seed": 0,
+      "fit_sec": 24.635834560001967,
+      "solver_sec_baseline": 3.0090547949439497,
+      "solver_sec_profiled": 4.24917311596073,
+      "solver_sec_timed": 3.106084158993326,
+      "cprofile_overhead_pct": 41.212885956763714,
+      "light_timer_overhead_pct": 3.224579499596114,
+      "solver_fraction_of_full_fit_pct": 12.214137855225593,
+      "quality": 0.054170795164750485,
+      "stop_reason": "h_min",
+      "outer_iterations": 162,
+      "solver_calls": 162,
+      "rank_guard_fallbacks": 190,
+      "profile_evaluations": 3191,
+      "gn_solves": 620,
+      "peak_rss_kib": 107576
+    },
+    {
+      "seed": 1,
+      "fit_sec": 25.24190196300333,
+      "solver_sec_baseline": 2.5885386880327133,
+      "solver_sec_profiled": 3.2779628880962264,
+      "solver_sec_timed": 2.4382880789707997,
+      "cprofile_overhead_pct": 26.633722078439348,
+      "light_timer_overhead_pct": -5.8044567676948216,
+      "solver_fraction_of_full_fit_pct": 10.254927270641867,
+      "quality": 0.047281844416247734,
+      "stop_reason": "h_min",
+      "outer_iterations": 162,
+      "solver_calls": 162,
+      "rank_guard_fallbacks": 0,
+      "profile_evaluations": 810,
+      "gn_solves": 810,
+      "peak_rss_kib": 111052
+    },
+    {
+      "seed": 2,
+      "fit_sec": 28.156354170998384,
+      "solver_sec_baseline": 6.255089498969028,
+      "solver_sec_profiled": 7.75257009996858,
+      "solver_sec_timed": 6.343844864073617,
+      "cprofile_overhead_pct": 23.94019464064212,
+      "light_timer_overhead_pct": 1.4189303785216545,
+      "solver_fraction_of_full_fit_pct": 22.215551988658735,
+      "quality": 0.044937944312231685,
+      "stop_reason": "h_min",
+      "outer_iterations": 162,
+      "solver_calls": 162,
+      "rank_guard_fallbacks": 605,
+      "profile_evaluations": 8373,
+      "gn_solves": 205,
+      "peak_rss_kib": 107692
+    }
+  ],
+  "lightweight_stage_seconds_pooled": {
+    "local_profile": 5.626463970234909,
+    "project_gradient": 1.1832206439285073,
+    "core_jacobian": 0.8071497659620945,
+    "gn_lstsq": 0.30005381985392887,
+    "polar": 0.3097542788746068,
+    "geometry_qr": 0.20739768779458245,
+    "geometry_svd": 0.6209717430683668,
+    "remainder": 2.8332051923207473
+  },
+  "lightweight_stage_share_of_solver_pooled_pct": {
+    "local_profile": 47.32807217383744,
+    "project_gradient": 9.952885565369538,
+    "core_jacobian": 6.789493824298869,
+    "gn_lstsq": 2.5239597937902487,
+    "polar": 2.6055570504471377,
+    "geometry_qr": 1.7445651102639494,
+    "geometry_svd": 5.223421962591235,
+    "remainder": 23.83204451940158
+  },
+  "local_profile_share_per_seed_pct": {
+    "0": 36.91395980490874,
+    "1": 33.271778425400655,
+    "2": 57.82965352834296
+  },
+  "solver_seconds_median": {
+    "baseline": 3.0090547949439497,
+    "cprofiled": 4.24917311596073,
+    "light_timed": 3.106084158993326
+  },
+  "median_cprofile_overhead_pct": 26.633722078439348,
+  "median_light_timer_overhead_pct": 1.4189303785216545
+}

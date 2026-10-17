@@ -1,0 +1,64 @@
+
+==================================== ERRORS ====================================
+_____________ ERROR collecting tests/test_beta_functional_audit.py _____________
+ImportError while importing test module '/home/papayka/Documents/AMI/Vlad_EDR/EDR_code/tests/test_beta_functional_audit.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../../.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_beta_functional_audit.py:10: in <module>
+    from benchmarks.beta_functional_audit import (
+E   ModuleNotFoundError: No module named 'benchmarks'
+__________________ ERROR collecting tests/test_experiment.py ___________________
+tests/test_experiment.py:40: in <module>
+    from experiments import multi as multi_experiments, multiv2
+experiments/multiv2.py:124: in <module>
+    CATALOG = {experiment.selector: experiment for experiment in catalog()}
+                                                                 ^^^^^^^^^
+experiments/multiv2.py:108: in catalog
+    experiment = _expand_short_grid(experiment)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+experiments/multiv2.py:79: in _expand_short_grid
+    factor, hypothesis = _BINARY_STRESS[experiment.selector]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'mi-spokoini-m2-n'
+____________ ERROR collecting tests/test_multi_center_diagnostic.py ____________
+tests/test_multi_center_diagnostic.py:5: in <module>
+    from experiments.multi_center_diagnostic import _local_spectrum, _weight_metrics
+experiments/multi_center_diagnostic.py:24: in <module>
+    from .multiv2_quality import SENTINELS, _baseline
+experiments/multiv2_quality.py:18: in <module>
+    from .multiv2 import CATALOG
+experiments/multiv2.py:124: in <module>
+    CATALOG = {experiment.selector: experiment for experiment in catalog()}
+                                                                 ^^^^^^^^^
+experiments/multiv2.py:108: in catalog
+    experiment = _expand_short_grid(experiment)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+experiments/multiv2.py:79: in _expand_short_grid
+    factor, hypothesis = _BINARY_STRESS[experiment.selector]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'mi-spokoini-m2-n'
+________________ ERROR collecting tests/test_multiv2_quality.py ________________
+tests/test_multiv2_quality.py:13: in <module>
+    from experiments.multiv2_quality import (
+experiments/multiv2_quality.py:18: in <module>
+    from .multiv2 import CATALOG
+experiments/multiv2.py:124: in <module>
+    CATALOG = {experiment.selector: experiment for experiment in catalog()}
+                                                                 ^^^^^^^^^
+experiments/multiv2.py:108: in catalog
+    experiment = _expand_short_grid(experiment)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+experiments/multiv2.py:79: in _expand_short_grid
+    factor, hypothesis = _BINARY_STRESS[experiment.selector]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'mi-spokoini-m2-n'
+=========================== short test summary info ============================
+ERROR tests/test_beta_functional_audit.py
+ERROR tests/test_experiment.py - KeyError: 'mi-spokoini-m2-n'
+ERROR tests/test_multi_center_diagnostic.py - KeyError: 'mi-spokoini-m2-n'
+ERROR tests/test_multiv2_quality.py - KeyError: 'mi-spokoini-m2-n'
+!!!!!!!!!!!!!!!!!!! Interrupted: 4 errors during collection !!!!!!!!!!!!!!!!!!!!
+4 errors in 1.09s

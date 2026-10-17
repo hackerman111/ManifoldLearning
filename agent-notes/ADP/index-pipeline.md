@@ -56,3 +56,12 @@ Opt-in SVD metric variants получают текущие alpha/eigenvalues/ten
 | SRC-STAT-REC | поля результата статистики | `rtk proxy sed -n '1,37p' ADP/core/ADP_Statistic.py` |
 
 Полный индекс каждого ID с диапазоном модуля находится в [README.md](README.md#каталог-исходников). В текущем `fit_index` профиль kernel передается как callable; для Epanechnikov `search_bandwidth` и `calculate_alpha_k` могут точно удалять уже невозможный нулевой support. См. `calculus.py`, а не считать это приближенным pruning.
+
+## Измеренный профиль внешнего цикла (2026-10-06)
+
+`experiments/outer_stage_profile_2026_10_06/results/report.md`: три Spokoiny
+fit n800/d50/m2/J800/P10, production Grassmann, один BLAS thread.
+От полного fit statistics56.4% (weights плюс I/U), update/alpha21.5%,
+solver15.4%. Измерения workload-specific, точное совпадение inputs/basis/
+solver diagnostics с предыдущими baseline. Встроенный profile_.time_fraction
+делит на сумму именованных стадий; отчёт использует полный fit timer.

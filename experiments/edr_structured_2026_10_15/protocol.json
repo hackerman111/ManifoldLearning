@@ -1,0 +1,95 @@
+{
+  "task": "edr-structured-2026-10-15",
+  "status": "frozen-settings-complete; supplemental cases separately predeclared",
+  "scope": "bounded paired finite-sketch and exact-CX microbenchmarks; baseline/setup may run before new solver correctness gate",
+  "threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "timeout_sec_per_arm": 120,
+  "solver": {
+    "lambda_prox": 0.05,
+    "max_steps": 30,
+    "tol": 1e-6,
+    "rank": null,
+    "local_ridge": 0.0,
+    "max_angle": 0.5,
+    "workspace_bytes": 16777216,
+    "cases": ["isotropic", "weak_index", "correlated"],
+    "seeds": [0, 1, 2],
+    "shape": {"J": 100, "p": 8, "d": 40, "m": 3},
+    "new_arms_after_independent_correctness_gate": [
+      "schur_gn_preconditioned",
+      "schur_newton_preconditioned",
+      "schur_newton_unpreconditioned",
+      "schur_newton_recycle2",
+      "metric"
+    ],
+    "baseline_arms": ["core_gn", "spectral_same_rank_if_supported"],
+    "stress_tau": 0.1,
+    "stress_is_separate_from_primary": true
+  },
+  "cx": {
+    "shape": {"n": 400, "d": 100, "J": 100, "p": 8, "support": [8, 400]},
+    "seeds": [0, 1, 2],
+    "measurements": ["builder", "dense_U_storage", "CSR_plus_X_storage", "project", "adjoint", "dense_solve", "factorized_solve"],
+    "operator_repeats": 3,
+    "solver_settings": {"method": "schur_gn", "lambda_prox": 0.05, "max_steps": 30, "tol": 1e-6, "max_angle": 0.5, "workspace_bytes": 16777216}
+  },
+  "full_fit_smoke": {
+    "shape": {"n": 150, "d": 12, "m": 2, "J": 80, "p": 6, "outer_steps": 3},
+    "seeds": [0, 1, 2],
+    "arms": ["core_gn", "schur_gn_preconditioned"],
+    "purpose": "bounded convergence and quality smoke only; no recovery or selection claim"
+  },
+  "supplemental_local_calibration": {
+    "status": "frozen after primary suite; separate and non-retroactive",
+    "shape": {"J": 80, "p": 8, "d": 12, "m": 2},
+    "seeds": [0, 1, 2],
+    "construction": "isotropic Gaussian U; orthonormal Ytruth; I=U Ytruth g without noise; Yinit is the polar factor of Ytruth plus 0.05 times a horizontal Gaussian perturbation",
+    "lambda_prox": 0.05,
+    "tau": 0.0,
+    "max_steps": 100,
+    "tol": 1e-6,
+    "arms": ["core_gn", "schur_gn_preconditioned", "schur_newton_preconditioned", "schur_newton_unpreconditioned", "schur_newton_recycle2", "metric"],
+    "purpose": "local near-solution calibration for same-certificate behavior; no change to primary suite selection"
+  },
+  "supplemental_weak_signal_calibration": {
+    "status": "frozen before run; one final supplemental case, no tuning",
+    "shape": {"J": 80, "p": 8, "d": 12, "m": 2},
+    "seeds": [0, 1, 2],
+    "construction": "isotropic Gaussian U; orthonormal Ytruth; planted coefficient column 1 scaled by 0.03; I=U Ytruth g without noise; Yinit is the polar factor of Ytruth plus 0.05 times a horizontal Gaussian perturbation",
+    "lambda_prox": 0.05,
+    "tau": 0.0,
+    "max_steps": 100,
+    "tol": 1e-6,
+    "arms": ["core_gn", "schur_gn_preconditioned", "schur_newton_preconditioned", "schur_newton_unpreconditioned", "schur_newton_recycle2", "metric"],
+    "report": ["objective", "live_gradient", "projector_error", "truth_projector", "stop_reason", "accepted_steps"],
+    "purpose": "final weak-signal recovery calibration; no selection or further budget expansion"
+  },
+  "schur_core_kernel": {
+    "shape": {"J": 100, "p": 12, "d": 40, "m": 6, "q": 2, "active_a": 2},
+    "seeds": [0, 1, 2],
+    "tau": 0.0,
+    "repeats": 3,
+    "measurements": ["SchurCore setup", "three distinct evaluate+hvp trials", "same-trial polar+full-profile reference", "action counts"],
+    "warmup": "separate K not included in timing; each timed trial uses a distinct K",
+    "purpose": "kernel-only inactive coefficient elimination evidence; not a solver promotion or selection benchmark"
+  },
+  "selection": {
+    "same_certificate_required_for_speed_claim": true,
+    "minimum_paired_median_speedup": 1.1,
+    "quality_regression_allowed": false,
+    "no_extrapolation_to_fullfit_recovery": true
+  },
+  "measurement": {
+    "clock": "time.perf_counter",
+    "peak_rss": "subprocess resource.getrusage(RUSAGE_SELF).ru_maxrss; report platform units",
+    "warmup": "operator actions and Schur kernel use an untimed warmup; whole solver arms start timing at the first solve after imports, with imports excluded",
+    "order": "frozen arm order, serial subprocesses; no simultaneous timed experiments",
+    "errors_and_timeouts_retained": true,
+    "tau_mapping": "solver local_ridge is set to tau; only tau=0 was run",
+    "positive_tau_stress": "not run; optional stress excluded from this bounded study"
+  }
+}
