@@ -1,5 +1,31 @@
 # Эксперименты ADP
 
+Grassmann теперь по умолчанию объединяет relative GN, quadratic3 и исключение
+точно нулевых операторов; бюджет20, smooth capNone. Два парных этапа150+150
+fit против исходного5/relative10/combined10/реального R MEANMAVE:
+[результаты и ограничения](grassman_accuracy_2026_10_18/COMBINED_REPORT.md).
+Validation EDRgeo.925311/time.860129 против original5; дополнительный выигрыш
+точности относительно accepted relative10 не доказан. R-метод
+`ADP-Grassmann-combined` — новый default; `ADP-Grassmann` явно сохраняет
+исходный контроль. Прежний accepted10 — `ADP-Grassmann-relative`.
+
+Сравнение ADP с обычным MAVE, пакетным MEANMAVE, SIR, dMAVE и refined MAVE
+на R: [инструкция и протокол](r_sdr/README.md). Полный профиль содержит 50 задач
+и минимум 10 повторов каждой задачи для каждого метода. Для отдельного
+сравнения ADP, обычного MAVE и MEANMAVE при `m=3,4,5` есть компактный профиль
+`multi-rank`; его результаты и разбор bottleneck сохранены в
+`benchmark_outputs/r_sdr/multi-rank-three-methods-2026-10-17/`:
+
+```bash
+uv run --no-sync python -m experiments.r_sdr --profile full --runs 10 --output benchmark_outputs/r_sdr/full --plots
+uv run --no-sync python -m experiments.r_sdr --profile multi-rank --runs 10 --methods ADP,MAVE,MAVE-package --output benchmark_outputs/r_sdr/multi-rank-three-methods-2026-10-17 --plots
+uv run --no-sync python -m experiments.r_sdr --profile multi-rank --runs 10 --methods ADP-Grassmann,MAVE,MAVE-package --grassman-steps 5 --output benchmark_outputs/r_sdr/multi-rank-grassman-2026-10-17 --plots
+
+Grassmann runs: `benchmark_outputs/r_sdr/multi-rank-grassman-2026-10-17/`
+(90/90 successful); rank-guard and inner-stopping details are in
+`diagnostics/grassman-inner-summary.md`.
+```
+
 Самостоятельные запуски из корня репозитория:
 
 ```bash

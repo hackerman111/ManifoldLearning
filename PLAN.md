@@ -1,59 +1,70 @@
-# Plan: experimental adaptive centers P0-P3
+# Current Grassmann GPU port and heavy MEANMAVE comparison
 
-Task adaptive-centers-2026-10-17; status **done**.
-Goal: audit SVD/adaptive_centers_anisotropic_adp_edr_report.tex; implement
-opt-in P0 spectral floor, P1 exact projected neighbor search, P2 cheap
-projected statistics/prefilter, P3 LogDet plus mass coverage; paired recovery,
-full-fit time and RSS evidence with Luna benchmarking. Preserve defaults.
-Previous completed plan: agent-notes/history/plans/grassman-rank-k-2026-10-16-complete.md.
+Task `grassman-gpu-2026-10-22`; status **active**.
 
-Classes: P0/P2-selection/P3 ESTIMATOR; P1 EXACT modulo roundoff; P2 moments
-EXACT for current weights. No solver/default/ridge/density changes. No claim
-that surrogate selection or scalar quadrature guarantees EDR recovery.
-Known: shared fit_index uses raw normalized spectrum for weights/alpha;
-Epanechnikov K(q)=(1-q*q)+, q is squared localized distance. Existing alpha
-compacts after projection but weight path computes all pairs. Existing
-box engine is kernel-specific and cannot encode Epanechnikov weights.
-Invariants: float64, common pool/init/sketch streams, floor only localization,
-alpha uses full pool, canonical spectrum raw; sparse O(E) weights, bounded
-row scratch, no J*n*d or d*d. Coverage nonnegative fixed observation masses;
-normalized logdet(I+sum uuT/eps), fixed u during greedy; no inverse; optional
-PoU masses unnormalized. Full-pool S prediction selects best on common pool.
+Goal: efficiently port the live combined20 solver to GPU; paired recovery
+on the level of actual R MEANMAVE and comparable/lower full fit time at
+n=10000,d=50,m=5. Non-goals: implicit float32, changed CPU defaults, a changed
+estimator disguised as a port, broad refactoring. Previous completed plan:
+agent-notes/history/plans/grassman-combined-2026-10-22-complete.md.
+CPU snapshot/hashes/prior STATE: experiments/grassman_gpu_2026_10_22/.
 
-Exact read set: AGENTS/RTK, contracts/numerics,research,engineering; WORKFLOW;
-ADP/multi-index,index-pipeline routes; report lines180-270,330-410,510-580,
-659-680; ADP/core/{ADP_Config,ADP_Statistic}.py, ADP/__init__.py;
-engine/common/{index_fit,weights,calculus,statistic,box_kernel}.py;
-relevant tests/config; Luna-cited harness/generators.
+Evidence: defaults20/relativeTrue/quadratic3/zero-centerTrue. Past m2/n500
+recovery lags MEANMAVE. GPUStatistics/resident U already exist; grassman
+rejects CUDA U. RTX5060/8GiB, CuPy14.1.1 works outside sandbox. Requested
+shape is unmeasured. Existing dirty/untracked research work must survive.
 
-## Bounded units and evidence
-1. [done] Formula audit, small independent reference tests, freeze protocol.
-2. [done] Config plus separate experimental geometry/moments/selection
-   modules; minimal shared fit hooks. Exact weight/statistics/alpha comparisons,
-   boundary/zero-eigen/offset/degenerate/validation/PoU/greedy tests.
-   Evidence:24 new tests pass,83 shared non-manifold tests pass, scoped
-   Ruff/Pyright clean; MATH.md records formula corrections and boundaries.
-3. [done] Luna owns experiments/adaptive_centers only: frozen protocol,
-   isolated one-thread workers, fresh development/heldout seeds, raw pairing
-   hashes, failures, EDR/orthogonality/stops/inner certificates/time/RSS.
-   Smoke10/10 ok (92799), common input/init hashes, threads1, coefficient
-   mapping valid; development120/120 ok under frozen source snapshot.
-   Controls isolate floor, search, projected-statistics overhead, score,
-   equal-J random, pure LogDet, LogDet+coverage, optional PoU. Lead audits.
-   Lead raw audit:74 source hashes/common inputs/threads/mapping pass;
-   no global gate passes, selection=null, heldout untouched. All inner
-   certificates unconverged. P1 divergent-pair replay preserves same-state
-   weights/alpha/I/U; full adaptive trajectories differ under roundoff.
-   Supplement:24workers under separate manifest,exact weights/support/alpha;
-   n10000 localization time.493weights/.414alpha+weights baseline,n500 slower.
-   Does not establish full-fit improvement. Reports/raw/plots preserved.
-4. [done] Final27 feature tests included in86 shared passes; scoped Ruff/
-   Pyright clean. Full suite blocked by existing catalog/manifold issues.
-   Post-timing seed=None regression fixed; original integer streams and two
-   fullfit hashes preserved. Immutable source snapshot plus explicit patch
-   overlay audited by verification/lead_audit.py. Routes/STATE/DECISIONS current.
-   No default promotion; all findings conditional on measured solver schedule.
+Design: one optimizer shared by NumPy/CuPy, backend chosen from U. Keep
+profiles/gradient/Jacobian resident; download final HPAOResult arrays/scalars.
+Reuse GPUStatistics and ADP_Config.gpu/gpu_solver; no duplicated optimizer
+or new framework. Specialize stable batched QR/SVD or augmented LS only
+with reference checks and profiler evidence.
+Class EXACT backend operations; NUMERICAL reductions/SVD/stable QR if used.
+Changed budget is APPROXIMATE and changed N_J/N_phi/N_loc is ESTIMATOR:
+explicit experimental configurations frozen before independent validation.
+Invariants: same finite-sketch objective, local cutoff/ridge, relative GN
+damping, true-profile Armijo, exact constants/gradient scale, live final
+certificate, conservative rank-boundary status. No J*n*d or dense d*d.
+U(J10000,P12,d50) is48MB; GN scratch retains workspace_bytes bound. CUDA
+library workspace/pools measured separately from explicit scratch.
 
-Stop/revise on false-negative search, wrong formula/generator, pairing/thread
-mismatch, rank/nonfinite hidden by regularization. Retain failures; no tuning
-on heldout. Benchmark limits and feasibility stops reported explicitly.
+Read set: AGENTS/STATE, numerics/research/engineering/WORKFLOW;
+agent-notes/ADP/{README,solvers,multi-index,r-sdr-comparison};
+ADP/{gpu,core/ADP_Config,core/ADP_Solver,solver/grassman,solver/LSMR}.py;
+engine/common/{gpu_statistics,index_fit}; tests/{test_grassman*,test_gpu_index};
+experiments/r_sdr/{design,worker,worker.R,runner,protocol}. Frozen
+cpu_reference.py is auditable baseline; live CPU results must be preserved.
+
+- [x] G1 Test first: local independent lstsq/Jacobian-FD, smooth/intrinsic/
+  rank-deficient/exact-zero, unequal masses/ridge, memory fallback, invalid
+  inputs, public full-fit CUDA path. Observe CUDA rejection fail; port
+  shared kernels/optimizer. CPU reference/focused regression and CUDA pass.
+  Evidence:134 focused CPU/CUDA tests pass; nine frozen CPU cases bitwise.
+  Pyright4 files clean; full public GPU fit passes. Extreme ill-conditioning
+  boundary documented in MATH.md, not hidden with a changed cutoff.
+- [x] G2 Isolated reproducible pilot harness: CPU/GPU combined20 and actual
+  R MEANMAVE; identical data, fit/process times, CUDA warm/cold, peak RSS/
+  device pools, input/source/config hashes and solver stops/certificates.
+  Exploration seed90800, additive model unless user specifies another.
+  Profile at exact heavy shape before optimizing kernels.
+  Harness/tests exist; exact-shape pilot saved (see STATE). R baseline
+  82.156s/EDR.613168; original GPU warm5.686s/EDR.719328 fails quality.
+  Initial N_J300 configuration failures are retained; valid minimum500.
+- [ ] G3 Bounded optimization/config selection on consumed pilot seeds only.
+  Test every algebraic/numerical change; record rejections. Freeze one
+  candidate/gates before development109800..109809. Validation110800..110809
+  untouched until development passes; no retuning to validation.
+- [ ] G4 >=10 paired heavy seeds per independent stage. Interpretation of
+  on-level/comparable: geometric EDR ratio<=1.05, bootstrap95% upper<=1.10,
+  worst EDR increase<=0.05; median fit ratio<=1.10, including cold separately;
+  no failures/nonfinite/nonorthogonal output. Report angles, worst seeds,
+  rank/stops/certificates, RSS/device memory and uncertainty separately.
+- [ ] G5 Relevant CPU/CUDA checks, Ruff/format/Pyright and whole-suite status
+  with unrelated failures recorded; update routes/decisions/report/STATE.
+  Mark done only when required heavy evidence exists, else preserve exact
+  unachieved gates and next action.
+
+Stop/revise after twice failing the same math assumption, rank/certificate
+mismatch, OOM/unbounded allocation, pairing/hash drift, or decisive frozen
+development failure (leave validation untouched). A port, microbenchmark,
+one seed, low objective or scheduled run does not establish the user goal.

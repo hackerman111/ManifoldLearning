@@ -857,6 +857,173 @@ before any claim of empirical benefit; no default promotion in this task.
   hashes replay. Original snapshots immutable; compatibility overlay/patch
   AST audited and saved separately. Final27feature/86sharedtests pass;
   known unrelated full-suite catalog/manifold failures remain.
+
+## 2026-10-17: paired ADP versus R SDR protocol
+
+- Active. Isolate experiments/r_sdr from production ADP and historical benchmark
+  wrappers. Compare ordinary ambient-kernel MAVE separately from refined MAVE
+  and compiled MAVE::MEANMAVE. Classical SIR uses covariance whitening and fails
+  explicitly on singular designs; do not relabel package KSIR as classical SIR.
+- Installed MAVE1.3.12 has no dMAVE/rMAVE selectors. Use auditable R references
+  instead of relabeling CSMAVE or averaging separately estimated projectors.
+  Density MAVE fits one joint shared-B objective over all observed responses;
+  reference variant explicitly has fixed response bandwidth and no trimming.
+  Streaming QR/response-space compression checked against dense stacked LS;
+  no ridge, normal-equation shortcut or silent target subsampling.
+- Freeze oracle rank/config/seeds/source/environment before fits; paired float64
+  X/Y hashes, original-coordinate subspace metrics, >=10 attempts per cell.
+  Keep failures in recovery denominators; pair only jointly valid same-seed
+  results and disclose pair counts/conditional inference. Fit and process time
+  separate; sampled /proc peak includes runtimes and has a polling boundary.
+  Resume skips all recorded outcomes, including failures, rejects protocol drift
+  and runs frozen sources. No automatic hyperparameter tuning by true basis.
+- ADP inner solver certificates do not establish outer convergence. Protocol
+  schema2 records all_inner_certified separately and outer converged=null.
+  Do not pool initial schema1 validation with schema2. Finite R stopping criteria
+  and package-unknown convergence remain explicit, separate from EDR recovery.
+- Evidence: tests/test_r_sdr.py(12passed),tests/r_sdr_reference.R; review fix
+  confirmed; validation-final120/120 valid fits plus replay/hash/metric/resume
+  audits in benchmark_outputs/r_sdr/validation-final/verification/. Full3000 and
+  stress360 catalogs unrun. No comparative speed claim or default promotion.
 - Evidence:experiments/adaptive_centers/{REPORT.md,verification.md},supplement/
   REPORT.md,results/selection.json,verification/{lead_audit,trajectory_audit,
   compatibility_overlay}.json. No solver/default promotion or heldout tuning.
+
+## 2026-10-17 — Compare Grassmann directly with MAVE references
+
+- **Decision:** Add `ADP-Grassmann` only as an explicit method in the isolated R-SDR runner, and compare it with ordinary MAVE and package `MAVE::MEANMAVE`. Use Grassmann as the paired-report baseline and `local_ridge=0`.
+- **Reason/evidence:** The live Grassmann solver has the current `HPAOResult` contract and the same unpenalized finite-sketch local-refit profile at zero local ridge. Its documented five-step warm-start budget is the prespecified setting; it is not semantically equivalent to LSMR's 80-step cap.
+- **Alternatives rejected:** Replacing public ADP defaults or including HPAO-LSMR in the requested three-method comparison would change the requested scope. Do not claim matched iteration budgets or pool with the completed LSMR run.
+- **Affected:** `experiments/r_sdr/{design.py,__main__.py,runner.py,worker.py,report.py,README.md}`, `tests/test_r_sdr.py`, `PLAN.md`, `agent-notes/ADP/r-sdr-comparison.md`.
+- **Status:** active pending the paired benchmark result.
+
+### Outcome — 2026-10-18
+
+- **Evidence:** `benchmark_outputs/r_sdr/multi-rank-grassman-2026-10-17/` recorded 90/90 valid fits, zero failures and 10 paired seeds at each of ranks 3, 4, and 5. Ordinary MAVE's paired median time was 25.14/32.70/35.74x Grassmann; MEANMAVE was 1.481/1.202/0.9816x. All paired EDR-delta intervals include zero and no fit met the recovery threshold.
+- **Solver caveat:** all 150 inner calls reached the five-step cap; 745/750 accepted steps used the rank-one fallback; only one call reached core GN; all outer schedules stopped at `h_min`. This is a comparison of the configured Grassmann entrypoint, not evidence of converged Grassmann fits.
+- **Validation:** 16 focused tests passed, scoped Ruff/format and `git diff --check` passed. The full suite has three unrelated collection errors caused by missing catalog key `mi-spokoini-m2-n`.
+- **Status:** complete; no production default or estimator change.
+
+## 2026-10-18 — Add Grassmann to the main R-SDR catalog comparison
+
+- **Decision:** Run the full 50-case R-SDR catalog for `ADP-Grassmann`, ordinary MAVE, and `MAVE::MEANMAVE`, with 10 paired seeds per case (1,500 fits) and the already documented five-step Grassmann budget.
+- **Reason:** The user's request is for Grassmann in the main benchmark alongside the two MAVE references. Keeping the same full catalog/seed protocol gives paired evidence across its broad `n,d,m` range while avoiding unrelated methods and preserving a separate artifact.
+- **Alternatives rejected:** Reusing the small `m=3,4,5` run or rerunning all six default methods would not answer the requested focused comparison.
+- **Affected:** `PLAN.md`, `agent-notes/STATE.md`, `experiments/r_sdr/README.md`, new benchmark output directory.
+- **Status:** active until 1,500-fit run is analyzed.
+
+## 2026-10-18: reject ten-step localized Grassmann accuracy candidate
+
+The frozen R-SDR development run completed90/90 paired fits without failures. EDR geometric ratio .9093 passed quality, but median/p90 time ratios1.368/1.729 failed the fixed1.10/1.25 gate. No production/default promotion; heldout92800..92809 stays untouched. Saved sources/journal: benchmark_outputs/r_sdr/grassman-accuracy-dev-2026-10-18/. Next independent hypothesis uses only exactly-zero operator centers at five steps and fresh development seeds.
+
+## 2026-10-18: reject constant-center accuracy candidate
+
+Exact constant-center elimination at five steps passed time/RSS but EDR ratio.9997287 failed frozen.95. 90/90 fits complete and hashes match; validation94800..94809 untouched. Retain experiment without production promotion. Next hypothesis is direct true-profile Armijo to spend saved line-search time on rank-one iterations, using fresh development95800.
+
+## 2026-10-18: reject direct Armijo accuracy candidate
+
+Repaired development90/90 successful; EDR ratio.955496 failed fixed.95, time.95545/1.12086 passed. Preserve worst EDR ratio1.9680 at d20/95809. Original metadata parser failure fixed separately with regression coverage. No production promotion; heldout96800 untouched. Next independent hypothesis localizes QR/SVD profile fallback while retaining nonsmooth guards and accurate scalar search.
+
+## 2026-10-18: reject quadratic accuracy candidate
+
+90/90 successful paired fits; EDR ratio.96196 (95%CI[.92384,.99003]) failed fixed.95 despite fit median/p90.8229/1.09843. Preserve observed3.8% improvement/17.7% speed gain without claiming the frozen gate passed. Validation98800 untouched. Next distinct direction hypothesis uses regular-center GN with full true-profile acceptance for numerical intrinsic-rank centers; mathematical caveat in INTRINSIC_RANK.md.
+
+## 2026-10-18: reject intrinsic GN after independent validation
+
+Development99800 passed all gates (EDR.89504,time.66773), but unchanged heldout100800 failed EDR.98546 CI[.87116,1.18394]. A10.069x EDR regression at d5/100803 is material despite finite/orthogonal successful output. First candidate inner profile50.6433 versus baseline8.16165 suggests insufficient initial progress, not numerical success. Exact basin cause is unproven. Keep production unchanged. Next distinct candidate preserves one original bounded scalar first step before intrinsicGN; new101800/102800 data, same gates plus2xoutlier bound, no tuning on consumed validation.
+
+## 2026-10-19: reject one-step intrinsic warmup
+
+Complete101800 development90/90 fails EDR1.01325 CI[.83220,1.34436] and individual28.7518x at d5/101809; time.7551/.9099 passes. All paired/source hashes match, numerical certificates do not establish recovery.102800 heldout untouched. Keep full artifacts/defaults. Next hypothesis preserves the ENTIRE original five-step solve, then adds bounded intrinsicGN polishing; budget chosen only on90800, fresh103800/104800 selection/validation.
+
+## 2026-10-19: close baseline-first polish pilot
+
+Original5+intrinsicGN extra2/3/5 passed7 reference tests but90800 pilot total7/8/10 yields EDR.971/.969/.947 and time1.069/1.118/1.123; d50budget10 costs1.50x. No joint quality/time budget apparent from this exploratory input; do not claim a paired-selection rejection or promotion.103800/104800 still untouched. Next candidate conditionally reuses the existing joint spectral gradient geodesic at rank guards; smooth GN remains unchanged, no rank classifier/full-rank derivative at deficient centers.
+
+## 2026-10-22: freeze conjugate rank-guard budget before fresh data
+
+Pure spectral90800 pilot has no joint quality/time winner and is closed at exploration. PR+ projection transport adds bounded O(dm+J) history with rank-change and actual-descent resets; it remains an APPROXIMATE optimizer with full true-profile trials/live certificates.31 focused tests and independent Luna contract review found no blocker. Conjugate90800 budgets5/10/15 give EDRgeo1.38123/.94045/.96922 and median time.55456/.92183/1.28427. Freeze10 steps (initial smooth cap5) for103800 development/104800 validation under unchanged quality/time/RSS/2x-outlier gates. CONJUGATE_PROTOCOL.md; no production promotion from this pilot.
+
+## 2026-10-22: close conjugate development on time, inspect exact cost next
+
+Complete103800 development90/90 confirms EDRgeo.92707 CI[.88901,.96282],26/30wins and no severe outlier (max1.12455x). Time median/p901.13220/1.39751 fails fixed1.10/1.25; no promotion/validation.104800 unused. Preserve accuracy evidence without describing this as an accepted quality/time tradeoff. Next bounded measurement asks whether exact contractions/caching can retain the direction with lower cost; no budget retuning on consumed103800. New candidate would need fresh105800/106800 data.
+
+## 2026-10-22: close conjugate QR cost pilot; investigate relative GN damping
+
+Even after guarded QR factor reuse,90800 QR-CG is1.093..1.128x slower than CG.
+Close before fresh selection; no speed claim from isolated profile improvements.
+Retain numerical helper/tests and immutable pilot artifacts. New distinct
+APPROXIMATE proposal normalizes intrinsic-GN damping by ||J||F^2/(q*m), preserving
+conditional response/mass scale invariance. All-center acceptance, rank guards,
+smooth paths and final certificates remain original. No data-driven quality
+claim yet;105800/106800 remain untouched, fixed gates unchanged.
+
+## 2026-10-22: freeze relative intrinsic GN at ten steps
+
+64 reference/scaling/fallback checks pass; exploratory90800 EDRgeo at5/10/15
+is1.06879/.95377/1.04254, median time.48757/.60728/.70264. Freeze10 before105800
+development as the best pilot quality with time headroom. The reused pilot does
+not establish the .95 gate; all unchanged frozen quality/time/outlier gates
+must pass on105800 and then untouched106800 before acceptance. Full sources
+and math retained; original smooth GN/public solver unchanged.
+
+## 2026-10-22: relative intrinsic GN passes development; validate unchanged
+
+Corrected105800 stage completes90/90 with30matched pairs; all8 frozen gates pass.
+EDRgeo.898376 CI[.844245,.948903], paired median/p90time.650580/.790378,
+RSS1.00524, worst1.07731x. Initial invalid launch preserved separately; duplicate
+runner lambda forwarding fixed without prototype/production changes or tuning.
+Now run unchanged106800 heldout; no acceptance/default promotion from dev alone.
+
+## 2026-10-22: accept relative GN as an explicit measured-workload option
+
+Unchanged106800 validation90/90 passes all8 gates: EDRgeo.923729
+CI[.886622,.956495],time.653572/.993297,RSS1.00211,worst1.03642x; source sets
+equal development. Accept explicit relative_gn option at10steps/smooth cap5 for
+n500,m2,d5/20/50. Preserve original default. Port must reproduce prototype and
+saved oldbaseline outputs on all60 dev/heldout datasets before completion.
+No universal recovery/default-promotion claim; R still better in case medians.
+
+## 2026-10-22: finish public relative GN port and direct R confirmation
+
+grassman.solve(relative_gn=True,max_steps=10) ports the accepted algorithm in
+99added/8removed lines; defaultFalse. All120 dev/heldout full-fit replays match
+saved bases and every inner diagnostic exactly, including60 oldbaseline fits.
+Current public/R confirmation on the SAME106800 data completes90/90 with all8
+gates PASS: EDR.923729,time median/p90.649100/.944153,RSS1.00170,worst1.03642x.
+This is a code/timing confirmation, not additional independent datasets.
+209 focused tests pass; Ruff/format/Pyright clean. Current production SHA256
+8804e23a16c4cf2de65d9c7a0fddc20b03fe6156d19bc3f8888bff2f607d782a.
+RELATIVE_GN_REPORT.md and immutable raw snapshots retain limits and all failures.
+Task done for measured n500,m2,d5/20/50; broader default promotion requires new
+evidence. No convergence claim or claim of beating R MEANMAVE accuracy.
+
+## 2026-10-22: user-requested combined Grassmann default and budget20
+
+Active; supersedes the earlier decision to keep relative_gn=False as the
+public default. User explicitly requested combining earlier joint time/EDR
+gains below old promotion thresholds and then raising compute. Default solve
+now enables relative intrinsic GN, direct/quadratic3 true-profile rank-one
+Armijo and exact zero-U reduction, max_steps20 with no initial-smooth cap.
+Same finite-sketch estimator, rank cutoff and live active-objective certificate;
+exact constants restore full coefs/loss/rank counts/gradient normalization.
+Earlier QR/SVD/gradient/GEMM/Jacobian optimizations were already present.
+CG, scalar warmup, flat/full tangent/rank-k and per-center QR had no joint
+full-fit win and are not silently combined. Legacy flags remain selectable.
+
+Evidence: COMBINED_{MATH,PROTOCOL,REPORT,VERIFICATION}.md;24 exploratory fits
+only on90800 before budget freeze. Fresh107800/108800 stages150+150 success,
+30paired datasets/stage, same sources/settings, actual R MEANMAVE. Final20
+validation versus original5: EDRgeo.925311 CI[.861556,.983259], time median/p90
+.860129/1.189895, RSS1.00403; all8 historical reference gates pass. However
+versus accepted relative10: EDR1.003418 CI[.986369,1.028379],time1.275697.
+Extra budget20/combined10: EDR.996743 CI[.974926,1.023747],time1.306993.
+Thus no established incremental recovery improvement; default20 follows the
+explicit user request, not an invented quality win. R remains more accurate
+on case medians. No outer convergence/full50-case generalization claim.
+
+Public/control replay120/120 EXACT bases/diagnostics/stops;247 focused tests,
+Ruff/format17 and Pyright14 pass. Whole suite has7 unrelated failures and3
+collection errors reproduced with old solver; names/raw evidence retained.
+Historical dynamic-clone scalar candidate and polish now pin old settings so
+new public defaults cannot silently change those experiment meanings.

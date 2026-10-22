@@ -134,7 +134,16 @@ def test_schur_refit_solver_pair_and_rank_guard_workspace_fallback():
     )
     U[0] = 0
     U[1] = np.outer(np.arange(7), np.arange(9))
-    result = g.solve(Y.T, U, I, mass=mass, max_steps=3)
+    result = g.solve(
+        Y.T,
+        U,
+        I,
+        mass=mass,
+        max_steps=3,
+        relative_gn=False,
+        quadratic_trials=0,
+        constant_centers=False,
+    )
     assert result.diagnostics["rank_guard_fallbacks"] > 0
     assert result.diagnostics["local_rank_loss"] >= 2
     state = g._profile(U @ Y, I, mass, 0)

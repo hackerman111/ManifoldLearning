@@ -1,0 +1,229 @@
+FFFF...FFF                                                               [100%]
+==================================== ERRORS ====================================
+__________________ ERROR collecting tests/test_experiment.py ___________________
+tests/test_experiment.py:40: in <module>
+    from experiments import multi as multi_experiments, multiv2
+experiments/multiv2.py:124: in <module>
+    CATALOG = {experiment.selector: experiment for experiment in catalog()}
+                                                                 ^^^^^^^^^
+experiments/multiv2.py:108: in catalog
+    experiment = _expand_short_grid(experiment)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+experiments/multiv2.py:79: in _expand_short_grid
+    factor, hypothesis = _BINARY_STRESS[experiment.selector]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'mi-spokoini-m2-n'
+____________ ERROR collecting tests/test_multi_center_diagnostic.py ____________
+tests/test_multi_center_diagnostic.py:5: in <module>
+    from experiments.multi_center_diagnostic import _local_spectrum, _weight_metrics
+experiments/multi_center_diagnostic.py:24: in <module>
+    from .multiv2_quality import SENTINELS, _baseline
+experiments/multiv2_quality.py:18: in <module>
+    from .multiv2 import CATALOG
+experiments/multiv2.py:124: in <module>
+    CATALOG = {experiment.selector: experiment for experiment in catalog()}
+                                                                 ^^^^^^^^^
+experiments/multiv2.py:108: in catalog
+    experiment = _expand_short_grid(experiment)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+experiments/multiv2.py:79: in _expand_short_grid
+    factor, hypothesis = _BINARY_STRESS[experiment.selector]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'mi-spokoini-m2-n'
+________________ ERROR collecting tests/test_multiv2_quality.py ________________
+tests/test_multiv2_quality.py:13: in <module>
+    from experiments.multiv2_quality import (
+experiments/multiv2_quality.py:18: in <module>
+    from .multiv2 import CATALOG
+experiments/multiv2.py:124: in <module>
+    CATALOG = {experiment.selector: experiment for experiment in catalog()}
+                                                                 ^^^^^^^^^
+experiments/multiv2.py:108: in catalog
+    experiment = _expand_short_grid(experiment)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+experiments/multiv2.py:79: in _expand_short_grid
+    factor, hypothesis = _BINARY_STRESS[experiment.selector]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'mi-spokoini-m2-n'
+=================================== FAILURES ===================================
+_________________________ test_cli_manifold_smoke[cg] __________________________
+ADP/cli/main.py:597: in main
+    index, true_basis, profile, metadata = _run(args)
+                                           ^^^^^^^^^^
+ADP/cli/main.py:286: in _run
+    return _run_manifold(args, data=data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:399: in _run_manifold
+    model = ADP_Manifold(
+ADP/core/manifold/ADP_Manifold.py:71: in __init__
+    raise ValueError("local_quadratic estimator requires index_dim=1")
+E   ValueError: local_quadratic estimator requires index_dim=1
+
+During handling of the above exception, another exception occurred:
+tests/test_cli.py:96: in test_cli_manifold_smoke
+    main(
+ADP/cli/main.py:599: in main
+    parser.error(str(error))
+../../../../.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu/lib/python3.13/argparse.py:2686: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+../../../../.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu/lib/python3.13/argparse.py:2673: in exit
+    _sys.exit(status)
+E   SystemExit: 2
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--mode {single,multi,manifold}] [--n N] [--d D]
+                   [--index-dim INDEX_DIM] [--noise NOISE]
+                   [--data-seed DATA_SEED] [--gpu] [--gpu-solver]
+                   [--seed SEED] [--N_loc N_LOC] [--N_lin N_LIN] [--N_J N_J]
+                   [--N_phi N_PHI] [--N_manifold N_MANIFOLD]
+                   [--sync-steps SYNC_STEPS]
+                   [--lambda-manifold LAMBDA_MANIFOLD]
+                   [--scale-boundary {raise,stop}] [--outer_steps OUTER_STEPS]
+                   [--lambda_penalty LAMBDA_PENALTY]
+                   [--local_ridge LOCAL_RIDGE] [--kernel KERNEL] [--a A]
+                   [--h_min H_MIN] [--batch_size BATCH_SIZE]
+                   [--index_init {local,local-cv,pilot,random}]
+                   [--estimator {new,legacy}]
+                   [--directions {auto,isotropic,localized}]
+                   [--multi-tensor {orthogonal,full}]
+                   [--select-step {best,last}]
+                   [--center-displacement CENTER_DISPLACEMENT]
+                   [--training-set {all,exclude_centers}] [--fixed-directions]
+                   [--solver {lsmr,cg,hybrid}]
+                   [--dense-max-unknowns DENSE_MAX_UNKNOWNS]
+                   [--dense-max-bytes DENSE_MAX_BYTES]
+                   [--hybrid-inner-rtol HYBRID_INNER_RTOL]
+                   [--solver-tol SOLVER_TOL]
+                   [--solver-max-steps SOLVER_MAX_STEPS] [--theta THETA]
+                   [--trust-radius TRUST_RADIUS] [--lsmr-maxiter LSMR_MAXITER]
+                   [--cg-maxiter CG_MAXITER]
+__main__.py: error: local_quadratic estimator requires index_dim=1
+_______________________ test_cli_manifold_smoke[hybrid] ________________________
+ADP/cli/main.py:597: in main
+    index, true_basis, profile, metadata = _run(args)
+                                           ^^^^^^^^^^
+ADP/cli/main.py:286: in _run
+    return _run_manifold(args, data=data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:399: in _run_manifold
+    model = ADP_Manifold(
+ADP/core/manifold/ADP_Manifold.py:71: in __init__
+    raise ValueError("local_quadratic estimator requires index_dim=1")
+E   ValueError: local_quadratic estimator requires index_dim=1
+
+During handling of the above exception, another exception occurred:
+tests/test_cli.py:96: in test_cli_manifold_smoke
+    main(
+ADP/cli/main.py:599: in main
+    parser.error(str(error))
+../../../../.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu/lib/python3.13/argparse.py:2686: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+../../../../.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu/lib/python3.13/argparse.py:2673: in exit
+    _sys.exit(status)
+E   SystemExit: 2
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--mode {single,multi,manifold}] [--n N] [--d D]
+                   [--index-dim INDEX_DIM] [--noise NOISE]
+                   [--data-seed DATA_SEED] [--gpu] [--gpu-solver]
+                   [--seed SEED] [--N_loc N_LOC] [--N_lin N_LIN] [--N_J N_J]
+                   [--N_phi N_PHI] [--N_manifold N_MANIFOLD]
+                   [--sync-steps SYNC_STEPS]
+                   [--lambda-manifold LAMBDA_MANIFOLD]
+                   [--scale-boundary {raise,stop}] [--outer_steps OUTER_STEPS]
+                   [--lambda_penalty LAMBDA_PENALTY]
+                   [--local_ridge LOCAL_RIDGE] [--kernel KERNEL] [--a A]
+                   [--h_min H_MIN] [--batch_size BATCH_SIZE]
+                   [--index_init {local,local-cv,pilot,random}]
+                   [--estimator {new,legacy}]
+                   [--directions {auto,isotropic,localized}]
+                   [--multi-tensor {orthogonal,full}]
+                   [--select-step {best,last}]
+                   [--center-displacement CENTER_DISPLACEMENT]
+                   [--training-set {all,exclude_centers}] [--fixed-directions]
+                   [--solver {lsmr,cg,hybrid}]
+                   [--dense-max-unknowns DENSE_MAX_UNKNOWNS]
+                   [--dense-max-bytes DENSE_MAX_BYTES]
+                   [--hybrid-inner-rtol HYBRID_INNER_RTOL]
+                   [--solver-tol SOLVER_TOL]
+                   [--solver-max-steps SOLVER_MAX_STEPS] [--theta THETA]
+                   [--trust-radius TRUST_RADIUS] [--lsmr-maxiter LSMR_MAXITER]
+                   [--cg-maxiter CG_MAXITER]
+__main__.py: error: local_quadratic estimator requires index_dim=1
+_____________________ test_manifold_hybrid_fit_matches_cg ______________________
+tests/test_hybrid.py:151: in test_manifold_hybrid_fit_matches_cg
+    old = ADP_Manifold(2, **settings).fit(X, Y)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ADP/core/manifold/ADP_Manifold.py:71: in __init__
+    raise ValueError("local_quadratic estimator requires index_dim=1")
+E   ValueError: local_quadratic estimator requires index_dim=1
+___________ test_recovery_gate_retains_failures_and_checks_each_pair ___________
+tests/test_inverse_moment_init.py:93: in test_recovery_gate_retains_failures_and_checks_each_pair
+    from experiments.index_recovery import make_protocol, summarize
+experiments/index_recovery.py:28: in <module>
+    from .multiv2_quality import _baseline
+experiments/multiv2_quality.py:18: in <module>
+    from .multiv2 import CATALOG
+experiments/multiv2.py:124: in <module>
+    CATALOG = {experiment.selector: experiment for experiment in catalog()}
+                                                                 ^^^^^^^^^
+experiments/multiv2.py:108: in catalog
+    experiment = _expand_short_grid(experiment)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+experiments/multiv2.py:79: in _expand_short_grid
+    factor, hypothesis = _BINARY_STRESS[experiment.selector]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'mi-spokoini-m2-n'
+________________________ test_fit_reference[manifold-1] ________________________
+tests/test_statistics_optimization.py:132: in test_fit_reference
+    actual, truth, _, _ = runner._run(args)
+                          ^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:286: in _run
+    return _run_manifold(args, data=data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:399: in _run_manifold
+    model = ADP_Manifold(
+ADP/core/manifold/ADP_Manifold.py:71: in __init__
+    raise ValueError("local_quadratic estimator requires index_dim=1")
+E   ValueError: local_quadratic estimator requires index_dim=1
+________________________ test_fit_reference[manifold-2] ________________________
+tests/test_statistics_optimization.py:132: in test_fit_reference
+    actual, truth, _, _ = runner._run(args)
+                          ^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:286: in _run
+    return _run_manifold(args, data=data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:399: in _run_manifold
+    model = ADP_Manifold(
+ADP/core/manifold/ADP_Manifold.py:71: in __init__
+    raise ValueError("local_quadratic estimator requires index_dim=1")
+E   ValueError: local_quadratic estimator requires index_dim=1
+________________________ test_fit_reference[manifold-3] ________________________
+tests/test_statistics_optimization.py:132: in test_fit_reference
+    actual, truth, _, _ = runner._run(args)
+                          ^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:286: in _run
+    return _run_manifold(args, data=data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:399: in _run_manifold
+    model = ADP_Manifold(
+ADP/core/manifold/ADP_Manifold.py:71: in __init__
+    raise ValueError("local_quadratic estimator requires index_dim=1")
+E   ValueError: local_quadratic estimator requires index_dim=1
+============================= slowest 10 durations =============================
+0.11s call     tests/test_inverse_moment_init.py::test_recovery_gate_retains_failures_and_checks_each_pair
+0.03s call     tests/test_statistics_optimization.py::test_fit_reference[multi-1]
+0.02s call     tests/test_statistics_optimization.py::test_fit_reference[multi-3]
+0.02s call     tests/test_statistics_optimization.py::test_fit_reference[multi-2]
+
+(6 durations < 0.005s hidden.  Use -vv to show these durations.)
+=========================== short test summary info ============================
+ERROR tests/test_experiment.py - KeyError: 'mi-spokoini-m2-n'
+ERROR tests/test_multi_center_diagnostic.py - KeyError: 'mi-spokoini-m2-n'
+ERROR tests/test_multiv2_quality.py - KeyError: 'mi-spokoini-m2-n'
+FAILED tests/test_cli.py::test_cli_manifold_smoke[cg] - SystemExit: 2
+FAILED tests/test_cli.py::test_cli_manifold_smoke[hybrid] - SystemExit: 2
+FAILED tests/test_hybrid.py::test_manifold_hybrid_fit_matches_cg - ValueError...
+FAILED tests/test_inverse_moment_init.py::test_recovery_gate_retains_failures_and_checks_each_pair
+FAILED tests/test_statistics_optimization.py::test_fit_reference[manifold-1]
+FAILED tests/test_statistics_optimization.py::test_fit_reference[manifold-2]
+FAILED tests/test_statistics_optimization.py::test_fit_reference[manifold-3]
+7 failed, 3 passed, 3 errors in 1.05s

@@ -28,7 +28,9 @@ Spokoiny fit n800/d50/m2/J800/P10, один BLAS thread, local profile/refit
 Timer-only профили и baseline имеют точное совпадение basis/diagnostics;
 цифры зависят от fallback-пути и не являются общей оценкой всех задач.
 
-`ADP.solver.grassman.solve`: только full q*m-core profiled GN + polar Armijo,
+`ADP.solver.grassman.solve`: default20, relative intrinsic GN + quadratic3
+rank-one Armijo + exact zero-U exclusion; smooth_max_steps=None. Full q*m-core
+profiled GN + polar Armijo,
 CPU multi-index HPAOResult. Параметры method/angle_backend удалены; альтернативы
 rank_one/spectral и Schur/refit абляции доступны только в grassman_exp.
 Внутренние rank/workspace/no-descent fallback-шаги core_gn сохранены.
@@ -36,6 +38,26 @@ Default tau=0 сохраняет unpenalized finite-sketch профиль; posit
 отдельный estimator. GN damping не permanent penalty. No global guarantee;
 rank/workspace guards и uncompleted status диагностируются. API/границы и
 локаторы: [multi-index.md](multi-index.md#профильный-grassmann-solver-opt-in).
+
+`relative_gn=True` добавляет regular-center GN proposal при
+численном intrinsic rank loss и damping=lambda_prox*||J||F²/(q*m). APPROXIMATE
+optimizer; полные gradient/trial/final profile и прежняя applicability сохранены.
+Smooth GN прежний; недопустимая модель ->
+direct rank-one Armijo, workspace/плохой damping -> прежний spectral fallback.
+Dev105800 и unchanged heldout106800 проходят все quality/time/RSS/outlier gates;
+отчёты `experiments/grassman_accuracy_2026_10_18/RELATIVE_GN_*REPORT.md`.
+Это n500,m2,d5/20/50 evidence, без гарантии сходимости. Public port120/120
+full-fit bases/diagnostics точно совпадает с сохранёнными prototype/baseline.
+
+С2026-10-22 пользователь явно запросил объединение прежних joint time/EDR
+gains ниже старого порога и больший бюджет. Текущий combined20 прошёл150+150
+paired fits с реальным R MEANMAVE, validation EDRgeo.925311/time.860129 vs old5.
+Отдельная польза состава/бюджета vs relative10 не доказана: final EDR1.003418,
+time1.275697. COMBINED_{MATH,PROTOCOL,REPORT}.md. Exact zero-U reduction
+восстанавливает полный loss/coefs/rank count и прежний gradient scale;
+stationarity относится к active objective плюс известные константы.
+Прежний accepted10: relativeTrue,quadratic0,constantFalse,max10,smooth5.
+Исходный контроль: relativeFalse,quadratic0,constantFalse,max5.
 
 `grassman.py` теперь содержит проверенную CPU-оптимизацию core_gn:
 EXACT/NUMERICAL при прежних настройках, цели и HPAOResult. Safe m<=2
@@ -59,7 +81,7 @@ Luna проверки: `tests/test_grassman_flat.py`, benchmark/report рядо�
 45 tests/120 rows passed execution, but adaptive quality/time selection fails;
 joint flat stays experimental, heldout skipped. REPORT distinguishes frozen
 objective gains from EDR recovery and records missing fullfit orth metric.
-Источники **SRC-GRASSMAN**: `sed -n '1,567p' ADP/solver/grassman.py`;
+Источники **SRC-GRASSMAN**: `sed -n '1,806p' ADP/solver/grassman.py`;
 **SRC-GRASSMAN-EXP**: `sed -n '1,819p' ADP/solver/grassman_exp.py`;
 flat kernels:32-150, cached spectral:153-180, solve:183-571;
 full tangent J/J*:574-661, `solve_full_gn`:664-819.
@@ -68,7 +90,7 @@ Full tangent GN тоже не прошёл selection; сохранён
 `experiments/glm_grassmann_2026_10_02/full_gn.py` реэкспортирует этот solver.
 Перенос: `experiments/grassman_promotion_2026_10_03/relocation_parity.json`.
 
-`grassman.block_rank_k` (569-613) — отдельный явный экспериментальный вход,
+`grassman.block_rank_k` (762-806) — отдельный явный экспериментальный вход,
 `grassman.solve` и его сигнатура сохранены. Делегирует
 `grassman_exp.solve(method="block_rank_k")`: rank_k фиксирован или None;
 rank_strategy energy/cost; block_variant spectral/optimized. Spectral точно

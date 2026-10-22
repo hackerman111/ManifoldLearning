@@ -1,0 +1,1209 @@
+{
+  "source_sha256": {
+    "ADP/__init__.py": "c3928d0a7b69c2acd9f4f378a0b3e89eedff2f182fca8f8a990624779919872d",
+    "ADP/cli/__init__.py": "2388754dbcbaf9a52f236f6c6d623e39efa28f4ccd41bfd850c2fae478fee6da",
+    "ADP/cli/__main__.py": "e4ff3ad1054fb5ad4c26c3915f8511c9d15bf0b2742c6c7e6eb4aed24b1a99ab",
+    "ADP/cli/experiment.py": "b65bf75576114eb3da0b9640e3a7a45de8d28a6b27525337bcdedabbf5eaa080",
+    "ADP/cli/experiment_plots.py": "9dd26cf6450f6a1376c340b9dc4de41752c6bcac709712c145e7db314729271b",
+    "ADP/cli/experiment_utils.py": "9cd25e964580952fbbeab663538e1a9555c638a5ad5b5978592bd1fda2ccf7e9",
+    "ADP/cli/main.py": "202addc74d99c72beba3bee8dda1c654bf3bc45994332097e5282d7d20a3539d",
+    "ADP/cli.py": "6bea069301e4b6ca6014c2e9a286db9a913d9aed0d6c6b944ca9dbafa55cb6b6",
+    "ADP/core/ADP_Config.py": "f241194edbed37994da9156a0fb8829dfc4dd7c9e80f14c728606f203eee4427",
+    "ADP/core/ADP_Data.py": "faf02f014c6a6d05327b287eb5a05dae77d07f8a99d916aeeaf604e765ad3cdc",
+    "ADP/core/ADP_Solver.py": "a49de2c4ab080210d88c72655b74fa77fc28d619a1179de5552a2e4951c3101c",
+    "ADP/core/ADP_Statistic.py": "be6f5e9d215180a0101dd25f1fb2a79f1e9afeb6652c5cc8dfa38ea48c77a8a5",
+    "ADP/core/__init__.py": "8459652afe34f924c5a479e6c215e5b72be6bf8d3447b0a217f07d1d6d009a38",
+    "ADP/core/experimental_centers.py": "1241d171fd437f1c28613c00079ca71d9f3a9e71141df901dc36952a89af007a",
+    "ADP/core/manifold/ADP_Manifold.py": "34f0085a25d7c1b9e24596a25bdc1940261dc85ac9a081b26795ebf9e9a368cd",
+    "ADP/core/manifold/ADP_Manifold_result.py": "630f39c6ee4c6757b7c0db19240e59aec2e406c30279b2ed69030485b316d5e3",
+    "ADP/core/manifold/ADP_Manifold_utils.py": "ff6ff4b9433cb123eeefa0b693119b9d0e6e159e9d306c83d31fdcd3ec8eb27e",
+    "ADP/core/manifold/__init__.py": "cc393ddf77b47d0522ebd4219b69667788d962d94f3d87453552f9a35b7695af",
+    "ADP/core/multi/ADP_multi_index.py": "65a77f3ff7a620b8cf9678d7d30c4346b323711c7adb879f198a4dae847080aa",
+    "ADP/core/multi/ADP_multi_index_result.py": "b0aa2d22b65c582a95b3214ffe225b5cb92c87013971cc0bb4a16b570ad56ef1",
+    "ADP/core/multi/ADP_multi_index_utils.py": "e128ce603f513ef48d53e1d823fdc0a1c0c350c1ddbd2d53ec660da040d91229",
+    "ADP/core/multi/__init__.py": "ec56c6b805208b2b558e999089d75d9458ebabdfda75c1d3072951d2f677bc3f",
+    "ADP/core/single/ADP_single_index.py": "d636b1b1eddc5cdbdfe61e567e899e92399c3e666b75f0efe85c2a8d43c91b95",
+    "ADP/core/single/ADP_single_index_result.py": "6f539f9f285911f4776261f2346ad6a51fc3a42faeaf80c067ef8c8df4eafaf1",
+    "ADP/core/single/ADP_single_index_utils.py": "982fb26681d3b6b4547d55c2520c17252ec93c9a4b9e997fc0c128c57c32650e",
+    "ADP/core/single/__init__.py": "38c5b31c28225e064dd22aed9abce4fbc929690d4091cb02d264a6ca1d7de48d",
+    "ADP/engine/__init__.py": "580333799aa34f8147779b45ddede43d88587212c001ae97f3e13d1f3910cc0a",
+    "ADP/engine/common/ADP_Statistic_engine.py": "74276b3a0a70e4efa36611c48fe53ed4305c02f7bda0414842d45cb71c42cc3b",
+    "ADP/engine/common/__init__.py": "a1e486353e43b9473fa1068a87b0e84481f17fadc06adc552de77d35672826d8",
+    "ADP/engine/common/box_kernel.py": "2776cf53404da905372be854fcb5c0001ef25453973b17bcd09b51fa6b6382ae",
+    "ADP/engine/common/calculus.py": "5d50b69edbfa9363b33d791da24c50fa47a29ccb4e2e4a791ad7ee8e80615c5e",
+    "ADP/engine/common/experimental_centers.py": "950a5bc43a5337a0eebae1cd9f5affbbe194c84a783533aee2d1e9c1d4ed1a7a",
+    "ADP/engine/common/experimental_geometry.py": "01862843c329322bc88b1b5929aa2cb81a0d3cac40292f553fab768eda73e3e5",
+    "ADP/engine/common/experimental_step.py": "7eebb8514c3c998d378e0f428d9a2108a22b838fc16b629fa64ec593e210b9fc",
+    "ADP/engine/common/gpu_statistics.py": "564d95e8204dc728c83904d93ee446d4a992ac160a00abc72308aa51fe445edd",
+    "ADP/engine/common/index_fit.py": "f7d7886697dd7ff4690642b6e168ba4068549ee39f909ebb515aee56aed9f4ea",
+    "ADP/engine/common/initialize.py": "8146befd146847d4b88ac3b1f0c27c7eb68d00998ba44a3f334e114718b9b4bc",
+    "ADP/engine/common/logger.py": "05fd5d8bc3082c4410b33b585d054fdf693f3d39e51d1e21703201b43a2f377a",
+    "ADP/engine/common/statistic.py": "32e3cd877044eeea0d05fdb37d2af80a474c9b2c72240a4e362b1b163122d977",
+    "ADP/engine/common/utils.py": "3dd3eafbaf8e246054589013eae17259b9abaf314f7be5100c65edaf0162f98a",
+    "ADP/engine/common/weights.py": "0cc5a04bbff3ae60e74da248ccd73b0128090072fdb1267c4334d78a7e7d006e",
+    "ADP/engine/manifol_engine/__init__.py": "657c1941611c974126b68da000053322261d7eae80c79f43360f9a029baa9d5c",
+    "ADP/engine/manifol_engine/fit.py": "a9eede0e06f6657087d43fc0fa391ac83b934a598bbf2372e6ca0ea69cf978d1",
+    "ADP/engine/manifol_engine/graphs.py": "71f8b0b9a31260cb09e8158a022a793056b467adb6463fb9896e3067187d6c71",
+    "ADP/engine/manifol_engine/optimisation.py": "ed8e74e709841e9a8b14646174d60ab76caf5501d1e3da78227e51ddbf705d11",
+    "ADP/engine/manifol_engine/utils.py": "467f66dc6b93cf513aba8bce5d1cc96f90adf750b4c2a026574c1ebc0af65d55",
+    "ADP/engine/manifol_engine/weights.py": "f475d459702651900d5a57e2a759aab03538f5397cab67adbca72160640d5240",
+    "ADP/engine/multi_index/ADP_multi_index_engine.py": "19a86165375ed267b898f1fb18fb750d909a3d1da98a442592aa062fb072bb09",
+    "ADP/engine/multi_index/__init__.py": "ecffff79930f2262696edc0c8af9d884681dc0df1474dc451e9bfb64e52299d4",
+    "ADP/engine/single_index/ADP_single_index_engine.py": "4bcaad15ccbe249f6311d3660b0f9cc6268ce1af405e676af109babc6c0ef2ca",
+    "ADP/engine/single_index/__init__.py": "1a0d3013732cbf557046b6dcca340f140434f58b2bfda8924259df5af55dbc7b",
+    "ADP/gpu.py": "560d3de7bb1c84428b8b4f0d204094fe6d533b681ebff5ed6e9ecac4a19258da",
+    "ADP/solver/CG.py": "b30566dfd036b8e13c8f00758641ab65a904e00a3bb166664a9c40973ffd59d3",
+    "ADP/solver/HYBRID/HYBRID.py": "5d6b93883f99825d60e3b6c45c46a4be2ecf70afbd7e78a6aea0d469464b578b",
+    "ADP/solver/HYBRID/HYBRID_manifold.py": "78693749429f9916528a5e4f8beb283df5a6c5ccee08a781ddf11b322d5fb3ad",
+    "ADP/solver/HYBRID/HYBRID_multi.py": "2808c66ece1e9e465659511a6038a5cb2cf8528cb6d75e356de5ade500c4cd12",
+    "ADP/solver/HYBRID/HYBRID_single.py": "5186d85338b58637aad14f7fcadb1424e7c047f0ce2e681117d96e43f420b821",
+    "ADP/solver/HYBRID/__init__.py": "8678c963359c7ec33f0f65aacc8df3323890015d2d4f848f80e1e29259952106",
+    "ADP/solver/LSMR.py": "ccae647907f851b63fbca1ecf45ad409835da0b8e1678545e53de6035fc9d242",
+    "ADP/solver/SVD.py": "030d42fd6a5e7da26b586dfc15f35aceacbbb0c3aa69d4614b7b1272d183814a",
+    "ADP/solver/_grassman_schur.py": "6f629909fb23854d839ac3c66b47a5134feb64aede1d3712e6f42abf7addfd7f",
+    "ADP/solver/_multi_operator.py": "f10629519425fb042cef58b3d4f9b2ec5c0fe41f946a20f6117a0d57ea6cd2ae",
+    "ADP/solver/grassman.py": "6610d885741dac4d604fe49e3e73120cc08c71b55cd75afea7ae185771cebfd7",
+    "ADP/solver/grassman_exp.py": "5c96b145af109102ba705a6962d86dab2421b6a87a3106807e34fcc812db8071",
+    "ADP/solver/grassman_research.py": "ce6a64dbaef76d1378e35d5f1027609ab1ff3fd09e2b9132faeb24c82148128e",
+    "ADP/solver/legacy_lsmr.py": "c97b0ff519ba43afdbe11d1eb48f68fa275a9aa32b37b804ff9c6684fac13016",
+    "ADP/solver/statistic_operator.py": "698051352514f56ad6e03d03bee0d71cb46f2e0a0dda987bb6496200a7f1e052",
+    "experiments/__init__.py": "bd47e96ab73496709f18364a76a7e27908ca2cc01754d2917985750937efb7dd",
+    "experiments/grassman_accuracy_2026_10_18/analyze.py": "a793df6f48ca1e1b7b801864f7cfca0577c2961ef1f6bc9700b2043132ea16d1",
+    "experiments/grassman_accuracy_2026_10_18/analyze_combined.py": "1ea7a8cb3d5518cb377e25c6d189cd564c35d598237cc9111b42c92d2ef5c4e9",
+    "experiments/grassman_accuracy_2026_10_18/backtracking.py": "a7256957f278e7f8003bec2e1f6c48279e2edb3aa05146c8d15828b47ec41734",
+    "experiments/grassman_accuracy_2026_10_18/candidate.py": "c6bc7d55839b13da9f364b7d63197576e2d78bb1e0c819e86ebbd6b0ec21a6b4",
+    "experiments/grassman_accuracy_2026_10_18/conjugate_guard.py": "4f7f21afe34e4b06b1a4a2190dc460e5f9d4165219800b90f7cfc0a15cec88db",
+    "experiments/grassman_accuracy_2026_10_18/conjugate_qr.py": "d1d964451729686ffa9506b67b529e35d16265010b020e88357284f5c6e8b689",
+    "experiments/grassman_accuracy_2026_10_18/constant_angle.py": "d1aafa7a7fe8a63516592c85c7729cd6a4a3e3ae71d86dd0ee9304697805b9d0",
+    "experiments/grassman_accuracy_2026_10_18/constant_centers.py": "a0dcea4dd1ec7547914149f5b2c617fd8714520d71ddd4910024a5d03865bbca",
+    "experiments/grassman_accuracy_2026_10_18/diagnose.py": "6dbcdee4a117d2a32873de665903dfacd8900a2098a283440cff95e99d57fa15",
+    "experiments/grassman_accuracy_2026_10_18/diagnose_relative_gn.py": "a37a5001fe76f99e31f3c4ce2954b00b5cd5970bcaf27fc35ac9b02def625559",
+    "experiments/grassman_accuracy_2026_10_18/directions.py": "62a0fcd314ca1ba0187f206e8a923ebf6d6c7e8aec79029ca6c8a14989d4092e",
+    "experiments/grassman_accuracy_2026_10_18/intrinsic.py": "33824ff136a3276b22a14d4784733df63090d25012b51d0b6d436bdbde31e588",
+    "experiments/grassman_accuracy_2026_10_18/pilot_combined.py": "c07870ef6614a06fe3b070b0c27239c65f02d61ac0169f56cd2ee0ca1127cfe7",
+    "experiments/grassman_accuracy_2026_10_18/pilot_combined_sources/ADP/solver/grassman.py": "1effe71be7f76f6ce4a71f1af07ad74406f248df34a77db4a988965af861e02b",
+    "experiments/grassman_accuracy_2026_10_18/pilot_combined_sources/experiments/grassman_accuracy_2026_10_18/pilot_combined.py": "ba370acf1196539df29fbf5bda1d6aa882a693cd5b8fb5e4a07aa9fbdf5596b8",
+    "experiments/grassman_accuracy_2026_10_18/pilot_combined_sources/experiments/grassman_accuracy_2026_10_18/pilot_intrinsic.py": "75e6cc12ee9f1d41a8d13072ce5b927241301c5c5490427ca7cd66b33c27eca1",
+    "experiments/grassman_accuracy_2026_10_18/pilot_combined_sources/experiments/r_sdr/design.py": "593d137f041c5fc4124a77cb0ff3ec97be017b09ad1c37bee93d71ee2a0c57cc",
+    "experiments/grassman_accuracy_2026_10_18/pilot_combined_sources/experiments/r_sdr/runner.py": "028611bd7ea48ec7e27b58e8a58506ec60109717746a531acaddd99bdc6ca191",
+    "experiments/grassman_accuracy_2026_10_18/pilot_conjugate_guard.py": "129e48ef8949a5237d1420b5ba69ee88691fae7341d53dbccd932256a890d91d",
+    "experiments/grassman_accuracy_2026_10_18/pilot_conjugate_qr.py": "3b16830865ddd455cd68d2012449955dde7b8be16fbfa85fb80f6e2574402dd6",
+    "experiments/grassman_accuracy_2026_10_18/pilot_constant_angle.py": "9aa9064a877c93c35552832dd30dca4200ae60fafc6e663f5e3dad4d679dd3ce",
+    "experiments/grassman_accuracy_2026_10_18/pilot_intrinsic.py": "75e6cc12ee9f1d41a8d13072ce5b927241301c5c5490427ca7cd66b33c27eca1",
+    "experiments/grassman_accuracy_2026_10_18/pilot_polish.py": "c57ccb2850bd6b7f1be3a1d72d7301120375ceb33f2d7b4633fa350fa7b01540",
+    "experiments/grassman_accuracy_2026_10_18/pilot_quadratic.py": "2d1985d9bb423eaea64ea2f80056b0620478d2adc4a6909d440e57edc620f70e",
+    "experiments/grassman_accuracy_2026_10_18/pilot_relative_gn.py": "37c60a8f9e166135abcfa25624c91ae2c852c1caba657d97e970b288505b373c",
+    "experiments/grassman_accuracy_2026_10_18/pilot_relative_gn_sources/ADP/solver/grassman.py": "6d5aa753da9d9c8532545fa7519e63ba479c0f4082a8a6d52358cd4c66af72a0",
+    "experiments/grassman_accuracy_2026_10_18/pilot_relative_gn_sources/experiments/grassman_accuracy_2026_10_18/backtracking.py": "a7256957f278e7f8003bec2e1f6c48279e2edb3aa05146c8d15828b47ec41734",
+    "experiments/grassman_accuracy_2026_10_18/pilot_relative_gn_sources/experiments/grassman_accuracy_2026_10_18/pilot_intrinsic.py": "75e6cc12ee9f1d41a8d13072ce5b927241301c5c5490427ca7cd66b33c27eca1",
+    "experiments/grassman_accuracy_2026_10_18/pilot_relative_gn_sources/experiments/grassman_accuracy_2026_10_18/pilot_relative_gn.py": "37c60a8f9e166135abcfa25624c91ae2c852c1caba657d97e970b288505b373c",
+    "experiments/grassman_accuracy_2026_10_18/pilot_relative_gn_sources/experiments/grassman_accuracy_2026_10_18/relative_gn.py": "80a5022ad837b14636428b9872ab4823d146559d7fa03a6f21d7c6f36ba66595",
+    "experiments/grassman_accuracy_2026_10_18/pilot_relative_gn_sources/experiments/r_sdr/design.py": "9147d4de900f24bef6239ded44b7c27394d5880781b49828598d7338fcbca83a",
+    "experiments/grassman_accuracy_2026_10_18/pilot_relative_gn_sources/experiments/r_sdr/runner.py": "d5dc75f15a0e789b9a1a7644ca05d7261e013b0c91a3b37570a757b7b7a4073a",
+    "experiments/grassman_accuracy_2026_10_18/pilot_selective.py": "ee3c2fe2978fb21a2599a3fc5de35d7c3b17362523119d955526220373448784",
+    "experiments/grassman_accuracy_2026_10_18/pilot_spectral_guard.py": "03fafb7dc9806f8fba42ba94b1a8aa6829c3ac1fd6026a34b4cc09ebe6e719e3",
+    "experiments/grassman_accuracy_2026_10_18/pilot_warmup.py": "9a7f88bdae53db1ed90e71dd274169f3993f0c6480a377e3d346c7d11cef9b3e",
+    "experiments/grassman_accuracy_2026_10_18/polish.py": "f50036bae36cc1f31a369972d8d7f589c6aa3a9bca126956fcadbb0442bab0e1",
+    "experiments/grassman_accuracy_2026_10_18/quadratic.py": "bf85af3ba12175248bf38968ab0b3ae22d77689c2358d275433bc792d262abff",
+    "experiments/grassman_accuracy_2026_10_18/relative_gn.py": "80a5022ad837b14636428b9872ab4823d146559d7fa03a6f21d7c6f36ba66595",
+    "experiments/grassman_accuracy_2026_10_18/replay_combined.py": "c7f5f508e3e2fc742a15b1a706d102ff6a0d69870b7bbc3f70559d91e1f2480f",
+    "experiments/grassman_accuracy_2026_10_18/replay_relative_gn.py": "c0e48ef8145fd8d6e3a07b917b535310aec8d5b9aada4dc486216798904e9947",
+    "experiments/grassman_accuracy_2026_10_18/selective.py": "76eef59a0b467c4dc864058fb3a502cf919644bd816419afa341e66567c89de2",
+    "experiments/grassman_accuracy_2026_10_18/spectral_guard.py": "4c3ade6f06923ef9e23582774a5ff75298086abc136614a1e818634c217240b1",
+    "experiments/grassman_accuracy_2026_10_18/warmup.py": "a594febfbb806cecf72a9832dfb5c2fd91e6edfa6e1c651d701a74b058155712",
+    "experiments/r_sdr/__init__.py": "d2e3c16970665f2d76f11d09f271134ad56b8af4b7f8b33205dd2a6318e98758",
+    "experiments/r_sdr/__main__.py": "bc18609ebfe21812787eca2cefb0995494a06742cb337b7b3a8236bcd0c3fecb",
+    "experiments/r_sdr/design.py": "4ad85dbb5e4d5e8895890704cbd9a4acbb59dab1956912424b65ce5ad9985323",
+    "experiments/r_sdr/methods.R": "8479b68c8051362a6797a3ce688de594b029edd698fa4448ee1344b46f07d000",
+    "experiments/r_sdr/protocol.py": "cadf47c8cc05e8a524883d285b883c208a6d98a457b7df99add61c38c29f2cc9",
+    "experiments/r_sdr/report.py": "323a17d238f677cf72bc4762cd48413f442dc0effb5c20fd24b8aa54c039e326",
+    "experiments/r_sdr/runner.py": "22cc9be30f30691bab058f5534d94787833a45ca940c50bc44507028e74222f0",
+    "experiments/r_sdr/worker.R": "7b8f5f964ada3174f8c7a32913eef48a27f28e2728d9913faebc64e0570de40e",
+    "experiments/r_sdr/worker.py": "0e6c1fe374ce591afe00f56829c4b65389847c328e2252e4da07a754207abc90"
+  },
+  "reference_manifest": "981065bc15c3af81fd661e52de66daa2735c24ded0b53cba1a3dce40d7a8186f",
+  "note": "default combined20; explicit controls; verification only",
+  "fits": [
+    {
+      "case": "d-5",
+      "seed": 108800,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "18db78e261dece5a86552c82f70a25efbb0d5498916bc35d4ab74eaf875e3c30",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108800,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "18db78e261dece5a86552c82f70a25efbb0d5498916bc35d4ab74eaf875e3c30",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108800,
+      "method": "ADP-Grassmann",
+      "data_sha256": "18db78e261dece5a86552c82f70a25efbb0d5498916bc35d4ab74eaf875e3c30",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108800,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "18db78e261dece5a86552c82f70a25efbb0d5498916bc35d4ab74eaf875e3c30",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108801,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "3eb3260b6cd34fa4b6534e6d682c2fd34b875b1ff3b762b24f78bf30f51a0f51",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108801,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "3eb3260b6cd34fa4b6534e6d682c2fd34b875b1ff3b762b24f78bf30f51a0f51",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108801,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "3eb3260b6cd34fa4b6534e6d682c2fd34b875b1ff3b762b24f78bf30f51a0f51",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108801,
+      "method": "ADP-Grassmann",
+      "data_sha256": "3eb3260b6cd34fa4b6534e6d682c2fd34b875b1ff3b762b24f78bf30f51a0f51",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108802,
+      "method": "ADP-Grassmann",
+      "data_sha256": "0e5e39d9d88b554cb8eb490be86c9db34fd85814613c772fbe98abcc8b34fa4e",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108802,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "0e5e39d9d88b554cb8eb490be86c9db34fd85814613c772fbe98abcc8b34fa4e",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108802,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "0e5e39d9d88b554cb8eb490be86c9db34fd85814613c772fbe98abcc8b34fa4e",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108802,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "0e5e39d9d88b554cb8eb490be86c9db34fd85814613c772fbe98abcc8b34fa4e",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108803,
+      "method": "ADP-Grassmann",
+      "data_sha256": "133e824dd6b8dc039c0501454d1828e39135a7dccf4755d192c9d253067ab398",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108803,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "133e824dd6b8dc039c0501454d1828e39135a7dccf4755d192c9d253067ab398",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108803,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "133e824dd6b8dc039c0501454d1828e39135a7dccf4755d192c9d253067ab398",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108803,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "133e824dd6b8dc039c0501454d1828e39135a7dccf4755d192c9d253067ab398",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108804,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "83f984d4dbc8758b21c78997566391853e57e336c9d31eea9f5a02c143ea84c7",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108804,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "83f984d4dbc8758b21c78997566391853e57e336c9d31eea9f5a02c143ea84c7",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108804,
+      "method": "ADP-Grassmann",
+      "data_sha256": "83f984d4dbc8758b21c78997566391853e57e336c9d31eea9f5a02c143ea84c7",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108804,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "83f984d4dbc8758b21c78997566391853e57e336c9d31eea9f5a02c143ea84c7",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108805,
+      "method": "ADP-Grassmann",
+      "data_sha256": "adf79863b4808608c8f4814bf54a00a990f752836ce0d8c1b2b4a4d472b808f0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108805,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "adf79863b4808608c8f4814bf54a00a990f752836ce0d8c1b2b4a4d472b808f0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108805,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "adf79863b4808608c8f4814bf54a00a990f752836ce0d8c1b2b4a4d472b808f0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108805,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "adf79863b4808608c8f4814bf54a00a990f752836ce0d8c1b2b4a4d472b808f0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108806,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "5f4d69a2b6b75abf1f4a409f30006f964c8e1bd4423cce47f3cd454586a0467e",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108806,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "5f4d69a2b6b75abf1f4a409f30006f964c8e1bd4423cce47f3cd454586a0467e",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108806,
+      "method": "ADP-Grassmann",
+      "data_sha256": "5f4d69a2b6b75abf1f4a409f30006f964c8e1bd4423cce47f3cd454586a0467e",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108806,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "5f4d69a2b6b75abf1f4a409f30006f964c8e1bd4423cce47f3cd454586a0467e",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108807,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "62a8532d4bfc1d4317e4c2df734f93894371bbe50e1040a4dd25a37e899c9562",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108807,
+      "method": "ADP-Grassmann",
+      "data_sha256": "62a8532d4bfc1d4317e4c2df734f93894371bbe50e1040a4dd25a37e899c9562",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108807,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "62a8532d4bfc1d4317e4c2df734f93894371bbe50e1040a4dd25a37e899c9562",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108807,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "62a8532d4bfc1d4317e4c2df734f93894371bbe50e1040a4dd25a37e899c9562",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108808,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "3c06440a1b98106ed71aaca9416ff22015214ca76cc01ab7a6862590b7a1293b",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108808,
+      "method": "ADP-Grassmann",
+      "data_sha256": "3c06440a1b98106ed71aaca9416ff22015214ca76cc01ab7a6862590b7a1293b",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108808,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "3c06440a1b98106ed71aaca9416ff22015214ca76cc01ab7a6862590b7a1293b",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108808,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "3c06440a1b98106ed71aaca9416ff22015214ca76cc01ab7a6862590b7a1293b",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108809,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "189198d72150f8bafc2dd85315459411af795b5edfbc1c6a8116c2d5ee498255",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108809,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "189198d72150f8bafc2dd85315459411af795b5edfbc1c6a8116c2d5ee498255",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108809,
+      "method": "ADP-Grassmann",
+      "data_sha256": "189198d72150f8bafc2dd85315459411af795b5edfbc1c6a8116c2d5ee498255",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-5",
+      "seed": 108809,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "189198d72150f8bafc2dd85315459411af795b5edfbc1c6a8116c2d5ee498255",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108800,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "890c869b43049eddd82e57b746079136f8db83bc113455fd5bfd92b99a4d2221",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108800,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "890c869b43049eddd82e57b746079136f8db83bc113455fd5bfd92b99a4d2221",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108800,
+      "method": "ADP-Grassmann",
+      "data_sha256": "890c869b43049eddd82e57b746079136f8db83bc113455fd5bfd92b99a4d2221",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108800,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "890c869b43049eddd82e57b746079136f8db83bc113455fd5bfd92b99a4d2221",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108801,
+      "method": "ADP-Grassmann",
+      "data_sha256": "3f1e0c828b65a579c7fb1c86cae1ea77ccb1e5b608a555d707fd56757c9a3307",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108801,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "3f1e0c828b65a579c7fb1c86cae1ea77ccb1e5b608a555d707fd56757c9a3307",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108801,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "3f1e0c828b65a579c7fb1c86cae1ea77ccb1e5b608a555d707fd56757c9a3307",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108801,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "3f1e0c828b65a579c7fb1c86cae1ea77ccb1e5b608a555d707fd56757c9a3307",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108802,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "5f0f5bcfca684dc46555132951cd0cedcaa2bf8ff6fe91ee092fe038d59a0c4d",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108802,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "5f0f5bcfca684dc46555132951cd0cedcaa2bf8ff6fe91ee092fe038d59a0c4d",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108802,
+      "method": "ADP-Grassmann",
+      "data_sha256": "5f0f5bcfca684dc46555132951cd0cedcaa2bf8ff6fe91ee092fe038d59a0c4d",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108802,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "5f0f5bcfca684dc46555132951cd0cedcaa2bf8ff6fe91ee092fe038d59a0c4d",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108803,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "7c45adec42f9f857c92a1a25785c54cbbf84dbba779456216180b5c4e67b6086",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108803,
+      "method": "ADP-Grassmann",
+      "data_sha256": "7c45adec42f9f857c92a1a25785c54cbbf84dbba779456216180b5c4e67b6086",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108803,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "7c45adec42f9f857c92a1a25785c54cbbf84dbba779456216180b5c4e67b6086",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108803,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "7c45adec42f9f857c92a1a25785c54cbbf84dbba779456216180b5c4e67b6086",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108804,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "bcd5f419ccc1fdd346131065446d36d3d964c300cdc809ae7d3ff3e93ef9bda6",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108804,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "bcd5f419ccc1fdd346131065446d36d3d964c300cdc809ae7d3ff3e93ef9bda6",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108804,
+      "method": "ADP-Grassmann",
+      "data_sha256": "bcd5f419ccc1fdd346131065446d36d3d964c300cdc809ae7d3ff3e93ef9bda6",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108804,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "bcd5f419ccc1fdd346131065446d36d3d964c300cdc809ae7d3ff3e93ef9bda6",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108805,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "3dd7c2f617d73eecd312abb04253b189536089d4b62645b9cc61cd83b6a13330",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108805,
+      "method": "ADP-Grassmann",
+      "data_sha256": "3dd7c2f617d73eecd312abb04253b189536089d4b62645b9cc61cd83b6a13330",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108805,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "3dd7c2f617d73eecd312abb04253b189536089d4b62645b9cc61cd83b6a13330",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108805,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "3dd7c2f617d73eecd312abb04253b189536089d4b62645b9cc61cd83b6a13330",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108806,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "e57e1c23f737151a44cd955fa6d06ca27464c26af831b31abf8d907a0a7c874d",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108806,
+      "method": "ADP-Grassmann",
+      "data_sha256": "e57e1c23f737151a44cd955fa6d06ca27464c26af831b31abf8d907a0a7c874d",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108806,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "e57e1c23f737151a44cd955fa6d06ca27464c26af831b31abf8d907a0a7c874d",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108806,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "e57e1c23f737151a44cd955fa6d06ca27464c26af831b31abf8d907a0a7c874d",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108807,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "5c329b7a0a7331625c73cbab1116004f4b1f485749c6df917673b54e54ad02f0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108807,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "5c329b7a0a7331625c73cbab1116004f4b1f485749c6df917673b54e54ad02f0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108807,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "5c329b7a0a7331625c73cbab1116004f4b1f485749c6df917673b54e54ad02f0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108807,
+      "method": "ADP-Grassmann",
+      "data_sha256": "5c329b7a0a7331625c73cbab1116004f4b1f485749c6df917673b54e54ad02f0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108808,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "14699827e2f897d572f1bc3f529b3678572fd1c52dfc88cc19fdd731088c10e2",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108808,
+      "method": "ADP-Grassmann",
+      "data_sha256": "14699827e2f897d572f1bc3f529b3678572fd1c52dfc88cc19fdd731088c10e2",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108808,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "14699827e2f897d572f1bc3f529b3678572fd1c52dfc88cc19fdd731088c10e2",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108808,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "14699827e2f897d572f1bc3f529b3678572fd1c52dfc88cc19fdd731088c10e2",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108809,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "6c5621e3224e68cf45da0e103581c2efb755510a822e3c28dad81d32c3026e18",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108809,
+      "method": "ADP-Grassmann",
+      "data_sha256": "6c5621e3224e68cf45da0e103581c2efb755510a822e3c28dad81d32c3026e18",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108809,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "6c5621e3224e68cf45da0e103581c2efb755510a822e3c28dad81d32c3026e18",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-20",
+      "seed": 108809,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "6c5621e3224e68cf45da0e103581c2efb755510a822e3c28dad81d32c3026e18",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108800,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "adf7a30862c448c3ad15283a881adfe2a5582ad02421307c6d2217c7b5eec5f0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108800,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "adf7a30862c448c3ad15283a881adfe2a5582ad02421307c6d2217c7b5eec5f0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108800,
+      "method": "ADP-Grassmann",
+      "data_sha256": "adf7a30862c448c3ad15283a881adfe2a5582ad02421307c6d2217c7b5eec5f0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108800,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "adf7a30862c448c3ad15283a881adfe2a5582ad02421307c6d2217c7b5eec5f0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108801,
+      "method": "ADP-Grassmann",
+      "data_sha256": "e494fb6e2e83394295978a1ae59be7002cba6f0ec71260fa35d5fac527714dd7",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108801,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "e494fb6e2e83394295978a1ae59be7002cba6f0ec71260fa35d5fac527714dd7",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108801,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "e494fb6e2e83394295978a1ae59be7002cba6f0ec71260fa35d5fac527714dd7",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108801,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "e494fb6e2e83394295978a1ae59be7002cba6f0ec71260fa35d5fac527714dd7",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108802,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "b22eca44bc2db0ffd12711ba8bf6fd3f26bb13b51b2a851ff755ad4f3ca958f1",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108802,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "b22eca44bc2db0ffd12711ba8bf6fd3f26bb13b51b2a851ff755ad4f3ca958f1",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108802,
+      "method": "ADP-Grassmann",
+      "data_sha256": "b22eca44bc2db0ffd12711ba8bf6fd3f26bb13b51b2a851ff755ad4f3ca958f1",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108802,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "b22eca44bc2db0ffd12711ba8bf6fd3f26bb13b51b2a851ff755ad4f3ca958f1",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108803,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "fcfa8e84004d7a8cf1ff8726c31cfd579b3d56c5cb561157c6415222d0aa758a",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108803,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "fcfa8e84004d7a8cf1ff8726c31cfd579b3d56c5cb561157c6415222d0aa758a",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108803,
+      "method": "ADP-Grassmann",
+      "data_sha256": "fcfa8e84004d7a8cf1ff8726c31cfd579b3d56c5cb561157c6415222d0aa758a",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108803,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "fcfa8e84004d7a8cf1ff8726c31cfd579b3d56c5cb561157c6415222d0aa758a",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108804,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "d27a7f563be1f2c9f24960e92168a64a08ae2103ed14d722d26a0a53d3a98de2",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108804,
+      "method": "ADP-Grassmann",
+      "data_sha256": "d27a7f563be1f2c9f24960e92168a64a08ae2103ed14d722d26a0a53d3a98de2",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108804,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "d27a7f563be1f2c9f24960e92168a64a08ae2103ed14d722d26a0a53d3a98de2",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108804,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "d27a7f563be1f2c9f24960e92168a64a08ae2103ed14d722d26a0a53d3a98de2",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108805,
+      "method": "ADP-Grassmann",
+      "data_sha256": "3c23fd2b675aa32704b160c06536983293e849f1a7917a7fffa136fc17c6b73f",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108805,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "3c23fd2b675aa32704b160c06536983293e849f1a7917a7fffa136fc17c6b73f",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108805,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "3c23fd2b675aa32704b160c06536983293e849f1a7917a7fffa136fc17c6b73f",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108805,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "3c23fd2b675aa32704b160c06536983293e849f1a7917a7fffa136fc17c6b73f",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108806,
+      "method": "ADP-Grassmann",
+      "data_sha256": "4b52aff88711206f756e98b3f1acb66e7d7633f02123a0fe4ae7041fbfe3f6d0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108806,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "4b52aff88711206f756e98b3f1acb66e7d7633f02123a0fe4ae7041fbfe3f6d0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108806,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "4b52aff88711206f756e98b3f1acb66e7d7633f02123a0fe4ae7041fbfe3f6d0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108806,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "4b52aff88711206f756e98b3f1acb66e7d7633f02123a0fe4ae7041fbfe3f6d0",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108807,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "3de1dd156c356f099c5018dbe0126d3c8870487377b43d3140e6106beb20811e",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108807,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "3de1dd156c356f099c5018dbe0126d3c8870487377b43d3140e6106beb20811e",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108807,
+      "method": "ADP-Grassmann",
+      "data_sha256": "3de1dd156c356f099c5018dbe0126d3c8870487377b43d3140e6106beb20811e",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108807,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "3de1dd156c356f099c5018dbe0126d3c8870487377b43d3140e6106beb20811e",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108808,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "3ea51d78c2fe02b97261e162658aabdf73a3f8c3533f3b4708503d7213b94ed9",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108808,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "3ea51d78c2fe02b97261e162658aabdf73a3f8c3533f3b4708503d7213b94ed9",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108808,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "3ea51d78c2fe02b97261e162658aabdf73a3f8c3533f3b4708503d7213b94ed9",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108808,
+      "method": "ADP-Grassmann",
+      "data_sha256": "3ea51d78c2fe02b97261e162658aabdf73a3f8c3533f3b4708503d7213b94ed9",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108809,
+      "method": "ADP-Grassmann-combined",
+      "data_sha256": "cf5d17f1e2258353533f8cc6f8f935e34acfbaa5d166899fa41fc50949628c67",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108809,
+      "method": "ADP-Grassmann-relative",
+      "data_sha256": "cf5d17f1e2258353533f8cc6f8f935e34acfbaa5d166899fa41fc50949628c67",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108809,
+      "method": "ADP-Grassmann",
+      "data_sha256": "cf5d17f1e2258353533f8cc6f8f935e34acfbaa5d166899fa41fc50949628c67",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    },
+    {
+      "case": "d-50",
+      "seed": 108809,
+      "method": "ADP-Grassmann-combined10",
+      "data_sha256": "cf5d17f1e2258353533f8cc6f8f935e34acfbaa5d166899fa41fc50949628c67",
+      "basis_equal": true,
+      "diagnostics_equal": true,
+      "stop_equal": true
+    }
+  ],
+  "all_equal": true
+}

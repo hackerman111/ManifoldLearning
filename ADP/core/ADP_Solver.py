@@ -13,6 +13,7 @@ from ..engine.common.calculus import (
 )
 from ..engine.common.statistic import calculate_statistics
 from ..engine.common.weights import calculate_weight_from_adp
+from ..solver.grassman import solve as solve_grassman
 from ..solver.LSMR import HPAOResult, lsmr, solve as solve_lsmr
 from .ADP_Config import ADP_Config
 from .ADP_Data import ADP_Data
@@ -74,11 +75,13 @@ class ADP_solver:
         Нормированные I/U требуют внешней mass. Старый ``fit`` оставлен
         для явного legacy API; модели используют только этот контракт.
         """
-        if (
-            hasattr(statistics.U, "__cuda_array_interface__")
-            and self.method is not solve_lsmr
+        if hasattr(statistics.U, "__cuda_array_interface__") and self.method not in (
+            solve_lsmr,
+            solve_grassman,
         ):
-            raise NotImplementedError("GPU statistics require LSMR or transfer to CPU")
+            raise NotImplementedError(
+                "GPU statistics require LSMR, Grassmann or transfer to CPU"
+            )
         overlap = self.settings.keys() & (
             {"mass", "lambda_prox"} | metric_context.keys()
         )

@@ -65,16 +65,22 @@ LogDet/coverage отбор подключаются через `ADP_Config.exper
 минимизирует тот же unpenalized minimum-norm finite-sketch профиль,
 что local-refit HPAO; не fixed-g rank-r цель SVD. `local_ridge>0` — явный
 ESTIMATOR вариант. `lambda_prox` здесь только damping малого GN solve,
-не постоянный statistical/chordal penalty. Production default не изменён.
+не постоянный statistical/chordal penalty. Внешний ADP default — LSMR.
 
-Основной `grassman.solve` предоставляет только проверенный core_gn
+По умолчанию `grassman.solve` предоставляет combined20: relative_gn=True,
+quadratic_trials=3,constant_centers=True,smooth_max_steps=None. Это явно
+запрошенное пользователем2026-10-22 объединение прежних time/EDR идей и
+увеличение бюджета. Базовый шаг — core_gn
 (улучшение II); параметров `method` и `angle_backend` нет. Он
 решает augmented least squares во всех q*m координатах Z=V K, сохраняя
 полный `T.T*r` член и связи коэффициентов; polar retraction/Armijo.
 Операторные действия U[Y,V] кэшируются только внутри текущего шага.
 Нет dense d*d проектора/Hessian. При превышении `workspace_bytes`
-полный core заменяется spectral; при rank/conditioning guard — rank-one
-по значениям, без применения неверной full-rank производной.
+полный core заменяется spectral. При eligible intrinsic rank loss строится
+regular-center relative GN proposal, при недопустимой модели — rank-one
+с quadratic/Armijo true-profile trials, без неверной full-rank производной.
+Точно нулевые U_j исключаются с восстановлением full coefficients/loss,
+rank counts и прежней gradient stopping scale. Их цель — известная константа.
 
 `converged` требует normalized horizontal gradient <=tol; это inner frozen
 stationarity, не global optimum. На rank boundary сертификат неприменим;
@@ -86,15 +92,34 @@ local rank loss, orthogonality, stationarity_applicable.
 Пример подключения без конфликта `method` конструктора адаптера:
 
 ```python
-from functools import partial
 from ADP import ADP_solver
 from ADP.solver.grassman import solve
-solver = ADP_solver(partial(solve, max_steps=5))
+solver = ADP_solver(solve)  # combined20
 ```
+
+Прежняя проверенная опция: `ADP_solver(solve,relative_gn=True,max_steps=10,
+quadratic_trials=0,constant_centers=False,smooth_max_steps=5)`:
+численный intrinsic rank classifier допускает GN только на regular centers,
+с damping=lambda_prox*||J||F²/(q*m). Полные gradient/Armijo/final certificate
+используют все центры, rank cutoff прежний. APPROXIMATE optimizer, не estimator.
+Smooth GN прежний, initial-smooth cap5 в этой конфигурации. Model guard -> direct
+rank-one Armijo; workspace/nonfinite damping -> spectral fallback. Не передавать
+lambda_prox в ADP_solver: его передаёт ADP_Config.lambda_penalty (default.05).
+Dev105800 и heldout106800 прошли gates; public port120 exact full-fit replays.
+Маршрут: experiments/grassman_accuracy_2026_10_18/RELATIVE_GN_*REPORT.md.
+
+Combined20: COMBINED_{MATH,PROTOCOL,REPORT}.md; development107800 и untouched
+validation108800 по150 успешных fit с R MEANMAVE. Validation EDRgeo.925311,
+time.860129 vs original5, но vs accepted relative10 EDR1.003418/time1.275697;
+новый состав и бюджет не дают доказанного дополнительного recovery gain.
+Исходный режим доступен через max_steps=5,relative_gn=False,
+quadratic_trials=0,constant_centers=False. Итоговый gradient пересчитан live
+на active objective; исключённые точно нулевые операторы имеют zero gradient.
 
 Проверенные CPU-оптимизации QR/SVD, bounded gradient, transpose GEMM
 и батчевого core Jacobian уже находятся в `grassman.py` (default core_gn).
-Цель, допуски и iteration budget сохранены. Paired fullfit median time ratio
+Эти CPU-оптимизации сохраняют цель/допуски при фиксированном бюджете.
+Paired fullfit median time ratio
 0.942; frozen speedup2.52x. Старый эталон перенесён в
 `experiments/grassman_optim_2026_10_01/reference.py`; подробности в
 [solvers.md](solvers.md#профильный-grassmann-opt-in).
@@ -309,8 +334,8 @@ differ).
 | SRC-MI-INIT | local basis/spectrum initialization paths | `rtk proxy sed -n '70,184p' ADP/engine/common/initialize.py` |
 | SRC-MI-DRIVER | effective tensor, fit/trace/stop/selection | `rtk proxy sed -n '318,647p' ADP/engine/common/index_fit.py` |
 | SRC-MI-ENGINE | basis QR, orientation, subspace/projector distance | `rtk proxy sed -n '12,69p' ADP/engine/multi_index/ADP_multi_index_engine.py` |
-| SRC-GRASSMAN | profile/Schur/Jacobian/polar/solve | `rtk proxy sed -n '1,565p' ADP/solver/grassman.py` |
-| SRC-GRASSMAN-EXP | failed-selection flat GN (30-458), full tangent GN (459-704) | `rtk proxy sed -n '1,704p' ADP/solver/grassman_exp.py` |
+| SRC-GRASSMAN | profile/Jacobian/polar, intrinsic323-354, combined solve355-760, block762-806 | `rtk proxy sed -n '1,806p' ADP/solver/grassman.py` |
+| SRC-GRASSMAN-EXP | failed-selection flat GN (32-571), full tangent GN (574-819) | `rtk proxy sed -n '1,819p' ADP/solver/grassman_exp.py` |
 | SRC-SVD-SOLVER | fixed-g rank-r objectives, default certified Cholesky/LSMR or experimental gradient-gain pairs, optional diagonal/metric scaling, prior completion or QR | `rtk proxy sed -n '1,1021p' ADP/solver/SVD.py` |
 
 Все коды извлекаются из `ADP/`; полный каталог файлов — [README.md](README.md#каталог-исходников). Общая статистика и mass contract — [index-pipeline.md](index-pipeline.md).

@@ -10,6 +10,7 @@ import numpy as np
 from ...engine.common import utils
 from ...engine.common.index_fit import fit_index
 from ...engine.common.logger import IndexProfiler
+from ...solver.grassman import solve as solve_grassman
 from ...solver.LSMR import solve as solve_lsmr
 from ..ADP_Config import ADP_Config
 from ..ADP_Solver import ADP_solver
@@ -43,9 +44,9 @@ class ADP_multi_index:
         выбор best/last и независимые потоки centers/init/directions.
         """
         config, solver = self.config, self.solver
-        if config.gpu_solver and solver.method is not solve_lsmr:
+        if config.gpu_solver and solver.method not in (solve_lsmr, solve_grassman):
             raise NotImplementedError(
-                "gpu_solver supports built-in LSMR only; "
+                "gpu_solver supports built-in LSMR or Grassmann; "
                 "use gpu=True, gpu_solver=False for CPU solvers"
             )
         profiler = IndexProfiler()

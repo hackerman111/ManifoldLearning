@@ -16,6 +16,12 @@ CLI валидирует комбинации до запуска: single тре
 
 `python -m experiments.diagnostic` — отдельный парный benchmark поверх `Experiment.run`: базовая точка и локальные варианты параметров на общих seed, сценарии base/noise/correlation/scarce, отдельные seed для отбора и проверки. Выходы: `run.json`, `diagnostics.{csv,json,md}` и обычные `series/*/{series.json,runs.csv,...}`; `--analyze` пересобирает отчёт по сохранённым series без повторного fit. Выбор параметра является предварительным и относится только к проверенному сценарию. При ошибке fit общий `experiments/runner.py` записывает его wall-clock время; traced peak остаётся пустым, если fit не вернул профиль. Источник: `experiments/diagnostic.py`, `experiments/runner.py:run_experiment`.
 
+`python -m experiments.r_sdr` — отдельный парный benchmark ADP с обычным MAVE,
+пакетным MEANMAVE, классическим SIR, dMAVE и refined MAVE на R. Требует минимум
+10 повторов, сохраняет исходники/протокол, данные и результаты, поддерживает
+возобновление и отчёты. Реализации, ограничения и маршруты:
+[r-sdr-comparison.md](r-sdr-comparison.md).
+
 ## Legacy и aliases
 
 - `ADP/__init__.py` экспортирует публичные классы и helper-функции, а старые имена модулей подключает через `sys.modules` aliases (source: **SRC-API-ALIASES**).
