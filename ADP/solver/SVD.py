@@ -1,4 +1,4 @@
-"""Rank-constrained multi-index steps described in ``SVD/SVD_solver.tex``."""
+"""Rank-constrained multi-index steps described in ``docs/SVD/SVD_solver.tex``."""
 
 from __future__ import annotations
 

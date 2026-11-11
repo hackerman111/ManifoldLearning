@@ -4,11 +4,11 @@
 
 ```bash
 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m experiments.multi_solver_compare \
-  --frozen-dir benchmark_outputs/diagnostic/multi_solver_search_s1_20260924 \
-  --output benchmark_outputs/diagnostic/multi_solver_search_s2_20260924.json
+  --frozen-dir benchmarks/results/outputs/diagnostic/multi_solver_search_s1_20260924 \
+  --output benchmarks/results/outputs/diagnostic/multi_solver_search_s2_20260924.json
 ```
 
-Результат и все failures — в [JSON](../../../benchmark_outputs/diagnostic/multi_solver_search_s2_20260924.json). Порядок методов чередовался между задачами, перед серией оба были прогреты на отдельной малой задаче. Ни один frozen hash не изменился. Все 24 trials завершились, timeout и numerical failure не было. Общий reference пересчитал конечный objective и stationarity независимо от solver. У всех конечных линейных поправок normal-residual ratio ≤0.1.
+Результат и все failures — в [JSON](../../../benchmarks/results/outputs/diagnostic/multi_solver_search_s2_20260924.json). Порядок методов чередовался между задачами, перед серией оба были прогреты на отдельной малой задаче. Ни один frozen hash не изменился. Все 24 trials завершились, timeout и numerical failure не было. Общий reference пересчитал конечный objective и stationarity независимо от solver. У всех конечных линейных поправок normal-residual ratio ≤0.1.
 
 | Точка | Пар | Медиана парного HYBRID/LSMR времени | Сумма времени LSMR/HYBRID | Сертификаты LSMR/HYBRID | AO steps LSMR/HYBRID | Krylov iterations LSMR/HYBRID |
 |---|---:|---:|---:|---:|---:|---:|

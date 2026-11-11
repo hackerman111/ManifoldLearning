@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adp-export"
+version = "0.1.0"
+description = "Standalone ADP multi-index, Grassmann and experiment CLI snapshot"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26", "scipy>=1.11", "tqdm>=4.67"]
+
+[project.optional-dependencies]
+test = ["pytest>=8.3", "hypothesis>=6.130"]
+bench = [
+    "matplotlib>=3.8", "pandas>=2.2", "psutil>=6", "scikit-learn>=1.5",
+    "statsmodels>=0.14", "threadpoolctl>=3.5",
+]
+gpu = ["cupy-cuda13x>=14.1,<15"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ADP*", "experiments*", "benchmarks*"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+"experiments.r_sdr" = ["*.R", "README.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers"]
+markers = ["slow: computationally expensive correctness or stress tests"]

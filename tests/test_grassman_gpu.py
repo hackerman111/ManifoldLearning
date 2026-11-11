@@ -45,7 +45,7 @@ def problem(m=5, scenario="smooth"):
 def test_cpu_frozen_reference(m, scenario):
     path = (
         Path(__file__).parents[1]
-        / "experiments/grassman_gpu_2026_10_22/cpu_reference.py"
+        / "benchmarks/experiments/grassman_gpu_2026_10_22/cpu_reference.py"
     )
     spec = importlib.util.spec_from_file_location("ADP.solver._gpu_reference", path)
     assert spec is not None and spec.loader is not None

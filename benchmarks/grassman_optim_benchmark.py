@@ -3,9 +3,9 @@
 Examples (run after the optimized module is ready):
 
     python -m benchmarks.grassman_optim_benchmark --stage frozen \
-        --output experiments/grassman_optim_2026_10_01/frozen_final
+        --output benchmarks/results/outputs/grassman_optim_2026_10_01/frozen_final
     python -m benchmarks.grassman_optim_benchmark --stage fullfit \
-        --output experiments/grassman_optim_2026_10_01/fullfit_final
+        --output benchmarks/results/outputs/grassman_optim_2026_10_01/fullfit_final
 
 Every solver/seed measurement runs in a fresh subprocess. The driver alternates
 solver order by seed and pins BLAS thread counts before Python imports NumPy.
@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-FROZEN_ROOT = ROOT / "experiments/grassman_2026_10_01/benchmark/frozen_ablation/frozen"
+FROZEN_ROOT = ROOT / "benchmarks/experiments/grassman_2026_10_01/benchmark/frozen_ablation/frozen"
 THREAD_ENV = ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
 SOLVERS = ("grassman", "grassman_optim")
 SOLVER_MODULES = {
@@ -38,7 +38,7 @@ SOLVER_MODULES = {
     "grassman_optim": "ADP.solver.grassman",
 }
 SOLVER_PATHS = {
-    "grassman": ROOT / "experiments/grassman_optim_2026_10_01/reference.py",
+    "grassman": ROOT / "benchmarks/experiments/grassman_optim_2026_10_01/reference.py",
     "grassman_optim": ROOT / "ADP/solver/grassman.py",
 }
 DEFAULT_SEEDS = (0, 1, 2)
@@ -455,9 +455,9 @@ def _driver(args: argparse.Namespace) -> None:
             path: _sha256(ROOT / path)
             for path in (
                 "benchmarks/grassman_benchmark.py",
-                "experiments/data.py",
-                "experiments/models.py",
-                "experiments/runner.py",
+                "benchmarks/experiments/data.py",
+                "benchmarks/experiments/models.py",
+                "benchmarks/experiments/runner.py",
                 "ADP/core/ADP_Config.py",
             )
         },

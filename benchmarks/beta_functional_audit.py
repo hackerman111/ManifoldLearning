@@ -254,7 +254,7 @@ def main() -> None:
     parser.add_argument(
         "--frozen-dir",
         type=Path,
-        default=Path("benchmark_outputs/diagnostic/multi_solver_search_s1_20260924"),
+        default=Path("benchmarks/results/outputs/diagnostic/multi_solver_search_s1_20260924"),
     )
     args = parser.parse_args()
     if args.repeats < 1 or args.output.exists():

@@ -4,12 +4,12 @@ H5 был [зафиксирован заранее](hypotheses.md) после п
 
 ```bash
 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m experiments.multi_solver_frozen \
-  --frozen-dir benchmark_outputs/diagnostic/multi_solver_search_s1_20260924 \
-  --output benchmark_outputs/diagnostic/multi_solver_search_s4_warm_20260924 \
+  --frozen-dir benchmarks/results/outputs/diagnostic/multi_solver_search_s1_20260924 \
+  --output benchmarks/results/outputs/diagnostic/multi_solver_search_s4_warm_20260924 \
   --methods warm-reduced --point n1000
 ```
 
-[Raw H5 results](../../../benchmark_outputs/diagnostic/multi_solver_search_s4_warm_20260924/results.json) содержат версии/хеши исходников, frozen hashes, однониточные настройки, время и peak RSS отдельных процессов, полный trace объективной функции и градиента, независимый конечный certificate, принятую warm-поправку и причины остановки. Все 6 trials завершились без timeout/exception/certificate mismatch. Независимый evaluator совпал с solver diagnostic на каждом результате. `success` в raw означает, что процесс закончил работу; признак математической сходимости — только `diagnostics.converged`.
+[Raw H5 results](../../../benchmarks/results/outputs/diagnostic/multi_solver_search_s4_warm_20260924/results.json) содержат версии/хеши исходников, frozen hashes, однониточные настройки, время и peak RSS отдельных процессов, полный trace объективной функции и градиента, независимый конечный certificate, принятую warm-поправку и причины остановки. Все 6 trials завершились без timeout/exception/certificate mismatch. Независимый evaluator совпал с solver diagnostic на каждом результате. `success` в raw означает, что процесс закончил работу; признак математической сходимости — только `diagnostics.converged`.
 
 Проверка raw также подтвердила 6/6 frozen hashes и точное совпадение objective до/после warm шага с первыми двумя значениями прежней cap80 HPAO-траектории; trace содержит все принятые reduced шаги.
 
@@ -24,7 +24,7 @@ OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m experiments
 | 1002 / 0 | 226.330806 | — | 226.330806 | да | 1.066 |
 | 1002 / 2 | 203.476611 | — | 203.476611 | да | 0.860 |
 
-Длинный контрольный прогон был разрешён до H5: три исходно несертифицированные d100 задачи заново решались из того же frozen B с cap160; только seed1001/outer2 повторён с cap320, потому что cap160 не дал certificate. [Raw reference](../../../benchmark_outputs/diagnostic/multi_solver_search_s4_long_20260924/results.json): две задачи сертифицированы при cap160 за 11.07/11.99 s. Seed1001/outer2 осталась несертифицированной при cap320 за 46.29 s, с objective 272.532961 и riemannian gradient `2.67e-4`; это локальный, не глобальный reference. Все четыре прогона завершились без ошибки.
+Длинный контрольный прогон был разрешён до H5: три исходно несертифицированные d100 задачи заново решались из того же frozen B с cap160; только seed1001/outer2 повторён с cap320, потому что cap160 не дал certificate. [Raw reference](../../../benchmarks/results/outputs/diagnostic/multi_solver_search_s4_long_20260924/results.json): две задачи сертифицированы при cap160 за 11.07/11.99 s. Seed1001/outer2 осталась несертифицированной при cap320 за 46.29 s, с objective 272.532961 и riemannian gradient `2.67e-4`; это локальный, не глобальный reference. Все четыре прогона завершились без ошибки.
 
 H5 сертифицировал 5/6 задач, тогда как предсказание требовало 6/6. На seed1001/outer2 он достиг cap320, сделал 817 Armijo rejects, сохранил `aligned_step=1.17e-5` и не получил два последовательных certificate; его objective хуже cap80 на **1.214274** и длинного reference на **1.292610**, при допускаемом отклонении около `2.7e-4`. Первый HPAO шаг на этой задаче уменьшил objective `304.178011→285.592739`, но reduced фаза пришла к тому же худшему basin, что и чистый reduced solver (разница конечных objective `1.6e-8`). Поэтому basin-гипотеза H5 опровергнута именно на различающей задаче.
 

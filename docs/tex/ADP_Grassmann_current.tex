@@ -1,0 +1,898 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[margin=27mm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{booktabs,longtable,array}
+\usepackage{xcolor,listings,microtype}
+\usepackage[hidelinks]{hyperref}
+\hypersetup{pdftitle={The Current ADP Algorithm with the Grassmann Solver},
+  pdfauthor={Implementation-based mathematical description}}
+\usepackage{enumitem}
+\setlist{nosep}
+\setlength{\emergencystretch}{2em}
+\newcommand{\R}{\mathbb R}
+\newcommand{\E}{\mathbb E}
+\newcommand{\tr}{\operatorname{tr}}
+\newcommand{\rank}{\operatorname{rank}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\col}{\operatorname{col}}
+\newcommand{\Gr}{\operatorname{Gr}}
+\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+\lstset{basicstyle=\ttfamily\small,columns=fullflexible,keepspaces=true,
+  breaklines=true,frame=single,rulecolor=\color{black!20},showstringspaces=false}
+\title{The Current Average Derivative Procedure\\
+for Multi-Index Dimension Reduction\\[3pt]
+\large Complete Algorithm and the \texttt{grassman.py} Solver}
+\author{Implementation-based mathematical description}
+\date{Source snapshot: 23 October 2026}
+\begin{document}
+\maketitle
+\begin{abstract}
+This document describes the complete global multi-index ADP pipeline in the
+current repository when its inner solver is explicitly set to
+\code{ADP/solver/grassman.py::solve}. It covers the statistical motivation,
+centers, local-gradient initialization, adaptive kernel geometry, random
+direction sketches, centered local moments, variable projection on the
+Grassmann manifold, numerical safeguards, spectrum updates, bandwidth
+continuation, and selection of the returned estimate. The main path is the
+normalized \code{estimator="new"} configuration with the current twenty-step
+Grassmann solver. Mathematical identities are distinguished from finite-budget
+optimization choices and from statistical assumptions. The description follows
+the live code; it does not assert global convergence or a recovery theorem.
+\end{abstract}
+\tableofcontents
+\newpage
+
+\section{Statistical target and the two levels of the algorithm}
+\label{sec:target}
+We observe $(x_i,y_i)_{i=1}^n$, with $x_i\in\R^d$ and $y_i\in\R$.
+The motivating model is
+\begin{equation}\label{eq:model}
+ y_i=f(x_i)+\varepsilon_i,\qquad
+ \E[\varepsilon_i\mid x_i]=0,\qquad
+ f(x)=\psi(B_\star^\top x),\qquad B_\star^\top B_\star=I_m,
+\end{equation}
+where the index dimension $1\le m<d$ is supplied by the user. The target is
+the effective dimension reduction (EDR) subspace $\col(B_\star)$, not an
+oriented basis and not the link function $\psi$.
+
+If $\psi$ is differentiable, then
+\begin{equation}\label{eq:gradient-model}
+ \nabla f(x)=B_\star\nabla\psi(B_\star^\top x).
+\end{equation}
+Thus local gradients belong to a common $m$-dimensional space. If their
+coefficient second moment is positive definite, their span identifies that
+space. Smoothness, sufficiently informative neighborhoods, excitation of all
+$m$ directions, and adequate control of noise are statistical requirements;
+they are not consequences of a small numerical solver residual.
+
+ADP alternates two different operations:
+\begin{enumerate}
+\item An \emph{outer statistical update} uses the current EDR estimate to
+choose anisotropic neighborhoods, draws a finite direction sketch, and builds
+new local moment equations.
+\item An \emph{inner numerical update} freezes those moments and approximately
+minimizes a profiled least-squares objective over an EDR subspace.
+\end{enumerate}
+The outer update changes the objective itself. Decrease of one frozen inner
+objective does not imply decrease of a common objective across outer steps,
+nor improvement in distance to $\col(B_\star)$.
+
+\paragraph{Scope and actual entry point.}
+This is the shared global multi-index pipeline, not the separate manifold
+model with one subspace per center. The public multi-index class uses LSMR
+unless a solver is supplied. The algorithm described here is selected by
+\begin{lstlisting}[language=Python]
+from ADP import ADP_Config, ADP_multi_index, ADP_solver
+from ADP.solver.grassman import solve
+
+cfg = ADP_Config()  # initializer ridge and outer parameters
+model = ADP_multi_index(m, cfg, ADP_solver(solve)).fit(X, y)
+B_hat = model.basis_       # shape (d, m), orthonormal columns
+Z = model.transform(X)     # X @ B_hat
+\end{lstlisting}
+The data matrix \code{X} stores observations in rows. The fitted object
+provides a projection; fitting a downstream regression function on $Z$ is
+a separate task.
+
+\section{Notation, configuration, and data protocol}\label{sec:notation}
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Symbol & Shape & Meaning\\
+\midrule
+$X$, $y$ & $n\times d$, $n$ & observations and responses\\
+$c_j$, $j=1,\ldots,J$ & $d$ & localization centers\\
+$B_k$ & $d\times m$ & outer basis, $B_k^\top B_k=I_m$\\
+$\ell_k$ & $m$ & normalized localization spectrum\\
+$h_k$, $\alpha_k$ & scalars & bandwidth and anisotropy\\
+$\Phi_j$ & $p\times d$ & rows $\phi_{js}^\top$ of unit directions\\
+$N_j$, $\mu_j$, $\bar y_j$ & scalar, $d$, scalar & local mass and means\\
+$I_j$, $U_j$ & $p$, $p\times d$ & directional response and operator\\
+$Y$, $g_j$ & $d\times m$, $m$ & inner basis and local coefficients\\
+\bottomrule
+\end{tabular}
+\end{center}
+The code passes a row basis $P=B^\top$ of shape $(m,d)$ to a solver and
+returns the same layout. This document uses column bases $B$ and $Y$ to
+make the geometry explicit. The array called \code{I} in the solver stores
+the vectors $I_j$; $I_m$ in a formula denotes the identity matrix.
+
+The default values relevant to the main path are listed below. Derived
+sizes are evaluated after the data dimension is known.
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Outer setting & Current value\\
+\midrule
+\code{seed} & $42$\\
+\code{N_loc}, \code{N_lin} & $10$, default $2d$\\
+\code{N_J}, \code{N_phi} & default $n$, default $\min(N_{\rm loc},d)$\\
+\code{index_init}, \code{estimator} & \code{local}, \code{new}\\
+\code{direction_mode}, \code{redraw_directions} & \code{auto}, \code{True}\\
+\code{multi_tensor}, \code{select_step} & \code{orthogonal}, \code{best}\\
+\code{training_set}, \code{center_displacement} & \code{all}, $0$\\
+\code{a}, \code{h_min}, \code{outer_steps} & $\sqrt{2}$, $1$, no explicit cap\\
+\code{local_ridge}, \code{lambda_penalty} & $10^{-8}$, $0.05$\\
+\bottomrule
+\end{tabular}
+\end{center}
+Multi-index fitting requires $p>m$. Non-random initialization additionally
+requires $n>d+1$; sample sizes, requested masses, and center counts are
+validated. An average-mass constraint does not ensure every center has
+positive mass: an empty local neighborhood is rejected by the statistics code.
+
+\paragraph{Centers and random streams.}
+Centers are sampled from observation indices without replacement; if $J=n$,
+all observations are used. Three child streams of \code{SeedSequence(seed)}
+separate center selection, initialization, and direction generation. Random
+initialization uses its stream; the optional pilot initializer uses the
+configuration seed. Optional displaced centers have the form
+$c_j=x_{i_j}+\nu\sigma_X z_j$, where $z_j\sim N(0,I_d)$ and the default
+$\sigma_X$ is the root mean feature variance. Center response labels remain
+$y_{i_j}$ even when $c_j$ is displaced.
+
+The default training protocol uses every observation in local fits.
+The alternative \code{exclude_centers} setting removes sampled indices
+from training, while their responses are retained for outer-step
+selection. The default uses the same observations for training and selection;
+it is not an independent validation split. Below, sums over $i$ refer to the
+resulting training set, of size $n_{\rm tr}$.
+
+\section{Initialization by local gradient estimation}\label{sec:init}
+The default initializer first chooses an isotropic bandwidth $h_{\rm lin}$
+with average kernel mass at least $N_{\rm lin}$. At each center, define
+$w^{\rm lin}_{ji}=K(\norm{x_i-c_j}^2/h_{\rm lin}^2)$ and solve
+\begin{equation}\label{eq:init-fit}
+ (\hat a_j,\hat b_j)\in\arg\min_{a\in\R,b\in\R^d}
+ \sum_i w^{\rm lin}_{ji}\bigl[y_i-a-b^\top(x_i-c_j)\bigr]^2
+ +\lambda_{\rm init}\norm{b}^2.
+\end{equation}
+The intercept is not penalized. The code uses centered SVD or augmented
+least squares, with numerical rank checks; it does not require an inverse of
+a local covariance. Here $\lambda_{\rm init}$ is
+\code{ADP_Config.local_ridge}, whose default is $10^{-8}$.
+
+Let $L_{\rm init}$ have rows
+$\sqrt{N_j^{\rm lin}}\hat b_j^\top$ for \code{estimator="new"}.
+The first $m$ right singular vectors of $L_{\rm init}$ give $B_0$. This is
+equivalent to the leading eigenspace of
+\begin{equation}
+ \sum_j N_j^{\rm lin}\hat b_j\hat b_j^\top,
+\end{equation}
+without forming that $d\times d$ matrix. Insufficient numerical rank is
+reported as failure to identify the requested index dimension.
+
+The \code{local-cv} initializer selects a ridge by weighted leave-one-out
+error before the gradient PCA; \code{random} uses a Gaussian QR basis;
+\code{pilot} uses an orthonormalized shallow MLP first-layer space.
+These are explicit alternative initializers. In all cases, the outer loop
+starts with $\ell_0=(1,\ldots,1)$ and $\alpha_0=1$. The initializer's
+gradient spectrum is recorded as metadata but does not replace $\ell_0$.
+
+\section{Adaptive localization and bandwidth continuation}\label{sec:local}
+\subsection{The implemented kernel and localization geometry}
+At the start of outer step $k$, for $\delta_{ji}=x_i-c_j$, put
+\begin{equation}\label{eq:components}
+ z_{ji}=B_k^\top\delta_{ji},\qquad
+ r_{ji}^2=\norm{\delta_{ji}}^2-\norm{z_{ji}}^2,\qquad
+ s_{ji}^2=\sum_{a=1}^m\ell_{k,a}z_{ji,a}^2.
+\end{equation}
+In floating point, negative roundoff in $r_{ji}^2$ is clipped to zero.
+The two supported tensors give
+\begin{align}
+ t_{ji}^{\perp}&=\frac{\alpha_k^2 r_{ji}^2+s_{ji}^2}{h_k^2},
+ &A_k^{\perp}&=\frac{\alpha_k^2(I_d-B_kB_k^\top)
+                  +B_k\diag(\ell_k)B_k^\top}{h_k^2},\label{eq:orthogonal}\\
+ t_{ji}^{\rm full}&=\frac{\alpha_k^2\norm{\delta_{ji}}^2+s_{ji}^2}{h_k^2},
+ &A_k^{\rm full}&=\frac{\alpha_k^2I_d
+                  +B_k\diag(\ell_k)B_k^\top}{h_k^2}.
+ \label{eq:full}
+\end{align}
+Thus $t_{ji}=\delta_{ji}^\top A_k\delta_{ji}$ and $w_{ji}=K(t_{ji})$.
+These matrices are mathematical notation; the implementation evaluates the
+quadratic forms through projections rather than constructing dense tensors.
+
+The exact default kernel convention is
+\begin{equation}\label{eq:kernel}
+ K(t)=\max(1-t^2,0),\qquad t\ge0.
+\end{equation}
+Its input here is already a \emph{squared} normalized distance. In an
+isotropic neighborhood, the weight is therefore
+$\max(1-\norm{\delta_{ji}}^4/h_k^4,0)$, not
+$\max(1-\norm{\delta_{ji}}^2/h_k^2,0)$. This convention follows
+\code{epanechnikov} and its actual callers.
+
+The first multi-index step always uses the orthogonal tensor, including
+when the requested \code{multi_tensor} is \code{full}. Since
+$\alpha_0=1$ and $\ell_0=\bm 1$, that first neighborhood is isotropic.
+Subsequent steps use the configured tensor. The default orthogonal tensor
+broadens neighborhoods in the estimated irrelevant directions as $\alpha$
+decreases. Small $\ell_a$ also broadens a neighborhood along its $a$th
+estimated principal direction.
+
+\subsection{Choosing \texorpdfstring{$h$ and $\alpha$}{h and alpha}}
+The initial outer bandwidth $h_0\ge h_{\min}$ is the smallest feasible
+isotropic bandwidth, up to bisection accuracy, for
+\begin{equation}\label{eq:h-search}
+ \frac1J\sum_{j,i}K\left(\frac{\norm{x_i-c_j}^2}{h_0^2}\right)
+ \ge N_{\rm loc}.
+\end{equation}
+The search doubles an upper bracket and then bisects. Local-gradient
+initialization uses the same type of search, but targets $N_{\rm lin}$
+and uses a small positive lower bound rather than $h_{\min}$.
+
+After estimating $B_{k+1}$ and $\ell_{k+1}$, the proposed next bandwidth is
+$h_{k+1}=h_k/a$, with $a>1$. With that new geometry held fixed, the code
+selects the largest feasible $\alpha\in[0,1]$ satisfying
+\begin{equation}\label{eq:alpha-search}
+ \frac1J\sum_{j,i}w_{ji}(B_{k+1},\ell_{k+1},h_{k+1},\alpha)
+ \ge N_{\rm loc}.
+\end{equation}
+For the default kernel, mass is non-increasing in $\alpha$:
+if $\alpha=1$ is feasible it is returned; if $\alpha=0$ is infeasible,
+continuation stops; otherwise bisection returns the feasible lower endpoint
+to tolerance $\sqrt{\epsilon_{\rm mach}}$. There is no constraint that the
+new $\alpha$ be below the previous one. Custom kernels must support the
+monotonicity assumed by these searches.
+
+Compact-support screening removes only pairs proved to have zero weight
+throughout the remaining search interval. It preserves the chosen
+finite-sample estimator. The target is average \emph{kernel mass}, not
+neighbor count and not effective sample size.
+
+\section{Random directions and centered moment equations}\label{sec:moments}
+\subsection{The finite direction sketch}
+For \code{estimator="new"} in multi-index mode,
+\code{direction_mode="auto"} resolves to \code{isotropic}:
+\begin{equation}\label{eq:isotropic}
+ \phi_{js}=z_{js}/\norm{z_{js}},\qquad z_{js}\sim N(0,I_d),
+ \qquad s=1,\ldots,p.
+\end{equation}
+Directions are independently redrawn at each outer step by default.
+Setting \code{redraw_directions} to \code{False} reuses the first sketch, so the
+random finite-sample procedure changes.
+
+The explicit \code{localized} option instead draws independent
+$z\sim N(0,I_d)$ and $\xi\sim N(0,I_m)$ and normalizes
+\begin{equation}\label{eq:localized-directions}
+ v=\alpha_k(I_d-B_kB_k^\top)z
+      +B_k\diag(\sqrt{\ell_k})\xi,\qquad \phi=v/\norm{v}.
+\end{equation}
+This option changes the sketch distribution; it is not the default
+normalized multi-index path.
+
+\subsection{Weighted centering and the exact empirical quantities}
+For each center define
+\begin{equation}\label{eq:means}
+ N_j=\sum_iw_{ji},\quad a_{ji}=w_{ji}/N_j,\quad
+ \mu_j=\sum_i a_{ji}x_i,\quad \bar y_j=\sum_i a_{ji}y_i,\quad
+ n_{{\rm eff},j}=\frac{1}{\sum_i a_{ji}^2}.
+\end{equation}
+For $q_{jsi}=\phi_{js}^\top(x_i-\mu_j)$, the numerical implementation
+also subtracts the residual weighted mean
+$\bar q_{js}=\sum_i a_{ji}q_{jsi}$. The normalized statistics are
+\begin{align}
+ I_{js}&=\sum_i a_{ji}(q_{jsi}-\bar q_{js})(y_i-\bar y_j),
+ \label{eq:I}\\
+ U_{js,:}&=\sum_i a_{ji}(q_{jsi}-\bar q_{js})(x_i-\mu_j)^\top.
+ \label{eq:U}
+\end{align}
+Exact arithmetic gives $\bar q_{js}=0$. Explicit recentering improves
+stability when features have a large offset. The response mean stored as
+\code{statistics.S} is exactly $\bar y_j$; it is also used in outer-step
+selection.
+
+Define empirical weighted covariance and cross-covariance
+\begin{equation}\label{eq:cov}
+ \Sigma_j=\sum_i a_{ji}(x_i-\mu_j)(x_i-\mu_j)^\top,\qquad
+ c_j^{xy}=\sum_i a_{ji}(x_i-\mu_j)(y_i-\bar y_j).
+\end{equation}
+Then the statistics have the concise interpretation
+\begin{equation}\label{eq:sketch-cov}
+ U_j=\Phi_j\Sigma_j,\qquad I_j=\Phi_j c_j^{xy}.
+\end{equation}
+The code computes these products directly from observations and directions;
+it need not form $\Sigma_j$.
+
+\begin{proposition}[Why a common gradient subspace gives moment equations]
+If the responses within a neighborhood obey the affine model
+$y_i=b_j+(Yg_j)^\top x_i+e_i$, then
+\begin{equation}\label{eq:moment-model}
+ I_j=U_jYg_j+\Phi_j\sum_i a_{ji}(x_i-\mu_j)e_i.
+\end{equation}
+In particular, exact affine responses with gradient in $\col(Y)$ satisfy
+$I_j=U_jYg_j$ exactly.
+\end{proposition}
+\begin{proof}
+Subtract the weighted response mean. The intercept disappears and
+$c_j^{xy}=\Sigma_jYg_j+\sum_i a_{ji}(x_i-\mu_j)e_i$.
+Multiply by $\Phi_j$ and use \eqref{eq:sketch-cov}.
+\end{proof}
+For smooth $f$, a local Taylor expansion motivates this affine model;
+its remainder and observational noise contribute to $e_i$. This motivation
+does not remove finite-bandwidth bias.
+
+For isotropic directions and a fixed vector $v$, independent of the sketch,
+$\E\norm{\Phi_j v}^2=(p/d)\norm{v}^2$. However, the algorithm uses a
+\emph{realized finite sketch} and optimizes a basis against it. Taking an
+expectation does not make its optimizer equal to the optimizer of a full
+covariance criterion. Even a full covariance-moment residual is not the
+same objective as observation-level local linear least squares.
+
+\paragraph{Legacy normalization.}
+The explicit \code{legacy} path returns $N_jI_j,N_jU_j$ and passes no mass
+to the solver, which then uses unit weights. At zero solver ridge this
+weights the normalized residual by $N_j^2$, whereas the new path below
+uses $N_j$. Legacy is a different normalization, not an algebraically
+identical implementation of the new estimator.
+
+\section{The frozen profiled objective on the Grassmann manifold}
+\label{sec:profile}
+For one outer step, freeze all $U_j,I_j,N_j$. The Grassmann solver targets
+\begin{equation}\label{eq:profile}
+ \boxed{\quad F_\tau(Y)=\sum_j N_j\min_{g\in\R^m}
+ \left\{\norm{I_j-U_jYg}^2+\tau\norm{g}^2\right\},\quad
+ Y^\top Y=I_m.\quad}
+\end{equation}
+Here $\tau=\code{grassman.solve.local_ridge}$ is zero by default.
+It is \emph{separate} from $\lambda_{\rm init}$ in
+\eqref{eq:init-fit}. The adapter does not pass the configuration's
+\code{local_ridge} into this solver. To set a positive $\tau$, pass it
+explicitly to \code{ADP_solver(solve, local_ridge=...)}.
+
+For $M_j=U_jY$ and $H_j=M_j^\top M_j+\tau I_m$, the local solution is
+\begin{equation}\label{eq:local-solution}
+ g_j=M_j^\dagger I_j\quad(\tau=0),\qquad
+ g_j=H_j^{-1}M_j^\top I_j\quad(\tau>0),\qquad
+ r_j=I_j-M_jg_j.
+\end{equation}
+The first expression means the minimum-norm least-squares solution.
+Inverse notation in the second expression specifies a mathematical map;
+the code uses QR/SVD factors rather than forming $H_j^{-1}$ or normal
+equations. Positive $\tau$ is a statistical ridge modification of the
+profile, whereas a damping parameter used to generate a numerical step
+is not.
+
+For an orthogonal $Q\in\R^{m\times m}$, replacing $Y$ by $YQ$ and
+$g_j$ by $Q^\top g_j$ leaves \eqref{eq:profile} unchanged. Consequently,
+the natural parameter is $\col(Y)\in\Gr(m,d)$, with representative $Y$.
+This objective profiles all local coefficients at each candidate basis;
+it is distinct from a rank-constrained matrix problem with fixed $g_j$.
+
+\subsection{Local linear algebra and rank boundaries}
+Local ridge fits are implemented by augmenting the design:
+\begin{equation}
+ \widetilde M_j=\begin{bmatrix}M_j\\\sqrt\tau I_m\end{bmatrix},\qquad
+ \widetilde I_j=\begin{bmatrix}I_j\\0\end{bmatrix}.
+\end{equation}
+The SVD path retains singular values larger than
+$\epsilon_{\rm mach}\max(p,m)\sigma_{j,1}$. This is a numerical-rank rule;
+when $\tau>0$, the factor in this cutoff still uses $p,m$, not $p+m,m$.
+A fast reorthogonalized QR path is used for safe $m\le2$ systems, with
+fallback to SVD for sensitive batches. The smooth flag additionally
+requires full local rank, separation from severe conditioning, and an
+absolute singular-value guard. Floating-point rank truncation means that
+the formal exact profile and its computed realization can differ near
+a rank threshold.
+
+At $\tau=0$, local rank can change with $Y$. Derivatives that assume full
+column rank are not used there. A small computed gradient at a rank boundary
+is not reported as a smooth stationarity certificate.
+
+\subsection{Horizontal gradient}
+On the smooth region, the envelope theorem gives
+\begin{equation}\label{eq:gradient}
+ \nabla_YF_\tau=-2\sum_jN_jU_j^\top r_jg_j^\top,
+ \qquad G=(I_d-YY^\top)\nabla_YF_\tau.
+\end{equation}
+To verify the cancellation, differentiate the local objective:
+the coefficient variation contributes
+$2(\tau g_j-M_j^\top r_j)^\top dg_j=0$ by the local normal condition.
+Only the direct variation through $M_j$ remains. The horizontal tangent
+space is $\{Z:Y^\top Z=0\}$; projecting gives $G$.
+The implementation applies the projection as $G_E-Y(Y^\top G_E)$,
+without forming $I_d-YY^\top$. Outside the smooth region it uses the same
+algebraic expression as a proposal direction and withholds the certificate.
+
+The stopping normalization is
+\begin{equation}\label{eq:certificate}
+ s_I=\max\left(1,\sum_jN_j\norm{I_j}^2\right),\qquad
+ \gamma=\norm{G}_F/s_I.
+\end{equation}
+The default tolerance is $10^{-6}$. It is this normalized horizontal
+gradient, together with applicability of smooth stationarity, that controls
+the inner \code{converged} flag.
+
+\section{The current inner update: a reduced Gauss--Newton core}
+\label{sec:gn}
+\subsection{Choosing the search space}
+Compute a thin SVD $G=V_G\diag(\sigma)A^\top$. Let $r_G$ be its
+numerical rank, capped by $\min(m,d-m)$. Unless a fixed \code{rank} is
+provided, choose the smallest $q\le r_G$ such that
+\begin{equation}\label{eq:energy}
+ \sum_{a=1}^q\sigma_a^2\ge(1-\eta)\sum_a\sigma_a^2,
+ \qquad\eta=\code{energy_tol}=0.05,
+\end{equation}
+capped at the available rank. With a fixed rank, use its minimum with
+$r_G$. Reproject and QR-orthonormalize the first $q$ left vectors to obtain
+$V\in\R^{d\times q}$, $Y^\top V=0$. Recompute the actual reduced gradient
+$V^\top G$ after QR; its signs need not match the original SVD signs.
+
+The search directions are $Z=VK$, with $K\in\R^{q\times m}$. All
+$qm$ entries of $K$ are optimized together. This is a full core within
+the selected left search space, not the full Grassmann tangent space,
+whose dimension is $m(d-m)$. The parameter \code{rank} controls this
+search restriction, not the estimated EDR dimension $m$.
+
+Cache $M_j=U_jY$ and $W_j=U_jV$ for the current step only. These operator
+actions allow all trial bases to be evaluated without rereading the
+ambient dimension in each profile trial.
+
+\subsection{Differentiating the profiled residual, including coefficient refits}
+For a tangent perturbation $Z=VK$, write $T_j=U_jZ=W_jK$.
+Differentiating $H_jg_j=M_j^\top I_j$ yields
+\begin{align}
+ H_j\,dg_j&=T_j^\top r_j-M_j^\top T_jg_j,\label{eq:dg}\\
+ dr_j&=-T_jg_j-M_j\,dg_j.\label{eq:dr}
+\end{align}
+The term $T_j^\top r_j$ is essential: holding coefficients fixed or
+discarding that term gives a different Jacobian.
+
+Stack the weighted augmented residuals
+\begin{equation}\label{eq:aug-residual}
+ R(Y)=\left(\sqrt{N_j}
+     \begin{bmatrix}r_j\\-\sqrt\tau g_j\end{bmatrix}\right)_{j=1}^J,
+ \qquad \norm{R(Y)}^2=F_\tau(Y),
+\end{equation}
+omitting the bottom rows when $\tau=0$. Equations \eqref{eq:dg}--\eqref{eq:dr}
+give the Jacobian $\mathcal J$ with respect to the row-major vector
+$\operatorname{vec}(K)$. In particular,
+\begin{equation}\label{eq:jac-gradient}
+ 2\mathcal J^\top R=\operatorname{vec}(V^\top G).
+\end{equation}
+The code constructs this small-column Jacobian, including its coefficient
+cross terms; it does not build a Jacobian for all $m(d-m)$ tangent variables.
+
+\subsection{Damped least squares and the polar retraction}
+The numerical proposal solves
+\begin{equation}\label{eq:gn-ls}
+ \min_K\norm{\mathcal J\operatorname{vec}(K)+R}^2
+       +\lambda_d\norm{K}_F^2
+ =\min_K\left\lVert
+ \begin{bmatrix}\mathcal J\\\sqrt{\lambda_d}I_{qm}\end{bmatrix}
+ \operatorname{vec}(K)-\begin{bmatrix}-R\\0\end{bmatrix}
+ \right\rVert^2.
+\end{equation}
+The augmented least-squares solve avoids forming
+$\mathcal J^\top\mathcal J$. On the smooth full-center path,
+$\lambda_d=\code{lambda_prox}=0.05$ initially. This parameter arrives from
+\code{ADP_Config.lambda_penalty}; despite that configuration name, it is
+\emph{only damping} for this solver, not a permanent penalty on
+$Y-Y_{\rm old}$ or on projectors in \eqref{eq:profile}.
+
+The spectral norm of $K$ is capped at $\tan(\theta_{\max})$, where
+$\theta_{\max}=0.5$ radians. A polar retraction gives
+\begin{equation}\label{eq:polar}
+ Y_+(t)=(Y+tVK)(I_m+t^2K^\top K)^{-1/2},\qquad
+ M_{j,+}(t)=(M_j+tW_jK)(I_m+t^2K^\top K)^{-1/2}.
+\end{equation}
+The inverse square root is computed in dimension $m$.
+Since $Y^\top V=0$ and $V^\top V=I_q$,
+$Y_+(t)^\top Y_+(t)=I_m$. The principal rotation angles are
+$\arctan(t\sigma_a(K))$, so the cap controls the largest angle at $t=1$.
+
+The proposed direction must have negative actual slope
+$s=\langle V^\top G,K\rangle_F$. Trial lengths
+$t=1,1/2,\ldots,2^{-15}$ are accepted only if the recomputed profile obeys
+\begin{equation}\label{eq:armijo}
+ F_\tau(Y_+(t))\le F_\tau(Y)+10^{-4}t s.
+\end{equation}
+Local coefficients are reoptimized at every trial. If no length is accepted,
+damping is multiplied by ten and another least-squares proposal is tried,
+up to eight damping attempts. A failed proposal triggers a spectral fallback.
+This is a bounded descent procedure, not an exact minimization of the
+Grassmann objective.
+
+\section{Rank loss, constant centers, and descent fallbacks}\label{sec:guards}
+\subsection{Exactly zero operators}
+If $U_j=0$ exactly, the minimum-norm coefficient is $g_j=0$ and that
+center contributes the known constant $N_j\norm{I_j}^2$ to
+\eqref{eq:profile}, for any $\tau\ge0$. With
+\code{constant_centers=True}, a mixture of zero and nonzero operators is
+reduced to the active centers for the solve. The code restores zero
+coefficient rows, constant objective/history terms, and rank counts.
+It rescales the active tolerance by $s_I/s_{I,\rm active}$, preserving
+the original stopping threshold in \eqref{eq:certificate}. This is exact
+zero testing, not pruning small operators. An entirely zero batch follows
+the direct path and is not given a false smooth certificate at $\tau=0$.
+
+\subsection{Relative Gauss--Newton with intrinsic local rank loss}
+At $\tau=0$, if some $M_j$ are rank deficient, the current
+\code{relative_gn=True} branch checks whether their numerical ranks satisfy
+\begin{equation}\label{eq:intrinsic}
+ \rank(U_j)=\rank(U_jY)<m.
+\end{equation}
+In exact linear algebra this equality implies
+$\col(U_jY)=\col(U_j)$, so the center's least-squares value is locally
+constant as long as that equality persists. The residual is orthogonal to
+$\col(U_j)$ and its ambient gradient contribution vanishes.
+
+The implemented test uses SVD numerical ranks, not an exact symbolic
+identity. It therefore justifies a \emph{proposal model}: if every deficient
+center passes the rank test, and at least one remaining center exists with
+a smooth profile, GN is formed using those regular centers only. The
+initial damping is then scaled relatively:
+\begin{equation}\label{eq:relative}
+ \lambda_d=\code{lambda_prox}\frac{\norm{\mathcal J_{\rm reg}}_F^2}{qm}.
+\end{equation}
+The direction space and slope still use the full algebraic gradient.
+Armijo acceptance and the final objective use \emph{all} centers.
+Nonpositive or nonfinite relative damping invalidates the proposal.
+No full-rank derivative is applied to a deficient center, and numerical
+rank agreement is not promoted into a smooth full-profile certificate.
+
+\subsection{Value-based rank-one rotations}
+If an admissible GN model cannot be obtained, take a leading gradient
+singular pair, with unit $a\in\R^m$ and $v\perp\col(Y)$ oriented so that
+$s=v^\top Ga<0$. The rank-one Grassmann rotation is
+\begin{equation}\label{eq:rank-one}
+ Y(\theta)=Y+\bigl[Ya(\cos\theta-1)+v\sin\theta\bigr]a^\top.
+\end{equation}
+For $u_j=M_ja$ and $w_j=U_jv$, its cached action is
+\begin{equation}
+ M_j(\theta)=M_j+
+ \bigl[u_j(\cos\theta-1)+w_j\sin\theta\bigr]a^\top.
+\end{equation}
+This curve preserves orthonormality. All trial values are evaluated with
+fresh local coefficient fits, so a nonsmooth rank transition does not
+require the full-rank Jacobian formula.
+
+The default \code{quadratic_trials=3} starts at $\theta_{\max}$. From a
+trial value it estimates
+\begin{equation}\label{eq:quadratic}
+ \widehat c=\frac{2[F_\tau(Y(\theta))-F_\tau(Y)-\theta s]}{\theta^2},
+ \qquad
+ \theta_{\rm prop}=\operatorname{clip}
+ \left(-s/\widehat c,\theta_{\max}2^{-19},\theta_{\max}\right),
+\end{equation}
+when $\widehat c$ is positive and finite. Of up to three such trials, the
+best one actually satisfying Armijo is retained. If none qualifies, the
+code tries up to twenty dyadic angles. Curvature interpolation is a search
+heuristic; the true profile decides acceptance.
+
+If both \code{relative_gn=False} and \code{quadratic_trials=0}, a retained
+compatibility branch uses a scalar Schur-complement angle profile, followed
+by full-refit Armijo checks. It is not the current default path.
+
+\subsection{Spectral fallback and workspace guard}
+If the GN workspace estimate exceeds \code{workspace_bytes}, or GN cannot
+produce an accepted step, a spectral descent curve is used. Let
+$V^\top G=L\diag(\sigma)A^\top$ and $\omega_a=\sigma_a/\sigma_1$.
+With $\widehat V=VL$, it is
+\begin{equation}\label{eq:spectral}
+ Y(t)=Y+YA\diag(\cos(t\omega)-1)A^\top
+          -\widehat V\diag(\sin(t\omega))A^\top.
+\end{equation}
+Here $A$ has $q$ orthonormal columns. The derivative has negative slope
+$-\sum_a\sigma_a\omega_a$, and up to twenty dyadic lengths starting at
+$\theta_{\max}$ are checked using the same true-profile Armijo rule.
+Workspace controls the GN scratch space, not the full input $U$ or total
+process memory.
+
+\section{Returning from the inner solve and updating the outer spectrum}
+\label{sec:canonical}
+The default inner budget is at most twenty accepted iterations, with no
+separate smooth-region cap. The solver can stop earlier with
+\code{stationary}, \code{rank_boundary_stationary}, or
+\code{line_search_failed}; exhausting the budget gives \code{max_steps}.
+Before returning, it recomputes $U_jY$, the profile, and the gradient from
+the live operators rather than trusting accumulated cached trial actions.
+
+The result contains the row basis $P=Y^\top$, local coefficients
+$g_j^\top$ as rows, and diagnostics. Inner \code{converged=True} requires
+the normalized gradient threshold and applicability of the smooth
+certificate. Reaching a finite step cap is not convergence.
+
+For the normalized outer algorithm, assemble $C\in\R^{J\times m}$
+with rows $\sqrt{N_j}g_j^\top$, and compute
+\begin{equation}\label{eq:canonical}
+ C=L_C\diag(s_1,\ldots,s_m)R_C^\top,\qquad
+ B_{k+1}=YR_C,\qquad
+ \ell_{k+1,a}=s_a^2/s_1^2.
+\end{equation}
+Column signs are made deterministic by making each column's largest
+absolute entry positive. The coefficients are rotated by the inverse
+basis rotation, including the signs, to preserve every $Yg_j$.
+The required coefficient rank is checked; if it is below $m$, the update
+is rejected as non-identifiable rather than silently reducing $m$.
+
+This is the eigendecomposition of the ambient gradient surrogate
+\begin{equation}
+ \sum_jN_j(Yg_j)(Yg_j)^\top
+       =Y(C^\top C)Y^\top
+\end{equation}
+using only the small factor $C$. It changes the representative basis and
+localization spectrum, while preserving the estimated subspace at this
+point. The spectrum then influences the \emph{next} outer neighborhoods.
+For the legacy path the coefficient SVD is unweighted.
+
+\section{Outer-step scoring, stopping, and complete pseudocode}
+\label{sec:outer}
+\subsection{What the selection score actually measures}
+At outer step $k$ the code records
+\begin{equation}\label{eq:selection}
+ E_k=\sum_{j=1}^J\bigl(y_{i_j}-\bar y_j^{(k)}\bigr)^2,
+\end{equation}
+where $\bar y_j^{(k)}$ was computed from the neighborhoods determined by
+the \emph{incoming} $B_k,\ell_k,h_k,\alpha_k$. After the solver update,
+the record associates this score with the newly computed $B_{k+1}$.
+There is no second statistics pass to score the updated basis at the same
+scale. Thus $E_k$ is neither the solver profile nor a fitted local linear
+prediction using $g_j$.
+
+The default \code{select_step="best"} returns the updated basis attached
+to the smallest recorded $E_k$, keeping the first in a tie; \code{last}
+returns the final update. With the default training protocol this is a
+same-sample smoothing criterion. With excluded center indices it is a
+center-response holdout criterion, but repeated selection across scales
+still does not constitute untouched scientific validation.
+
+The outer loop stops on the explicit \code{outer_steps} cap, when
+$h_k/a<h_{\min}$, or when no feasible $\alpha$ can maintain the target
+mass at the next scale. These stops are independent of inner stationarity.
+The first step is executed even if $h_0=h_{\min}$. The initial basis alone
+is not a candidate in the best-step selection.
+
+\subsection{Complete outer algorithm}
+The following uses zero-based $k$ and the normalized default path. Optional
+training splits and displaced centers are applied before the first line
+that constructs training distances.
+\begin{enumerate}[label=\arabic*.,leftmargin=*]
+\item Validate $X,y,m$ and configuration; resolve $J,p,N_{\rm lin}$.
+Create random streams, select centers and training observations.
+Compute training-to-center squared distances.
+\item Estimate $B_0$ by local gradient PCA
+(Section~\ref{sec:init}); set $\ell_0=\bm1$, $\alpha_0=1$.
+Find $h_0\ge h_{\min}$ satisfying \eqref{eq:h-search}.
+\item For $k=0,1,\ldots$:
+\begin{enumerate}[label=(\alph*),leftmargin=*]
+\item Draw or reuse $\Phi_j$. Force the orthogonal tensor at $k=0$;
+otherwise use the configured tensor.
+\item Build weights, masses, means, and normalized $I_j,U_j$ using
+\eqref{eq:orthogonal}--\eqref{eq:U}. Keep $\bar y_j$ for scoring.
+\item Call the inner Grassmann solver with initial row basis $B_k^\top$,
+operators $U_j$, targets $I_j$, masses $N_j$, and configured damping.
+\item Validate the returned basis and coefficients. Canonicalize by
+\eqref{eq:canonical}, obtaining $B_{k+1},\ell_{k+1}$ and rotated coefficients.
+\item Compute \eqref{eq:selection} from the already constructed means;
+store the updated basis, spectrum, coefficients, score, geometry, and
+inner diagnostics. Update the best record if its score is strictly lower.
+\item Stop if the outer budget is reached. Put $h'=h_k/a$; stop if
+$h'<h_{\min}$. Find $\alpha'$ by \eqref{eq:alpha-search} using
+$B_{k+1},\ell_{k+1},h'$; stop if infeasible. Set
+$h_{k+1}=h'$, $\alpha_{k+1}=\alpha'$.
+\end{enumerate}
+\item Return the best recorded update or the last update as configured.
+Publish the column basis and project new observations with $XB_{\rm out}$.
+\end{enumerate}
+
+\subsection{Complete inner algorithm}
+\begin{enumerate}[label=\arabic*.,leftmargin=*]
+\item Validate shapes, finite data, positive masses, and solver parameters.
+If enabled, eliminate exactly zero operators and remember their constants.
+Orthonormalize the initial row basis and transpose it to $Y$.
+\item Compute the local profile $M_j=U_jY$, $g_j,r_j,F_\tau$ by QR/SVD.
+For up to the inner step budget:
+\begin{enumerate}[label=(\alph*),leftmargin=*]
+\item Compute the full algebraic horizontal gradient. If its normalized
+norm is below tolerance, stop, distinguishing smooth stationarity from a
+rank boundary.
+\item Select $V$ and $q$ by the gradient SVD. If the full profile is
+smooth, use all centers for GN; otherwise attempt the eligible intrinsic
+rank model, or choose a rank-one value search.
+\item Cache $U_jV$. If GN is admissible and fits the workspace, construct
+\eqref{eq:dg}--\eqref{eq:gn-ls}, cap the tangent length, and try damped
+polar steps with full-profile Armijo acceptance.
+\item Use the rank-one or spectral fallback when appropriate. If no trial
+is accepted, stop with \code{line_search_failed}; otherwise replace $Y$
+and its profile by the accepted state and append the objective history.
+\end{enumerate}
+\item Recompute the final profile and gradient from live $U_jY$. Set the
+certificate and diagnostics, restore constant centers, and return $Y^\top$.
+\end{enumerate}
+
+\section{Numerical interpretation, resource bounds, and limitations}
+\label{sec:limits}
+\subsection{Three distinct quantities and their diagnostics}
+The solver reports
+\begin{align}
+ \code{profile_objective}&=F_\tau(Y),\\
+ \code{loss}&=\tfrac12\sum_jN_j\norm{r_j}^2,\\
+ \code{riemannian_gradient}&=\norm{G}_F/s_I.
+\end{align}
+The \code{profile_history} stores $F_\tau$ along accepted steps;
+\code{loss_history} is half that history. At $\tau>0$,
+\code{loss_history} includes half the ridge term, whereas the final
+\code{loss} excludes it. At $\tau=0$ they have the expected common scaling.
+The outer score $E_k$ in \eqref{eq:selection} is a third, distinct criterion.
+
+Other diagnostics include accepted steps, attempted step ranks, GN solves,
+profile evaluations, rank-guard and workspace fallbacks, intrinsic GN
+proposals, final rank loss, orthogonality error, stop reason, and
+\code{stationarity_applicable}. The reported method name can be
+\code{core_gn_relative} and the angle backend \code{refit_quadratic}
+under current defaults; diagnostic labels do not select a separate
+public algorithm.
+
+\subsection{Actual storage and numerical execution}
+The main persistent sketch arrays cost $O(Jpd)$ for $U$ and directions,
+plus $O(Jp)$ for $I$. The shared outer loop also precomputes a
+$J\times n_{\rm tr}$ distance array, so its memory is not purely sparse.
+Weights and their observation projections are processed in center blocks;
+compact neighborhoods can use exact nonzero-neighbor statistics. Neither
+a $J\times n_{\rm tr}\times d$ differences tensor nor a dense ambient
+projector is required.
+
+Inside the solver, caches cost $O(Jp(m+q))$. The GN Jacobian has
+$J(p+m\mathbf1_{\tau>0})$ rows and $qm$ columns. Its dominant work is
+small-column least squares, in addition to operator actions of order
+$O(Jpd(m+q))$ per refreshed search space. The default GN workspace cap is
+$16$ MiB and the ambient-gradient scratch is chunked at approximately
+$4$ MiB; these limits do not cap total memory or input storage.
+Arithmetic is float64. NumPy and CuPy follow the same mathematical
+objective and acceptance logic; the GPU path additionally QR-compresses
+some local SVD and augmented GN designs. Returned basis and coefficient
+arrays are on the host. No performance ordering between CPU and GPU
+follows from these formulas.
+
+\subsection{What follows mathematically, and what does not}
+\begin{itemize}[leftmargin=*]
+\item Weighted centering removes local intercepts. Equations
+\eqref{eq:sketch-cov}, \eqref{eq:moment-model}, and gauge invariance are
+exact arithmetic identities.
+\item On a smooth full-rank profile, the gradient, coefficient derivative,
+Jacobian relation, and polar orthogonality formulas are exact. Numerical
+rank truncation and floating-point errors require the stated safeguards.
+\item Accepted inner steps satisfy the implemented sufficient-decrease
+test for their frozen profile. A finite twenty-step budget does not imply
+stationarity; smooth stationarity does not imply a global minimum.
+\item Intrinsic-rank tests, selected gradient search spaces, relative
+damping, and bounded quadratic trials are optimizer choices. Their
+acceptance is checked on the full profile, but they are not a convergence
+proof at rank boundaries.
+\item Noise, local Taylor remainder, finite direction sketches, and
+adaptive neighborhoods all affect statistical recovery. Neither low
+profile loss nor small center-mean SSE establishes consistency or a
+finite-sample recovery rate.
+\end{itemize}
+If truth is available in an experiment, use basis-invariant metrics, for
+example $\norm{\widehat B\widehat B^\top-B_\star B_\star^\top}_F$
+or principal angles, and report them separately from time, memory, and
+solver certificates. Ground-truth quality callbacks in the shared engine
+record diagnostics; they do not determine the fitted update or score.
+
+\appendix
+\section{Current solver defaults and parameter ownership}\label{sec:defaults}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\code{grassman.solve} argument & Default\\
+\midrule
+\code{max_steps}, \code{tol} & $20$, $10^{-6}$\\
+\code{lambda_prox}, \code{local_ridge} & $0.05$, $0$\\
+\code{rank}, \code{energy_tol} & automatic, $0.05$\\
+\code{max_angle}, \code{workspace_bytes} & $0.5$ radians, $16$ MiB\\
+\code{relative_gn}, \code{quadratic_trials} & \code{True}, $3$\\
+\code{constant_centers}, \code{smooth_max_steps} & \code{True}, no separate cap\\
+\bottomrule
+\end{tabular}
+\end{center}
+An explicit \code{smooth_max_steps} can cap an initially smooth solve
+when relative GN or quadratic trials are enabled; it is not active by
+default. $\code{lambda_prox}>0$ is required even though
+\code{ADP_Config.lambda_penalty} permits zero for other solvers.
+Do not pass \code{lambda_prox} or \code{mass} as fixed
+\code{ADP_solver} settings for this facade: they are already passed by
+the model and duplicates are rejected.
+
+The production \code{solve} exposes no public \code{method} or
+\code{angle_backend} selector. Alternative flat/full tangent GN methods
+belong to \code{grassman_exp.py}; \code{block_rank_k} is a separate
+experimental entry point. They are not part of this document's main
+algorithm. The explicit older control
+\begin{lstlisting}[language=Python]
+ADP_solver(solve, max_steps=5, relative_gn=False,
+           quadratic_trials=0, constant_centers=False)
+\end{lstlisting}
+changes optimization settings while retaining the same frozen objective
+at the same solver ridge.
+
+\section{Implementation source map and reproducibility}\label{sec:sources}
+This is a description of the live source snapshot, not a reinterpretation
+of older manuscript formulas. The following paths and named functions
+identify the authoritative implementation components.
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.48\textwidth}
+  >{\raggedright\arraybackslash}p{0.48\textwidth}@{}}
+\toprule
+Source & Responsibility\\
+\midrule
+\endhead
+\path{ADP/core/multi/ADP_multi_index.py} &
+Facade, explicit solver integration, public basis and transform.\\[3pt]
+\path{ADP/core/ADP_Config.py} &
+Outer defaults, kernel, configuration validation.\\[3pt]
+\path{ADP/core/ADP_Solver.py}, \code{fit_current} &
+Mass normalization and damping forwarding; separation of solver settings.\\[3pt]
+\path{ADP/engine/common/index_fit.py},
+\code{validate_sizes}, \code{_initial_index},
+\code{canonical_index}, \code{fit_index} &
+Sizes, initialization, full outer loop, spectrum, score chronology, stops,
+best/last selection, coefficient rotation.\\[3pt]
+\path{ADP/engine/common/initialize.py},
+\code{initialize_basis_local_with_spectrum} &
+Local ridge gradients, weighted gradient PCA and alternative initializers.\\[3pt]
+\path{ADP/engine/common/calculus.py},
+\code{search_bandwidth}, \code{calculate_alpha_k},
+\code{generate_multi_proj}, \code{generate_isotropic_proj} &
+Bandwidth, anisotropy, compact-support screening and sketch laws.\\[3pt]
+\path{ADP/engine/common/weights.py}, \code{calculate_multi_weight} &
+Principal/residual geometry, blockwise kernel evaluation.\\[3pt]
+\path{ADP/engine/common/statistic.py},
+\code{calculate_statistics}, \code{_dense_moments}, \code{_local_block} &
+Centered statistics, normalized/legacy scaling, response means, effective
+sample sizes.\\[3pt]
+\path{ADP/solver/grassman.py}, \code{_profile},
+\code{_gradient}, \code{_core_jacobian}, \code{_polar},
+\code{_intrinsic_model}, \code{solve} &
+Complete current production inner solver.\\[3pt]
+\path{tests/test_grassman.py},
+\path{tests/test_grassman_combined.py} &
+Independent local fits and finite differences, gauge/orthogonality,
+rank boundaries, combined defaults and constant-center restoration.\\
+\bottomrule
+\end{longtable}
+Build from the repository root with
+\begin{lstlisting}
+pdflatex -interaction=nonstopmode -halt-on-error \
+  -output-directory=/tmp/adp-grassmann-tex tex/ADP_Grassmann_current.tex
+# Repeat once for the table of contents and cross-references.
+\end{lstlisting}
+Create the output directory first. The adjacent verification record
+\path{tex/ADP_Grassmann_current.verification.md} records the actual commands,
+formula checks, focused tests, source hashes, and build outcome for this
+snapshot. The accompanying PDF is generated from this TeX source.
+The independent outer-formula replay is available as
+\path{tex/documentation/grassmann_current/check_formulas.py}; run it from
+the repository root using
+\begin{lstlisting}
+python -m tex.documentation.grassmann_current.check_formulas
+\end{lstlisting}
+The historical research attempts and their measured outcomes are described
+separately in \path{SVD/GRASSMANN_IMPROVEMENT_HISTORY.md}.
+\end{document}

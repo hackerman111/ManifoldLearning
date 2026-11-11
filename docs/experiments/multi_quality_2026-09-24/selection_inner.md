@@ -1,6 +1,6 @@
 # Multi v2: парный selection по лимиту HPAO
 
-Источник: `benchmark_outputs/diagnostic/20260924T121050309754-multiv2-quality-inner/`
+Источник: `benchmarks/results/outputs/diagnostic/20260924T121050309754-multiv2-quality-inner/`
 (`run.json`, `summary.json`, `series/*/{series.json,runs.csv}`). Запуск:
 `python -m experiments.multiv2_quality --stage inner --threads 1`.
 CPU, один BLAS thread; seed 1000–1009, одинаковые seed bundles у всех

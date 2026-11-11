@@ -1,0 +1,970 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/papayka/Documents/AMI/Vlad_EDR/EDR_code
+configfile: pyproject.toml
+testpaths: tests
+plugins: hypothesis-6.165.10, cov-7.1.0
+collected 819 items / 3 errors
+
+tests/test_adaptive_centers.py ...........................               [  3%]
+tests/test_algorithm_v2.py .........                                     [  4%]
+tests/test_beta_functional_audit.py ........                             [  5%]
+tests/test_cg.py ...                                                     [  5%]
+tests/test_cli.py ...FF...                                               [  6%]
+tests/test_edr_operators.py ...........                                  [  8%]
+tests/test_edr_research.py .........................                     [ 11%]
+tests/test_edr_schur.py .........                                        [ 12%]
+tests/test_experiment_suites.py ........................                 [ 15%]
+tests/test_glm_full_gn.py .....                                          [ 15%]
+tests/test_gpu_index.py .ssssssssssssssssssssssssssss.                   [ 19%]
+tests/test_grassman.py ..................                                [ 21%]
+tests/test_grassman_accuracy.py ........                                 [ 22%]
+tests/test_grassman_accuracy22.py .........................              [ 25%]
+tests/test_grassman_accuracy22_benchmark.py .....                        [ 26%]
+tests/test_grassman_accuracy_reference.py ......                         [ 26%]
+tests/test_grassman_armijo.py .......                                    [ 27%]
+tests/test_grassman_combined.py .................                        [ 29%]
+tests/test_grassman_conjugate_guard.py .....                             [ 30%]
+tests/test_grassman_conjugate_qr.py ......                               [ 31%]
+tests/test_grassman_constant_angle.py ........                           [ 32%]
+tests/test_grassman_constant_centers.py .........                        [ 33%]
+tests/test_grassman_flat.py ..........                                   [ 34%]
+tests/test_grassman_gpu.py .........sssssssssssssssssssssssss            [ 38%]
+tests/test_grassman_gpu_benchmark.py ...                                 [ 39%]
+tests/test_grassman_intrinsic.py .......                                 [ 39%]
+tests/test_grassman_optim.py ..................                          [ 42%]
+tests/test_grassman_polish.py .......                                    [ 42%]
+tests/test_grassman_quadratic.py ........                                [ 43%]
+tests/test_grassman_rank_counts.py .....                                 [ 44%]
+tests/test_grassman_rank_k.py ...............                            [ 46%]
+tests/test_grassman_rank_polish.py ..                                    [ 46%]
+tests/test_grassman_rank_reference.py ...                                [ 47%]
+tests/test_grassman_relative_gn.py ..................................... [ 51%]
+                                                                         [ 51%]
+tests/test_grassman_selective.py .............                           [ 53%]
+tests/test_grassman_spectral_guard.py .....                              [ 53%]
+tests/test_grassman_warmup.py ....                                       [ 54%]
+tests/test_hybrid.py ...........F..                                      [ 55%]
+tests/test_hybrid_optimization.py ...........................            [ 59%]
+tests/test_hybrid_recycling.py .................                         [ 61%]
+tests/test_index_models.py ........................................      [ 66%]
+tests/test_initialization_support.py .................                   [ 68%]
+tests/test_inverse_moment_init.py ....F                                  [ 68%]
+tests/test_localization_optimization.py ................................ [ 72%]
+...                                                                      [ 73%]
+tests/test_lsmr.py .....                                                 [ 73%]
+tests/test_manifold.py ................                                  [ 75%]
+tests/test_manifold_grid.py .                                            [ 75%]
+tests/test_manifold_identifiability.py ...                               [ 76%]
+tests/test_metric_spokoiny.py ..........                                 [ 77%]
+tests/test_multi_operator.py ......                                      [ 78%]
+tests/test_multi_solver_certificate.py .                                 [ 78%]
+tests/test_multi_solver_derivation.py .....                              [ 78%]
+tests/test_parameter_scaling.py ..                                       [ 79%]
+tests/test_proof_first_h1.py .....                                       [ 79%]
+tests/test_r_sdr.py .............................                        [ 83%]
+tests/test_reduced_gauss_newton.py .......                               [ 84%]
+tests/test_reduced_lbfgs.py .......                                      [ 84%]
+tests/test_statistics_optimization.py ......................FFF          [ 88%]
+tests/test_svd_gradient.py ...........                                   [ 89%]
+tests/test_svd_joint.py .................                                [ 91%]
+tests/test_svd_metric.py ............................................... [ 97%]
+..                                                                       [ 97%]
+tests/test_svd_solver.py ..................                              [ 99%]
+tests/test_warm_reduced.py ...                                           [100%]
+
+==================================== ERRORS ====================================
+__________________ ERROR collecting tests/test_experiment.py ___________________
+tests/test_experiment.py:40: in <module>
+    from experiments import multi as multi_experiments, multiv2
+experiments/multiv2.py:124: in <module>
+    CATALOG = {experiment.selector: experiment for experiment in catalog()}
+                                                                 ^^^^^^^^^
+experiments/multiv2.py:108: in catalog
+    experiment = _expand_short_grid(experiment)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+experiments/multiv2.py:79: in _expand_short_grid
+    factor, hypothesis = _BINARY_STRESS[experiment.selector]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'mi-spokoini-m2-n'
+____________ ERROR collecting tests/test_multi_center_diagnostic.py ____________
+tests/test_multi_center_diagnostic.py:5: in <module>
+    from experiments.multi_center_diagnostic import _local_spectrum, _weight_metrics
+experiments/multi_center_diagnostic.py:24: in <module>
+    from .multiv2_quality import SENTINELS, _baseline
+experiments/multiv2_quality.py:18: in <module>
+    from .multiv2 import CATALOG
+experiments/multiv2.py:124: in <module>
+    CATALOG = {experiment.selector: experiment for experiment in catalog()}
+                                                                 ^^^^^^^^^
+experiments/multiv2.py:108: in catalog
+    experiment = _expand_short_grid(experiment)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+experiments/multiv2.py:79: in _expand_short_grid
+    factor, hypothesis = _BINARY_STRESS[experiment.selector]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'mi-spokoini-m2-n'
+________________ ERROR collecting tests/test_multiv2_quality.py ________________
+tests/test_multiv2_quality.py:13: in <module>
+    from experiments.multiv2_quality import (
+experiments/multiv2_quality.py:18: in <module>
+    from .multiv2 import CATALOG
+experiments/multiv2.py:124: in <module>
+    CATALOG = {experiment.selector: experiment for experiment in catalog()}
+                                                                 ^^^^^^^^^
+experiments/multiv2.py:108: in catalog
+    experiment = _expand_short_grid(experiment)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+experiments/multiv2.py:79: in _expand_short_grid
+    factor, hypothesis = _BINARY_STRESS[experiment.selector]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'mi-spokoini-m2-n'
+=================================== FAILURES ===================================
+_________________________ test_cli_manifold_smoke[cg] __________________________
+
+argv = ['--mode', 'manifold', '--solver', 'cg', '--n', '80', ...]
+
+    def main(argv: list[str] | None = None) -> int:
+        parser = build_parser()
+        args = parser.parse_args(argv)
+        try:
+>           index, true_basis, profile, metadata = _run(args)
+                                                   ^^^^^^^^^^
+
+ADP/cli/main.py:597: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+ADP/cli/main.py:286: in _run
+    return _run_manifold(args, data=data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:399: in _run_manifold
+    model = ADP_Manifold(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <ADP.core.manifold.ADP_Manifold.ADP_Manifold object at 0x7f7341c2dfd0>
+index_dim = 2, N_loc = 20, N_lin = 30, N_J = 12, N_phi = 8, N_manifold = 6
+lambda_manifold = 0.5, sync_steps = 1, a = 1.4142135623730951, h_min = 1000000.0
+batch_size = 4, seed = 42, cg_tol = 1e-07, cg_maxiter = 200, solver = 'cg'
+estimator = 'local_quadratic', localization_spectrum = 'relative'
+dense_max_unknowns = 256, dense_max_bytes = 67108864, scale_boundary = 'raise'
+
+    def __init__(
+        self,
+        index_dim: int,
+        *,
+        N_loc: int = 15,
+        N_lin: int | None = None,
+        N_J: int | None = None,
+        N_phi: int | None = None,
+        N_manifold: int | None = None,
+        lambda_manifold: float = 1.0,
+        sync_steps: int = 5,
+        a: float | None = None,
+        h_min: float | None = None,
+        batch_size: int = 32,
+        seed: int = 42,
+        cg_tol: float = 1e-8,
+        cg_maxiter: int | None = None,
+        solver: Literal["cg", "hybrid"] = "cg",
+        estimator: Literal["manifold", "local_quadratic"] = "local_quadratic",
+        localization_spectrum: Literal["relative", "unit"] = "relative",
+        dense_max_unknowns: int = 256,
+        dense_max_bytes: int = 64 * 1024**2,
+        scale_boundary: Literal["raise", "stop"] = "raise",
+    ) -> None:
+        """Настроить manifold-ADP с локальным размером подпространства ``m``."""
+        self.index_dim = self._integer("index_dim", index_dim, minimum=1)
+        self.N_loc = self._integer("N_loc", N_loc, minimum=1)
+        self.N_lin = self._optional_integer("N_lin", N_lin, minimum=1)
+        self.N_J = self._optional_integer("N_J", N_J, minimum=1)
+        self.N_phi = self._optional_integer("N_phi", N_phi, minimum=1)
+        self.N_manifold = self._optional_integer("N_manifold", N_manifold, minimum=1)
+        self.lambda_manifold = self._finite_float(
+            "lambda_manifold", lambda_manifold, minimum=0.0
+        )
+        self.sync_steps = self._integer("sync_steps", sync_steps, minimum=1)
+        self.a = self._optional_float("a", a, minimum=1.0, strict=True)
+        self.h_min = self._optional_float("h_min", h_min, minimum=0.0, strict=True)
+        self.batch_size = self._integer("batch_size", batch_size, minimum=1)
+        self.seed = self._integer("seed", seed, minimum=0)
+        self.cg_tol = self._finite_float("cg_tol", cg_tol, minimum=0.0, strict=True)
+        self.cg_maxiter = self._optional_integer("cg_maxiter", cg_maxiter, minimum=1)
+        self.solver = model_utils.validate_solver(solver)
+        if estimator not in {"manifold", "local_quadratic"}:
+            raise ValueError("estimator must be 'manifold' or 'local_quadratic'")
+        if estimator == "local_quadratic" and self.index_dim != 1:
+>           raise ValueError("local_quadratic estimator requires index_dim=1")
+E           ValueError: local_quadratic estimator requires index_dim=1
+
+ADP/core/manifold/ADP_Manifold.py:71: ValueError
+
+During handling of the above exception, another exception occurred:
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f72f2a176f0>
+solver = 'cg'
+
+    @pytest.mark.parametrize("solver", ["cg", "hybrid"])
+    def test_cli_manifold_smoke(capsys: pytest.CaptureFixture[str], solver: str) -> None:
+        assert (
+>           main(
+                [
+                    "--mode",
+                    "manifold",
+                    "--solver",
+                    solver,
+                    "--n",
+                    "80",
+                    "--d",
+                    "4",
+                    "--index-dim",
+                    "2",
+                    "--noise",
+                    "0.01",
+                    "--N_loc",
+                    "20",
+                    "--N_lin",
+                    "30",
+                    "--N_J",
+                    "12",
+                    "--N_phi",
+                    "8",
+                    "--N_manifold",
+                    "6",
+                    "--sync-steps",
+                    "1",
+                    "--lambda-manifold",
+                    "0.5",
+                    "--h_min",
+                    "1000000",
+                    "--batch-size",
+                    "4",
+                    "--solver-tol",
+                    "1e-7",
+                    "--cg-maxiter",
+                    "200",
+                ]
+            )
+            == 0
+        )
+
+tests/test_cli.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+ADP/cli/main.py:599: in main
+    parser.error(str(error))
+../../../../.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu/lib/python3.13/argparse.py:2686: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='__main__.py', usage=None, description='Minimal synthetic single/multi/manifold ADP runner', formatter_class=<class 'argparse.ArgumentDefaultsHelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = '__main__.py: error: local_quadratic estimator requires index_dim=1\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+../../../../.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu/lib/python3.13/argparse.py:2673: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--mode {single,multi,manifold}] [--n N] [--d D]
+                   [--index-dim INDEX_DIM] [--noise NOISE]
+                   [--data-seed DATA_SEED] [--gpu] [--gpu-solver]
+                   [--seed SEED] [--N_loc N_LOC] [--N_lin N_LIN] [--N_J N_J]
+                   [--N_phi N_PHI] [--N_manifold N_MANIFOLD]
+                   [--sync-steps SYNC_STEPS]
+                   [--lambda-manifold LAMBDA_MANIFOLD]
+                   [--scale-boundary {raise,stop}] [--outer_steps OUTER_STEPS]
+                   [--lambda_penalty LAMBDA_PENALTY]
+                   [--local_ridge LOCAL_RIDGE] [--kernel KERNEL] [--a A]
+                   [--h_min H_MIN] [--batch_size BATCH_SIZE]
+                   [--index_init {local,local-cv,pilot,random}]
+                   [--estimator {new,legacy}]
+                   [--directions {auto,isotropic,localized}]
+                   [--multi-tensor {orthogonal,full}]
+                   [--select-step {best,last}]
+                   [--center-displacement CENTER_DISPLACEMENT]
+                   [--training-set {all,exclude_centers}] [--fixed-directions]
+                   [--solver {lsmr,cg,hybrid}]
+                   [--dense-max-unknowns DENSE_MAX_UNKNOWNS]
+                   [--dense-max-bytes DENSE_MAX_BYTES]
+                   [--hybrid-inner-rtol HYBRID_INNER_RTOL]
+                   [--solver-tol SOLVER_TOL]
+                   [--solver-max-steps SOLVER_MAX_STEPS] [--theta THETA]
+                   [--trust-radius TRUST_RADIUS] [--lsmr-maxiter LSMR_MAXITER]
+                   [--cg-maxiter CG_MAXITER]
+__main__.py: error: local_quadratic estimator requires index_dim=1
+_______________________ test_cli_manifold_smoke[hybrid] ________________________
+
+argv = ['--mode', 'manifold', '--solver', 'hybrid', '--n', '80', ...]
+
+    def main(argv: list[str] | None = None) -> int:
+        parser = build_parser()
+        args = parser.parse_args(argv)
+        try:
+>           index, true_basis, profile, metadata = _run(args)
+                                                   ^^^^^^^^^^
+
+ADP/cli/main.py:597: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+ADP/cli/main.py:286: in _run
+    return _run_manifold(args, data=data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:399: in _run_manifold
+    model = ADP_Manifold(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <ADP.core.manifold.ADP_Manifold.ADP_Manifold object at 0x7f72f2cdfb10>
+index_dim = 2, N_loc = 20, N_lin = 30, N_J = 12, N_phi = 8, N_manifold = 6
+lambda_manifold = 0.5, sync_steps = 1, a = 1.4142135623730951, h_min = 1000000.0
+batch_size = 4, seed = 42, cg_tol = 1e-07, cg_maxiter = 200, solver = 'hybrid'
+estimator = 'local_quadratic', localization_spectrum = 'relative'
+dense_max_unknowns = 256, dense_max_bytes = 67108864, scale_boundary = 'raise'
+
+    def __init__(
+        self,
+        index_dim: int,
+        *,
+        N_loc: int = 15,
+        N_lin: int | None = None,
+        N_J: int | None = None,
+        N_phi: int | None = None,
+        N_manifold: int | None = None,
+        lambda_manifold: float = 1.0,
+        sync_steps: int = 5,
+        a: float | None = None,
+        h_min: float | None = None,
+        batch_size: int = 32,
+        seed: int = 42,
+        cg_tol: float = 1e-8,
+        cg_maxiter: int | None = None,
+        solver: Literal["cg", "hybrid"] = "cg",
+        estimator: Literal["manifold", "local_quadratic"] = "local_quadratic",
+        localization_spectrum: Literal["relative", "unit"] = "relative",
+        dense_max_unknowns: int = 256,
+        dense_max_bytes: int = 64 * 1024**2,
+        scale_boundary: Literal["raise", "stop"] = "raise",
+    ) -> None:
+        """Настроить manifold-ADP с локальным размером подпространства ``m``."""
+        self.index_dim = self._integer("index_dim", index_dim, minimum=1)
+        self.N_loc = self._integer("N_loc", N_loc, minimum=1)
+        self.N_lin = self._optional_integer("N_lin", N_lin, minimum=1)
+        self.N_J = self._optional_integer("N_J", N_J, minimum=1)
+        self.N_phi = self._optional_integer("N_phi", N_phi, minimum=1)
+        self.N_manifold = self._optional_integer("N_manifold", N_manifold, minimum=1)
+        self.lambda_manifold = self._finite_float(
+            "lambda_manifold", lambda_manifold, minimum=0.0
+        )
+        self.sync_steps = self._integer("sync_steps", sync_steps, minimum=1)
+        self.a = self._optional_float("a", a, minimum=1.0, strict=True)
+        self.h_min = self._optional_float("h_min", h_min, minimum=0.0, strict=True)
+        self.batch_size = self._integer("batch_size", batch_size, minimum=1)
+        self.seed = self._integer("seed", seed, minimum=0)
+        self.cg_tol = self._finite_float("cg_tol", cg_tol, minimum=0.0, strict=True)
+        self.cg_maxiter = self._optional_integer("cg_maxiter", cg_maxiter, minimum=1)
+        self.solver = model_utils.validate_solver(solver)
+        if estimator not in {"manifold", "local_quadratic"}:
+            raise ValueError("estimator must be 'manifold' or 'local_quadratic'")
+        if estimator == "local_quadratic" and self.index_dim != 1:
+>           raise ValueError("local_quadratic estimator requires index_dim=1")
+E           ValueError: local_quadratic estimator requires index_dim=1
+
+ADP/core/manifold/ADP_Manifold.py:71: ValueError
+
+During handling of the above exception, another exception occurred:
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f72f3e429e0>
+solver = 'hybrid'
+
+    @pytest.mark.parametrize("solver", ["cg", "hybrid"])
+    def test_cli_manifold_smoke(capsys: pytest.CaptureFixture[str], solver: str) -> None:
+        assert (
+>           main(
+                [
+                    "--mode",
+                    "manifold",
+                    "--solver",
+                    solver,
+                    "--n",
+                    "80",
+                    "--d",
+                    "4",
+                    "--index-dim",
+                    "2",
+                    "--noise",
+                    "0.01",
+                    "--N_loc",
+                    "20",
+                    "--N_lin",
+                    "30",
+                    "--N_J",
+                    "12",
+                    "--N_phi",
+                    "8",
+                    "--N_manifold",
+                    "6",
+                    "--sync-steps",
+                    "1",
+                    "--lambda-manifold",
+                    "0.5",
+                    "--h_min",
+                    "1000000",
+                    "--batch-size",
+                    "4",
+                    "--solver-tol",
+                    "1e-7",
+                    "--cg-maxiter",
+                    "200",
+                ]
+            )
+            == 0
+        )
+
+tests/test_cli.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+ADP/cli/main.py:599: in main
+    parser.error(str(error))
+../../../../.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu/lib/python3.13/argparse.py:2686: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='__main__.py', usage=None, description='Minimal synthetic single/multi/manifold ADP runner', formatter_class=<class 'argparse.ArgumentDefaultsHelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = '__main__.py: error: local_quadratic estimator requires index_dim=1\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+../../../../.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu/lib/python3.13/argparse.py:2673: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--mode {single,multi,manifold}] [--n N] [--d D]
+                   [--index-dim INDEX_DIM] [--noise NOISE]
+                   [--data-seed DATA_SEED] [--gpu] [--gpu-solver]
+                   [--seed SEED] [--N_loc N_LOC] [--N_lin N_LIN] [--N_J N_J]
+                   [--N_phi N_PHI] [--N_manifold N_MANIFOLD]
+                   [--sync-steps SYNC_STEPS]
+                   [--lambda-manifold LAMBDA_MANIFOLD]
+                   [--scale-boundary {raise,stop}] [--outer_steps OUTER_STEPS]
+                   [--lambda_penalty LAMBDA_PENALTY]
+                   [--local_ridge LOCAL_RIDGE] [--kernel KERNEL] [--a A]
+                   [--h_min H_MIN] [--batch_size BATCH_SIZE]
+                   [--index_init {local,local-cv,pilot,random}]
+                   [--estimator {new,legacy}]
+                   [--directions {auto,isotropic,localized}]
+                   [--multi-tensor {orthogonal,full}]
+                   [--select-step {best,last}]
+                   [--center-displacement CENTER_DISPLACEMENT]
+                   [--training-set {all,exclude_centers}] [--fixed-directions]
+                   [--solver {lsmr,cg,hybrid}]
+                   [--dense-max-unknowns DENSE_MAX_UNKNOWNS]
+                   [--dense-max-bytes DENSE_MAX_BYTES]
+                   [--hybrid-inner-rtol HYBRID_INNER_RTOL]
+                   [--solver-tol SOLVER_TOL]
+                   [--solver-max-steps SOLVER_MAX_STEPS] [--theta THETA]
+                   [--trust-radius TRUST_RADIUS] [--lsmr-maxiter LSMR_MAXITER]
+                   [--cg-maxiter CG_MAXITER]
+__main__.py: error: local_quadratic estimator requires index_dim=1
+_____________________ test_manifold_hybrid_fit_matches_cg ______________________
+
+    def test_manifold_hybrid_fit_matches_cg() -> None:
+        rng = np.random.default_rng(115)
+        X = rng.normal(size=(100, 5))
+        Y = np.sin(X[:, 0]) + X[:, 1] ** 2
+        settings = {
+            "N_loc": 20,
+            "N_lin": 30,
+            "N_J": 12,
+            "N_phi": 8,
+            "N_manifold": 5,
+            "sync_steps": 1,
+            "h_min": 1e6,
+            "cg_tol": 1e-9,
+            "cg_maxiter": 1000,
+        }
+>       old = ADP_Manifold(2, **settings).fit(X, Y)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_hybrid.py:151: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <ADP.core.manifold.ADP_Manifold.ADP_Manifold object at 0x7f72f49ca8b0>
+index_dim = 2, N_loc = 20, N_lin = 30, N_J = 12, N_phi = 8, N_manifold = 5
+lambda_manifold = 1.0, sync_steps = 1, a = None, h_min = 1000000.0
+batch_size = 32, seed = 42, cg_tol = 1e-09, cg_maxiter = 1000, solver = 'cg'
+estimator = 'local_quadratic', localization_spectrum = 'relative'
+dense_max_unknowns = 256, dense_max_bytes = 67108864, scale_boundary = 'raise'
+
+    def __init__(
+        self,
+        index_dim: int,
+        *,
+        N_loc: int = 15,
+        N_lin: int | None = None,
+        N_J: int | None = None,
+        N_phi: int | None = None,
+        N_manifold: int | None = None,
+        lambda_manifold: float = 1.0,
+        sync_steps: int = 5,
+        a: float | None = None,
+        h_min: float | None = None,
+        batch_size: int = 32,
+        seed: int = 42,
+        cg_tol: float = 1e-8,
+        cg_maxiter: int | None = None,
+        solver: Literal["cg", "hybrid"] = "cg",
+        estimator: Literal["manifold", "local_quadratic"] = "local_quadratic",
+        localization_spectrum: Literal["relative", "unit"] = "relative",
+        dense_max_unknowns: int = 256,
+        dense_max_bytes: int = 64 * 1024**2,
+        scale_boundary: Literal["raise", "stop"] = "raise",
+    ) -> None:
+        """Настроить manifold-ADP с локальным размером подпространства ``m``."""
+        self.index_dim = self._integer("index_dim", index_dim, minimum=1)
+        self.N_loc = self._integer("N_loc", N_loc, minimum=1)
+        self.N_lin = self._optional_integer("N_lin", N_lin, minimum=1)
+        self.N_J = self._optional_integer("N_J", N_J, minimum=1)
+        self.N_phi = self._optional_integer("N_phi", N_phi, minimum=1)
+        self.N_manifold = self._optional_integer("N_manifold", N_manifold, minimum=1)
+        self.lambda_manifold = self._finite_float(
+            "lambda_manifold", lambda_manifold, minimum=0.0
+        )
+        self.sync_steps = self._integer("sync_steps", sync_steps, minimum=1)
+        self.a = self._optional_float("a", a, minimum=1.0, strict=True)
+        self.h_min = self._optional_float("h_min", h_min, minimum=0.0, strict=True)
+        self.batch_size = self._integer("batch_size", batch_size, minimum=1)
+        self.seed = self._integer("seed", seed, minimum=0)
+        self.cg_tol = self._finite_float("cg_tol", cg_tol, minimum=0.0, strict=True)
+        self.cg_maxiter = self._optional_integer("cg_maxiter", cg_maxiter, minimum=1)
+        self.solver = model_utils.validate_solver(solver)
+        if estimator not in {"manifold", "local_quadratic"}:
+            raise ValueError("estimator must be 'manifold' or 'local_quadratic'")
+        if estimator == "local_quadratic" and self.index_dim != 1:
+>           raise ValueError("local_quadratic estimator requires index_dim=1")
+E           ValueError: local_quadratic estimator requires index_dim=1
+
+ADP/core/manifold/ADP_Manifold.py:71: ValueError
+___________ test_recovery_gate_retains_failures_and_checks_each_pair ___________
+
+    def test_recovery_gate_retains_failures_and_checks_each_pair():
+        from copy import deepcopy
+    
+>       from experiments.index_recovery import make_protocol, summarize
+
+tests/test_inverse_moment_init.py:93: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+experiments/index_recovery.py:28: in <module>
+    from .multiv2_quality import _baseline
+experiments/multiv2_quality.py:18: in <module>
+    from .multiv2 import CATALOG
+experiments/multiv2.py:124: in <module>
+    CATALOG = {experiment.selector: experiment for experiment in catalog()}
+                                                                 ^^^^^^^^^
+experiments/multiv2.py:108: in catalog
+    experiment = _expand_short_grid(experiment)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+experiment = Experiment(selector='mi-spokoini-m2-n', title='Spokoini: m=2, зависимость от n', smoke=ExperimentPoint(d=4, n_over_d=1...250, quality_threshold=0.95, condition_field=None, common_random_fields=(), condition_group_fields=(), hypothesis=None)
+
+    def _expand_short_grid(experiment: Experiment) -> Experiment:
+        """Расширить исходные короткие сравнения независимым стресс-фактором."""
+        if experiment.selector == "mi-link":
+            links = tuple(dict.fromkeys(point.link for point in experiment.full))
+            points = tuple(
+                replace(experiment.full[0], link=link, link_scale=scale)
+                for link, scale in product(links, _LINK_SCALES)
+            )
+            return replace(
+                experiment,
+                full=points,
+                report_fields=("link", "link_scale"),
+                condition_field="link_scale",
+                common_random_fields=("link", "link_scale"),
+                condition_group_fields=("link",),
+                hypothesis=(
+                    "Проверяется, как тип link меняет частотную границу "
+                    "trace_score >= 0.95 при link_scale от 1 до 4."
+                ),
+            )
+    
+>       factor, hypothesis = _BINARY_STRESS[experiment.selector]
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'mi-spokoini-m2-n'
+
+experiments/multiv2.py:79: KeyError
+________________________ test_fit_reference[manifold-1] ________________________
+
+seed = 1, mode = 'manifold'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f72f2ac8590>
+
+    @pytest.mark.parametrize("seed", [1, 2, 3])
+    @pytest.mark.parametrize("mode", ["multi", "manifold"])
+    def test_fit_reference(seed: int, mode: str, monkeypatch: pytest.MonkeyPatch) -> None:
+        runner = importlib.import_module("ADP.cli.main")
+        args = runner.build_parser().parse_args(
+            [
+                "--mode",
+                mode,
+                "--n",
+                "120",
+                "--d",
+                "4",
+                "--index-dim",
+                "2",
+                "--N_loc",
+                "28",
+                "--N_lin",
+                "50",
+                "--N_J",
+                "14",
+                "--N_phi",
+                "12",
+                "--N_manifold",
+                "8",
+                "--sync-steps",
+                "1",
+                "--h_min",
+                "1000000",
+                "--outer_steps",
+                "2",
+                "--solver",
+                "hybrid",
+                "--solver-max-steps",
+                "3",
+                "--seed",
+                "11",
+                "--data-seed",
+                str(seed),
+            ]
+        )
+>       actual, truth, _, _ = runner._run(args)
+                              ^^^^^^^^^^^^^^^^^
+
+tests/test_statistics_optimization.py:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+ADP/cli/main.py:286: in _run
+    return _run_manifold(args, data=data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:399: in _run_manifold
+    model = ADP_Manifold(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <ADP.core.manifold.ADP_Manifold.ADP_Manifold object at 0x7f72dc272d70>
+index_dim = 2, N_loc = 28, N_lin = 50, N_J = 14, N_phi = 12, N_manifold = 8
+lambda_manifold = 1.0, sync_steps = 1, a = 1.4142135623730951, h_min = 1000000.0
+batch_size = 32, seed = 11, cg_tol = 1e-06, cg_maxiter = None, solver = 'hybrid'
+estimator = 'local_quadratic', localization_spectrum = 'relative'
+dense_max_unknowns = 256, dense_max_bytes = 67108864, scale_boundary = 'raise'
+
+    def __init__(
+        self,
+        index_dim: int,
+        *,
+        N_loc: int = 15,
+        N_lin: int | None = None,
+        N_J: int | None = None,
+        N_phi: int | None = None,
+        N_manifold: int | None = None,
+        lambda_manifold: float = 1.0,
+        sync_steps: int = 5,
+        a: float | None = None,
+        h_min: float | None = None,
+        batch_size: int = 32,
+        seed: int = 42,
+        cg_tol: float = 1e-8,
+        cg_maxiter: int | None = None,
+        solver: Literal["cg", "hybrid"] = "cg",
+        estimator: Literal["manifold", "local_quadratic"] = "local_quadratic",
+        localization_spectrum: Literal["relative", "unit"] = "relative",
+        dense_max_unknowns: int = 256,
+        dense_max_bytes: int = 64 * 1024**2,
+        scale_boundary: Literal["raise", "stop"] = "raise",
+    ) -> None:
+        """Настроить manifold-ADP с локальным размером подпространства ``m``."""
+        self.index_dim = self._integer("index_dim", index_dim, minimum=1)
+        self.N_loc = self._integer("N_loc", N_loc, minimum=1)
+        self.N_lin = self._optional_integer("N_lin", N_lin, minimum=1)
+        self.N_J = self._optional_integer("N_J", N_J, minimum=1)
+        self.N_phi = self._optional_integer("N_phi", N_phi, minimum=1)
+        self.N_manifold = self._optional_integer("N_manifold", N_manifold, minimum=1)
+        self.lambda_manifold = self._finite_float(
+            "lambda_manifold", lambda_manifold, minimum=0.0
+        )
+        self.sync_steps = self._integer("sync_steps", sync_steps, minimum=1)
+        self.a = self._optional_float("a", a, minimum=1.0, strict=True)
+        self.h_min = self._optional_float("h_min", h_min, minimum=0.0, strict=True)
+        self.batch_size = self._integer("batch_size", batch_size, minimum=1)
+        self.seed = self._integer("seed", seed, minimum=0)
+        self.cg_tol = self._finite_float("cg_tol", cg_tol, minimum=0.0, strict=True)
+        self.cg_maxiter = self._optional_integer("cg_maxiter", cg_maxiter, minimum=1)
+        self.solver = model_utils.validate_solver(solver)
+        if estimator not in {"manifold", "local_quadratic"}:
+            raise ValueError("estimator must be 'manifold' or 'local_quadratic'")
+        if estimator == "local_quadratic" and self.index_dim != 1:
+>           raise ValueError("local_quadratic estimator requires index_dim=1")
+E           ValueError: local_quadratic estimator requires index_dim=1
+
+ADP/core/manifold/ADP_Manifold.py:71: ValueError
+________________________ test_fit_reference[manifold-2] ________________________
+
+seed = 2, mode = 'manifold'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f72dc2ebb60>
+
+    @pytest.mark.parametrize("seed", [1, 2, 3])
+    @pytest.mark.parametrize("mode", ["multi", "manifold"])
+    def test_fit_reference(seed: int, mode: str, monkeypatch: pytest.MonkeyPatch) -> None:
+        runner = importlib.import_module("ADP.cli.main")
+        args = runner.build_parser().parse_args(
+            [
+                "--mode",
+                mode,
+                "--n",
+                "120",
+                "--d",
+                "4",
+                "--index-dim",
+                "2",
+                "--N_loc",
+                "28",
+                "--N_lin",
+                "50",
+                "--N_J",
+                "14",
+                "--N_phi",
+                "12",
+                "--N_manifold",
+                "8",
+                "--sync-steps",
+                "1",
+                "--h_min",
+                "1000000",
+                "--outer_steps",
+                "2",
+                "--solver",
+                "hybrid",
+                "--solver-max-steps",
+                "3",
+                "--seed",
+                "11",
+                "--data-seed",
+                str(seed),
+            ]
+        )
+>       actual, truth, _, _ = runner._run(args)
+                              ^^^^^^^^^^^^^^^^^
+
+tests/test_statistics_optimization.py:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+ADP/cli/main.py:286: in _run
+    return _run_manifold(args, data=data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:399: in _run_manifold
+    model = ADP_Manifold(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <ADP.core.manifold.ADP_Manifold.ADP_Manifold object at 0x7f72dc272fd0>
+index_dim = 2, N_loc = 28, N_lin = 50, N_J = 14, N_phi = 12, N_manifold = 8
+lambda_manifold = 1.0, sync_steps = 1, a = 1.4142135623730951, h_min = 1000000.0
+batch_size = 32, seed = 11, cg_tol = 1e-06, cg_maxiter = None, solver = 'hybrid'
+estimator = 'local_quadratic', localization_spectrum = 'relative'
+dense_max_unknowns = 256, dense_max_bytes = 67108864, scale_boundary = 'raise'
+
+    def __init__(
+        self,
+        index_dim: int,
+        *,
+        N_loc: int = 15,
+        N_lin: int | None = None,
+        N_J: int | None = None,
+        N_phi: int | None = None,
+        N_manifold: int | None = None,
+        lambda_manifold: float = 1.0,
+        sync_steps: int = 5,
+        a: float | None = None,
+        h_min: float | None = None,
+        batch_size: int = 32,
+        seed: int = 42,
+        cg_tol: float = 1e-8,
+        cg_maxiter: int | None = None,
+        solver: Literal["cg", "hybrid"] = "cg",
+        estimator: Literal["manifold", "local_quadratic"] = "local_quadratic",
+        localization_spectrum: Literal["relative", "unit"] = "relative",
+        dense_max_unknowns: int = 256,
+        dense_max_bytes: int = 64 * 1024**2,
+        scale_boundary: Literal["raise", "stop"] = "raise",
+    ) -> None:
+        """Настроить manifold-ADP с локальным размером подпространства ``m``."""
+        self.index_dim = self._integer("index_dim", index_dim, minimum=1)
+        self.N_loc = self._integer("N_loc", N_loc, minimum=1)
+        self.N_lin = self._optional_integer("N_lin", N_lin, minimum=1)
+        self.N_J = self._optional_integer("N_J", N_J, minimum=1)
+        self.N_phi = self._optional_integer("N_phi", N_phi, minimum=1)
+        self.N_manifold = self._optional_integer("N_manifold", N_manifold, minimum=1)
+        self.lambda_manifold = self._finite_float(
+            "lambda_manifold", lambda_manifold, minimum=0.0
+        )
+        self.sync_steps = self._integer("sync_steps", sync_steps, minimum=1)
+        self.a = self._optional_float("a", a, minimum=1.0, strict=True)
+        self.h_min = self._optional_float("h_min", h_min, minimum=0.0, strict=True)
+        self.batch_size = self._integer("batch_size", batch_size, minimum=1)
+        self.seed = self._integer("seed", seed, minimum=0)
+        self.cg_tol = self._finite_float("cg_tol", cg_tol, minimum=0.0, strict=True)
+        self.cg_maxiter = self._optional_integer("cg_maxiter", cg_maxiter, minimum=1)
+        self.solver = model_utils.validate_solver(solver)
+        if estimator not in {"manifold", "local_quadratic"}:
+            raise ValueError("estimator must be 'manifold' or 'local_quadratic'")
+        if estimator == "local_quadratic" and self.index_dim != 1:
+>           raise ValueError("local_quadratic estimator requires index_dim=1")
+E           ValueError: local_quadratic estimator requires index_dim=1
+
+ADP/core/manifold/ADP_Manifold.py:71: ValueError
+________________________ test_fit_reference[manifold-3] ________________________
+
+seed = 3, mode = 'manifold'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f72dc2eac10>
+
+    @pytest.mark.parametrize("seed", [1, 2, 3])
+    @pytest.mark.parametrize("mode", ["multi", "manifold"])
+    def test_fit_reference(seed: int, mode: str, monkeypatch: pytest.MonkeyPatch) -> None:
+        runner = importlib.import_module("ADP.cli.main")
+        args = runner.build_parser().parse_args(
+            [
+                "--mode",
+                mode,
+                "--n",
+                "120",
+                "--d",
+                "4",
+                "--index-dim",
+                "2",
+                "--N_loc",
+                "28",
+                "--N_lin",
+                "50",
+                "--N_J",
+                "14",
+                "--N_phi",
+                "12",
+                "--N_manifold",
+                "8",
+                "--sync-steps",
+                "1",
+                "--h_min",
+                "1000000",
+                "--outer_steps",
+                "2",
+                "--solver",
+                "hybrid",
+                "--solver-max-steps",
+                "3",
+                "--seed",
+                "11",
+                "--data-seed",
+                str(seed),
+            ]
+        )
+>       actual, truth, _, _ = runner._run(args)
+                              ^^^^^^^^^^^^^^^^^
+
+tests/test_statistics_optimization.py:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+ADP/cli/main.py:286: in _run
+    return _run_manifold(args, data=data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ADP/cli/main.py:399: in _run_manifold
+    model = ADP_Manifold(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <ADP.core.manifold.ADP_Manifold.ADP_Manifold object at 0x7f72dc273360>
+index_dim = 2, N_loc = 28, N_lin = 50, N_J = 14, N_phi = 12, N_manifold = 8
+lambda_manifold = 1.0, sync_steps = 1, a = 1.4142135623730951, h_min = 1000000.0
+batch_size = 32, seed = 11, cg_tol = 1e-06, cg_maxiter = None, solver = 'hybrid'
+estimator = 'local_quadratic', localization_spectrum = 'relative'
+dense_max_unknowns = 256, dense_max_bytes = 67108864, scale_boundary = 'raise'
+
+    def __init__(
+        self,
+        index_dim: int,
+        *,
+        N_loc: int = 15,
+        N_lin: int | None = None,
+        N_J: int | None = None,
+        N_phi: int | None = None,
+        N_manifold: int | None = None,
+        lambda_manifold: float = 1.0,
+        sync_steps: int = 5,
+        a: float | None = None,
+        h_min: float | None = None,
+        batch_size: int = 32,
+        seed: int = 42,
+        cg_tol: float = 1e-8,
+        cg_maxiter: int | None = None,
+        solver: Literal["cg", "hybrid"] = "cg",
+        estimator: Literal["manifold", "local_quadratic"] = "local_quadratic",
+        localization_spectrum: Literal["relative", "unit"] = "relative",
+        dense_max_unknowns: int = 256,
+        dense_max_bytes: int = 64 * 1024**2,
+        scale_boundary: Literal["raise", "stop"] = "raise",
+    ) -> None:
+        """Настроить manifold-ADP с локальным размером подпространства ``m``."""
+        self.index_dim = self._integer("index_dim", index_dim, minimum=1)
+        self.N_loc = self._integer("N_loc", N_loc, minimum=1)
+        self.N_lin = self._optional_integer("N_lin", N_lin, minimum=1)
+        self.N_J = self._optional_integer("N_J", N_J, minimum=1)
+        self.N_phi = self._optional_integer("N_phi", N_phi, minimum=1)
+        self.N_manifold = self._optional_integer("N_manifold", N_manifold, minimum=1)
+        self.lambda_manifold = self._finite_float(
+            "lambda_manifold", lambda_manifold, minimum=0.0
+        )
+        self.sync_steps = self._integer("sync_steps", sync_steps, minimum=1)
+        self.a = self._optional_float("a", a, minimum=1.0, strict=True)
+        self.h_min = self._optional_float("h_min", h_min, minimum=0.0, strict=True)
+        self.batch_size = self._integer("batch_size", batch_size, minimum=1)
+        self.seed = self._integer("seed", seed, minimum=0)
+        self.cg_tol = self._finite_float("cg_tol", cg_tol, minimum=0.0, strict=True)
+        self.cg_maxiter = self._optional_integer("cg_maxiter", cg_maxiter, minimum=1)
+        self.solver = model_utils.validate_solver(solver)
+        if estimator not in {"manifold", "local_quadratic"}:
+            raise ValueError("estimator must be 'manifold' or 'local_quadratic'")
+        if estimator == "local_quadratic" and self.index_dim != 1:
+>           raise ValueError("local_quadratic estimator requires index_dim=1")
+E           ValueError: local_quadratic estimator requires index_dim=1
+
+ADP/core/manifold/ADP_Manifold.py:71: ValueError
+============================= slowest 10 durations =============================
+3.10s call     tests/test_r_sdr.py::test_actual_r_run_resumes_after_interruption_without_duplicate_rows
+2.70s call     tests/test_index_models.py::test_models_match_cli[best-new-multi-pilot]
+1.67s call     tests/test_manifold_grid.py::test_grid_boundary_and_recovery_protocol
+1.33s call     tests/test_experiment_suites.py::test_complete_smoke_suite[manifold]
+1.29s call     tests/test_experiment_suites.py::test_all_failed_builds_produce_plots
+1.22s call     tests/test_experiment_suites.py::test_categorical_recovery_report_preserves_levels_and_plots
+0.97s call     tests/test_experiment_suites.py::test_complete_smoke_suite[single]
+0.77s setup    tests/test_gpu_index.py::test_statistics_cuda_reference[False-False-False]
+0.66s call     tests/test_experiment_suites.py::test_complete_smoke_suite[multi]
+0.56s call     tests/test_experiment_suites.py::test_standalone_script_dry_run_outside_repository[multi]
+=========================== short test summary info ============================
+SKIPPED [8] tests/test_gpu_index.py:57: CUDA unavailable: cudaErrorNoDevice: no CUDA-capable device is detected
+SKIPPED [8] tests/test_gpu_index.py:89: CUDA unavailable: cudaErrorNoDevice: no CUDA-capable device is detected
+SKIPPED [2] tests/test_gpu_index.py:143: CUDA unavailable: cudaErrorNoDevice: no CUDA-capable device is detected
+SKIPPED [8] tests/test_gpu_index.py:182: CUDA unavailable: cudaErrorNoDevice: no CUDA-capable device is detected
+SKIPPED [2] tests/test_gpu_index.py:213: CUDA unavailable: cudaErrorNoDevice: no CUDA-capable device is detected
+SKIPPED [9] tests/test_grassman_gpu.py:66: CUDA unavailable: cudaErrorNoDevice: no CUDA-capable device is detected
+SKIPPED [1] tests/test_grassman_gpu.py:91: CUDA unavailable: cudaErrorNoDevice: no CUDA-capable device is detected
+SKIPPED [3] tests/test_grassman_gpu.py:111: CUDA unavailable: cudaErrorNoDevice: no CUDA-capable device is detected
+SKIPPED [1] tests/test_grassman_gpu.py:126: CUDA unavailable: cudaErrorNoDevice: no CUDA-capable device is detected
+SKIPPED [9] tests/test_grassman_gpu.py:144: CUDA unavailable: cudaErrorNoDevice: no CUDA-capable device is detected
+SKIPPED [1] tests/test_grassman_gpu.py:175: CUDA unavailable: cudaErrorNoDevice: no CUDA-capable device is detected
+SKIPPED [1] tests/test_grassman_gpu.py:204: CUDA unavailable: cudaErrorNoDevice: no CUDA-capable device is detected
+ERROR tests/test_experiment.py - KeyError: 'mi-spokoini-m2-n'
+ERROR tests/test_multi_center_diagnostic.py - KeyError: 'mi-spokoini-m2-n'
+ERROR tests/test_multiv2_quality.py - KeyError: 'mi-spokoini-m2-n'
+FAILED tests/test_cli.py::test_cli_manifold_smoke[cg] - SystemExit: 2
+FAILED tests/test_cli.py::test_cli_manifold_smoke[hybrid] - SystemExit: 2
+FAILED tests/test_hybrid.py::test_manifold_hybrid_fit_matches_cg - ValueError...
+FAILED tests/test_inverse_moment_init.py::test_recovery_gate_retains_failures_and_checks_each_pair
+FAILED tests/test_statistics_optimization.py::test_fit_reference[manifold-1]
+FAILED tests/test_statistics_optimization.py::test_fit_reference[manifold-2]
+FAILED tests/test_statistics_optimization.py::test_fit_reference[manifold-3]
+============= 7 failed, 759 passed, 53 skipped, 3 errors in 29.65s =============

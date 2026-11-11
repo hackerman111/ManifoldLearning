@@ -1,0 +1,116 @@
+[
+  {
+    "command": [
+      "-m",
+      "ADP.cli.experiment",
+      "--list"
+    ],
+    "exit_code": 0,
+    "log": "cli-0.log"
+  },
+  {
+    "command": [
+      "-m",
+      "experiments.multi",
+      "--list"
+    ],
+    "exit_code": 0,
+    "log": "cli-1.log"
+  },
+  {
+    "command": [
+      "-m",
+      "experiments.r_sdr",
+      "--profile",
+      "high-dim-dm",
+      "--runs",
+      "10",
+      "--methods",
+      "ADP-Grassmann-combined,MAVE-package",
+      "--dry-run"
+    ],
+    "exit_code": 0,
+    "log": "cli-2.log"
+  },
+  {
+    "command": [
+      "-m",
+      "experiments.r_sdr",
+      "--profile",
+      "d25-n5000",
+      "--runs",
+      "10",
+      "--methods",
+      "ADP-Grassmann-combined,MAVE-package",
+      "--dry-run"
+    ],
+    "exit_code": 0,
+    "log": "cli-3.log"
+  },
+  {
+    "command": [
+      "-m",
+      "ADP.cli",
+      "--mode",
+      "multi",
+      "--solver",
+      "grassman",
+      "--n",
+      "48",
+      "--d",
+      "4",
+      "--index-dim",
+      "2",
+      "--N_J",
+      "8",
+      "--N_phi",
+      "3",
+      "--N_loc",
+      "6",
+      "--N_lin",
+      "10",
+      "--outer_steps",
+      "1",
+      "--solver-max-steps",
+      "2",
+      "--index_init",
+      "random",
+      "--h_min",
+      "1000000"
+    ],
+    "exit_code": 0,
+    "log": "cli-4.log"
+  },
+  {
+    "command": [
+      "-m",
+      "ADP.cli",
+      "--mode",
+      "single",
+      "--solver",
+      "grassman",
+      "--n",
+      "48",
+      "--d",
+      "4",
+      "--N_J",
+      "8",
+      "--N_phi",
+      "3",
+      "--N_loc",
+      "6",
+      "--N_lin",
+      "10",
+      "--outer_steps",
+      "1",
+      "--solver-max-steps",
+      "2",
+      "--index_init",
+      "random",
+      "--h_min",
+      "1000000"
+    ],
+    "exit_code": 0,
+    "log": "cli-single.log"
+  }
+]

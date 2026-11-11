@@ -4,11 +4,11 @@
 
 ```bash
 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m experiments.multi_solver_frozen \
-  --frozen-dir benchmark_outputs/diagnostic/multi_solver_search_s1_20260924 \
-  --output benchmark_outputs/diagnostic/multi_solver_search_s4_20260924
+  --frozen-dir benchmarks/results/outputs/diagnostic/multi_solver_search_s1_20260924 \
+  --output benchmarks/results/outputs/diagnostic/multi_solver_search_s4_20260924
 ```
 
-Все 24/24 trials завершились с независимым objective/stationarity certificate, без timeout и numerical failure. [Raw results](../../../benchmark_outputs/diagnostic/multi_solver_search_s4_20260924/results.json) включают per-step objective/gradient-vs-wall curves, failure accounting, source/frozen hashes и peak RSS из отдельных процессов.
+Все 24/24 trials завершились с независимым objective/stationarity certificate, без timeout и numerical failure. [Raw results](../../../benchmarks/results/outputs/diagnostic/multi_solver_search_s4_20260924/results.json) включают per-step objective/gradient-vs-wall curves, failure accounting, source/frozen hashes и peak RSS из отдельных процессов.
 
 | Точка | Frozen пар | Сертификаты LSMR / reduced | Медиана парного reduced/LSMR времени | Медиана парного peak RSS | Макс. ухудшение final objective |
 |---|---:|---:|---:|---:|---:|

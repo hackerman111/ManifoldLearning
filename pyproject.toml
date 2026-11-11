@@ -78,12 +78,13 @@ default-groups = ["dev"]
 # A future migration to `src/ADP/` should be a separate repository change.
 [tool.setuptools]
 include-package-data = false
+py-modules = ["experiments"]
 
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ADP*", "experiments*"]
-exclude = ["tests*", "benchmarks*", "benchmark_outputs*"]
+include = ["ADP*", "benchmarks*"]
+exclude = ["tests*", "benchmarks.results*"]
 
 
 [tool.ruff]
@@ -92,7 +93,7 @@ line-length = 88
 preview = false
 unsafe-fixes = false
 extend-exclude = [
-    "benchmark_outputs",
+    "benchmarks/results",
 ]
 
 
@@ -146,9 +147,10 @@ docstring-code-line-length = "dynamic"
 
 
 [tool.pyright]
-include = ["ADP", "experiments"]
+include = ["ADP", "benchmarks/experiments"]
 exclude = [
     "**/__pycache__",
+    "benchmarks/results",
     ".venv",
     "build",
     "dist",
@@ -176,6 +178,7 @@ addopts = [
     "--strict-config",
     "--strict-markers",
     "--durations=10",
+    "--ignore=tests/legacy",
 ]
 
 xfail_strict = true
@@ -194,7 +197,7 @@ markers = [
 
 [tool.coverage.run]
 branch = true
-source = ["ADP", "experiments"]
+source = ["ADP", "benchmarks/experiments"]
 relative_files = true
 
 

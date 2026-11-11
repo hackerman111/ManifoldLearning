@@ -1,4 +1,4 @@
-"""CLI экспериментов; определения, данные и выполнение находятся в experiments/."""
+"""CLI экспериментов; реализация хранится в `benchmarks/experiments/`."""
 
 from __future__ import annotations
 
@@ -41,7 +41,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--runs", type=int)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
-        "--output-dir", type=Path, default=Path("benchmark_outputs/experiments")
+        "--output-dir",
+        type=Path,
+        default=Path("benchmarks/results/outputs/experiments"),
     )
     parser.add_argument("--n", type=int, default=240)
     parser.add_argument("--d", type=int, default=5)

@@ -1,7 +1,7 @@
 # C2: отрицательный результат правила отбора
 
 Правило и граница остановки заморожены до запуска в `c2_rule.md`. Raw:
-`benchmark_outputs/diagnostic/multi_center_c2_20260925/{manifest.json,selections.csv}`.
+`benchmarks/results/outputs/diagnostic/multi_center_c2_20260925/{manifest.json,selections.csv}`.
 Код `experiments/multi_center_select.py`, revision
 `84eb9bf323b09b2a64e13f2d47dce0241b4dbb59`, dirty fingerprint
 `39b0b4c3a1afc239caaca3b7c4f109ac5aba225382dbf4efa83882f1e012335d`.

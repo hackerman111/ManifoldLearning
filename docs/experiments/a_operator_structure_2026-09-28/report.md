@@ -59,7 +59,7 @@ residual certificate. Его скорость полного fit здесь не
 могут закрыть все `md` направлений. Проверять нужно именно глобальный Gram.
 
 Данные: шесть hash-verified входов `outer0` из
-`benchmark_outputs/diagnostic/multi_solver_search_s1_20260924`: по три seed
+`benchmarks/results/outputs/diagnostic/multi_solver_search_s1_20260924`: по три seed
 для `d=10` и `d=100`, `J=500,P=40,m=2`, float64. `C` пересчитан ровно
 live `_local_refit` с исходным cutoff; λ=0.05. Источник входов и прежний
 профиль указаны в [S1](../multi_solver_search_2026-09-24/s1.md): на трудной

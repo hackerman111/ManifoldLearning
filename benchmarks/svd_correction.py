@@ -3,7 +3,7 @@
 Run from the repository root with one BLAS thread, for example:
     OPENBLAS_NUM_THREADS=1 UV_CACHE_DIR=/tmp/adp-uv-cache \
         uv run --no-sync python -m benchmarks.svd_correction \
-        --output experiments/svd_correction_2026-09-29/results.json
+        --output benchmarks/results/outputs/svd_correction_2026-09-29/results.json
 """
 
 from __future__ import annotations

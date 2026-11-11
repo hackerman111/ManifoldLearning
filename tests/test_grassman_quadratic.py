@@ -109,10 +109,10 @@ def test_default_zero_trials_matches_direct_original_armijo() -> None:
 
 def test_zero_trials_matches_frozen_armijo_source_exactly() -> None:
     root = Path(__file__).parents[1]
-    snapshot = root / "benchmark_outputs/r_sdr"
+    snapshot = root / "benchmarks/results/outputs/r_sdr"
     folder = snapshot / "grassman-armijo-dev-2026-10-18-repaired/source"
-    path = folder / "experiments/grassman_accuracy_2026_10_18/backtracking.py"
-    inputs = root / "experiments/grassman_accuracy_2026_10_18/frozen"
+    path = folder / "benchmarks/experiments/grassman_accuracy_2026_10_18/backtracking.py"
+    inputs = root / "benchmarks/experiments/grassman_accuracy_2026_10_18/frozen"
     names = ("001.npz", "014.npz")
     if not path.is_file() or not all((inputs / name).is_file() for name in names):
         pytest.skip("optional frozen Armijo source or inputs are unavailable")

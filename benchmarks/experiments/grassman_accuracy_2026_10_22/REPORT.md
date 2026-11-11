@@ -1,0 +1,29 @@
+# Grassmann accuracy pilot closure
+
+**Decision: accuracy goal not achieved; no candidate is promoted.** Four exploratory runs recorded 80 fit rows over four unique case/input blocks: the 24-row accuracy pilot and 16/20/20-row GN, ridge, and Krylov pilots. Each used seed 90800, one run, and cases `d-5`, `d-20`, `d-50`, and `corr-0.9`. Repeated rows across pilot outputs reuse those same inputs. Results are descriptive single-seed evidence, not general performance or precision claims. No fresh development or held-out seeds were consumed; no candidate advanced to validation.
+
+`projector_distance` is the EDR/recovery error (lower is better). Candidate/baseline ratios pair each candidate with the baseline in its own frozen run. Time uses full `fit_seconds`; RSS is peak process MiB. Pooled values combine the four paired cases for each new candidate. `EDR/R` is candidate error divided by contemporaneous R `MEANMAVE` error, pooled geometrically. `d-50 Δ` is candidate minus baseline error; a positive value is worse. Each cell is one observation per case, so p90 is descriptive and has no inferential meaning.
+
+| Candidate | EDR geomean / base | Fit time median / p90 | RSS median / base | d-50 EDR ratio / Δ | d-50 time ratio | EDR geomean / R |
+|---|---:|---:|---:|---:|---:|---:|
+| `smooth_relative` | 1.0254 | 1.001 / 1.004 | 0.999 | 1.106 / +0.02048 | 1.001 | 1.733 |
+| `stable_jacobian` | 1.0000 | 1.032 / 1.069 | 0.998 | 1.000 / -0.00002 | 1.025 | 1.690 |
+| `diagonal` | 1.1713 | 1.049 / 1.090 | 0.997 | 1.895 / +0.17371 | 1.105 | 1.980 |
+| `gn_quadratic` | 1.0313 | 1.194 / 1.225 | 1.002 | 1.139 / +0.02689 | 1.185 | 1.743 |
+| `ridge6` (`local_ridge=1e-6`) | 1.0282 | 0.838 / 0.876 | 0.985 | 1.159 / +0.03083 | 0.886 | 1.738 |
+| `ridge4` (`local_ridge=1e-4`) | 1.0236 | 0.837 / 0.874 | 0.978 | 1.082 / +0.01587 | 0.890 | 1.730 |
+| `ridge2` (`local_ridge=1e-2`) | 1.3523 | 0.831 / 0.875 | 0.979 | 1.080 / +0.01562 | 0.890 | 2.286 |
+| `krylov10` | 1.0028 | 0.992 / 1.065 | 1.003 | 1.008 / +0.00149 | 0.970 | 1.695 |
+| `krylov20` | 1.0304 | 1.444 / 1.508 | 1.001 | 1.130 / +0.02526 | 1.514 | 1.742 |
+
+The pre-existing `relative10` control had 12 timing replays (three runs over the same four input blocks), not 12 independent datasets: EDR geomean 1.0125, median/p90 fit-time ratio 0.794/0.864, median RSS ratio 0.986, and d-50 EDR/time ratios 1.026/0.793. It is a control result, not a newly evaluated candidate. Candidate rows each cover four case blocks at one seed; no bootstrap or population-level claim is made.
+
+Actual R EDR versus baseline was unchanged across all four run outputs: `d-5` 0.017673 vs 0.032923 (ratio 1.863), `d-20` 0.071676 vs 0.101947 (1.422), `d-50` 0.136052 vs 0.193999 (1.426), and `corr-0.9` 0.137747 vs 0.297568 (2.160). The nine new candidates' pooled EDR/R values remain 1.690–2.286; none closes the recovery gap. No positive precision or recovery gain is established. `stable_jacobian` is effectively tied with baseline on EDR and costs time. The faster ridge variants lose d-50 accuracy; `ridge2` also sharply worsens d-5 and correlation. `krylov10` is near baseline with no meaningful speed gain; `krylov20` is substantially slower and loses d-50 accuracy. The earlier positive-ridge runs are explicit estimator variants, not solver-only evidence.
+
+All 80 rows completed with status `ok`; there were no failed fits. All 64 ADP outer fits stopped at `h_min`; R reports `package_not_exposed` for the inner certificate. Across the 256 ADP inner fits, 7 were certified (all in the ridge pilot); this does not alter the outer stopping result. Krylov diagnostics show `krylov10`: 159 LSMR calls, all stop code 7 at the two-iteration cap (318 iterations total); `krylov20`: 292 calls, 279 code 7 and 13 code 2 (581 iterations total). These repeated capped solves did not produce an end-to-end gain.
+
+The analysis script rechecks all four source ZIPs against manifest hashes and confirms matching `x`, `y`, and truth hashes plus method seeds for every paired case. Baseline and R EDR values replay exactly across outputs. Each manifest has the same `ADP/solver/grassman.py` and frozen `reference.py` SHA-256 (`3a0807d0d31afded0705890a2478cdd539de1f1f553831dcf593861ddb3acda6`); the live files also match byte-for-byte, and `ADP/solver/grassman.py` is unchanged from HEAD. The immutable per-run artifacts are under `benchmarks/results/outputs/r_sdr/grassman-accuracy22-{pilot,gn-pilot,ridge-pilot,krylov-pilot}/`.
+
+Focused verification: **102 passed**, including 25 new mathematical checks, 5 benchmark checks, and existing Grassmann/relative/combined regression tests. Ruff check and format checks pass on the five new nonreference source/test files. Pyright reports 0 errors/warnings for `candidates.py`, `benchmark.py`, `analyze.py`. The full suite log is [pytest-full.log](pytest-full.log): 759 passed, 53 skipped because CUDA is unavailable, 7 failed, 3 collection errors. These match the unrelated failures listed in `experiments/grassman_accuracy_2026_10_18/COMBINED_VERIFICATION.md:31-57`: six manifold smoke/reference tests reject default `local_quadratic` when `index_dim > 1`, one inverse-moment test hits the catalog issue, and three multiv2 modules fail collection on missing key `mi-spokoini-m2-n`. No failure points to the Grassmann pilot harness or candidate changes.
+
+Reproduce the integrity/summary audit with `.venv/bin/python -m experiments.grassman_accuracy_2026_10_22.analyze`. Run a new exploratory output with `.venv/bin/python -m experiments.grassman_accuracy_2026_10_22.benchmark --seed 90800 --runs 1 --cases d-5,d-20,d-50,corr-0.9 --methods baseline,krylov10,MEANMAVE --output benchmarks/results/outputs/r_sdr/NEW_DIRECTORY`. Existing outputs are immutable and cannot be overwritten. Do not treat this command as advice to rerun a rejected candidate without a new hypothesis.

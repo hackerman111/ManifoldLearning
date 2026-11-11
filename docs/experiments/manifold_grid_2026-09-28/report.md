@@ -49,9 +49,9 @@ trace. The three complete artifacts are:
 
 | Scope | Command suffix | Runs | Artifact |
 | --- | --- | ---: | --- |
-| Six non-HD series | `--runs 5 --series dimension,sample-size,noise,intrinsic-dimension,curvature,noiseless-sanity` | 75 | [five-seed result](../../../benchmark_outputs/experiments/20260928-manifold-grid-repair-5seed/summary.json) |
-| HD fixed n | `--runs 1 --series hd-fixed-n` | 5 | [HD fixed-n result](../../../benchmark_outputs/experiments/20260928-manifold-grid-repair-hd-fixed-n-1seed/summary.json) |
-| HD fixed n/d | `--runs 1 --series hd-fixed-n-over-d` | 3 | [HD ratio result](../../../benchmark_outputs/experiments/20260928-manifold-grid-repair-hd-ratio-1seed/summary.json) |
+| Six non-HD series | `--runs 5 --series dimension,sample-size,noise,intrinsic-dimension,curvature,noiseless-sanity` | 75 | [five-seed result](../../../benchmarks/results/outputs/experiments/20260928-manifold-grid-repair-5seed/summary.json) |
+| HD fixed n | `--runs 1 --series hd-fixed-n` | 5 | [HD fixed-n result](../../../benchmarks/results/outputs/experiments/20260928-manifold-grid-repair-hd-fixed-n-1seed/summary.json) |
+| HD fixed n/d | `--runs 1 --series hd-fixed-n-over-d` | 3 | [HD ratio result](../../../benchmarks/results/outputs/experiments/20260928-manifold-grid-repair-hd-ratio-1seed/summary.json) |
 
 Run from the repository root with
 `UV_CACHE_DIR=/tmp/adp-uv-cache uv run --no-sync python -m experiments.manifold_grid`,

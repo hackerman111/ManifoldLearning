@@ -1,7 +1,7 @@
 # C1: результат пилотной диагностики
 
 Протокол и gate зафиксированы до запуска в `c1_protocol.md`. Raw:
-`benchmark_outputs/diagnostic/multi_center_c1_20260925/{manifest.json,seeds.csv,centers.csv}`.
+`benchmarks/results/outputs/diagnostic/multi_center_c1_20260925/{manifest.json,seeds.csv,centers.csv}`.
 Код `experiments/multi_center_diagnostic.py`, revision
 `84eb9bf323b09b2a64e13f2d47dce0241b4dbb59`, dirty fingerprint
 `4f2480ecf5588ba46c6b682e247b71a46b97ef6408626918122e360e28222ada`.

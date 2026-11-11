@@ -1,0 +1,357 @@
+# Multi-index: алгоритм и API
+
+## Cross-implementation recovery benchmark
+
+The paired ADP/MAVE comparison lives in
+[`benchmarks/adp_mave_benchmark.py`](../../../benchmarks/adp_mave_benchmark.py)
+and [`benchmarks/adp_mave_methods.R`](../../../benchmarks/adp_mave_methods.R).
+Its current final evidence is
+[`REPORT.md`](../../../benchmarks/experiments/adp_mave_comparison_2026-10-02_anchors_final/REPORT.md);
+`protocol.json` and `runs.jsonl` beside it preserve settings and per-fit rows.
+It compares subspaces through projectors/principal angles, not basis entries.
+
+The installed MAVE package has no selectors named dMAVE/rMAVE. The benchmark
+therefore labels dMAVE as a five-response-anchor CSMAVE discretization and
+rMAVE as an isolated projected-kernel refinement initialized by CSOPG. These
+are benchmark variants, not production ADP behavior or package aliases.
+
+## Представление индекса
+
+Публичный estimator принимает `index_dim=m`. В shared fit-loop basis хранится строками `(m,d)` для solver HPAO; публичный `basis_`/`beta_` и result хранят столбцы `(d,m)`. При возврате из solver индекс приводится к ортонормированному basis, строки канонизируются знаками, а спектр локальных коэффициентов масштабируется относительно старшего eigenvalue. Сравнивать нужно подпространства (projectors/principal angles), а не поэлементно basis. Источники: **SRC-MI-FIT**, **SRC-MI-CANONICAL**, **SRC-MI-ENGINE**, **SRC-MI-RESULT**.
+
+Текущий `transform(X)` — обычная проекция через оцененный общий базис `(d,m)`. Это global multi-index, не локальные проекторы manifold-модели.
+
+## Экспериментальные P0–P3
+
+Спектральный порог, точный projected search, дешёвые проекционные моменты и
+LogDet/coverage отбор подключаются через `ADP_Config.experimental_centers`.
+Явные ESTIMATOR варианты; основной solver/default сохранён. API, источники,
+математические уточнения и evidence: [adaptive-centers.md](adaptive-centers.md).
+
+## Веса и anisotropy
+
+Пусть `z_q` — q-я координата смещения вдоль ортонормированного EDR basis, `lambda_q` — сохраненный спектр, а `r²` — квадрат ортогонального остатка. Текущая функция `calculate_multi_weight` использует
+
+    principal2 = sum_q lambda_q * z_q**2
+    residual2 = ||x-center||**2 - sum_q z_q**2
+    argument = (alpha**2 * residual2 + principal2) / h**2
+
+Когда `tensor="orthogonal"`, именно ортогональный остаток масштабируется `alpha`; когда `tensor="full"`, `alpha²` умножает полное расстояние. Поэтому варианты меняют estimator, не считать их alias-ами. Источники: **SRC-MI-WEIGHTS**, **SRC-MI-ALPHA**.
+
+Есть деталь outer-loop: для multi-index первая итерация принудительно задает `effective_tensor="orthogonal"`; после нее используется `config.multi_tensor`. Это стоит проверить, если сравнивается первый trace row с последующими.
+
+`alpha` выбирается в `[0,1]` как наибольший масштаб, при котором средняя локальная mass остается не ниже `N_loc`. Для Epanechnikov есть exact compaction: после каждого принятого lower endpoint удаляются элементы, которые уже не попадут в compact support при оставшемся интервале alpha. Источник: **SRC-MI-ALPHA**.
+
+Случайные направления раскладываются на часть ортогональную EDR-базису и principal-часть. Principal noise умножается на `sqrt(eigenvalues)`, orthogonal noise — на `alpha`, итог нормируется.
+
+## Инициализация и outer loop
+
+`local`/`local-cv` получают local ridge-gradient в каждом центре и делают SVD матрицы градиентов; при `estimator="new"` начальная gradient-PCA взвешивается `sqrt(local_mass)`. `pilot` строит неглубокую MLP и ортонормирует матрицу первого слоя; `random` делает QR Gaussian matrix. Недостаточный rank отклоняется как неидентифицируемый multi-index.
+
+Каждый шаг цикла:
+
+1. генерирует или переиспользует `(J,P,d)` directions;
+2. вычисляет principal/residual weights и local `I/U`;
+3. передает в HPAO basis-строки `(m,d)`; для normalized statistics mass — внешний множитель objective;
+4. canonicalizes basis и переоценивает normalized eigenvalues;
+5. после уменьшения h подбирает следующий alpha; если локальную массу обеспечить нельзя, останавливается.
+
+Для outer-step selection используется SSE на Y в выбранных центрах, даже когда solver diagnostic loss другой. `trace_indices=True` включает basis, eigenvalues, alpha, mass summaries и solver diagnostics.
+
+## Профильный Grassmann solver (opt-in)
+
+Полное английское изложение live multi-index ADP с текущим Grassmann:
+[ADP_Grassmann_current.tex](../../../docs/tex/ADP_Grassmann_current.tex), PDF рядом.
+Описаны и initializer/weights/sketch/outer selection, и profile/core/relative
+GN/rank fallbacks; `sec:sources` связывает формулы с функциями кода.
+Проверки и hashes: [verification](../../../docs/tex/ADP_Grassmann_current.verification.md).
+
+`ADP/solver/grassman.py::solve` возвращает `HPAOResult`, принимает CPU
+`index_init=(m,d), U=(J,p,d), I=(J,p), mass=(J,)`. При `local_ridge=0`
+минимизирует тот же unpenalized minimum-norm finite-sketch профиль,
+что local-refit HPAO; не fixed-g rank-r цель SVD. `local_ridge>0` — явный
+ESTIMATOR вариант. `lambda_prox` здесь только damping малого GN solve,
+не постоянный statistical/chordal penalty. Внешний ADP default — LSMR.
+
+По умолчанию `grassman.solve` предоставляет combined20: relative_gn=True,
+quadratic_trials=3,constant_centers=True,smooth_max_steps=None. Это явно
+запрошенное пользователем2026-10-22 объединение прежних time/EDR идей и
+увеличение бюджета. Базовый шаг — core_gn
+(улучшение II); параметров `method` и `angle_backend` нет. Он
+решает augmented least squares во всех q*m координатах Z=V K, сохраняя
+полный `T.T*r` член и связи коэффициентов; polar retraction/Armijo.
+Операторные действия U[Y,V] кэшируются только внутри текущего шага.
+Нет dense d*d проектора/Hessian. При превышении `workspace_bytes`
+полный core заменяется spectral. При eligible intrinsic rank loss строится
+regular-center relative GN proposal, при недопустимой модели — rank-one
+с quadratic/Armijo true-profile trials, без неверной full-rank производной.
+Точно нулевые U_j исключаются с восстановлением full coefficients/loss,
+rank counts и прежней gradient stopping scale. Их цель — известная константа.
+
+`converged` требует normalized horizontal gradient <=tol; это inner frozen
+stationarity, не global optimum. На rank boundary сертификат неприменим;
+`rank_boundary_stationary`, `max_steps`, `line_search_failed` сохраняют
+незавершённость явно. Итоговый residual/gradient пересчитывается через live U.
+Диагностики: profile/loss history, step_ranks, GN/evaluation/fallback counts,
+local rank loss, orthogonality, stationarity_applicable.
+
+Пример подключения без конфликта `method` конструктора адаптера:
+
+```python
+from ADP import ADP_solver
+from ADP.solver.grassman import solve
+solver = ADP_solver(solve)  # combined20
+```
+
+Прежняя проверенная опция: `ADP_solver(solve,relative_gn=True,max_steps=10,
+quadratic_trials=0,constant_centers=False,smooth_max_steps=5)`:
+численный intrinsic rank classifier допускает GN только на regular centers,
+с damping=lambda_prox*||J||F²/(q*m). Полные gradient/Armijo/final certificate
+используют все центры, rank cutoff прежний. APPROXIMATE optimizer, не estimator.
+Smooth GN прежний, initial-smooth cap5 в этой конфигурации. Model guard -> direct
+rank-one Armijo; workspace/nonfinite damping -> spectral fallback. Не передавать
+lambda_prox в ADP_solver: его передаёт ADP_Config.lambda_penalty (default.05).
+Dev105800 и heldout106800 прошли gates; public port120 exact full-fit replays.
+Маршрут: benchmarks/experiments/grassman_accuracy_2026_10_18/RELATIVE_GN_*REPORT.md.
+
+Combined20: COMBINED_{MATH,PROTOCOL,REPORT}.md; development107800 и untouched
+validation108800 по150 успешных fit с R MEANMAVE. Validation EDRgeo.925311,
+time.860129 vs original5, но vs accepted relative10 EDR1.003418/time1.275697;
+новый состав и бюджет не дают доказанного дополнительного recovery gain.
+Исходный режим доступен через max_steps=5,relative_gn=False,
+quadratic_trials=0,constant_centers=False. Итоговый gradient пересчитан live
+на active objective; исключённые точно нулевые операторы имеют zero gradient.
+
+Проверенные CPU-оптимизации QR/SVD, bounded gradient, transpose GEMM
+и батчевого core Jacobian уже находятся в `grassman.py` (default core_gn).
+Эти CPU-оптимизации сохраняют цель/допуски при фиксированном бюджете.
+Paired fullfit median time ratio
+0.942; frozen speedup2.52x. Старый эталон перенесён в
+`benchmarks/experiments/grassman_optim_2026_10_01/reference.py`; подробности в
+[solvers.md](solvers.md#профильный-grassmann-opt-in).
+
+Альтернативные `rank_one`, `spectral` и Schur/refit абляции доступны только
+через `grassman_exp.solve(method=..., angle_backend=...)`. Внутренние
+rank-one/spectral fallback-шаги основного core_gn сохранены как guards.
+
+Совместный q-angle flat из `docs/SVD/glm.tex` доступен отдельным APPROXIMATE
+методом только в `grassman_exp.solve(method="flat_gn", flat_max_steps=8)`.
+Один flat выбирается тонким SVD градиента (rank/energy_tol как прежде),
+после кэширования U[Y,V] все q углов уточняются одновременно с full dg,
+точной геодезической сборкой и true-profile Armijo. Inner стоимость
+не зависит от d, Jacobian имеет q unknowns, не q*m. Сохраняются mass,
+tau=local_ridge, guards и live финальный stationarity check. Локальный box
+[-max_angle,max_angle]^q ограничивает шаг, не гарантирует global torus optimum.
+`flat_angles`, `flat_inner_iterations`, `flat_fallbacks` отделяют работу flat
+от rank_one/spectral fallbacks. Результаты Luna:
+`benchmarks/experiments/grassman_flat_2026_10_02/{PROOF,REPORT}.md`.
+Luna:45 focused tests,120 hash-paired rows. Frozen median objective/gradient
+ratios0.586/0.606 at time2.557; fullfit time1.8555 and projector regressions
+in4/6 pairs fail selection. Heldout skipped; remains experimental option.
+Fullfit final orthogonality absent from raw rows, separately checked in tests.
+
+```python
+from functools import partial
+from ADP import ADP_solver
+from ADP.solver.grassman_exp import solve
+solver = ADP_solver(partial(solve, method="flat_gn", max_steps=5, flat_max_steps=8))
+```
+
+Проверки: `tests/test_grassman.py` (independent lstsq, Schur, FD full Jacobian,
+dense ridge, gauge/rank/stress/noiseless recovery). Paired heavy Spokoiny
+и frozen ablations: `benchmarks/grassman_benchmark.py`, результаты/ограничения
+в `benchmarks/experiments/grassman_2026_10_01/REPORT.md`. Три full-fit seeds:
+core5 paired time ratio .874, ниже projector error на всех3, ~13MiB больше
+RSS; core20 ratio1.260. Все inner calls capped/unconverged. Schur/refit
+rank-one frozen paired gain5.72x; GN .0949s vsspectral .2157s при близком loss.
+Adaptive-rank advantage не наблюдалось; QR compression при p10<d+1 бесполезен.
+Это bounded outer-budget evidence, не heldout/global/convergence guarantee.
+
+### Исследование интеграции `docs/SVD/glm.tex` (2026-10-02)
+
+Аудит: `benchmarks/experiments/glm_grassmann_2026_10_02/{REPORT,PROOF}.md`.
+Основные profile/Schur/spectral/core/polar идеи уже реализованы; full q*m
+core не является полным tangent (размерность m*(d-m)). `grassman_exp.solve_full_gn` даёт matrix-free полный profiled J/J* и LSMR/polar/Armijo,
+но bounded cap-30 вариант не прошёл R3: frozen d20/100/300 — 45 rejected
+certificates и 11–20x time overhead; adaptive fits — все 27 inner calls
+rank-guarded, 135 fallbacks, paired time ratio1.2143 без meaningful recovery
+gain. 30 уникальных hash-paired rows, 40 focused tests. Production solvers
+не изменены, held-out seeds не использованы. Raw protocol/runs/pairs/gates
+сохранены рядом. Следующие гипотезы: active-center rank audit,
+preconditioned core planes; kappa/GLS требует upstream covariance и является
+ESTIMATOR. TeX содержит уточняемые утверждения о rank/inverse, Ky Fan,
+scalar retraction paths, rational derivative и convergence; см. PROOF.md.
+
+## Явный SVD-решатель: ранг матрицы и ранг поправки
+
+Новая общая теория: [EDR_unified_theory.tex](../../../docs/SVD/EDR_unified_theory.tex),
+метки `sec:framework`, `sec:svd`, `sec:grassmann`, `sec:angles`, `sec:field`,
+`sec:metrics`. Она объединяет fixed-g matrix/correction, профилированные
+Grassmann-повороты и tangent Tucker как разные частные случаи; не заменяет
+их цели друг другом. Карта текущих семи разрешённых заметок — `sec:map`;
+литература — `sec:literature`. Проверки/сборка/узкий angle benchmark:
+[REPORT.md](../../../docs/SVD/theory_2026_10_01/REPORT.md) (203 формульных проверки,
+3 frozen-curve seeds, total time ratio .160–.167; не full-fit recovery).
+Теоретическая работа не меняла production solver. Профильный angle-search
+и полный малый GN core реализованы opt-in в `grassman.py`;
+пространственный tangent Tucker остаётся предложением.
+Отдельно различаются localization/residual/penalty/search metrics;
+GLS covariance требует squared kernel weights, не только Sigma/N.
+
+Ранее указанные `docs/SVD/SVD.tex`, `docs/SVD/SVD_form.tex`, `chat_*.md` и
+`problem.md` сейчас отсутствуют в корне `docs/SVD/`; пользовательские перемещения
+не отменялись, исключённые подкаталоги не читались. Поведение correction
+сверять по живому коду ниже. Подробное прежнее изложение:
+[SVD_solver.tex](../../../docs/SVD/SVD_solver.tex), разделы
+`sec:variants`, `sec:limits`, `sec:second`, `sec:gpu`, `sec:algorithm`.
+Приложение `sec:sources` учитывает историческую структуру исходной папки;
+текущая карта содержится в новом документе. Второй решатель, совместные блоки, преобразованные и
+случайные кандидаты остаются предложениями. Отбор обычных SVD-пар Q по
+точному выигрышу реализован экспериментальной опцией ниже. Проверка формул:
+`rtk proxy python SVD/documentation/check_math.py`; запись проверки и сборки —
+`docs/SVD/documentation/VERIFICATION.md`.
+
+Продолжение22октября с совместными additive low-rank поправками отдельно
+от live SVD.py: `benchmarks/experiments/grassman_accuracy_2026_10_22/lowrank.py` и
+`LOWRANK_{MATH,REPORT}.md`. Там Delta горизонтальна к текущему Y, оба фактора
+уточняются вместе, затем polar/reprofile/исходный Armijo. Это APPROXIMATE
+Grassmann proposal по fixed-g surrogate, не полное решение unconstrained
+SVD correction objective. Pilot105fits завершён; выбранный projected10
+не прошёл280-fit development quality gate. LoRA остаётся pilot-only;
+validation112800..809 не запускался. Подробности — LOWRANK_REPORT/PLAN/STATE;
+production SVD.py/grassman.py не менялись.
+
+`ADP/solver/SVD.py` реализует два явных `rank=r<m` варианта для фиксированных
+локальных коэффициентов `g_j`. Функционал по умолчанию
+`sum_j mass_j ||I_j-U_j B.T g_j||² + lambda||B-P||²`; это не текущий
+HPAO correction penalty. По умолчанию `low_rank_target="matrix"` сохраняет
+старое ограничение `rank(B)<=r` и возвращает низкоранговую `(m,d)` матрицу
+`B`. Режим `low_rank_target="correction"` ограничивает `rank(B-P)<=r`,
+начинает с `Delta=0`, один раз считает `I-forward(U,P,g)` и возвращает
+сырой полный `P+Delta`; `rank=0` возвращает `P`. Жадные
+rank-1 компоненты находятся попеременными шагами: малая `(m,m)` задача для
+`a`, для `v` — прямой Cholesky при `lambda>0, d<=128` либо плоский LSMR с
+явной проверкой normal residual и fallback, compact QR/SVD с кэшем `U@V`
+и совместное решение `(k,k)` задачи масштабов. Correction переиспользует эти
+численные primitives с нулевой ridge-целью и штрафом `lambda||Delta||²`.
+Временный буфер прямого
+решения ограничен 16 MiB; `direct_max_dimension=None` оставляет только LSMR.
+Из `SVD_solver.tex` (`eq:Ha`, `eq:diagprecond`) добавлена явная опция
+`precondition_v=True` (default `False`): диагональ нормального оператора
+v-подзадачи масштабирует справа **оба** блока расширенной системы, включая
+ridge. Центр регуляризации и ненулевой warm start сохранены; при `lambda=0`
+масштабирование отключено, чтобы сохранить решение минимальной нормы.
+Суммы квадратов столбцов `U` кэшируются до 16 MiB; выше лимита диагональ
+считается потоково без `U**2` или `d*d` матрицы. Исходная нормальная невязка
+остаётся критерием приёмки, при необходимости применяется строгий
+немасштабированный LSMR. Оценка невязки самого LSMR может относиться к
+масштабированным координатам и не заменяет исходный сертификат. В diagnostics
+добавлены `precondition_v` и `preconditioner_cache_bytes`.
+В расширенном операторе устранены вложенные `LinearOperator` вызовы;
+эта точная оптимизация действует и при выключенном предобусловливании.
+Неограниченные/нечисловые нормы и нечисловой сертификат явно отклоняются.
+Адаптивный допуск LSMR доступен через `adaptive_krylov=True`, но по умолчанию
+выключен после потери качества на одном тяжёлом seed. Глобальный
+rank-r optimum не гарантируется.
+
+Экспериментальный `rank_one_search="gradient"` (default `"alternating"`)
+берёт все ненулевые сингулярные пары непроецированной
+`Q=sum_j mass_j g_j e_j.T U_j + lambda(prior-low_rank)=-grad(F)/2`.
+Для единичных a,v считает `R=a.T Q v`,
+`D=sum_j mass_j (g_j.T a)² ||U_j v||²+lambda`, выбирает максимум
+`gamma=R²/D` и шаг `sigma=R/D` (SVD_solver.tex, eq:Q/eq:gain и раздел
+«Выбор направления по уменьшению, а не только по градиенту»).
+Попеременные a/v solves пропускаются; сжатие QR/SVD, совместный refit
+масштабов, проверка исходной цели и итоговый basis/refit общие.
+Внутренняя метрика применяется через тот же whitening. Это APPROXIMATE,
+цель не меняется. Поиск по конечному набору пар не даёт глобального
+rank-one/rank-r optimum. Полезная добавка без роста ранга отклоняется с
+`no_rank_growth`; это эвристическая остановка, не сертификат стационарности.
+У `gradient` tuples `inner_iterations`, `inner_converged`, `lsmr_*` пусты,
+число linear solves равно 0, `v_normal_residual_applicable=False`;
+нулевой `v_normal_residual_max` не является сертификатом.
+`inner_tol`, `inner_maxiter`, direct/LSMR/warm-start/preconditioning настройки
+направлений относятся только к `alternating`; `rank_tol` активен в обоих.
+Дополнительный scratch для кандидатов O(md+Jp), до m действий Uv на добавку,
+плотной Hessian/d*d нет. Reference/edge/public-fit проверки:
+`tests/test_svd_gradient.py`; метрика: `tests/test_svd_metric.py`.
+Парный фиксированный-g пилот d100/300, 3 seeds, оба rank targets:
+`benchmarks/experiments/svd_gradient_2026-09-30/{pilot.py,REPORT.md,runs.csv,metadata.json}`.
+
+Новая экспериментальная опция `metric_power=0/.5/1` и `metric_floor=rho`
+заменяет proximal penalty на `lambda tr((B-P) A (B-P).T)`;
+`A=rho I+(1-rho)(K/||K||op)^p`. Default p=0 сохраняет Frobenius.
+Full: `K=alpha² I+P.T Lambda P`; orthogonal:
+`K=alpha²(I-P.T P)+P.T Lambda P`. h не входит в метрику.
+Multi-index model передаёт текущие alpha, eigenvalues и effective_tensor через
+явный opt-in `solver_metric_context` fit-loop; старые двухаргументные callbacks
+сохраняют контракт. Адаптер отклоняет повторные fixed/dynamic настройки.
+В прямом `solve_fixed_coefficients` нужны `metric_alpha`, `metric_eigenvalues`,
+`metric_tensor`; incoming P ортонормирован и Lambda имеет max=1.
+Whitening допускает неортонормированный внутренний prior; выход и directions
+completion возвращаются в исходные координаты. Дополнительная постоянная
+память — один U-sized буфер, работа O(J*p*d*m); dense d*d metric нет.
+Сертификаты v-подзадач и rank_scales относятся к whitened координатам;
+correction Frobenius norm/singular values — к исходным. Orthogonal при
+нулевых eigenvalues требует положительного floor; нечисловая SPD отклоняется.
+Опция — ESTIMATOR, не гарантия восстановления или глобального rank optimum.
+Проверки: `tests/test_svd_metric.py`; парный пилот и ограничения:
+`benchmarks/experiments/svd_a_metric_2026-09-30/{AUDIT,REPORT}.md` (120 строк, без exceptions;
+held-out correction не подтвердил улучшение, default не меняется).
+
+Для публичного обучения используется существующий custom-solver hook:
+
+```python
+from ADP import ADP_Config, ADP_multi_index, ADP_solver
+from ADP.solver.SVD import solve as solve_svd
+
+model = ADP_multi_index(
+    3, ADP_Config(), ADP_solver(solve_svd, rank=2, low_rank_target="correction", precondition_v=True)
+).fit(X, y)
+```
+
+`solve` сначала вычисляет `g_j` локальным refit для входящего полного `P`.
+Correction mode ортонормирует строки `P+Delta` через thin QR, проверяет полный
+row rank и заново оценивает локальные коэффициенты. Matrix mode по-прежнему
+дополняет найденные `r` правых направлений проекцией прежнего `P`; оставшиеся
+`m-r` направления опираются на prior, а не определяются матрицей `B`.
+Внешний fit-loop затем применяет обычную канонизацию по спектру
+коэффициентов. Вариант CPU-only; текущий LSMR остаётся default.
+
+Доказательство, независимый аудит и новые парные замеры:
+`benchmarks/experiments/svd_improvements_2026-09-30/{AUDIT,REPORT}.md`.
+Selection и untouched validation: по 144 успешных строки; размеры d100/300/600,
+оба rank-режима, обычные/масштабированные столбцы, full fit d50/150.
+Validation: time ratio `.2255` на масштабированных fixed-g данных,
+`.9430` для default на обычных; full-fit качество отличается <=2.27e-8.
+Это численное совпадение и локальные замеры, не новое утверждение восстановления.
+
+Источники: **SRC-SVD-SOLVER**, **SRC-SOLVER-API**, **SRC-MI-CANONICAL**;
+эталонные проверки: `tests/test_svd_solver.py`; fixed-g замеры:
+`benchmarks/svd_correction.py`, `benchmarks/experiments/svd_correction_2026-09-29/`
+(d=20) и `benchmarks/experiments/svd_correction_high_d_2026-09-29/` (d=100/300/600;
+небольшой и изменчивый парный выигрыш только на d=600). Full-fit LSMR/SVD
+comparison: `benchmarks/svd_vs_hybrid.py --comparison lsmr-svd` and
+`benchmarks/experiments/lsmr_vs_svd_fullfit_2026-09-29/REPORT.md` (100/50/25 paired
+seeds; SVD faster, large-case projector recovery favored LSMR; objectives
+differ).
+
+## Локаторы
+
+| ID | Фрагмент | Команда sed |
+|---|---|---|
+| SRC-MI-FIT | публичный fit и `(d,m)` publication/transform | `rtk proxy sed -n '20,108p' ADP/core/multi/ADP_multi_index.py` |
+| SRC-MI-RESULT | projector distance result API | `rtk proxy sed -n '12,51p' ADP/core/multi/ADP_multi_index_result.py` |
+| SRC-MI-UTIL | orthogonality/rank/result validation | `rtk proxy sed -n '9,95p' ADP/core/multi/ADP_multi_index_utils.py` |
+| SRC-MI-CANONICAL | weighted coefficient rotation and canonical spectrum | `rtk proxy sed -n '133,191p' ADP/engine/common/index_fit.py` |
+| SRC-MI-WEIGHTS | projected principal/residual kernel geometry | `rtk proxy sed -n '88,184p' ADP/engine/common/weights.py` |
+| SRC-MI-ALPHA | alpha search and exact compact-support reduction | `rtk proxy sed -n '259,389p' ADP/engine/common/calculus.py` |
+| SRC-MI-DIRECTIONS | principal plus orthogonal random sketch | `rtk proxy sed -n '390,422p' ADP/engine/common/calculus.py` |
+| SRC-MI-INIT | local basis/spectrum initialization paths | `rtk proxy sed -n '70,184p' ADP/engine/common/initialize.py` |
+| SRC-MI-DRIVER | effective tensor, fit/trace/stop/selection | `rtk proxy sed -n '318,647p' ADP/engine/common/index_fit.py` |
+| SRC-MI-ENGINE | basis QR, orientation, subspace/projector distance | `rtk proxy sed -n '12,69p' ADP/engine/multi_index/ADP_multi_index_engine.py` |
+| SRC-GRASSMAN | profile/Jacobian/polar1-370, intrinsic372-403, combined solve405-810, block813-857 | `rtk proxy sed -n '1,857p' ADP/solver/grassman.py` |
+| SRC-GRASSMAN-EXP | failed-selection flat GN (32-571), full tangent GN (574-819) | `rtk proxy sed -n '1,819p' ADP/solver/grassman_exp.py` |
+| SRC-SVD-SOLVER | fixed-g rank-r objectives, default certified Cholesky/LSMR or experimental gradient-gain pairs, optional diagonal/metric scaling, prior completion or QR | `rtk proxy sed -n '1,1021p' ADP/solver/SVD.py` |
+
+Все коды извлекаются из `ADP/`; полный каталог файлов — [README.md](README.md#каталог-исходников). Общая статистика и mass contract — [index-pipeline.md](index-pipeline.md).

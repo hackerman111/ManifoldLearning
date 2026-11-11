@@ -848,7 +848,7 @@ def main() -> None:
         "--stage", choices=("fullfit", "capture", "frozen", "curves"), required=True
     )
     parser.add_argument(
-        "--output", type=Path, default=Path("experiments/grassman_2026_10_01/benchmark")
+        "--output", type=Path, default=Path("benchmarks/results/outputs/grassman_2026_10_01/benchmark")
     )
     parser.add_argument(
         "--seed",

@@ -1,0 +1,117 @@
+% Сборка: pdflatex -interaction=nonstopmode -halt-on-error gaussian_fourier_solver.tex
+\documentclass[10pt,a4paper]{article}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english,russian]{babel}
+\usepackage[margin=18mm]{geometry}
+\usepackage{amsmath,amssymb,microtype}
+\usepackage[hidelinks]{hyperref}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\setlength{\emergencystretch}{2em}
+\AtBeginDocument{%
+  \setlength{\abovedisplayskip}{5pt}%
+  \setlength{\belowdisplayskip}{5pt}%
+  \setlength{\abovedisplayshortskip}{3pt}%
+  \setlength{\belowdisplayshortskip}{3pt}}
+\newcommand{\EDR}{\operatorname{EDR}}
+\newcommand{\Rea}{\operatorname{Re}}
+\newcommand{\norm}[1]{\lVert#1\rVert}
+\begin{document}
+\begin{center}
+  {\large\bfseries Gaussian Fourier: спектральный солвер и его ограничение}\\[2pt]
+  {\small Экспериментальная реализация; результаты на 25 октября 2026 года}
+\end{center}
+\vspace{-5pt}
+
+\textbf{Постановка.}
+По независимым наблюдениям $(x_i,y_i)$ оценивается подпространство
+$\operatorname{col}(B_*)$ в модели
+$\mathbb E[Y\mid X]=f(B_*^\top X)$, $B_*^\top B_*=I_m$, $m<d$.
+Предполагаются \emph{известный} закон $X\sim N(0,I_d)$, условия
+интегрирования по частям и конечность $\mathbb E[Y^2(1+\norm X^2)]$.
+Метрика восстановления:
+$\EDR^2(B,B_*)=\norm{BB^\top-B_*B_*^\top}_F^2/(2m)$.
+
+\textbf{Моменты вместо локальной линейной модели.}
+Для частот $t_r$, независимых от данных, тождество Стейна даёт
+\[
+ v(t)=\mathbb E\!\left[Y(X-\mathrm i t)e^{\mathrm i t^\top X}\right]
+     =\mathbb E\!\left[\nabla_X\mathbb E[Y\mid X]\,
+                         e^{\mathrm i t^\top X}\right]
+     \in\operatorname{col}(B_*),
+ \qquad M=\frac1R\sum_{r=1}^R\Rea\!\left(v(t_r)v(t_r)^*\right).
+\]
+Здесь $*$ означает сопряжённое транспонирование.
+Если $\operatorname{rank}(M)=m$, то проектор $P_M=MM^\dagger=B_*B_*^\top$.
+Поэтому \emph{популяционный} функционал при $B^\top B=I_m$ точно равен EDR:
+\[
+ \boxed{\quad F_{\rm pop}(B)=1-\frac1m\operatorname{tr}(B^\top P_M B)
+                          =\EDR^2(B,B_*) .\quad}
+\]
+
+\textbf{Выборочная матрица и решение.}
+Пусть $\hat v_r=n^{-1}\sum_i y_i(x_i-\mathrm i t_r)e^{\mathrm i t_r^\top x_i}$,
+$\widehat V=(\hat v_1,\ldots,\hat v_R)$,
+$C_y=n^{-1}\sum_i y_i^2x_ix_i^\top$, $C_t=R^{-1}\sum_r t_rt_r^\top$,
+$\overline{y^2}=n^{-1}\sum_i y_i^2$.
+Вместо смещённого произведения выборочных средних используется
+несмещённая U-статистика по различным наблюдениям:
+\[
+ \widehat M=\frac{n}{n-1}\frac{\Rea(\widehat V\widehat V^*)}{R}
+                  -\frac{C_y+\overline{y^2}C_t}{n-1}.
+\]
+Первые $m$ собственных векторов $\widehat M$ образуют $\widehat B$;
+$\widehat P=\widehat B\widehat B^\top$.
+Солвер глобально минимизирует
+$\widehat F(B)=1-m^{-1}\operatorname{tr}(B^\top\widehat P B)$,
+возвращая $B=\widehat B$ и минимум $0$.
+Шаги Гаусса--Ньютона не требуются.
+Матрица $\widehat M$ может быть неопределённой; неположительное выбранное
+собственное значение или численно нулевой граничный спектральный зазор
+приводят к отказу.
+В эксперименте $R=256$, $t_1=0$, остальные
+$t_r\sim N(0,4I_d/d)$; необходим ранг $m\le 2R-1$.
+Стоимость: $O(ndR+nd^2+d^3)$; матрицы $n\times n$ не строятся.
+
+\textbf{Главная проблема.}
+Равенство $F_{\rm pop}=\EDR^2$ не переносится автоматически на
+$\widehat F$: её нулевой минимум означает совпадение с \emph{оценённым}
+подпространством. Несмещённость $\widehat M$ не гарантирует малую дисперсию.
+Если отдельно известно $\norm{\widehat M-M}_{\rm op}\le\delta$ и
+$\hat\lambda_m>0$, то
+\[
+ \EDR(\widehat B,B_*)\le\min\{1,\delta/\hat\lambda_m\}.
+\]
+Для основной модели медиана отношения ошибки матрицы к
+$\lambda_m(M)$ составила $162$ при $m=3$ и $694$ при $m=5$.
+Даже с диагностически известной ошибкой граница равна $1$.
+На популяционных моментах тех же задач EDR меньше $3\cdot10^{-13}$;
+спектральная нормировка не исправляет неточную оценку слабых направлений.
+
+\textbf{Практическая проверка.}
+На $n=5000$, $d=25$ выполнено $120$ парных задач
+(четыре функции, $m=2,3,5$, десять новых seed).
+Средний EDR основной модели:
+\begin{center}
+\begin{tabular}{c|ccc}
+ $m$ & 2 & 3 & 5 \\ \hline
+ Текущий ADP & 0.0624 & 0.4501 & 0.6424 \\
+ Gaussian Fourier & 0.1056 & 0.5683 & 0.7068
+\end{tabular}
+\end{center}
+\vspace{-5pt}
+Медиана полного fit: $0.077$ с против $1.233$ с у ADP;
+максимальное парное отношение времени $0.075$.
+Лимит $3\times$ выполнен, но геометрическое отношение EDR на основной
+модели при $m=3,5$ равно $1.203$ (95\% интервал $[1.096;1.327]$):
+\textbf{качество ухудшилось}. Кандидат не принят; текущий ADP не изменён,
+отложенная validation не использовалась.
+
+\vfill
+{\footnotesize
+Реализация: \texttt{experiments/gaussian\_fourier.py}.
+Подробности: \texttt{verification/gaussian-fourier-20261025/report.md}.
+Моментная основа: Zhu--Zeng, JASA 101 (2006), 1638--1651.}
+\end{document}

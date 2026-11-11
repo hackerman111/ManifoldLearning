@@ -16,17 +16,17 @@ Read in this order:
 
 1. `AGENTS.md`.
 2. `PLAN.md` when a task is active.
-3. `agent-notes/STATE.md`.
-4. `agent-notes/README.md`, then only the thematic note(s) relevant to the task.
+3. `docs/agent-notes/STATE.md`.
+4. `docs/agent-notes/README.md`, then only the thematic note(s) relevant to the task.
 5. The exact source ranges, tests, configuration, or TeX locators referenced by those notes.
 
-`agent-notes/` is a routing cache, not source of truth. Live code is authoritative for current behavior. TeX/manuscript sources are authoritative only for the formulas they actually state. If code, notes, and TeX disagree, do not silently reconcile them.
+`docs/agent-notes/` is a routing cache, not source of truth. Live code is authoritative for current behavior. TeX/manuscript sources are authoritative only for the formulas they actually state. If code, notes, and TeX disagree, do not silently reconcile them.
 
 ## Context discipline
 
 Prefer targeted reads over discovery scans.
 
-- Use the source IDs and `sed` locators already recorded under `agent-notes/ADP/` and `agent-notes/tex/`.
+- Use the source IDs and `sed` locators already recorded under `docs/agent-notes/ADP/` and `docs/agent-notes/tex/`.
 - Read a whole large module only when narrower ranges cannot answer the question.
 - Search callers/references only for the symbol or contract being changed.
 - Do not reread a paper, long log, or source region when an existing maintained note already answers the question; verify the original only when the claim matters to the current change.
@@ -34,16 +34,16 @@ Prefer targeted reads over discovery scans.
 
 Task routing:
 
-- numerical algorithms, ADP formulas, solvers, performance, memory: `agent-notes/contracts/numerics.md`;
-- experiments, scientific claims, benchmarks, reproducibility, numerical verification: `agent-notes/contracts/research.md`;
-- Python/API/dependencies/backends/parallelism/tooling: `agent-notes/contracts/engineering.md`;
-- persistent-state protocol and handoff rules: `agent-notes/WORKFLOW.md`.
+- numerical algorithms, ADP formulas, solvers, performance, memory: `docs/agent-notes/contracts/numerics.md`;
+- experiments, scientific claims, benchmarks, reproducibility, numerical verification: `docs/agent-notes/contracts/research.md`;
+- Python/API/dependencies/backends/parallelism/tooling: `docs/agent-notes/contracts/engineering.md`;
+- persistent-state protocol and handoff rules: `docs/agent-notes/WORKFLOW.md`.
 
 ## Maintaining `agent-notes`
 
 Treat the notes as maintained indices. If a code change invalidates a documented route, behavior, source locator, architecture statement, compatibility boundary, or mathematical interpretation, update the affected note in the same task.
 
-Do not regenerate or reread the entire map after each change. Refresh only the affected note and source ranges. Update `agent-notes/README.md` only when top-level routing changes.
+Do not regenerate or reread the entire map after each change. Refresh only the affected note and source ranges. Update `docs/agent-notes/README.md` only when top-level routing changes.
 
 When a note conflicts with code in a way that could affect the current task, verify the minimal relevant source, fix the note, then continue. Mention the correction in `STATE.md` if it affects handoff.
 
@@ -66,7 +66,7 @@ At every meaningful checkpoint update the durable state before continuing. A che
 - a failure that invalidates the current hypothesis or approach;
 - immediately before context reset/handoff and at task completion.
 
-The checkpoint protocol is defined in `agent-notes/WORKFLOW.md`. In short, keep `PLAN.md` current, rewrite `agent-notes/STATE.md` to the latest concise truth, and append to `DECISIONS.md` only for durable decisions. JSON/JSONL history is optional; it is not required for checkpoints or handoffs.
+The checkpoint protocol is defined in `docs/agent-notes/WORKFLOW.md`. In short, keep `PLAN.md` current, rewrite `docs/agent-notes/STATE.md` to the latest concise truth, and append to `DECISIONS.md` only for durable decisions. JSON/JSONL history is optional; it is not required for checkpoints or handoffs.
 
 ## `PLAN.md`
 
@@ -95,7 +95,7 @@ Do not spawn a scout for a local change whose relevant files are already identif
 
 ## Scientific change control
 
-Before changing mathematical behavior, classify the change as `EXACT`, `NUMERICAL`, `APPROXIMATE`, or `ESTIMATOR` according to `agent-notes/contracts/research.md`.
+Before changing mathematical behavior, classify the change as `EXACT`, `NUMERICAL`, `APPROXIMATE`, or `ESTIMATOR` according to `docs/agent-notes/contracts/research.md`.
 
 `APPROXIMATE` and `ESTIMATOR` changes must be explicit variants/options/experimental branches unless the user specifically requests a behavior change. Performance work must not silently change the estimator.
 

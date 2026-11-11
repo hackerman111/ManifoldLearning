@@ -2,7 +2,7 @@
 
 Run from the repository root, for example:
     PYTHONPATH=. python -m benchmarks.svd_vs_hybrid \
-        --output experiments/svd_vs_hybrid_2026-09-28
+        --output benchmarks/results/outputs/svd_vs_hybrid_2026-09-28
 
 Each fit runs in its own worker process so process peak RSS is attributable to
 that run. The runner uses the same generated problem and fit seed per pair.

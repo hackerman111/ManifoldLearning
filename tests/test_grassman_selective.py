@@ -158,7 +158,7 @@ def test_smooth_but_qrunsafe_batch_falls_back_whole(
 
 
 def test_sample_frozen_inputs_match_direct_profiles() -> None:
-    root = Path(__file__).parents[1] / "experiments/grassman_accuracy_2026_10_18/frozen"
+    root = Path(__file__).parents[1] / "benchmarks/experiments/grassman_accuracy_2026_10_18/frozen"
     names = ("001.npz", "008.npz", "014.npz")
     if not all((root / name).is_file() for name in names):
         pytest.skip("optional frozen diagnostic inputs are unavailable")

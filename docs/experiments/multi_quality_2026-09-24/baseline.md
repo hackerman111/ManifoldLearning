@@ -1,6 +1,6 @@
 # Multi v2: исходный диагноз двух точек
 
-Источник: `benchmark_outputs/experiments/20260924T012524585775-multiv2/`,
+Источник: `benchmarks/results/outputs/experiments/20260924T012524585775-multiv2/`,
 `multiv2-mi-d/runs.csv` и `multiv2-mi-n/runs.csv`. Это чтение сохранённых
 результатов, без новых fits. В `suite.json` статус `running`: запланированы
 22 серии, завершены только 7. Эти две серии полные (по 30 повторов для

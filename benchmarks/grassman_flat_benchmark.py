@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "experiments/grassman_flat_2026_10_02"
+OUTPUT = ROOT / "benchmarks/results/outputs/grassman_flat_2026_10_02"
 SELECTION_SEEDS = (74100, 74101, 74102)
 HELDOUT_SEEDS = (74200, 74201, 74202)
 METHODS = ("core_gn", "spectral", "rank_one", "flat_gn")

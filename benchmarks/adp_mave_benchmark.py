@@ -38,7 +38,7 @@ if str(REPO_ROOT) not in sys.path:
 
 
 METHODS = ("ADP", "MAVE", "dMAVE", "rMAVE")
-DEFAULT_OUTPUT = "experiments/adp_mave_comparison_2026-10-02_anchors_final"
+DEFAULT_OUTPUT = "benchmarks/results/outputs/adp_mave_comparison_2026-10-02_anchors_final"
 THREAD_ENV = (
     "OPENBLAS_NUM_THREADS",
     "OMP_NUM_THREADS",
@@ -312,7 +312,7 @@ def summarize(
             "## Reproduction",
             "",
             "```sh",
-            "UV_CACHE_DIR=/tmp/adp-mave-uv-cache uv run --no-sync python benchmarks/adp_mave_benchmark.py --output experiments/adp_mave_comparison_reproduction",
+            "UV_CACHE_DIR=/tmp/adp-mave-uv-cache uv run --no-sync python benchmarks/adp_mave_benchmark.py --output benchmarks/results/outputs/adp_mave_comparison_reproduction",
             "```",
             "",
             "The output directory must be new; the driver refuses to overwrite previous measurements.",

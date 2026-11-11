@@ -1,0 +1,131 @@
+% Сборка: pdflatex -interaction=nonstopmode -halt-on-error shared_polynomial_edr.tex (дважды).
+\documentclass[10pt,a4paper]{article}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english,russian]{babel}
+\usepackage[margin=20mm]{geometry}
+\usepackage{amsmath,amssymb,microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xurl}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\setlength{\emergencystretch}{2em}
+\newcommand{\R}{\mathbb R}
+\newcommand{\norm}[1]{\lVert#1\rVert}
+\newcommand{\code}[1]{\nolinkurl{#1}}
+\begin{document}
+\begin{center}
+{\Large\bfseries Общее полиномиальное приближение для EDR}\\[3pt]
+{\small Экспериментальный метод: функционал, алгоритм и ограничения}
+\end{center}
+
+\paragraph{Постановка.}
+Даны $x_i\in\R^d$, $y_i\in\R$, $i=1,\dots,n$, и задана размерность $m<d$.
+Предполагается многоиндексная модель
+\[
+ y_i=f(B_*^\top x_i)+\varepsilon_i,\qquad
+ B_*\in\R^{d\times m},\quad B_*^\top B_*=I_m.
+\]
+Цель --- оценить подпространство $\operatorname{span}(B_*)$; функция $f$ и
+истинный базис алгоритму неизвестны. Для ортонормированного кандидата
+$B\in\R^{d\times m}$ полагаем $z_i=B^\top x_i$ и приближаем отклик одним
+общим полиномом степени не выше $q=3$:
+\[
+ p_c(z)=\sum_{|\alpha|\le 3}c_\alpha h_\alpha(z),\qquad
+ h_\alpha(z)=\prod_{k=1}^m
+ \frac{\operatorname{He}_{\alpha_k}(z_k)}{\sqrt{\alpha_k!}}.
+\]
+Здесь $\operatorname{He}_j$ --- вероятностный полином Эрмита; входят \emph{все}
+смешанные члены. Число коэффициентов $p=\binom{m+3}{3}$: при $m=3$ их 20,
+при $m=5$ --- 56. Это общая модель для всей выборки, а не набор независимых
+локальных линейных моделей.
+
+\paragraph{Минимизируемый функционал.}
+Пусть $D_B\in\R^{n\times p}$, $(D_B)_{i\alpha}=h_\alpha(B^\top x_i)$, и
+$y=(y_1,\ldots,y_n)^\top$. Оптимизируется профиль
+\begin{equation}\label{eq:profile}
+ \boxed{\displaystyle
+ L(B)=\frac1n\min_{c\in\R^p}\norm{D_Bc-y}^2,
+ \qquad B^\top B=I_m.}
+\end{equation}
+Для каждого пробного $B$ коэффициенты $\hat c(B)$ находятся методом
+наименьших квадратов через экономное QR-разложение $D_B=QR$, где
+$Q^\top Q=I_p$: $R\hat c=Q^\top y$. При полном столбцовом ранге
+$L(B)=n^{-1}\norm{(I_n-QQ^\top)y}^2$. Постоянного ridge-штрафа на
+коэффициенты полинома нет. Полный набор полиномов делает значение профиля
+инвариантным к ортогональному повороту базиса $B\mapsto BO$.
+
+\paragraph{Градиент профиля.}
+Определим $r_i=p_{\hat c}(B^\top x_i)-y_i$ и
+$g_i=\nabla_zp_{\hat c}(B^\top x_i)\in\R^m$. При полном ранге $D_B$,
+по теореме об огибающей, горизонтальный градиент равен
+\begin{equation}\label{eq:gradient}
+ \operatorname{grad}L(B)=\frac{2}{n}(I_d-BB^\top)
+ \sum_{i=1}^n r_i x_i g_i^\top.
+\end{equation}
+Проекция $I_d-BB^\top$ убирает повороты внутри самого подпространства.
+Уменьшается ошибка отклика $L(B)$; истинная EDR при обучении не вычисляется.
+
+\newpage
+\paragraph{Анизотропный шаг Schur--Gauss--Newton.}
+Начальный базис $B_0$ получается полным ADP с метрикой \code{two_sided}.
+На каждой итерации выбирается ортонормированное дополнение
+$V\in\R^{d\times(d-m)}$, и горизонтальное приращение записывается как
+$\Delta=VK$, $K\in\R^{(d-m)\times m}$. Пусть $t=m(d-m)$,
+а $A\in\R^{n\times t}$ --- матрица для построчной развёртки $K$, для которой
+\[
+ (A\operatorname{vec}K)_i=g_i^\top K^\top V^\top x_i.
+\]
+После исключения линейных приращений коэффициентов полинома строятся
+\begin{equation}\label{eq:schur}
+ H=\frac1nA^\top(I_n-QQ^\top)A,\qquad
+ b=\frac1nA^\top r,\qquad
+ (H+\rho I_t)\operatorname{vec}K=-b.
+\end{equation}
+В коде используется $\rho=10^{-4}\max\{\operatorname{tr}(H)/t,10^{-12}\}$.
+Демпфирование относится к \emph{шагу}, а не является штрафом в
+\eqref{eq:profile}. Приращение ограничивается условием
+$\norm{VK}_2\le0.5$; для $B_{\rm trial}=\operatorname{polar}(B+\eta VK)$
+поиск по длине шага требует уменьшения исходного профиля. Число итераций
+ограничено 60, порог нормы градиента равен $10^{-7}$.
+
+Матрица $H$ --- Schur-приближение совместного шага Гаусса--Ньютона после
+исключения приращений $c$. При ненулевом остатке оно не является точным
+якобианом профилированного остатка. Проверяются численный ранг матрицы $D_B$,
+остаток нормальных уравнений и ранги градиентного Gram и $H$; это численные
+проверки, а не сертификат статистической идентифицируемости.
+
+\paragraph{Связь с истинной EDR.}
+Пусть $X\sim N(0,I_d)$, $E[Y\mid X]=f(B_*^\top X)$ и $f_{\le3}$ ---
+проекция этой функции на Gaussian-chaos порядков не выше трёх. Определим
+\[
+ G_3=E[\nabla_x f_{\le3}(X)\nabla_x f_{\le3}(X)^\top],\qquad
+ \operatorname{EDR}^2(B,B_*)=
+ \frac{\norm{BB^\top-B_*B_*^\top}_F^2}{2m}.
+\]
+Если $\operatorname{rank}(G_3)=m$ и $\operatorname{range}(G_3)=
+\operatorname{span}(B_*)$, то истинное подпространство --- единственный
+глобальный минимум \emph{популяционного} риска $R_3(B)$. При этом
+\begin{equation}\label{eq:bound}
+ R_3(B)-R_3(B_*)\ge
+ \frac{m\lambda_{\min}^{+}(G_3)}{3}\operatorname{EDR}^2(B,B_*).
+\end{equation}
+Слабое минимальное собственное значение ослабляет оценку. Формула не делает
+выборочный профиль равным EDR и не гарантирует глобальной сходимости.
+
+\paragraph{Ограничение и проверка.}
+Если $f(X)=X_1+\delta h_4(X_2)$ при стандартном Gaussian $X$, кубическая
+проекция теряет второе направление: её популяционный риск одинаков для
+$\operatorname{span}(e_1,e_2)$ и $\operatorname{span}(e_1,e_3)$. Поэтому
+метод нельзя считать универсальным. На независимой тестовой серии
+$d=25$, $n=5000$, $m\in\{3,5\}$, три функции и 60 парных наборов средняя
+EDR снизилась с $0.309$ у \code{two_sided} до $0.091$; при additive и $m=5$
+восстановлений с EDR $\le0.1$ осталось $0/10$. На отдельном примере $h_4$
+кубическое уточнение ухудшило EDR. Проверенный метод остаётся
+экспериментальным, без изменения штатных настроек ADP.
+
+\smallskip
+\textbf{Реализация и доказательства:} \code{experiments/shared_polynomial.py};
+\code{verification/shared-polynomial-20261028/THEORY.md},
+\code{R1_AUDIT.md} и \code{REPORT.md} в том же каталоге.
+\end{document}

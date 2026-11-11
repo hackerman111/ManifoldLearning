@@ -22,6 +22,7 @@ from ..engine.common.index_fit import (
 from ..engine.common.logger import IndexProfiler as _Profiler
 from ..engine.common.statistic import calculate_statistics
 from ..solver.CG import solve as solve_cg
+from ..solver.grassman import solve as solve_grassman
 from ..solver.HYBRID import solve as solve_hybrid
 from ..solver.LSMR import HPAOResult, solve as solve_lsmr
 
@@ -166,7 +167,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=defaults.redraw_directions,
     )
 
-    parser.add_argument("--solver", choices=("lsmr", "cg", "hybrid"), default="lsmr")
+    parser.add_argument(
+        "--solver", choices=("lsmr", "cg", "hybrid", "grassman"), default="lsmr"
+    )
     parser.add_argument("--dense-max-unknowns", type=int, default=256)
     parser.add_argument("--dense-max-bytes", type=int, default=64 * 1024**2)
     parser.add_argument(
@@ -211,6 +214,10 @@ def _config(args: argparse.Namespace) -> ADP_Config:
 
 
 def _validate_solver_mode(mode: str, solver: str) -> None:
+    if mode == "manifold" and solver == "grassman":
+        raise ValueError(
+            "Grassmann supports single/multi; manifold requires solver cg or hybrid"
+        )
     if mode == "single" and solver == "hybrid":
         raise ValueError(
             "hybrid solver supports multi and manifold modes; "
@@ -311,10 +318,28 @@ def _run(
                         f"and true_basis shape {expected}"
                     )
 
-        solver_max_steps = args.solver_max_steps or (3 if args.mode == "single" else 5)
+        default_steps = (
+            20 if args.solver == "grassman" else (3 if args.mode == "single" else 5)
+        )
+        solver_max_steps = args.solver_max_steps or default_steps
         normalized = config.estimator == "new"
 
         def solve_step(index: np.ndarray, statistics: ADP_Statistics) -> HPAOResult:
+            if args.solver == "grassman":
+                result = solve_grassman(
+                    index[None, :] if index.ndim == 1 else index,
+                    statistics.U,
+                    statistics.I,
+                    mass=statistics.mass if normalized else None,
+                    lambda_prox=config.lambda_penalty,
+                    max_steps=solver_max_steps,
+                    tol=args.solver_tol,
+                )
+                if index.ndim == 1:
+                    return HPAOResult(
+                        result.index[0], result.coefficients[:, 0], result.diagnostics
+                    )
+                return result
             if args.solver == "cg":
                 return solve_cg(
                     index,

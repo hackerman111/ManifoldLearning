@@ -31,7 +31,7 @@ designs or md-by-md normal matrices outside bounded diagnostic snapshots.
 Exact read set: agent-notes/ADP/solvers.md, ADP/solver/LSMR.py:429-596,
 ADP/engine/common/statistic.py:29-229, docs/experiments/beta_functional_2026-09-27/report.md,
 docs/experiments/multi_solver_search_2026-09-24/s1.md, and the six outer0
-frozen NPZ inputs/manifest under benchmark_outputs/diagnostic/multi_solver_search_s1_20260924.
+frozen NPZ inputs/manifest under benchmarks/results/outputs/diagnostic/multi_solver_search_s1_20260924.
 
 Work units:
 - [x] Derive block/Kronecker structure and state precise conditions for
