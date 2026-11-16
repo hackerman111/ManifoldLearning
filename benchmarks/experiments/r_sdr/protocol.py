@@ -34,6 +34,7 @@ def digest(path: Path) -> str:
 def source_files() -> list[Path]:
     return sorted(
         [
+            ROOT / "experiments.py",
             ROOT / "benchmarks/experiments/__init__.py",
             *ROOT.joinpath("ADP").rglob("*.py"),
             *ROOT.joinpath("benchmarks/experiments/grassman_accuracy_2026_10_18").rglob("*.py"),

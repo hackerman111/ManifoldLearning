@@ -1211,3 +1211,159 @@ four-directory layout without mass-renaming imports or changing saved results.
 Update active filesystem paths to the moved code; leave frozen result contents
 and their historical path metadata unchanged. This is a structural compatibility
 decision, not a change to solver behavior or experimental conclusions.
+
+## 2026-11-12 — Seven-family paired ADP Grassmann / MEANMAVE protocol
+
+The user approved seven fixed three-index links, 15 seeds 0..14 per family,
+n=2000,d=20,m=3, Gaussian X/noise .3 after signal normalization. Compare current
+public ADP-Grassmann-combined20 with package MAVE::MEANMAVE (screen=d), not the
+historical ADP-Grassmann five-step control. Preserve default profiles, public
+estimators and all failed fits. No tuning on campaign seeds. Formula/command
+route: benchmarks/experiments/r_sdr/README.md, profile seven-families.
+
+Repair snapshot layout by including experiments.py and invoking the relocated
+R worker under benchmarks/experiments/r_sdr. Baseline tests reproduced the stale
+paths; the snapshot import regression test reproduced the missing shim. These
+are EXACT infrastructure repairs required to execute the approved comparison.
+
+## 2026-11-12 — Completed seven-family comparison; retain measured failures
+
+All 210 fits succeeded operationally; independent audit verified 105 paired
+datasets, 122 frozen source hashes, exact regenerated inputs and saved bases.
+Maximum independent EDR disagreement is 6.66e-16. MEANMAVE has smaller mean EDR
+for six links; neither method recovers the oscillatory link at EDR<=.1. ADP has
+16/105 recoveries versus 75/105, with 0/525 inner solves certified. No solver or
+hyperparameter change follows from these evaluation seeds. Keep public defaults
+and retain these measured limitations. Artifacts:
+benchmarks/results/outputs/r_sdr/seven-families-20261112/{REPORT.md,audit.json,
+manifest.json,completion.json,verification.log}. Focused suite: 39 passed.
+
+## 2026-11-12 — Controlled seven-frequency oscillatory analysis
+
+Use f_a=sin(a*z1)cos(1.25*a*z2)+sin(1.5*a*z3), a=.5,1,2,3,4,6,8,
+with fixed n2000,d20,m3/noise.3 and 15 seeds0..14 for the same two public
+methods. Keep X/B/noise shared across frequencies via explicit Case.data_key;
+data_key=family-oscillatory reproduces earlier a8 inputs exactly. Existing
+case-name RNG semantics remain the default. This isolates frequency rather than
+mixing different formulas and data draws. Rank3 remains identifiable; population
+gradient conditioning at low frequency and local phase cancellation at high
+frequency are separate diagnostics. Exact Gaussian moments are reference
+quantities, not a theorem explaining the ADP solver. No tuning on these seeds.
+
+## 2026-11-12 — Frequency sweep completed; distinguish direction loss from sampling
+
+All210 attempts succeeded; independent audit verifies105 paired datasets,
+shared X/B/noise across seven frequencies,123 frozen source hashes, exact input
+regeneration and max EDR readback error1.11e-15. The a8 inputs and fitted
+projectors exactly reproduce the prior campaign (drift0).
+
+MEANMAVE recovers15/15 at a1; all other cells and all ADP cells recover0/15.
+At a2 both preserve z3 (mean squared alignment .9289/.9984) while z1/z2 are
+near the random .15 level; at a>=3 mean EDR is near the random reference .9214.
+Population G remains rank3 and its minimum eigenvalue increases; low a.5 has
+weak directions. True-coordinate20-neighbor coherence is still .9104 at a2
+and .8043 at a3, so neighbor density alone does not explain the observed failure.
+ADP525/525 inner solves hit max_steps without certificates; initialization,
+local statistics and optimization causes remain unseparated. Do not promote a
+causal explanation or retune on these evaluation seeds. Evidence:
+benchmarks/results/outputs/r_sdr/oscillation-frequency-20261112/REPORT.md,
+audit.json, population.csv, direction-alignment.csv and local-resolution.csv.
+
+Final report review clarification: a2 statement describes the dominant pattern,
+not every fit. ADP seed7 loses z3 (A3=.0791);14/15 ADP and15/15 MAVE have A3>=.9.
+MAVE seeds10/14 also retain one mixed-plane direction (middle angles3.21/3.40deg),
+while the full plane is not recovered. Report now preserves these exceptions.
+
+## 2026-11-12 — Launch-only large fourteen-case campaign
+
+User requests background launch and immediate handoff, not waiting for results.
+Three independent campaigns: d50/n4000 and d100/n8000 on seeds0..14, plus a
+separate d50/n4000 repeat on seeds15..29; all m3,14 original labels, two methods,
+420 planned fits each. The duplicated f8 formula retains both original labels.
+Keep one thread/fit,4096MiB cap, extend timeout to7200s for larger inputs. Three
+campaigns run concurrently; account for contention in any later timing claim.
+
+First d100 attempt exposed N_J300<ceil(8000/20)=400 before fitting. Preserve
+that failed journal and interrupt only that campaign. Relaunch in a new output
+with explicit N_J400, the minimum legal count, without changing the estimator
+implementation or selecting by observed quality. d50 campaigns keep N_J300.
+This is an explicit experimental configuration repair. Exact active commands,
+PIDs, prior invalid attempt and logs: benchmarks/results/outputs/r_sdr/
+fourteen-large-20261112/launch.json. Processes detached outside temporary sandbox
+so they persist after the response. User will request analysis when ready.
+
+## 2026-11-13 — e-means ideas preserve the original anisotropic ADP
+
+Active research decision for e-means-adp-20261113. Compare four distinct
+families before selecting an isolated APPROXIMATE frozen-profile optimizer.
+Keep public ADP source/defaults/API, kernel moments, center/direction streams,
+alpha/h schedule and outer best selection unchanged. Reject raw-moment EMA
+and outer-geometry EMA as primary paths because they alter the estimator;
+exact inactive-center elimination is already present. Prototype mini-batch
+Grassmann proposals, optional gauge-correct projector EMA, full-center
+finalization and a full-value input-relative safeguard. This proves neither
+original20 nor EDR superiority; finite-rank-cutoff and roundoff domains are
+explicit in benchmarks/experiments/e_means_adp/MATH.md.
+
+Freeze320 paired fits (8cases,10seeds,4arms) before outcomes; controls are
+original20 and full6. Independent new validation seeds are conditional on
+frozen quality/time/RSS gates plus integrity audit. Failure closes the arm
+without retuning or promotion. Research spike authorization does not authorize
+default changes. Evidence: MATH/REVIEW notes,49 focused tests,78 shared/new
+tests before final audit refinements, Ruff and Pyright clean. Previous dirty
+work and three separate frozen background campaigns remain untouched.
+
+### Outcome — negative selection, closed2026-11-13
+
+320/320 successful fits,80 pairs per arm. Original20 mean EDR.408012;
+mini.439041 at time ratio.870907; mini+EMA.437432 at.886412; full6.453989
+at.662642. Worst mini/EMA EDR regression+.420027. Both candidates and
+budget-only control fail predeclared quality gates; RSS is unchanged within
+measurement variation. No arm selected, held-out1132400..409 data not generated,
+no retuning and no production/default promotion. Close this hypothesis.
+
+All1680 inner calls uncertified; new arms' stationarity applicability is
+0/420 each. Do not infer adaptive EDR or convergence from full-profile guard.
+Strong exact scoped claims and explicit rank/roundoff limits are in MATH.md;
+REPORT.md records negative evidence and exact remaining gap. Independent final
+audit5747 checks/1600 artifact hashes/68 public source hashes pass; final78
+focused/shared tests, Ruff/Pyright/format/diff checks pass. Previous work kept.
+
+## 2026-11-13 — explicit all-center follow-up requested by user
+
+N_J=n is already supported by public ADP (N_J=None also means n); the prior
+J200/300 limitation belonged only to the frozen experiment. Test a NEW
+ESTIMATOR/configuration regime with no candidate/budget/gate retuning.
+Use original20/full6/mini/mini_ema at J=n, plus original20_bounded on the same
+fresh data to expose the full practical J effect. It cannot isolate center
+sampling variance because initializer/h/sketch and relative damping also vary.
+
+After independent pre-freeze approval, freeze400 selection fits at seeds
+1134400..409; conditional new validation1135400..409. Preserve all earlier
+artifacts and old heldout1132400..409. Actual N_J must match frozen jobs AND
+effective trace; paired initial bases are checked only within the same J.
+ALL_CENTERS_MATH proves the finite-population variance identity under fixed
+contributions and explicitly leaves adaptive EDR recovery open. One stored
+distance2 becomes8n² bytes; mini solver does not remove upstream storage.
+No public source/default/API change or automatic promotion is authorized.
+
+### All-center outcome — negative mini/EMA selection,2026-11-13
+
+400/400fits successful,80same-data pairs per arm; audit8396checks/2000hashes.
+Original20 all-J meanEDR.332018 vs bounded.395326,66/80improved; paired
+time3.169533/RSS1.100217. This full configuration change improves all8case
+means but worsens14individual blocks, with worst+.431130. No uniform or
+held-out guarantee for all-J follows. Candidate was unchanged from prior study.
+
+At all-J, mini/EMA means.359664/.358669 vs original.332018; paired times
+.831401/.843886; worst EDR increases+.350098. Both fail frozen quality gates;
+no validation generated and no retuning/promotion. Full6.385866/time.715722
+also fails quality. EMA alone versus mini:mean delta-.000995/time1.012376,
+worst+.115817. Do not attribute budget savings to EMA. Top-level certs0/2100,
+all400outer stops h_min. The fixed-contribution variance theorem does not
+establish adaptive recovery. Original68ADP source hashes and old/new heldout
+boundaries preserved. Final79focused/shared tests, Ruff/format checks pass;
+pre-freeze Pyright0errors/0warnings applies to the unchanged frozen Python.
+Independent final reviewer reproduced8396checks/2000hashes and main contrasts;
+no blocking defect. Corrected report terminology to8tasks (7families+d50).
+Plan closed; exact adaptive EDR/convergence gap remains explicitly open.

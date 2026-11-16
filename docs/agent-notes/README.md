@@ -1,5 +1,8 @@
 # ADP agent notes
 
+Исследование идей e-means с сохранением анизотропного ADP:
+[e-means-adp.md](e-means-adp.md) (изолированный optimizer, доказательства и gates).
+
 Последняя интеграционная проверка: [adp-moment-integration.md](adp-moment-integration.md)
 (остаточный старт, предложения при прежнем функционале, локальный WLS2).
 

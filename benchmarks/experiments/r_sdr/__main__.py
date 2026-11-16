@@ -36,6 +36,10 @@ def main() -> int:
             "multi-rank",
             "high-dim-dm",
             "d25-n5000",
+            "seven-families",
+            "oscillation-seven",
+            "fourteen-d50-n4000",
+            "fourteen-d100-n8000",
         ),
         default="full",
     )
@@ -135,6 +139,7 @@ def main() -> int:
             print(
                 f"{c.name}: n={c.n}, d={c.d}, m={c.m}, link={c.link}, "
                 f"rho={c.rho}, noise={c.noise}, X={c.distribution}"
+                f", frequency={c.frequency}, data_key={c.data_key}"
             )
         print(
             f"Per-fit limits: {args.timeout}s, {args.memory_mib}MiB; "
@@ -149,7 +154,9 @@ def main() -> int:
         parser.error("--resume requires --output and the same original options")
     if args.output is None:
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-        args.output = Path("benchmarks/results/outputs/r_sdr") / f"{timestamp}-{args.profile}"
+        args.output = (
+            Path("benchmarks/results/outputs/r_sdr") / f"{timestamp}-{args.profile}"
+        )
     if args.plots and importlib.util.find_spec("matplotlib") is None:
         parser.error("--plots requires matplotlib (uv sync --group bench)")
     from .runner import run

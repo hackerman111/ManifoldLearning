@@ -1,0 +1,244 @@
+"""Идентифицируемые модели, сетки и метрики без плотных проекторов."""
+
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass, replace
+
+import numpy as np
+from scipy.linalg import subspace_angles
+
+METHODS = ("ADP", "MAVE", "MAVE-package", "SIR", "dMAVE", "rMAVE")
+GRASSMANN_METHOD = "ADP-Grassmann"
+ACCURATE_GRASSMANN_METHOD = "ADP-Grassmann-accurate"
+CONSTANT_GRASSMANN_METHOD = "ADP-Grassmann-constant"
+ARMIJO_GRASSMANN_METHOD = "ADP-Grassmann-armijo"
+QUADRATIC_GRASSMANN_METHOD = "ADP-Grassmann-quadratic"
+INTRINSIC_GRASSMANN_METHOD = "ADP-Grassmann-intrinsic"
+WARMUP_GRASSMANN_METHOD = "ADP-Grassmann-warmup"
+CONJUGATE_GRASSMANN_METHOD = "ADP-Grassmann-conjugate"
+RELATIVE_GRASSMANN_METHOD = "ADP-Grassmann-relative"
+COMBINED10_GRASSMANN_METHOD = "ADP-Grassmann-combined10"
+COMBINED_GRASSMANN_METHOD = "ADP-Grassmann-combined"
+SUPPORTED_METHODS = (
+    *METHODS,
+    GRASSMANN_METHOD,
+    ACCURATE_GRASSMANN_METHOD,
+    CONSTANT_GRASSMANN_METHOD,
+    ARMIJO_GRASSMANN_METHOD,
+    QUADRATIC_GRASSMANN_METHOD,
+    INTRINSIC_GRASSMANN_METHOD,
+    WARMUP_GRASSMANN_METHOD,
+    CONJUGATE_GRASSMANN_METHOD,
+    RELATIVE_GRASSMANN_METHOD,
+    COMBINED10_GRASSMANN_METHOD,
+    COMBINED_GRASSMANN_METHOD,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Case:
+    name: str
+    n: int
+    d: int
+    m: int = 2
+    link: str = "additive"
+    rho: float = 0.0
+    noise: float = 0.3
+    distribution: str = "gaussian"
+    frequency: float = 1.0
+    data_key: str | None = None
+
+
+def catalog(profile: str) -> list[Case]:
+    if profile in {"fourteen-d50-n4000", "fourteen-d100-n8000"}:
+        n, d = (4000, 50) if profile == "fourteen-d50-n4000" else (8000, 100)
+        return [
+            replace(case, n=n, d=d, m=3)
+            for case in catalog("seven-families") + catalog("oscillation-seven")
+        ]
+    if profile == "oscillation-seven":
+        return [
+            Case(
+                f"oscillation-a{frequency:g}",
+                2000,
+                20,
+                3,
+                "oscillatory-frequency3",
+                frequency=frequency,
+                data_key="family-oscillatory",
+            )
+            for frequency in (0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0)
+        ]
+    if profile == "seven-families":
+        return [
+            Case(f"family-{name}", 2000, 20, 3, link)
+            for name, link in (
+                ("additive", "additive"),
+                ("quadratic", "quadratic3"),
+                ("multiplicative", "product3"),
+                ("oscillatory", "oscillatory3"),
+                ("saturating", "saturating3"),
+                ("localized", "localized3"),
+                ("nonsmooth", "max3"),
+            )
+        ]
+    if profile == "smoke":
+        return [Case("tiny-linear", 60, 4, 1, "linear"), Case("tiny-multi", 80, 5)]
+    if profile == "d25-n5000":
+        return [Case(f"d25-n5000-m{m}", 5000, 25, m) for m in (2, 3, 5)]
+    if profile == "high-dim-dm":
+        return [
+            Case(f"hd-d{d}-m{m}", 10 * d * m, d, m)
+            for d in (10, 50, 100)
+            for m in (2, 3, 5)
+        ]
+    if profile == "multi-rank":
+        return [Case(f"rank-{m}", 500, 20, m) for m in (3, 4, 5)]
+    base = Case("base", 500, 10)
+    cases = [base]
+    cases += [replace(base, name=f"n-{n}", n=n) for n in (100, 250, 1000, 2000)]
+    cases += [replace(base, name=f"d-{d}", d=d) for d in (5, 20, 50, 100)]
+    cases += [
+        replace(base, name="linear-m1", m=1, link="linear"),
+        replace(base, name="sin-m1", m=1, link="sin"),
+        replace(base, name="square-m1", m=1, link="square"),
+        replace(base, name="product-m2", link="product"),
+        replace(base, name="additive-m3", m=3),
+    ]
+    cases += [replace(base, name=f"corr-{r}", rho=r) for r in (0.5, 0.9, 0.99)]
+    cases += [replace(base, name=f"noise-{s}", noise=s) for s in (0.1, 1.0)]
+    cases += [
+        replace(base, name=dist, distribution=dist)
+        for dist in ("t5", "uniform", "mixture")
+    ]
+    if profile in {"full", "stress"}:
+        cases += [
+            Case(f"scale-n{n}-d{d}", n, d)
+            for n, d in (
+                (2000, 50),
+                (5000, 50),
+                (5000, 200),
+                (10000, 100),
+                (2000, 500),
+                (5000, 500),
+                (5000, 1000),
+            )
+        ]
+        cases += [
+            Case(f"interaction-d{d}-m{m}-r{rho}", 1000, d, m, rho=rho)
+            for d in (20, 100, 200)
+            for m in (1, 2, 3)
+            for rho in (0.0, 0.9)
+        ]
+        cases += [
+            replace(base, name=f"scarce-n{n}-d{d}", n=n, d=d)
+            for n, d in ((120, 100), (220, 200), (520, 500))
+        ]
+    if profile == "stress":
+        cases = [
+            Case(f"stress-n{n}-d{d}", n, d)
+            for n, d in (
+                (20000, 100),
+                (10000, 500),
+                (10000, 1000),
+                (5000, 2000),
+                (1000, 1000),
+                (500, 1000),
+            )
+        ]
+    if profile not in {"standard", "full", "stress"}:
+        raise ValueError(f"unknown profile: {profile}")
+    return cases
+
+
+def generate(case: Case, seed: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    data_key = case.name if case.data_key is None else case.data_key
+    entropy = int.from_bytes(hashlib.sha256(data_key.encode()).digest()[:8], "little")
+    streams = np.random.SeedSequence([seed, entropy]).spawn(3)
+    basis_rng, x_rng, noise_rng = (np.random.default_rng(s) for s in streams)
+    truth = np.linalg.qr(basis_rng.normal(size=(case.d, case.m)))[0]
+    shape = (case.n, case.d)
+    if case.distribution == "gaussian":
+        x = x_rng.normal(size=shape)
+    elif case.distribution == "t5":
+        x = x_rng.standard_t(5, size=shape) * np.sqrt(3 / 5)
+    elif case.distribution == "uniform":
+        x = x_rng.uniform(-np.sqrt(3), np.sqrt(3), size=shape)
+    elif case.distribution == "mixture":
+        x = x_rng.normal(size=shape) + x_rng.choice([-1.0, 1.0], size=shape)
+        x /= np.sqrt(2)
+    else:
+        raise ValueError(f"unknown distribution: {case.distribution}")
+    for j in range(1, case.d):
+        x[:, j] = case.rho * x[:, j - 1] + np.sqrt(1 - case.rho**2) * x[:, j]
+    signal = link_signal(case.link, x @ truth, frequency=case.frequency)
+    signal = (signal - signal.mean()) / signal.std()
+    y = signal + case.noise * noise_rng.normal(size=case.n)
+    return x, y, truth
+
+
+def link_signal(
+    link: str,
+    z: np.ndarray,
+    *,
+    frequency: float = 1.0,
+) -> np.ndarray:
+    if link.endswith("3") and z.shape[1] != 3:
+        raise ValueError(f"{link} requires exactly three indices")
+    if link == "linear":
+        signal = z[:, 0]
+    elif link == "sin":
+        signal = np.sin(z[:, 0])
+    elif link == "square":
+        signal = z[:, 0] ** 2
+    elif link == "product":
+        signal = z[:, 0] * z[:, 1]
+    elif link == "additive":
+        signal = np.sin(z[:, 0])
+        if z.shape[1] >= 2:
+            signal += 0.5 * z[:, 1] ** 2
+        for j in range(2, z.shape[1]):
+            signal += 0.35 * np.tanh(z[:, j])
+    elif link == "quadratic3":
+        a, b, c = z.T
+        signal = a**2 + 0.8 * b**2 + 0.6 * c**2 + 0.5 * a * b + 0.4 * b * c
+    elif link == "product3":
+        signal = z[:, 0] * z[:, 1] * z[:, 2]
+    elif link == "oscillatory3":
+        signal = np.sin(8 * z[:, 0]) * np.cos(10 * z[:, 1]) + np.sin(12 * z[:, 2])
+    elif link == "oscillatory-frequency3":
+        if not np.isfinite(frequency) or frequency <= 0:
+            raise ValueError("frequency must be finite and positive")
+        signal = np.sin(frequency * z[:, 0]) * np.cos(
+            1.25 * frequency * z[:, 1]
+        ) + np.sin(1.5 * frequency * z[:, 2])
+    elif link == "saturating3":
+        a, b, c = np.tanh(2 * z).T
+        signal = a + b * c
+    elif link == "localized3":
+        signal = np.exp(-0.5 * (z**2 @ np.array([1.0, 2.0, 3.0])))
+    elif link == "max3":
+        signal = np.max(z, axis=1)
+    else:
+        raise ValueError(f"unknown link: {link}")
+    return signal
+
+
+def metrics(estimate: np.ndarray, truth: np.ndarray) -> dict[str, float]:
+    if estimate.shape != truth.shape or not np.isfinite(estimate).all():
+        raise ValueError("invalid/nonfinite basis shape")
+    if np.linalg.matrix_rank(estimate) != truth.shape[1]:
+        raise ValueError("rank-deficient basis")
+    q = np.linalg.qr(estimate)[0]
+    angles = subspace_angles(q, truth)
+    return {
+        "projector_distance": float(np.sqrt(np.mean(np.sin(angles) ** 2))),
+        "trace_score": float(np.mean(np.cos(angles) ** 2)),
+        "max_sin_angle": float(np.sin(angles).max()),
+        "mean_angle_deg": float(np.rad2deg(angles).mean()),
+        "max_angle_deg": float(np.rad2deg(angles).max()),
+        "orthogonality_error": float(
+            np.linalg.norm(estimate.T @ estimate - np.eye(q.shape[1]))
+        ),
+    }

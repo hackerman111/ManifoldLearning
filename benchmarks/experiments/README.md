@@ -1,5 +1,14 @@
 # Эксперименты ADP
 
+Подробный частотный эксперимент с семью осциллирующими функциями:
+[oscillation-seven](r_sdr/README.md#семь-частот-осцилляции).
+Семь частот .5..8, общие X/B/шум по сиду, по15 парных повторов.
+
+Семь семейств функций (аддитивные, квадратичные, мультипликативные,
+сильно осциллирующие, насыщающиеся, локализованные и негладкие), по 15 сидов:
+[профиль seven-families для ADP Grassmann / MEANMAVE](r_sdr/README.md#семь-семейств-по-15-сидов).
+Фиксированные n=2000,d=20,m=3, шум .3; 105 наборов и 210 парных fits.
+
 Новая проверка метрики и слабых моментов (2026-10-30):
 [отчёт и ограничения](../results/verification/weak-moment-20261030/REPORT.md),
 [полные доказательства](../results/verification/weak-moment-20261030/THEORY.md).
@@ -486,3 +495,13 @@ not thread-safe; CPU/new/all only. Runner `integration_study.py` and frozen
 artifacts at [REPORT](../results/verification/adp-moment-integration-20261030/REPORT.md).
 Residual start/proposal failed selection; local WLS2 vs WLS1 passed held-out
 quadratic gate. Defaults untouched. See report for stress/optimization limits.
+
+## e-means ideas inside anisotropic ADP (2026-11-13)
+
+[e_means_adp/README.md](e_means_adp/README.md): isolated mini-batch Grassmann
+proposals, optional projector EMA and full-center finalization. Preserves public
+ADP formulas/defaults/API. Four-family mathematical comparison and scoped proofs
+in MATH.md; frozen original20/full6/mini/mini_ema paired study and independent
+audit. Negative frozen selection:320 successful fits, mini+EMA time ratio.8864
+but EDRmean.4080->.4374, quality gates failed. Validation untouched; defaults
+preserved. Details: [e_means_adp/REPORT.md](e_means_adp/REPORT.md).

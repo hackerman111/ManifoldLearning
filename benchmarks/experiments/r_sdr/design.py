@@ -46,9 +46,43 @@ class Case:
     rho: float = 0.0
     noise: float = 0.3
     distribution: str = "gaussian"
+    frequency: float = 1.0
+    data_key: str | None = None
 
 
 def catalog(profile: str) -> list[Case]:
+    if profile in {"fourteen-d50-n4000", "fourteen-d100-n8000"}:
+        n, d = (4000, 50) if profile == "fourteen-d50-n4000" else (8000, 100)
+        return [
+            replace(case, n=n, d=d, m=3)
+            for case in catalog("seven-families") + catalog("oscillation-seven")
+        ]
+    if profile == "oscillation-seven":
+        return [
+            Case(
+                f"oscillation-a{frequency:g}",
+                2000,
+                20,
+                3,
+                "oscillatory-frequency3",
+                frequency=frequency,
+                data_key="family-oscillatory",
+            )
+            for frequency in (0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0)
+        ]
+    if profile == "seven-families":
+        return [
+            Case(f"family-{name}", 2000, 20, 3, link)
+            for name, link in (
+                ("additive", "additive"),
+                ("quadratic", "quadratic3"),
+                ("multiplicative", "product3"),
+                ("oscillatory", "oscillatory3"),
+                ("saturating", "saturating3"),
+                ("localized", "localized3"),
+                ("nonsmooth", "max3"),
+            )
+        ]
     if profile == "smoke":
         return [Case("tiny-linear", 60, 4, 1, "linear"), Case("tiny-multi", 80, 5)]
     if profile == "d25-n5000":
@@ -119,7 +153,8 @@ def catalog(profile: str) -> list[Case]:
 
 
 def generate(case: Case, seed: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    entropy = int.from_bytes(hashlib.sha256(case.name.encode()).digest()[:8], "little")
+    data_key = case.name if case.data_key is None else case.data_key
+    entropy = int.from_bytes(hashlib.sha256(data_key.encode()).digest()[:8], "little")
     streams = np.random.SeedSequence([seed, entropy]).spawn(3)
     basis_rng, x_rng, noise_rng = (np.random.default_rng(s) for s in streams)
     truth = np.linalg.qr(basis_rng.normal(size=(case.d, case.m)))[0]
@@ -137,26 +172,57 @@ def generate(case: Case, seed: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]
         raise ValueError(f"unknown distribution: {case.distribution}")
     for j in range(1, case.d):
         x[:, j] = case.rho * x[:, j - 1] + np.sqrt(1 - case.rho**2) * x[:, j]
-    z = x @ truth
-    if case.link == "linear":
-        signal = z[:, 0]
-    elif case.link == "sin":
-        signal = np.sin(z[:, 0])
-    elif case.link == "square":
-        signal = z[:, 0] ** 2
-    elif case.link == "product":
-        signal = z[:, 0] * z[:, 1]
-    elif case.link == "additive":
-        signal = np.sin(z[:, 0])
-        if case.m >= 2:
-            signal += 0.5 * z[:, 1] ** 2
-        for j in range(2, case.m):
-            signal += 0.35 * np.tanh(z[:, j])
-    else:
-        raise ValueError(f"unknown link: {case.link}")
+    signal = link_signal(case.link, x @ truth, frequency=case.frequency)
     signal = (signal - signal.mean()) / signal.std()
     y = signal + case.noise * noise_rng.normal(size=case.n)
     return x, y, truth
+
+
+def link_signal(
+    link: str,
+    z: np.ndarray,
+    *,
+    frequency: float = 1.0,
+) -> np.ndarray:
+    if link.endswith("3") and z.shape[1] != 3:
+        raise ValueError(f"{link} requires exactly three indices")
+    if link == "linear":
+        signal = z[:, 0]
+    elif link == "sin":
+        signal = np.sin(z[:, 0])
+    elif link == "square":
+        signal = z[:, 0] ** 2
+    elif link == "product":
+        signal = z[:, 0] * z[:, 1]
+    elif link == "additive":
+        signal = np.sin(z[:, 0])
+        if z.shape[1] >= 2:
+            signal += 0.5 * z[:, 1] ** 2
+        for j in range(2, z.shape[1]):
+            signal += 0.35 * np.tanh(z[:, j])
+    elif link == "quadratic3":
+        a, b, c = z.T
+        signal = a**2 + 0.8 * b**2 + 0.6 * c**2 + 0.5 * a * b + 0.4 * b * c
+    elif link == "product3":
+        signal = z[:, 0] * z[:, 1] * z[:, 2]
+    elif link == "oscillatory3":
+        signal = np.sin(8 * z[:, 0]) * np.cos(10 * z[:, 1]) + np.sin(12 * z[:, 2])
+    elif link == "oscillatory-frequency3":
+        if not np.isfinite(frequency) or frequency <= 0:
+            raise ValueError("frequency must be finite and positive")
+        signal = np.sin(frequency * z[:, 0]) * np.cos(
+            1.25 * frequency * z[:, 1]
+        ) + np.sin(1.5 * frequency * z[:, 2])
+    elif link == "saturating3":
+        a, b, c = np.tanh(2 * z).T
+        signal = a + b * c
+    elif link == "localized3":
+        signal = np.exp(-0.5 * (z**2 @ np.array([1.0, 2.0, 3.0])))
+    elif link == "max3":
+        signal = np.max(z, axis=1)
+    else:
+        raise ValueError(f"unknown link: {link}")
+    return signal
 
 
 def metrics(estimate: np.ndarray, truth: np.ndarray) -> dict[str, float]:

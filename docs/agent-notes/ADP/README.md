@@ -81,7 +81,7 @@ Manifold — другая модель, с отдельной оркестрац
 | SRC-LEGACY-LSMR | `ADP/solver/legacy_lsmr.py` — прежний solver-контракт | `rtk proxy sed -n '1,350p' ADP/solver/legacy_lsmr.py` |
 | SRC-LSMR | `ADP/solver/LSMR.py` — текущий HPAO-LSMR, local refit/correction/certificates | `rtk proxy sed -n '1,684p' ADP/solver/LSMR.py` |
 | SRC-SVD-SOLVER | `ADP/solver/SVD.py` — opt-in fixed-g rank-r matrix/correction solver; multi-index.md | `rtk proxy sed -n '1,1050p' ADP/solver/SVD.py` |
-| SRC-GRASSMAN | `ADP/solver/grassman.py` — combined relative GN/quadratic/zero-center default20; intrinsic323-354, solve355-760 | `rtk proxy sed -n '1,806p' ADP/solver/grassman.py` |
+| SRC-GRASSMAN | `ADP/solver/grassman.py` — combined relative GN/quadratic/zero-center default20; intrinsic372-403, solve405-810, block813-857 | `rtk proxy sed -n '1,857p' ADP/solver/grassman.py` |
 | SRC-GRASSMAN-EXP | `ADP/solver/grassman_exp.py` — selectable experimental rank-one/spectral/flat/full GN | `rtk proxy sed -n '1,819p' ADP/solver/grassman_exp.py` |
 | SRC-MULTIOP | `ADP/solver/_multi_operator.py` — joint multi forward/adjoint | `rtk proxy sed -n '1,29p' ADP/solver/_multi_operator.py` |
 | SRC-CLI-INIT | `ADP/cli/__init__.py` — ленивые CLI exports | `rtk proxy sed -n '1,22p' ADP/cli/__init__.py` |

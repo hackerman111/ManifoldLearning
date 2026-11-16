@@ -1,0 +1,1606 @@
+{
+  "experimental_centers": null,
+  "gpu": false,
+  "gpu_solver": false,
+  "N_lin": 40,
+  "N_J": 800,
+  "N_phi": 12,
+  "outer_iterations": 5,
+  "stop_reason": "h_min",
+  "estimator": "new",
+  "direction_mode": "isotropic",
+  "multi_tensor": "orthogonal",
+  "selection": "best",
+  "selected_iteration": 4,
+  "selected_error": 208.32942346991172,
+  "selected_eigenvalues": [
+    1.0,
+    0.1334644807076187,
+    0.09129391025701696
+  ],
+  "initial_quality": null,
+  "last_quality": null,
+  "initial_eigenvalues": [
+    17692.92139013581,
+    1619.6648180775528,
+    1313.951933206885,
+    708.1900527866875
+  ],
+  "training_set": "all",
+  "training_size": 800,
+  "center_displacement": 0.0,
+  "center_displacement_scale": 0.0,
+  "redraw_directions": true,
+  "trace": [
+    {
+      "iteration": 0,
+      "h": 4.8878493577112145,
+      "factor_name": "alpha",
+      "factor": 1.0,
+      "h_over_factor": 4.8878493577112145,
+      "err": 347.7354547277289,
+      "quality": null,
+      "eigenvalues": [
+        1.0,
+        0.19918404602172735,
+        0.1310511090437517
+      ],
+      "tensor": "orthogonal",
+      "solver": {
+        "linear_solver": "grassman_minibatch",
+        "method": "mini_ema",
+        "loss": 103.81292885455892,
+        "profile_objective": 207.6258577091179,
+        "profile_history": [
+          223.32031685290434,
+          208.926297406137,
+          207.6258577091179
+        ],
+        "converged": false,
+        "stop_reason": "bounded_full_finalization",
+        "certificate_scope": "full_frozen_profile",
+        "stationarity_applicable": false,
+        "gradient_norm": 4.361801671254812,
+        "riemannian_gradient": 0.001416669590853929,
+        "local_rank_loss": 23,
+        "orthogonality_error": 1.8381537157149804e-15,
+        "full_candidate_values": {
+          "input": 223.32031685290434,
+          "last": 211.74226238587977,
+          "ema": 208.926297406137
+        },
+        "selected_start": "ema",
+        "ema_gap": 0.9861110162213538,
+        "finalization_rejected": false,
+        "full_finalization": {
+          "linear_solver": "grassman",
+          "method": "core_gn_relative",
+          "angle_backend": "refit_quadratic",
+          "loss": 103.81292885455893,
+          "profile_objective": 207.62585770911787,
+          "loss_history": [
+            104.46314870306851,
+            104.06681884274924,
+            103.9103097421727,
+            103.84339018615078,
+            103.81292885455893
+          ],
+          "profile_history": [
+            208.92629740613702,
+            208.13363768549848,
+            207.8206194843454,
+            207.68678037230157,
+            207.62585770911787
+          ],
+          "converged": false,
+          "stop_reason": "max_steps",
+          "accepted_steps": 4,
+          "iterations": 4,
+          "riemannian_gradient": 0.001416669590853929,
+          "gradient_norm": 4.361801671254812,
+          "local_rank_loss": 23,
+          "stationarity_applicable": false,
+          "orthogonality_error": 1.8381537157149804e-15,
+          "step_ranks": [
+            3,
+            3,
+            3,
+            3
+          ],
+          "profile_evaluations": 4,
+          "gn_solves": 4,
+          "rank_guard_fallbacks": 0,
+          "workspace_fallbacks": 0,
+          "local_ridge": 0.0,
+          "effective_max_steps": 4,
+          "intrinsic_gn_proposals": 4,
+          "normalized_gn_proposals": 4,
+          "damping_scale_fallbacks": 0,
+          "quadratic_trials": 3,
+          "constant_centers": 9
+        },
+        "mini_batch_calls": 8,
+        "mini_batch_accepted_steps": 8,
+        "mini_batch_profile_evaluations": 8,
+        "mini_batch_rank_guard_fallbacks": 0,
+        "nominal_full_center_steps": 6,
+        "full_guard_profile_evaluations": 4,
+        "local_ridge": 0.0
+      },
+      "linear_solver": "grassman_minibatch",
+      "method": "mini_ema",
+      "loss": 103.81292885455892,
+      "profile_objective": 207.6258577091179,
+      "profile_history": [
+        223.32031685290434,
+        208.926297406137,
+        207.6258577091179
+      ],
+      "converged": false,
+      "stop_reason": "bounded_full_finalization",
+      "certificate_scope": "full_frozen_profile",
+      "stationarity_applicable": false,
+      "gradient_norm": 4.361801671254812,
+      "riemannian_gradient": 0.001416669590853929,
+      "local_rank_loss": 23,
+      "orthogonality_error": 1.8381537157149804e-15,
+      "full_candidate_values": {
+        "input": 223.32031685290434,
+        "last": 211.74226238587977,
+        "ema": 208.926297406137
+      },
+      "selected_start": "ema",
+      "ema_gap": 0.9861110162213538,
+      "finalization_rejected": false,
+      "full_finalization": {
+        "linear_solver": "grassman",
+        "method": "core_gn_relative",
+        "angle_backend": "refit_quadratic",
+        "loss": 103.81292885455893,
+        "profile_objective": 207.62585770911787,
+        "loss_history": [
+          104.46314870306851,
+          104.06681884274924,
+          103.9103097421727,
+          103.84339018615078,
+          103.81292885455893
+        ],
+        "profile_history": [
+          208.92629740613702,
+          208.13363768549848,
+          207.8206194843454,
+          207.68678037230157,
+          207.62585770911787
+        ],
+        "converged": false,
+        "stop_reason": "max_steps",
+        "accepted_steps": 4,
+        "iterations": 4,
+        "riemannian_gradient": 0.001416669590853929,
+        "gradient_norm": 4.361801671254812,
+        "local_rank_loss": 23,
+        "stationarity_applicable": false,
+        "orthogonality_error": 1.8381537157149804e-15,
+        "step_ranks": [
+          3,
+          3,
+          3,
+          3
+        ],
+        "profile_evaluations": 4,
+        "gn_solves": 4,
+        "rank_guard_fallbacks": 0,
+        "workspace_fallbacks": 0,
+        "local_ridge": 0.0,
+        "effective_max_steps": 4,
+        "intrinsic_gn_proposals": 4,
+        "normalized_gn_proposals": 4,
+        "damping_scale_fallbacks": 0,
+        "quadratic_trials": 3,
+        "constant_centers": 9
+      },
+      "mini_batch_calls": 8,
+      "mini_batch_accepted_steps": 8,
+      "mini_batch_profile_evaluations": 8,
+      "mini_batch_rank_guard_fallbacks": 0,
+      "nominal_full_center_steps": 6,
+      "full_guard_profile_evaluations": 4,
+      "local_ridge": 0.0,
+      "k": 0,
+      "alpha": 1.0,
+      "basis": [
+        [
+          -0.14909567318101322,
+          0.5309499649553369,
+          -0.1941849656735949
+        ],
+        [
+          -0.3684631248829513,
+          -0.15626836487550433,
+          -0.09860720616657823
+        ],
+        [
+          0.1372116674590129,
+          0.24705686387710077,
+          -0.27606276657020506
+        ],
+        [
+          0.22370879194219292,
+          0.3675553330300924,
+          0.2610407358560553
+        ],
+        [
+          0.41758984080988715,
+          0.15585706039309738,
+          0.09666966067404897
+        ],
+        [
+          -0.06400989469843152,
+          0.14391676753111238,
+          -0.11907501074996901
+        ],
+        [
+          0.5219603831603394,
+          -0.10387311508333576,
+          0.12744551429441858
+        ],
+        [
+          -0.05464060923892647,
+          0.12895016311623736,
+          0.2194612156873494
+        ],
+        [
+          -0.3795331273980949,
+          0.13454087432465303,
+          0.3477204285242842
+        ],
+        [
+          -0.07388962169393466,
+          -0.03721363352964567,
+          0.2055947879200429
+        ],
+        [
+          -0.0035089026076274375,
+          -0.06303202161079463,
+          0.07177273807378741
+        ],
+        [
+          0.07297240776470343,
+          -0.22615004466002714,
+          0.06571045239553265
+        ],
+        [
+          -0.20017440211913973,
+          -0.36416455678382087,
+          0.0038334628460740955
+        ],
+        [
+          0.23768281361020704,
+          -0.36519649802678983,
+          -0.22503483090815835
+        ],
+        [
+          0.09088874653129668,
+          -0.16743819097388188,
+          0.4681868788646375
+        ],
+        [
+          -0.07503017516828463,
+          -0.09291255882154718,
+          -0.15356692015520232
+        ],
+        [
+          -0.04547166655065846,
+          0.16011897473363665,
+          0.36781932314911847
+        ],
+        [
+          -0.12870924950336946,
+          -0.08424648640281412,
+          0.16627412287177307
+        ],
+        [
+          -0.04083062716827987,
+          0.12287868691144052,
+          -0.2838029114590398
+        ],
+        [
+          0.1833835305727006,
+          -0.005175145118856592,
+          -0.10353346606719124
+        ]
+      ],
+      "mean_mass": 20.000000000000025,
+      "distance_initial": 0.17745089989897012
+    },
+    {
+      "iteration": 1,
+      "h": 3.4562314262559104,
+      "factor_name": "alpha",
+      "factor": 0.7245268374681473,
+      "h_over_factor": 4.770329058249493,
+      "err": 336.9454450308077,
+      "quality": null,
+      "eigenvalues": [
+        1.0,
+        0.07748373630056975,
+        0.06718861226063036
+      ],
+      "tensor": "orthogonal",
+      "solver": {
+        "linear_solver": "grassman_minibatch",
+        "method": "mini_ema",
+        "loss": 144.76885314354882,
+        "profile_objective": 289.53770628709765,
+        "profile_history": [
+          308.00023021232437,
+          294.40656259980267,
+          289.53770628709765
+        ],
+        "converged": false,
+        "stop_reason": "bounded_full_finalization",
+        "certificate_scope": "full_frozen_profile",
+        "stationarity_applicable": false,
+        "gradient_norm": 10.490482314241182,
+        "riemannian_gradient": 0.0049811633365219425,
+        "local_rank_loss": 29,
+        "orthogonality_error": 1.5561542866386677e-15,
+        "full_candidate_values": {
+          "input": 308.00023021232437,
+          "last": 294.4596150138119,
+          "ema": 294.40656259980267
+        },
+        "selected_start": "ema",
+        "ema_gap": 0.9902788793465246,
+        "finalization_rejected": false,
+        "full_finalization": {
+          "linear_solver": "grassman",
+          "method": "core_gn_relative",
+          "angle_backend": "refit_quadratic",
+          "loss": 144.76885314354882,
+          "profile_objective": 289.53770628709765,
+          "loss_history": [
+            147.20328129990133,
+            145.9410769982336,
+            145.309249114789,
+            144.97068785735715,
+            144.76885314354882
+          ],
+          "profile_history": [
+            294.40656259980267,
+            291.8821539964672,
+            290.618498229578,
+            289.9413757147143,
+            289.53770628709765
+          ],
+          "converged": false,
+          "stop_reason": "max_steps",
+          "accepted_steps": 4,
+          "iterations": 4,
+          "riemannian_gradient": 0.0049811633365219425,
+          "gradient_norm": 10.490482314241182,
+          "local_rank_loss": 29,
+          "stationarity_applicable": false,
+          "orthogonality_error": 1.5561542866386677e-15,
+          "step_ranks": [
+            3,
+            3,
+            3,
+            3
+          ],
+          "profile_evaluations": 4,
+          "gn_solves": 4,
+          "rank_guard_fallbacks": 0,
+          "workspace_fallbacks": 0,
+          "local_ridge": 0.0,
+          "effective_max_steps": 4,
+          "intrinsic_gn_proposals": 4,
+          "normalized_gn_proposals": 4,
+          "damping_scale_fallbacks": 0,
+          "quadratic_trials": 3,
+          "constant_centers": 10
+        },
+        "mini_batch_calls": 8,
+        "mini_batch_accepted_steps": 8,
+        "mini_batch_profile_evaluations": 8,
+        "mini_batch_rank_guard_fallbacks": 0,
+        "nominal_full_center_steps": 6,
+        "full_guard_profile_evaluations": 4,
+        "local_ridge": 0.0
+      },
+      "linear_solver": "grassman_minibatch",
+      "method": "mini_ema",
+      "loss": 144.76885314354882,
+      "profile_objective": 289.53770628709765,
+      "profile_history": [
+        308.00023021232437,
+        294.40656259980267,
+        289.53770628709765
+      ],
+      "converged": false,
+      "stop_reason": "bounded_full_finalization",
+      "certificate_scope": "full_frozen_profile",
+      "stationarity_applicable": false,
+      "gradient_norm": 10.490482314241182,
+      "riemannian_gradient": 0.0049811633365219425,
+      "local_rank_loss": 29,
+      "orthogonality_error": 1.5561542866386677e-15,
+      "full_candidate_values": {
+        "input": 308.00023021232437,
+        "last": 294.4596150138119,
+        "ema": 294.40656259980267
+      },
+      "selected_start": "ema",
+      "ema_gap": 0.9902788793465246,
+      "finalization_rejected": false,
+      "full_finalization": {
+        "linear_solver": "grassman",
+        "method": "core_gn_relative",
+        "angle_backend": "refit_quadratic",
+        "loss": 144.76885314354882,
+        "profile_objective": 289.53770628709765,
+        "loss_history": [
+          147.20328129990133,
+          145.9410769982336,
+          145.309249114789,
+          144.97068785735715,
+          144.76885314354882
+        ],
+        "profile_history": [
+          294.40656259980267,
+          291.8821539964672,
+          290.618498229578,
+          289.9413757147143,
+          289.53770628709765
+        ],
+        "converged": false,
+        "stop_reason": "max_steps",
+        "accepted_steps": 4,
+        "iterations": 4,
+        "riemannian_gradient": 0.0049811633365219425,
+        "gradient_norm": 10.490482314241182,
+        "local_rank_loss": 29,
+        "stationarity_applicable": false,
+        "orthogonality_error": 1.5561542866386677e-15,
+        "step_ranks": [
+          3,
+          3,
+          3,
+          3
+        ],
+        "profile_evaluations": 4,
+        "gn_solves": 4,
+        "rank_guard_fallbacks": 0,
+        "workspace_fallbacks": 0,
+        "local_ridge": 0.0,
+        "effective_max_steps": 4,
+        "intrinsic_gn_proposals": 4,
+        "normalized_gn_proposals": 4,
+        "damping_scale_fallbacks": 0,
+        "quadratic_trials": 3,
+        "constant_centers": 10
+      },
+      "mini_batch_calls": 8,
+      "mini_batch_accepted_steps": 8,
+      "mini_batch_profile_evaluations": 8,
+      "mini_batch_rank_guard_fallbacks": 0,
+      "nominal_full_center_steps": 6,
+      "full_guard_profile_evaluations": 4,
+      "local_ridge": 0.0,
+      "k": 1,
+      "alpha": 0.7245268374681473,
+      "basis": [
+        [
+          -0.17003830967017275,
+          0.5379480945508666,
+          -0.21964212587573767
+        ],
+        [
+          -0.33263474056341497,
+          -0.11528727062789498,
+          -0.15644867293646453
+        ],
+        [
+          0.1465000412143208,
+          0.22772774584300004,
+          -0.22880574429967537
+        ],
+        [
+          0.1919749821759918,
+          0.38269067203226614,
+          0.2386103807913289
+        ],
+        [
+          0.39249533069359904,
+          0.14383473775247557,
+          0.13998431965578034
+        ],
+        [
+          -0.026359380003104362,
+          0.13684142948405287,
+          -0.1782854398446757
+        ],
+        [
+          0.5244333619879133,
+          -0.06802275939140898,
+          0.17728698621920014
+        ],
+        [
+          -0.06073770159296143,
+          0.11096604575969549,
+          0.12946399817708062
+        ],
+        [
+          -0.3736126857197517,
+          0.08074940131050719,
+          0.3847936262373706
+        ],
+        [
+          -0.06721081061565275,
+          -0.10166663506093541,
+          0.016206932016466766
+        ],
+        [
+          -0.004856655843187891,
+          -0.07724135035676673,
+          0.021366539142364742
+        ],
+        [
+          0.07691317249602676,
+          -0.2628346577289816,
+          0.0796645407360914
+        ],
+        [
+          -0.20641422387344727,
+          -0.41851695616356477,
+          0.035245377155472365
+        ],
+        [
+          0.2805772218426095,
+          -0.3106798632776484,
+          -0.24716263742604677
+        ],
+        [
+          0.10797012456611561,
+          -0.16328370202737888,
+          0.34819790645711357
+        ],
+        [
+          -0.07361682245638151,
+          -0.045657280559844,
+          -0.07154062163535754
+        ],
+        [
+          -0.046057850836981225,
+          0.2077544900933258,
+          0.390544019033386
+        ],
+        [
+          -0.1428140866196779,
+          -0.04391473581514041,
+          0.11058254008497903
+        ],
+        [
+          -0.04788860755372618,
+          0.07225875794338381,
+          -0.38483181367139785
+        ],
+        [
+          0.2353651826139519,
+          0.0035860089147029955,
+          -0.24849423914302549
+        ]
+      ],
+      "mean_mass": 20.000001477687245,
+      "distance_initial": 0.22731504066608835
+    },
+    {
+      "iteration": 2,
+      "h": 2.443924678855607,
+      "factor_name": "alpha",
+      "factor": 0.4997261017560959,
+      "h_over_factor": 4.8905283719769095,
+      "err": 297.38832259558603,
+      "quality": null,
+      "eigenvalues": [
+        1.0,
+        0.07730653206390455,
+        0.06914957736958946
+      ],
+      "tensor": "orthogonal",
+      "solver": {
+        "linear_solver": "grassman_minibatch",
+        "method": "mini_ema",
+        "loss": 145.7326981314642,
+        "profile_objective": 291.4653962629284,
+        "profile_history": [
+          306.2325548157149,
+          294.95910729449406,
+          291.4653962629284
+        ],
+        "converged": false,
+        "stop_reason": "bounded_full_finalization",
+        "certificate_scope": "full_frozen_profile",
+        "stationarity_applicable": false,
+        "gradient_norm": 10.349615155483404,
+        "riemannian_gradient": 0.006717660960191669,
+        "local_rank_loss": 28,
+        "orthogonality_error": 1.865002814500403e-15,
+        "full_candidate_values": {
+          "input": 306.2325548157149,
+          "last": 294.95910729449406,
+          "ema": 295.4064478462063
+        },
+        "selected_start": "last",
+        "ema_gap": 0.9831844096737486,
+        "finalization_rejected": false,
+        "full_finalization": {
+          "linear_solver": "grassman",
+          "method": "core_gn_relative",
+          "angle_backend": "refit_quadratic",
+          "loss": 145.7326981314642,
+          "profile_objective": 291.4653962629284,
+          "loss_history": [
+            147.47955364724706,
+            146.6843800720933,
+            146.19018999463617,
+            145.90907369407955,
+            145.7326981314642
+          ],
+          "profile_history": [
+            294.9591072944941,
+            293.3687601441866,
+            292.38037998927234,
+            291.8181473881591,
+            291.4653962629284
+          ],
+          "converged": false,
+          "stop_reason": "max_steps",
+          "accepted_steps": 4,
+          "iterations": 4,
+          "riemannian_gradient": 0.006717660960191669,
+          "gradient_norm": 10.349615155483404,
+          "local_rank_loss": 28,
+          "stationarity_applicable": false,
+          "orthogonality_error": 1.865002814500403e-15,
+          "step_ranks": [
+            1,
+            3,
+            3,
+            3
+          ],
+          "profile_evaluations": 4,
+          "gn_solves": 4,
+          "rank_guard_fallbacks": 0,
+          "workspace_fallbacks": 0,
+          "local_ridge": 0.0,
+          "effective_max_steps": 4,
+          "intrinsic_gn_proposals": 4,
+          "normalized_gn_proposals": 4,
+          "damping_scale_fallbacks": 0,
+          "quadratic_trials": 3,
+          "constant_centers": 6
+        },
+        "mini_batch_calls": 8,
+        "mini_batch_accepted_steps": 8,
+        "mini_batch_profile_evaluations": 8,
+        "mini_batch_rank_guard_fallbacks": 0,
+        "nominal_full_center_steps": 6,
+        "full_guard_profile_evaluations": 4,
+        "local_ridge": 0.0
+      },
+      "linear_solver": "grassman_minibatch",
+      "method": "mini_ema",
+      "loss": 145.7326981314642,
+      "profile_objective": 291.4653962629284,
+      "profile_history": [
+        306.2325548157149,
+        294.95910729449406,
+        291.4653962629284
+      ],
+      "converged": false,
+      "stop_reason": "bounded_full_finalization",
+      "certificate_scope": "full_frozen_profile",
+      "stationarity_applicable": false,
+      "gradient_norm": 10.349615155483404,
+      "riemannian_gradient": 0.006717660960191669,
+      "local_rank_loss": 28,
+      "orthogonality_error": 1.865002814500403e-15,
+      "full_candidate_values": {
+        "input": 306.2325548157149,
+        "last": 294.95910729449406,
+        "ema": 295.4064478462063
+      },
+      "selected_start": "last",
+      "ema_gap": 0.9831844096737486,
+      "finalization_rejected": false,
+      "full_finalization": {
+        "linear_solver": "grassman",
+        "method": "core_gn_relative",
+        "angle_backend": "refit_quadratic",
+        "loss": 145.7326981314642,
+        "profile_objective": 291.4653962629284,
+        "loss_history": [
+          147.47955364724706,
+          146.6843800720933,
+          146.19018999463617,
+          145.90907369407955,
+          145.7326981314642
+        ],
+        "profile_history": [
+          294.9591072944941,
+          293.3687601441866,
+          292.38037998927234,
+          291.8181473881591,
+          291.4653962629284
+        ],
+        "converged": false,
+        "stop_reason": "max_steps",
+        "accepted_steps": 4,
+        "iterations": 4,
+        "riemannian_gradient": 0.006717660960191669,
+        "gradient_norm": 10.349615155483404,
+        "local_rank_loss": 28,
+        "stationarity_applicable": false,
+        "orthogonality_error": 1.865002814500403e-15,
+        "step_ranks": [
+          1,
+          3,
+          3,
+          3
+        ],
+        "profile_evaluations": 4,
+        "gn_solves": 4,
+        "rank_guard_fallbacks": 0,
+        "workspace_fallbacks": 0,
+        "local_ridge": 0.0,
+        "effective_max_steps": 4,
+        "intrinsic_gn_proposals": 4,
+        "normalized_gn_proposals": 4,
+        "damping_scale_fallbacks": 0,
+        "quadratic_trials": 3,
+        "constant_centers": 6
+      },
+      "mini_batch_calls": 8,
+      "mini_batch_accepted_steps": 8,
+      "mini_batch_profile_evaluations": 8,
+      "mini_batch_rank_guard_fallbacks": 0,
+      "nominal_full_center_steps": 6,
+      "full_guard_profile_evaluations": 4,
+      "local_ridge": 0.0,
+      "k": 2,
+      "alpha": 0.4997261017560959,
+      "basis": [
+        [
+          -0.18457346194989457,
+          0.4444874340422897,
+          -0.31024350936334855
+        ],
+        [
+          -0.3428208152886114,
+          -0.20392954076297762,
+          -0.08145278977892724
+        ],
+        [
+          0.1345650385344331,
+          0.06179235980700902,
+          -0.26153916006405553
+        ],
+        [
+          0.2035359618576548,
+          0.43102028249758617,
+          -0.009542936530114454
+        ],
+        [
+          0.40364870151817933,
+          0.24304999810847264,
+          0.09118919213230062
+        ],
+        [
+          -0.019778984627292405,
+          0.08823301221074897,
+          -0.26224274215665544
+        ],
+        [
+          0.5222657006056102,
+          -0.025700205198364884,
+          0.19644537163723613
+        ],
+        [
+          -0.06604726307339094,
+          0.18211437578797418,
+          0.17816408551991844
+        ],
+        [
+          -0.36788921315913353,
+          0.22001055458168106,
+          0.4637835071467566
+        ],
+        [
+          -0.059179462616587776,
+          -0.09532570226592635,
+          0.03833968670729035
+        ],
+        [
+          -0.004872734871247224,
+          -0.157707956224458,
+          0.14423998130821247
+        ],
+        [
+          0.09446698949567729,
+          -0.11332816744540616,
+          0.15943004178923553
+        ],
+        [
+          -0.18972628170158592,
+          -0.3501065066487328,
+          0.12932988278710295
+        ],
+        [
+          0.2826161378060319,
+          -0.3738395914602989,
+          -0.01719232879285064
+        ],
+        [
+          0.09864741865906303,
+          -0.03937855264413634,
+          0.4453313754333289
+        ],
+        [
+          -0.074858924732004,
+          -0.10027318735194787,
+          -0.15215910236251967
+        ],
+        [
+          -0.04307690555979633,
+          0.2811396606729678,
+          0.28885108102209234
+        ],
+        [
+          -0.1393882015043936,
+          -0.03659246865925731,
+          0.1864977099209727
+        ],
+        [
+          -0.05287334650796951,
+          -0.045115121260338634,
+          -0.22633064200489666
+        ],
+        [
+          0.21295273865784103,
+          -0.13786146768244317,
+          -0.10235404782087298
+        ]
+      ],
+      "mean_mass": 20.000000105391795,
+      "distance_initial": 0.23896018521509926
+    },
+    {
+      "iteration": 3,
+      "h": 1.728115713127955,
+      "factor_name": "alpha",
+      "factor": 0.3330649584531784,
+      "h_over_factor": 5.188524548345394,
+      "err": 261.832777885122,
+      "quality": null,
+      "eigenvalues": [
+        1.0,
+        0.10309488652224588,
+        0.07503317041526651
+      ],
+      "tensor": "orthogonal",
+      "solver": {
+        "linear_solver": "grassman_minibatch",
+        "method": "mini_ema",
+        "loss": 136.74618333167996,
+        "profile_objective": 273.4923666633599,
+        "profile_history": [
+          296.6658934336127,
+          276.893098612021,
+          273.4923666633599
+        ],
+        "converged": false,
+        "stop_reason": "bounded_full_finalization",
+        "certificate_scope": "full_frozen_profile",
+        "stationarity_applicable": false,
+        "gradient_norm": 9.552315226805737,
+        "riemannian_gradient": 0.007277588641814854,
+        "local_rank_loss": 28,
+        "orthogonality_error": 2.9256675857762306e-15,
+        "full_candidate_values": {
+          "input": 296.6658934336127,
+          "last": 276.893098612021,
+          "ema": 278.2346391697505
+        },
+        "selected_start": "last",
+        "ema_gap": 0.9815554401805315,
+        "finalization_rejected": false,
+        "full_finalization": {
+          "linear_solver": "grassman",
+          "method": "core_gn_relative",
+          "angle_backend": "refit_quadratic",
+          "loss": 136.74618333167996,
+          "profile_objective": 273.4923666633599,
+          "loss_history": [
+            138.4465493060105,
+            137.58610953105293,
+            137.06522310354703,
+            136.84940718402328,
+            136.74618333167996
+          ],
+          "profile_history": [
+            276.893098612021,
+            275.17221906210585,
+            274.13044620709405,
+            273.69881436804656,
+            273.4923666633599
+          ],
+          "converged": false,
+          "stop_reason": "max_steps",
+          "accepted_steps": 4,
+          "iterations": 4,
+          "riemannian_gradient": 0.007277588641814854,
+          "gradient_norm": 9.552315226805737,
+          "local_rank_loss": 28,
+          "stationarity_applicable": false,
+          "orthogonality_error": 2.9256675857762306e-15,
+          "step_ranks": [
+            2,
+            3,
+            3,
+            3
+          ],
+          "profile_evaluations": 4,
+          "gn_solves": 4,
+          "rank_guard_fallbacks": 0,
+          "workspace_fallbacks": 0,
+          "local_ridge": 0.0,
+          "effective_max_steps": 4,
+          "intrinsic_gn_proposals": 4,
+          "normalized_gn_proposals": 4,
+          "damping_scale_fallbacks": 0,
+          "quadratic_trials": 3,
+          "constant_centers": 6
+        },
+        "mini_batch_calls": 8,
+        "mini_batch_accepted_steps": 8,
+        "mini_batch_profile_evaluations": 8,
+        "mini_batch_rank_guard_fallbacks": 0,
+        "nominal_full_center_steps": 6,
+        "full_guard_profile_evaluations": 4,
+        "local_ridge": 0.0
+      },
+      "linear_solver": "grassman_minibatch",
+      "method": "mini_ema",
+      "loss": 136.74618333167996,
+      "profile_objective": 273.4923666633599,
+      "profile_history": [
+        296.6658934336127,
+        276.893098612021,
+        273.4923666633599
+      ],
+      "converged": false,
+      "stop_reason": "bounded_full_finalization",
+      "certificate_scope": "full_frozen_profile",
+      "stationarity_applicable": false,
+      "gradient_norm": 9.552315226805737,
+      "riemannian_gradient": 0.007277588641814854,
+      "local_rank_loss": 28,
+      "orthogonality_error": 2.9256675857762306e-15,
+      "full_candidate_values": {
+        "input": 296.6658934336127,
+        "last": 276.893098612021,
+        "ema": 278.2346391697505
+      },
+      "selected_start": "last",
+      "ema_gap": 0.9815554401805315,
+      "finalization_rejected": false,
+      "full_finalization": {
+        "linear_solver": "grassman",
+        "method": "core_gn_relative",
+        "angle_backend": "refit_quadratic",
+        "loss": 136.74618333167996,
+        "profile_objective": 273.4923666633599,
+        "loss_history": [
+          138.4465493060105,
+          137.58610953105293,
+          137.06522310354703,
+          136.84940718402328,
+          136.74618333167996
+        ],
+        "profile_history": [
+          276.893098612021,
+          275.17221906210585,
+          274.13044620709405,
+          273.69881436804656,
+          273.4923666633599
+        ],
+        "converged": false,
+        "stop_reason": "max_steps",
+        "accepted_steps": 4,
+        "iterations": 4,
+        "riemannian_gradient": 0.007277588641814854,
+        "gradient_norm": 9.552315226805737,
+        "local_rank_loss": 28,
+        "stationarity_applicable": false,
+        "orthogonality_error": 2.9256675857762306e-15,
+        "step_ranks": [
+          2,
+          3,
+          3,
+          3
+        ],
+        "profile_evaluations": 4,
+        "gn_solves": 4,
+        "rank_guard_fallbacks": 0,
+        "workspace_fallbacks": 0,
+        "local_ridge": 0.0,
+        "effective_max_steps": 4,
+        "intrinsic_gn_proposals": 4,
+        "normalized_gn_proposals": 4,
+        "damping_scale_fallbacks": 0,
+        "quadratic_trials": 3,
+        "constant_centers": 6
+      },
+      "mini_batch_calls": 8,
+      "mini_batch_accepted_steps": 8,
+      "mini_batch_profile_evaluations": 8,
+      "mini_batch_rank_guard_fallbacks": 0,
+      "nominal_full_center_steps": 6,
+      "full_guard_profile_evaluations": 4,
+      "local_ridge": 0.0,
+      "k": 3,
+      "alpha": 0.3330649584531784,
+      "basis": [
+        [
+          -0.18077667235113232,
+          0.5066577362329896,
+          -0.24165233630002397
+        ],
+        [
+          -0.35421706963491556,
+          -0.1603267250962166,
+          -0.10102518557044284
+        ],
+        [
+          0.1529375837927971,
+          0.14137013454294833,
+          -0.27423349408394015
+        ],
+        [
+          0.2072231839835289,
+          0.42050480942083635,
+          0.16311570088827718
+        ],
+        [
+          0.39671492247889506,
+          0.1732448349584899,
+          0.07956026039202786
+        ],
+        [
+          -0.03048558166057427,
+          0.12475417990006606,
+          -0.22927099807552626
+        ],
+        [
+          0.5180957952479005,
+          -0.005166824246378415,
+          0.1989093716439692
+        ],
+        [
+          -0.04869787083734158,
+          0.11703045779671743,
+          0.26028787828369115
+        ],
+        [
+          -0.3772608744455888,
+          0.14040395114350218,
+          0.3180249146749903
+        ],
+        [
+          -0.08144063093324454,
+          -0.04540188509714653,
+          0.22050412664403204
+        ],
+        [
+          -0.01735440321664438,
+          -0.04870510804780169,
+          0.05871503381433897
+        ],
+        [
+          0.0771892005759093,
+          -0.16160966649675299,
+          0.18345762376237373
+        ],
+        [
+          -0.19352734394591645,
+          -0.3110876805705925,
+          0.06732295510613044
+        ],
+        [
+          0.25975551763979376,
+          -0.43787328900484673,
+          -0.1465938511579462
+        ],
+        [
+          0.08217369959626845,
+          -0.08342679013978768,
+          0.49321213821105303
+        ],
+        [
+          -0.0702259442785537,
+          -0.16319832014018612,
+          -0.05683549462842037
+        ],
+        [
+          -0.04858632517770015,
+          0.2682447149908424,
+          0.260281565471388
+        ],
+        [
+          -0.13971391917697543,
+          -0.08043820145363173,
+          0.17870442186863236
+        ],
+        [
+          -0.041137345382824556,
+          0.07638705140715987,
+          -0.26372035734996013
+        ],
+        [
+          0.22585687639684984,
+          -0.06968499642225089,
+          -0.18646900504435715
+        ]
+      ],
+      "mean_mass": 20.000005257448336,
+      "distance_initial": 0.15665064056262204
+    },
+    {
+      "iteration": 4,
+      "h": 1.2219623394278034,
+      "factor_name": "alpha",
+      "factor": 0.2143501490354538,
+      "h_over_factor": 5.700776719430642,
+      "err": 208.32942346991172,
+      "quality": null,
+      "eigenvalues": [
+        1.0,
+        0.1334644807076187,
+        0.09129391025701696
+      ],
+      "tensor": "orthogonal",
+      "solver": {
+        "linear_solver": "grassman_minibatch",
+        "method": "mini_ema",
+        "loss": 114.45878595455719,
+        "profile_objective": 228.9175719091144,
+        "profile_history": [
+          257.751110005615,
+          231.82338882621485,
+          228.9175719091144
+        ],
+        "converged": false,
+        "stop_reason": "bounded_full_finalization",
+        "certificate_scope": "full_frozen_profile",
+        "stationarity_applicable": false,
+        "gradient_norm": 11.484639339513047,
+        "riemannian_gradient": 0.009782565708926556,
+        "local_rank_loss": 27,
+        "orthogonality_error": 1.5206600238648117e-15,
+        "full_candidate_values": {
+          "input": 257.751110005615,
+          "last": 231.82338882621485,
+          "ema": 233.6388009287652
+        },
+        "selected_start": "last",
+        "ema_gap": 0.9914866033498252,
+        "finalization_rejected": false,
+        "full_finalization": {
+          "linear_solver": "grassman",
+          "method": "core_gn_relative",
+          "angle_backend": "refit_quadratic",
+          "loss": 114.4587859545572,
+          "profile_objective": 228.9175719091144,
+          "loss_history": [
+            115.91169441310743,
+            114.88645731315867,
+            114.59232716852506,
+            114.49211032293732,
+            114.45878595455719
+          ],
+          "profile_history": [
+            231.82338882621485,
+            229.77291462631734,
+            229.18465433705012,
+            228.98422064587464,
+            228.91757190911437
+          ],
+          "converged": false,
+          "stop_reason": "max_steps",
+          "accepted_steps": 4,
+          "iterations": 4,
+          "riemannian_gradient": 0.009782565708926556,
+          "gradient_norm": 11.484639339513047,
+          "local_rank_loss": 27,
+          "stationarity_applicable": false,
+          "orthogonality_error": 1.5206600238648117e-15,
+          "step_ranks": [
+            3,
+            3,
+            3,
+            2
+          ],
+          "profile_evaluations": 4,
+          "gn_solves": 4,
+          "rank_guard_fallbacks": 0,
+          "workspace_fallbacks": 0,
+          "local_ridge": 0.0,
+          "effective_max_steps": 4,
+          "intrinsic_gn_proposals": 4,
+          "normalized_gn_proposals": 4,
+          "damping_scale_fallbacks": 0,
+          "quadratic_trials": 3,
+          "constant_centers": 8
+        },
+        "mini_batch_calls": 8,
+        "mini_batch_accepted_steps": 8,
+        "mini_batch_profile_evaluations": 8,
+        "mini_batch_rank_guard_fallbacks": 0,
+        "nominal_full_center_steps": 6,
+        "full_guard_profile_evaluations": 4,
+        "local_ridge": 0.0
+      },
+      "linear_solver": "grassman_minibatch",
+      "method": "mini_ema",
+      "loss": 114.45878595455719,
+      "profile_objective": 228.9175719091144,
+      "profile_history": [
+        257.751110005615,
+        231.82338882621485,
+        228.9175719091144
+      ],
+      "converged": false,
+      "stop_reason": "h_min",
+      "certificate_scope": "full_frozen_profile",
+      "stationarity_applicable": false,
+      "gradient_norm": 11.484639339513047,
+      "riemannian_gradient": 0.009782565708926556,
+      "local_rank_loss": 27,
+      "orthogonality_error": 1.5206600238648117e-15,
+      "full_candidate_values": {
+        "input": 257.751110005615,
+        "last": 231.82338882621485,
+        "ema": 233.6388009287652
+      },
+      "selected_start": "last",
+      "ema_gap": 0.9914866033498252,
+      "finalization_rejected": false,
+      "full_finalization": {
+        "linear_solver": "grassman",
+        "method": "core_gn_relative",
+        "angle_backend": "refit_quadratic",
+        "loss": 114.4587859545572,
+        "profile_objective": 228.9175719091144,
+        "loss_history": [
+          115.91169441310743,
+          114.88645731315867,
+          114.59232716852506,
+          114.49211032293732,
+          114.45878595455719
+        ],
+        "profile_history": [
+          231.82338882621485,
+          229.77291462631734,
+          229.18465433705012,
+          228.98422064587464,
+          228.91757190911437
+        ],
+        "converged": false,
+        "stop_reason": "max_steps",
+        "accepted_steps": 4,
+        "iterations": 4,
+        "riemannian_gradient": 0.009782565708926556,
+        "gradient_norm": 11.484639339513047,
+        "local_rank_loss": 27,
+        "stationarity_applicable": false,
+        "orthogonality_error": 1.5206600238648117e-15,
+        "step_ranks": [
+          3,
+          3,
+          3,
+          2
+        ],
+        "profile_evaluations": 4,
+        "gn_solves": 4,
+        "rank_guard_fallbacks": 0,
+        "workspace_fallbacks": 0,
+        "local_ridge": 0.0,
+        "effective_max_steps": 4,
+        "intrinsic_gn_proposals": 4,
+        "normalized_gn_proposals": 4,
+        "damping_scale_fallbacks": 0,
+        "quadratic_trials": 3,
+        "constant_centers": 8
+      },
+      "mini_batch_calls": 8,
+      "mini_batch_accepted_steps": 8,
+      "mini_batch_profile_evaluations": 8,
+      "mini_batch_rank_guard_fallbacks": 0,
+      "nominal_full_center_steps": 6,
+      "full_guard_profile_evaluations": 4,
+      "local_ridge": 0.0,
+      "k": 4,
+      "alpha": 0.2143501490354538,
+      "basis": [
+        [
+          -0.16346646285718136,
+          0.5361025608076879,
+          -0.2648846741761099
+        ],
+        [
+          -0.363629043090733,
+          -0.1613224719856473,
+          -0.0623696959024056
+        ],
+        [
+          0.1488316424868965,
+          0.195440298776764,
+          -0.334052577085698
+        ],
+        [
+          0.2222102258399761,
+          0.4137777932126978,
+          0.22627722688462704
+        ],
+        [
+          0.42193935040725117,
+          0.12300614600346021,
+          0.0987961792159079
+        ],
+        [
+          -0.07826637611184276,
+          0.13207400773662656,
+          -0.10440243432699828
+        ],
+        [
+          0.5379168481758954,
+          -0.06777956053258313,
+          0.13882248134433162
+        ],
+        [
+          -0.022014266170589138,
+          0.12850059671975267,
+          0.19840216403608552
+        ],
+        [
+          -0.3720066034324172,
+          0.1469694379702945,
+          0.3423292223225226
+        ],
+        [
+          -0.06676776557955784,
+          -0.02458679425542655,
+          0.23047941618600656
+        ],
+        [
+          -0.009052980307541841,
+          -0.03621548963729612,
+          0.023095721505338528
+        ],
+        [
+          0.10392613446162999,
+          -0.18999649081986872,
+          0.06461523377329245
+        ],
+        [
+          -0.1767874512744956,
+          -0.3396467359860031,
+          0.07094118680310971
+        ],
+        [
+          0.2069805774529258,
+          -0.37215174672374113,
+          -0.2013925812190857
+        ],
+        [
+          0.0964992470988244,
+          -0.07785446814626917,
+          0.47651006045624583
+        ],
+        [
+          -0.05305523923221862,
+          -0.14315783009412233,
+          -0.16076374993643866
+        ],
+        [
+          -0.04308673099675093,
+          0.2279953771592697,
+          0.2993656804315657
+        ],
+        [
+          -0.12331422943640005,
+          -0.10889199342866596,
+          0.11173712213470013
+        ],
+        [
+          -0.033994321798271804,
+          0.13860229494514664,
+          -0.2793703423097247
+        ],
+        [
+          0.19327994567590534,
+          -0.020064520422841757,
+          -0.17374735357573703
+        ]
+      ],
+      "mean_mass": 20.000002606820857,
+      "distance_initial": 0.19506560552696797
+    }
+  ],
+  "diagnostics": {
+    "linear_solver": "grassman_minibatch",
+    "method": "mini_ema",
+    "loss": 114.45878595455719,
+    "profile_objective": 228.9175719091144,
+    "profile_history": [
+      257.751110005615,
+      231.82338882621485,
+      228.9175719091144
+    ],
+    "converged": false,
+    "stop_reason": "bounded_full_finalization",
+    "certificate_scope": "full_frozen_profile",
+    "stationarity_applicable": false,
+    "gradient_norm": 11.484639339513047,
+    "riemannian_gradient": 0.009782565708926556,
+    "local_rank_loss": 27,
+    "orthogonality_error": 1.5206600238648117e-15,
+    "full_candidate_values": {
+      "input": 257.751110005615,
+      "last": 231.82338882621485,
+      "ema": 233.6388009287652
+    },
+    "selected_start": "last",
+    "ema_gap": 0.9914866033498252,
+    "finalization_rejected": false,
+    "full_finalization": {
+      "linear_solver": "grassman",
+      "method": "core_gn_relative",
+      "angle_backend": "refit_quadratic",
+      "loss": 114.4587859545572,
+      "profile_objective": 228.9175719091144,
+      "loss_history": [
+        115.91169441310743,
+        114.88645731315867,
+        114.59232716852506,
+        114.49211032293732,
+        114.45878595455719
+      ],
+      "profile_history": [
+        231.82338882621485,
+        229.77291462631734,
+        229.18465433705012,
+        228.98422064587464,
+        228.91757190911437
+      ],
+      "converged": false,
+      "stop_reason": "max_steps",
+      "accepted_steps": 4,
+      "iterations": 4,
+      "riemannian_gradient": 0.009782565708926556,
+      "gradient_norm": 11.484639339513047,
+      "local_rank_loss": 27,
+      "stationarity_applicable": false,
+      "orthogonality_error": 1.5206600238648117e-15,
+      "step_ranks": [
+        3,
+        3,
+        3,
+        2
+      ],
+      "profile_evaluations": 4,
+      "gn_solves": 4,
+      "rank_guard_fallbacks": 0,
+      "workspace_fallbacks": 0,
+      "local_ridge": 0.0,
+      "effective_max_steps": 4,
+      "intrinsic_gn_proposals": 4,
+      "normalized_gn_proposals": 4,
+      "damping_scale_fallbacks": 0,
+      "quadratic_trials": 3,
+      "constant_centers": 8
+    },
+    "mini_batch_calls": 8,
+    "mini_batch_accepted_steps": 8,
+    "mini_batch_profile_evaluations": 8,
+    "mini_batch_rank_guard_fallbacks": 0,
+    "nominal_full_center_steps": 6,
+    "full_guard_profile_evaluations": 4,
+    "local_ridge": 0.0
+  },
+  "last_diagnostics": {
+    "linear_solver": "grassman_minibatch",
+    "method": "mini_ema",
+    "loss": 114.45878595455719,
+    "profile_objective": 228.9175719091144,
+    "profile_history": [
+      257.751110005615,
+      231.82338882621485,
+      228.9175719091144
+    ],
+    "converged": false,
+    "stop_reason": "bounded_full_finalization",
+    "certificate_scope": "full_frozen_profile",
+    "stationarity_applicable": false,
+    "gradient_norm": 11.484639339513047,
+    "riemannian_gradient": 0.009782565708926556,
+    "local_rank_loss": 27,
+    "orthogonality_error": 1.5206600238648117e-15,
+    "full_candidate_values": {
+      "input": 257.751110005615,
+      "last": 231.82338882621485,
+      "ema": 233.6388009287652
+    },
+    "selected_start": "last",
+    "ema_gap": 0.9914866033498252,
+    "finalization_rejected": false,
+    "full_finalization": {
+      "linear_solver": "grassman",
+      "method": "core_gn_relative",
+      "angle_backend": "refit_quadratic",
+      "loss": 114.4587859545572,
+      "profile_objective": 228.9175719091144,
+      "loss_history": [
+        115.91169441310743,
+        114.88645731315867,
+        114.59232716852506,
+        114.49211032293732,
+        114.45878595455719
+      ],
+      "profile_history": [
+        231.82338882621485,
+        229.77291462631734,
+        229.18465433705012,
+        228.98422064587464,
+        228.91757190911437
+      ],
+      "converged": false,
+      "stop_reason": "max_steps",
+      "accepted_steps": 4,
+      "iterations": 4,
+      "riemannian_gradient": 0.009782565708926556,
+      "gradient_norm": 11.484639339513047,
+      "local_rank_loss": 27,
+      "stationarity_applicable": false,
+      "orthogonality_error": 1.5206600238648117e-15,
+      "step_ranks": [
+        3,
+        3,
+        3,
+        2
+      ],
+      "profile_evaluations": 4,
+      "gn_solves": 4,
+      "rank_guard_fallbacks": 0,
+      "workspace_fallbacks": 0,
+      "local_ridge": 0.0,
+      "effective_max_steps": 4,
+      "intrinsic_gn_proposals": 4,
+      "normalized_gn_proposals": 4,
+      "damping_scale_fallbacks": 0,
+      "quadratic_trials": 3,
+      "constant_centers": 8
+    },
+    "mini_batch_calls": 8,
+    "mini_batch_accepted_steps": 8,
+    "mini_batch_profile_evaluations": 8,
+    "mini_batch_rank_guard_fallbacks": 0,
+    "nominal_full_center_steps": 6,
+    "full_guard_profile_evaluations": 4,
+    "local_ridge": 0.0
+  },
+  "smart_weights": false,
+  "h_min": 1.0,
+  "index_dim": 3
+}

@@ -381,7 +381,8 @@ def run(args, cases: list[Case], methods: list[str]) -> int:
             "dMAVE": "outer subspace-step tolerance after reaching h_min",
         },
         ("seed_scheme"): (
-            "SeedSequence([run_seed,SHA256(case.name)[:8]]).spawn(3): "
+            "SeedSequence([run_seed,SHA256(case.data_key if not None else "
+            "case.name)[:8]]).spawn(3): "
             "basis,X,noise; method seed=SeedSequence([run_seed,1]) modulo "
             "2^31-1"
         ),
@@ -513,7 +514,7 @@ def run(args, cases: list[Case], methods: list[str]) -> int:
                         command = [
                             args.rscript,
                             "--vanilla",
-                            str(frozen / "experiments/r_sdr/worker.R"),
+                            str(frozen / "benchmarks/experiments/r_sdr/worker.R"),
                             method,
                             str(x_path),
                             str(y_path),

@@ -1,4 +1,4 @@
-source("experiments/r_sdr/methods.R")
+source("benchmarks/experiments/r_sdr/methods.R")
 set.seed(29)
 x <- matrix(rnorm(240), 60, 4) %*% diag(c(0.3, 1, 2, 4))
 y <- x[, 1] + 0.3 * x[, 2] + rnorm(60, sd=0.2)
