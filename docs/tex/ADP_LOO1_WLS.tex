@@ -1,0 +1,1079 @@
+% Сборка из корня worktree (ветка feat/loo1-wls-adp):
+% lualatex -halt-on-error -interaction=nonstopmode -output-directory=docs/tex docs/tex/ADP_LOO1_WLS.tex
+% Команду выполнить дважды для оглавления и перекрёстных ссылок.
+\documentclass[11pt,a4paper]{article}
+\usepackage{fontspec}
+\setmainfont{Noto Serif}
+\setsansfont{Noto Sans}
+\setmonofont[Scale=0.84]{DejaVu Sans Mono}
+\usepackage[russian]{babel}
+\usepackage[margin=23mm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{booktabs,tabularx,array}
+\usepackage{enumitem,microtype,xurl}
+\usepackage[unicode,hidelinks]{hyperref}
+\usepackage{bookmark}
+
+\hypersetup{
+  pdftitle={LOO1-WLS-ADP с субкритической анизотропией для многоиндексного снижения размерности},
+  pdfauthor={},
+  pdfsubject={Диагностика, математическая теория, реализация и верификация}
+}
+
+\setlist{itemsep=2.5pt,topsep=4pt}
+\setlength{\emergencystretch}{2.5em}
+\setlength{\parskip}{3pt}
+\numberwithin{equation}{section}
+
+\newtheorem{theorem}{Теорема}[section]
+\newtheorem{proposition}[theorem]{Утверждение}
+\newtheorem{lemma}[theorem]{Лемма}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Определение}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Замечание}
+\newtheorem{example}[theorem]{Контрпример}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Cov}{\operatorname{Cov}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\tr}{\operatorname{tr}}
+\newcommand{\rank}{\operatorname{rank}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\col}{\operatorname{col}}
+\newcommand{\supp}{\operatorname{supp}}
+\newcommand{\Gr}{\operatorname{Gr}}
+\newcommand{\St}{\operatorname{St}}
+\newcommand{\T}{^{\mathsf T}}
+\newcommand{\F}{_{\mathrm{F}}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\abs}[1]{\left\lvert #1 \right\rvert}
+\newcommand{\ip}[2]{\left\langle #1, #2 \right\rangle}
+\newcommand{\code}[1]{\nolinkurl{#1}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+\title{Улучшение многоиндексной процедуры средних производных (ADP):\\
+\large функционал \texttt{LOO1-WLS}, субкритический спектр анизотропии,\\
+векторизованная реализация и парная верификация}
+\author{}
+\date{Ветка \texttt{feat/loo1-wls-adp}, 19 ноября 2026 года}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+В работе формализованы диагностика потери слабовыраженных направлений в текущей
+многоиндексной реализации Average Derivative Procedure (ADP), сравнительный
+анализ четырёх семейств модификаций (с учётом контрпримеров к промежуточным
+конструкциям), строгие свойства выбранного opt-in варианта \code{estimator="loo1_wls"}
+(\texttt{LOO1-WLS-ADP} с субкритическим спектром анизотропии и $R^{-1}$-предобусловленным
+решателем на многообразии Грассмана), его архитектура для режима $N_J \approx n$
+при больших $(n,d)$, а также результаты юнит-тестирования (80 тестов),
+независимого аудита кода и однопоточного парного бенчмарка (290 прогонов).
+Все математические утверждения сформулированы с явными предположениями;
+оставшиеся теоретические и эмпирические пробелы выделены отдельно.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ============================================================================
+\section{Постановка задачи и обозначения}
+\label{sec:setup}
+
+Рассматриваются наблюдения $(x_i, y_i)_{i=1}^n$, где $x_i \in \R^d$, $y_i \in \R$,
+удовлетворяющие многоиндексной регрессионной модели
+\begin{equation}\label{eq:model}
+  y_i = f(x_i) + \varepsilon_i, \qquad
+  f(x) = g(B_\star\T x), \qquad
+  \E[\varepsilon_i \mid X] = 0, \qquad
+  \Cov(\varepsilon_i, \varepsilon_r \mid X) = \sigma_i^2 \delta_{ir},
+\end{equation}
+с ортонормированной матрицей $B_\star \in \St(d,m) = \{Y \in \R^{d \times m} : Y\T Y = I_m\}$,
+заданной размерностью $1 \le m < d$ и неизвестной функцией связи $g : \R^m \to \R$.
+Целью оценивания является подпространство эффективного снижения размерности
+(EDR-подпространство) $S_\star = \col(B_\star) \in \Gr(d,m)$, а не конкретный базис.
+Качество оценки $\widehat{B} \in \St(d,m)$ измеряется проекторным расстоянием
+\begin{equation}\label{eq:edr-metric}
+  D(\widehat{P}, P_\star)
+  := \frac{1}{\sqrt{2m}} \norm{\widehat{P} - P_\star}\F
+  = \sqrt{\frac{1}{m}\sum_{a=1}^m \sin^2 \theta_a} \in [0, 1],
+\end{equation}
+где $\widehat{P} = \widehat{B}\widehat{B}\T$, $P_\star = B_\star B_\star\T$,
+а $\theta_1, \dots, \theta_m \in [0, \pi/2]$ — главные углы между $\col(\widehat{B})$ и $S_\star$.
+
+\paragraph{Алгоритмическое ограничение.}
+Требуется устранить потерю слабых направлений внутри существующего каркаса
+многоиндексного ADP, сохранив локализацию вокруг центров $c_1, \dots, c_J \in \R^d$,
+анизотропный метрический тензор $A_k$, геометрическое уменьшение ширины окна
+$h_{k+1} = h_k / a$ ($a > 1$) и подбор $\alpha_k \in [0,1]$ по средней локальной массе $N_{\mathrm{loc}}$.
+Поведение существующих режимов \code{estimator="new"} и \code{estimator="legacy"}
+не должно изменяться; новый метод оформляется как явный opt-in вариант класса
+\texttt{ESTIMATOR}.
+
+\begin{table}[htbp]
+\centering
+\caption{Основные обозначения.}
+\label{tab:notation}
+\small
+\begin{tabularx}{\textwidth}{@{}llY@{}}
+\toprule
+Символ & Размерность & Значение \\
+\midrule
+$X$, $y$ & $n \times d$, $n$ & матрица наблюдений и вектор откликов \\
+$c_j$, $j=1,\dots,J$ & $d$ & центры локализации ($J = N_J \le n$) \\
+$B_k$, $\ell_k$ & $d \times m$, $m$ & внешний базис ($B_k\T B_k = I_m$) и нормированный спектр ($\ell_{k,1}=1$) \\
+$h_k$, $\alpha_k$ & скаляры & ширина окна и ортогональный масштаб локализации \\
+$A_k$ & $d \times d$ & тензор локализации $A_k = h_k^{-2}[B_k\diag(\ell_k)B_k\T + \alpha_k^2(I_d - P_{B_k})]$ \\
+$w_{ji}$, $N_j$, $a_{ji}$ & скаляры & вес ядра, масса $N_j = \sum_i w_{ji} > 0$, нормированный вес $a_{ji} = w_{ji}/N_j$ \\
+$\mathcal{I}_j$, $k_j$, $E$ & множества/числа & носитель $\mathcal{I}_j = \{i : w_{ji} > 0\}$, $k_j = |\mathcal{I}_j|$, $E = \sum_j k_j = \mathrm{nnz}(W)$ \\
+$\mu_j$, $\bar{y}_j$ & $d$, скаляр & локальные взвешенные средние $\sum_i a_{ji} x_i$, $\sum_i a_{ji} y_i$ \\
+$\Sigma_j$, $\widetilde{\Sigma}_j$ & $d \times d$ & $\sum_i a_{ji}(x_i-\mu_j)(x_i-\mu_j)\T$ и $\sum_i a_{ji}^2(x_i-\mu_j)(x_i-\mu_j)\T$ \\
+$c_j^{xy}$ & $d$ & локальная ковариация $\sum_i a_{ji}(x_i-\mu_j)(y_i-\bar{y}_j)$ \\
+$Y$, $c_j$ & $d \times m$, $m$ & оптимизируемый базис и локальные коэффициенты регрессии \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ============================================================================
+\section{Диагностика ограничений текущего multi-index ADP}
+\label{sec:diagnosis}
+
+В текущей реализации (\code{estimator="new"}) на каждом внешнем шаге генерируется
+случайный скетч $\Phi_j \in \R^{p \times d}$ ($p = N_\phi$), формируются локальные
+статистики $I_j = \Phi_j c_j^{xy} \in \R^p$ и $U_j = \Phi_j \Sigma_j \in \R^{p \times d}$,
+после чего внутренний решатель минимизирует профилированный функционал
+\begin{equation}\label{eq:F0}
+  F_0(Y) := \sum_{j=1}^J N_j \min_{g_j \in \R^m} \norm{I_j - U_j Y g_j}_2^2,
+  \qquad Y \in \St(d,m).
+\end{equation}
+Ниже установлены три независимых механизма, приводящих к потере слабых направлений.
+
+\begin{theorem}[Шумовое седло в $F_0$ и инфляция дисперсии скетча]
+\label{thm:noise-saddle}
+Пусть модель~\eqref{eq:model} гомоскедастична ($\sigma_i^2 \equiv \sigma^2$),
+и при фиксированном $X$ шум $\xi_j := \sum_{i=1}^n a_{ji}(x_i - \mu_j)(\varepsilon_i - \bar\varepsilon_j)$
+входит в $c_j^{xy} = c_j^{xf} + \xi_j$.
+\begin{enumerate}[label=(\alph*)]
+  \item Поскольку $\sum_{i=1}^n a_{ji}(x_i - \mu_j) = 0$, тождественно выполнено
+  $\xi_j = \sum_{i=1}^n a_{ji}(x_i - \mu_j)\varepsilon_i$ и
+  \begin{equation}\label{eq:xi-cov}
+    \Cov(\xi_j \mid X) = \sigma^2 \widetilde{\Sigma}_j.
+  \end{equation}
+  \item Пусть $\Phi_j = I_d$ (нескетченный функционал $F_{\mathrm{unsk}}$),
+  $c_j^{xf} = \Sigma_j B_\star \gamma_j$, а ковариации блочно-диагональны в базисе $B_\star$:
+  $\Sigma_j = B_\star \diag(\sigma_{j,a}^2) B_\star\T + \sigma_{j,\perp}^2 (I_d - P_\star)$,
+  $\widetilde{\Sigma}_j = B_\star \diag(\omega_{j,a}) B_\star\T + \omega_{j,\perp} (I_d - P_\star)$.
+  Рассмотрим поворот $a$-й оси $B_\star$ на угол $\theta \in [0, \pi/2]$ в единичное
+  направление $u_\perp \in S_\star^\perp$:
+  $Y_a(\theta)$ заменяет столбец $b_{\star,a}$ на $b_{\star,a}\cos\theta + u_\perp \sin\theta$.
+  Тогда для всех $\theta \in [0, \pi/2]$ верно точное тождество
+  \begin{equation}\label{eq:saddle-identity}
+    \E_\varepsilon\!\left[F_{\mathrm{unsk}}(Y_a(\theta)) - F_{\mathrm{unsk}}(B_\star) \mid X\right]
+    = \sum_{j=1}^J N_j \frac{\sigma_{j,\perp}^4 \sin^2\theta}{\sigma_{j,a}^4 \cos^2\theta + \sigma_{j,\perp}^4 \sin^2\theta}
+      \Bigl(\gamma_{j,a}^2 \sigma_{j,a}^4 - \sigma^2(\omega_{j,\perp} - \omega_{j,a})\Bigr).
+  \end{equation}
+  Если $\gamma_{j,a}^2 \sigma_{j,a}^4 < \sigma^2(\omega_{j,\perp} - \omega_{j,a})$
+  для всех $j$ (в анизотропном окне при $h_k \downarrow 0$ и $\sigma_{j,\perp} \gg \sigma_{j,a}$
+  порог растёт как $\gamma_a^2 \lesssim \sigma^2 / (n_{\mathrm{eff}} h_k^4)$),
+  то истинное подпространство $B_\star$ является неустойчивым седлом,
+  а $\E_\varepsilon[F_{\mathrm{unsk}}(Y_a(\theta)) \mid X]$ строго убывает от $\theta = 0$ к $\theta = \pi/2$.
+  \item Для случайного гауссовского скетча $\Phi_j$ с независимыми строками
+  $N(0, I_d)$ при $Y = B_\star$ и $p \ge m + 2$ ковариация локального коэффициента
+  $g_j^{\mathrm{ADP}} = (U_j B_\star)^+ I_j$ удовлетворяет
+  \begin{equation}\label{eq:sketch-inflation}
+    \E_{\Phi_j}\!\bigl[\Cov_\varepsilon(g_j^{\mathrm{ADP}} \mid X, \Phi_j)\bigr]
+    = \sigma^2 \Sigma_{j,\parallel}^{-1}\!\left(\Omega_{j,\parallel}
+      + \frac{d-m}{p-m-1}\omega_{j,\perp} I_m\right)\!\Sigma_{j,\parallel}^{-1},
+  \end{equation}
+  где $\Sigma_{j,\parallel} = B_\star\T \Sigma_j B_\star$, $\Omega_{j,\parallel} = B_\star\T \widetilde{\Sigma}_j B_\star$.
+  При $p = m + 1$ (допустимом текущей проверкой \code{N_phi > index_dim} в \code{ADP/engine/common/index_fit.py})
+  дисперсия бесконечна; то же верно для сферического скетча $\phi_{js} \sim \mathrm{Unif}(\mathbb{S}^{d-1})$ при $m=1$, $p=2$.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+Пункт~(a) следует напрямую из линейности: $\sum_i a_{ji}(x_i-\mu_j)\bar\varepsilon_j = 0$,
+поэтому $\Cov(\xi_j \mid X) = \sum_i a_{ji}^2 (x_i-\mu_j)(x_i-\mu_j)\T \sigma^2 = \sigma^2 \widetilde{\Sigma}_j$.
+В пункте~(b) при $Y = Y_a(\theta)$ пространство $\col(\Sigma_j Y_a(\theta))$ ортогонально
+разлагается на $(m-1)$-мерное подпространство $\{\Sigma_j b_{\star,r}\}_{r \ne a}$
+и одномерное направление $v(\theta) = \sigma_{j,a}^2 \cos\theta\, b_{\star,a} + \sigma_{j,\perp}^2 \sin\theta\, u_\perp$.
+Норма квадрата $v(\theta)$ равна $D_j(\theta) = \sigma_{j,a}^4 \cos^2\theta + \sigma_{j,\perp}^4 \sin^2\theta$.
+Вычисляя проекцию сигнала $\Sigma_j B_\star \gamma_j$ и след проекции шумовой ковариации
+$\sigma^2 \widetilde{\Sigma}_j$ на $v(\theta)$ и вычитая значения при $\theta = 0$, получаем
+\[
+  \gamma_{j,a}^2 \sigma_{j,a}^4 \left(1 - \frac{\sigma_{j,a}^4 \cos^2\theta}{D_j(\theta)}\right)
+  + \sigma^2 \left(\omega_{j,a} - \frac{\omega_{j,a}\sigma_{j,a}^4\cos^2\theta + \omega_{j,\perp}\sigma_{j,\perp}^4\sin^2\theta}{D_j(\theta)}\right),
+\]
+что после приведения к общему знаменателю даёт~\eqref{eq:saddle-identity}.
+В пункте~(c) разложение $\Phi_j = \Phi_{j,\parallel} B_\star\T + \Phi_{j,\perp}(I_d - P_\star)$
+даёт независимые $\Phi_{j,\parallel} \in \R^{p \times m}$ и $\Phi_{j,\perp} \in \R^{p \times (d-m)}$,
+откуда $\Cov_\varepsilon(g_j^{\mathrm{ADP}} \mid X, \Phi_j) = \sigma^2 \Sigma_{j,\parallel}^{-1}
+[\Omega_{j,\parallel} + \omega_{j,\perp}(\Phi_{j,\parallel}\T \Phi_{j,\parallel})^{-1} \Phi_{j,\parallel}\T \Phi_{j,\perp} \Phi_{j,\perp}\T \Phi_{j,\parallel} (\Phi_{j,\parallel}\T \Phi_{j,\parallel})^{-1}] \Sigma_{j,\parallel}^{-1}$.
+Усреднение по $\Phi_{j,\perp}$ даёт $\E[\Phi_{j,\perp}\Phi_{j,\perp}\T] = (d-m) I_p$,
+а для обратного распределения Уишарта $(\Phi_{j,\parallel}\T \Phi_{j,\parallel})^{-1} \sim W_m^{-1}(I_m, p)$
+имеем $\E[(\Phi_{j,\parallel}\T \Phi_{j,\parallel})^{-1}] = (p - m - 1)^{-1} I_m$ при $p \ge m+2$ и $\infty$ при $p = m+1$.
+\end{proof}
+
+\begin{theorem}[Квадратичный коллапс спектра анизотропии в текущей реализации]
+\label{thm:quad-collapse}
+В текущей функции \code{canonical_index} (\code{ADP/engine/common/index_fit.py})
+спектр локализации обновляется по квадратам сингулярных чисел $\ell_{k+1,a} = s_a^2 / s_1^2$ ($\beta = 2$).
+Пусть $X \sim N(0, I_d)$, $f(x) = g_1(x_1) + \frac{\varepsilon}{2} x_2^2$ ($\varepsilon > 0$),
+центрированное гауссовское окно имеет точность $A_k = h^{-2}\diag(1, \ell_k, \alpha^2, \dots, \alpha^2)$
+при фиксированных $h > 0$ и энергии первой оси $s_1 > 0$.
+Тогда в популяционном пределе при $B_k = B_\star$ нормированный локальный градиент вдоль $x_2$
+имеет среднеквадратичную норму $s_2(\ell_k) = \varepsilon \frac{\ell_k}{h^2 + \ell_k}$,
+и рекурсия $\ell_{k+1} = (s_2(\ell_k) / s_1)^2$ при $\varepsilon < 2 s_1 h$ не имеет положительных
+неподвижных точек, так что $\ell_k \to 0$ суперэкспоненциально из любого $\ell_0 > 0$.
+\end{theorem}
+
+\begin{proof}
+При $X \sim N(0, I_d)$ и гауссовском ядре с точностью $\tau_2 = \ell_k / h^2$ по координате $x_2$
+условное среднее по окну с центром $c \sim N(0, I_d)$ равно $\mu_{1,2}(c) = \frac{\tau_2}{1 + \tau_2} c_2 = \frac{\ell_k}{h^2 + \ell_k} c_2$.
+Для $f_2(x_2) = \frac{\varepsilon}{2} x_2^2$ имеем локальный линейный наклон
+$b_{2}(c) = \varepsilon \mu_{1,2}(c)$, откуда $s_2(\ell_k) = \sqrt{\E_c[b_2(c)^2]} = \varepsilon \frac{\ell_k}{h^2 + \ell_k}$.
+Уравнение неподвижной точки $\ell = \bigl(\frac{\varepsilon}{s_1}\frac{\ell}{h^2+\ell}\bigr)^2$
+при $\ell > 0$ эквивалентно $(h^2 + \ell)^2 = (\varepsilon / s_1)^2 \ell$.
+По неравенству Коши $(h^2 + \ell)^2 \ge 4 h^2 \ell$, поэтому при $(\varepsilon / s_1)^2 < 4 h^2$
+(т. е. $\varepsilon < 2 s_1 h$) строго выполнено $\ell_{k+1} < \frac{\varepsilon^2}{4 s_1^2 h^2} \ell_k$
+и, кроме того, $\ell_{k+1} \le (\frac{\varepsilon}{s_1 h^2})^2 \ell_k^2$, что влечёт суперэкспоненциальное убывание $\ell_k \to 0$.
+\end{proof}
+
+\begin{theorem}[Минимаксная нижняя граница Ассуада для слабого направления]
+\label{thm:assouad}
+Рассмотрим гауссовскую модель~\eqref{eq:model} с $X \sim N(0, I_d)$, шумом $N(0, \sigma^2)$,
+известными $m-1$ сильными осями $e_1, \dots, e_{m-1}$ и слабой линейной компонентой
+$f_\tau(x) = g_{\mathrm{strong}}(x_{1:m-1}) + \varepsilon\, b_m(\tau)\T x$,
+где $\tau \in \{-1, +1\}^q$, $q = d - m \ge 1$, и
+\[
+  b_m(\tau) = \sqrt{1 - \delta^2}\, e_m + \frac{\delta}{\sqrt{q}} \sum_{r=1}^q \tau_r e_{m+r},
+  \qquad \delta \in (0, 1/\sqrt{2}].
+\]
+Тогда для любой измеримой оценки $\widehat{P}$ проектора $P_\tau = \sum_{a=1}^{m-1} e_a e_a\T + b_m(\tau) b_m(\tau)\T$
+при всех $n \ge 1$, $1 \le m < d$, $\sigma > 0$, $\varepsilon > 0$ выполнено
+\begin{equation}\label{eq:assouad}
+  \sup_{\tau \in \{-1,+1\}^q} \E_\tau\!\bigl[m\, D(\widehat{P}, P_\tau)^2\bigr]
+  = \sup_{\tau \in \{-1,+1\}^q} \E_\tau\!\Bigl[\sum_{a=1}^m \sin^2 \theta_a\Bigr]
+  \ge \min\!\left(\frac{1}{16},\; \frac{\sigma^2 (d - m)}{32\, n \varepsilon^2}\right),
+\end{equation}
+и, соответственно, $\sup_\tau \E_\tau[D(\widehat{P}, P_\tau)^2] \ge \min\!\bigl(\frac{1}{16m},\, \frac{\sigma^2(d-m)}{32 m n \varepsilon^2}\bigr)$.
+\end{theorem}
+
+\begin{proof}
+Заметим, что при $q \ge 2$ проектор $P_\tau$ имеет ненулевые внедиагональные элементы не только
+в $2q$ позициях $\{(m, m+r), (m+r, m)\}_{r=1}^q$, где $(P_\tau)_{m,m+r} = (P_\tau)_{m+r,m} = \frac{\delta\sqrt{1-\delta^2}}{\sqrt{q}}\tau_r$,
+но и в блоке $(P_\tau)_{m+r, m+s} = \frac{\delta^2}{q}\tau_r \tau_s$ ($r \ne s$).
+Отбрасывая неотрицательный вклад всех записей, кроме указанных $2q$ позиций,
+и используя $m D(\widehat{P}, P_\tau)^2 = \frac{1}{2}\norm{\widehat{P} - P_\tau}\F^2$, получаем
+\[
+  m D(\widehat{P}, P_\tau)^2
+  \ge \sum_{r=1}^q \bigl(\widehat{P}_{m, m+r} - (P_\tau)_{m, m+r}\bigr)^2
+  \ge \frac{\delta^2 (1 - \delta^2)}{q} \sum_{r=1}^q \mathbf{1}\{\operatorname{sign}(\widehat{P}_{m, m+r}) \ne \tau_r\}.
+\]
+Для пары $\tau, \tau^{\oplus r}$, различающейся только в $r$-й координате,
+расстояние Кульбака--Лейблера между $n$-выборочными законами равно
+\[
+  D_{\mathrm{KL}}(\mathbb{P}_\tau \,\|\, \mathbb{P}_{\tau^{\oplus r}})
+  = \frac{n \varepsilon^2}{2 \sigma^2} \norm{b_m(\tau) - b_m(\tau^{\oplus r})}_2^2
+  = \frac{2 n \varepsilon^2 \delta^2}{\sigma^2 q}.
+\]
+По лемме Ассуада и неравенству Пинскера
+\[
+  \sup_\tau \E_\tau[m D^2]
+  \ge \frac{\delta^2(1-\delta^2)}{2}\left(1 - \sqrt{\frac{n\varepsilon^2\delta^2}{\sigma^2 q}}\right).
+\]
+Выбор $\delta^2 = \min\!\bigl(\frac{1}{2},\, \frac{\sigma^2 q}{4 n \varepsilon^2}\bigr)$
+обеспечивает $1 - \delta^2 \ge \frac{1}{2}$ и $1 - \sqrt{n\varepsilon^2\delta^2 / (\sigma^2 q)} \ge \frac{1}{2}$,
+откуда $\sup_\tau \E_\tau[m D^2] \ge \frac{1}{8}\delta^2 = \min\!\bigl(\frac{1}{16},\, \frac{\sigma^2(d-m)}{32 n \varepsilon^2}\bigr)$.
+\end{proof}
+
+\begin{remark}[Роль $m$ и спектрального разрыва $\kappa_S$]
+Из~\eqref{eq:assouad} следует, что порог отношения сигнал/шум $\varepsilon \gtrsim \sigma \sqrt{(d-m)/n}$
+необходим для восстановления \emph{всех} $m$ осей (т. е. $m D^2 \ll 1$) либо при фиксированном $m$;
+при $m \to \infty$ потеря одной оси даёт $D^2 = 1/m \to 0$.
+Кроме того, спектральный разрыв $\kappa_S = \lambda_1 / \lambda_m$ аддитивного функционала не искажает
+точный безошибочный глобальный минимум $P_\star$, но ухудшает соответствие \emph{субоптимальных значений}
+и конечных возмущений функционала проекторному расстоянию $D(\widehat{P}, P_\star)$.
+\end{remark}
+
+\paragraph{Режим $N_J \approx n$ и вычислительное узкое место.}
+Для фиксированных вкладов центров $f_1, \dots, f_n$ подвыборка $J$ центров без возвращения имеет точную дисперсию
+$\Var_S\!\bigl(\frac{1}{J}\sum_{i\in S} f_i\bigr) = \frac{1 - J/n}{J} s^2$,
+исчезающую при $J = n$. Это не влечёт равномерного по сидам улучшения адаптивного ADP
+(в прежних кампаниях репозитория на 80 блоках $J = n$ улучшил 66/80, но ухудшил один блок на $+0{,}4311$).
+При этом в текущем ADP рост $J \to n$ при больших $(n,d)$ вызывает квадратично-кубический рост памяти:
+при $n = J = 10^4$, $d = 10^3$, $p = 30$ в \texttt{float64} плотные массивы $U$ ($2{,}4$~ГБ),
+$\Phi$ ($2{,}4$~ГБ) и \code{distance2} ($0{,}8$~ГБ) занимают $5{,}6$~ГБ, а каждый шаг
+решателя требует $O(J p d m)$ операций.
+
+% ============================================================================
+\section{Сравнительный анализ четырёх семейств модификаций}
+\label{sec:families}
+
+Прежде чем выбрать основной путь, были исследованы четыре различных семейства,
+проверенные с позиции враждебного рецензента.
+
+\paragraph{Семейство I: переход от скетча $F_0$ к локальному \texttt{LOO1-WLS}.}
+Наивная замена случайного скетча $\Phi_j$ в~\eqref{eq:F0} на оптимизируемый базис $\Phi_j = Y\T$
+приводит к $I_j = Y\T c_j^{xy}$ и $U_j Y = Y\T \Sigma_j Y$: при обратимости $Y\T \Sigma_j Y$
+выбор $g_j = (Y\T \Sigma_j Y)^{-1} Y\T c_j^{xy}$ даёт $I_j - U_j Y g_j = 0$, то есть
+$F_0(Y) \equiv 0$ тождественно. Таким образом, переход к локальной взвешенной регрессии по
+наблюдениям — это \emph{другой} функционал класса \texttt{ESTIMATOR}, эквивалентный в
+популяционном смысле замене случайной метрики $\Phi_j\T \Phi_j$ на точную обратную
+ковариацию $(\Sigma_j^{\mathrm{pop}})^{-1}$ (Теорема~\ref{thm:wls-pop}).
+В совокупности с 1-м порядком коррекции рычагов \texttt{LOO1} и субкритическим спектром
+$\beta \in (0,1)$ это семейство выбрано основным и подробно доказано в разделе~\ref{sec:method}.
+
+\paragraph{Семейство II: локально-квадратичный WLS (\texttt{LOO1-Quad-WLS}).}
+Локальная регрессия степени~2 по $z_{ji} = Y\T(x_i-\mu_j)$ использует $q = m + \frac{m(m+1)}{2}$
+параметров в каждой окрестности (при $m=3$ это $q=9$, что при $N_{\mathrm{loc}} \approx 20\text{--}30$
+поднимает рычаги до $(q+1)/N_{\mathrm{loc}} \approx 0{,}33\text{--}0{,}50$).
+
+\begin{example}[Вырожденная стационарная точка 4-го порядка для квадратичного функционала]
+\label{ex:quad-flat}
+Пусть $X \sim N(0, I_d)$, $f(X) = (b_\star\T X)^2$, $m = 1$, $\norm{Y}_2 = 1$, $\rho = b_\star\T Y$.
+При глобальном окне оптимальная квадратичная регрессия по $z = Y\T X$ равна
+$\E[f(X) \mid z] = 1 - \rho^2 + \rho^2 z^2$, откуда минимальная квадратичная ошибка
+\[
+  F_Q(Y) = \E\!\left[\bigl(f(X) - \E[f(X)\mid z]\bigr)^2\right] = 2(1 - \rho^4).
+\]
+В точке ортогональности $\rho = 0$ обращаются в нуль 1-я, 2-я и 3-я производные;
+следовательно, ни градиентный, ни гессиановский метод второго порядка не гарантируют выхода из $Y \perp b_\star$.
+Кроме того, нулевая сигнальная невязка в $Y = B_\star$ сама по себе не доказывает единственности минимума
+без условий невырожденности носителя и моментов 4-го порядка.
+\end{example}
+
+\paragraph{Семейство III: последовательная дефляция осей.}
+Последовательный поиск осей с ортогональной проекцией на $y_1^\perp$ страдает от утечки
+ошибки сильной оси: при угле $\theta_1 > 0$ проекция сильной компоненты на $y_1^\perp$
+имеет амплитуду $s_1 \sin\theta_1$, которая при $s_1 \gg s_2$ сопоставима со слабой осью
+(например, при $s_1 = 0{,}212$, $s_2 = 0{,}115$ и шуме $0{,}05$ доля сильного сигнала
+в полном масштабе $0{,}212 / \sqrt{0{,}212^2 + 0{,}115^2 + 0{,}05} = 0{,}6446$).
+
+\paragraph{Семейство IV: лог-детерминантные и спектральные пучки (\texttt{DebLogDet} / \texttt{PWilks}).}
+Второе моментное суммирование $M_{\mathrm{cov}} = \sum_j w_j^{\mathrm{ctr}} c_j^{xy} (c_j^{xy})\T$
+имеет шумовое ожидание $\sigma^2 \sum_j w_j^{\mathrm{ctr}} \widetilde{\Sigma}_j$.
+При гауссовском $X \sim N(0, \Sigma_X)$ и гауссовском окне $w_j(x) = \exp(-\frac{1}{2}(x-c_j)\T A_k (x-c_j))$
+популяционная ковариация равна $\Sigma_j^{\mathrm{pop}} = V = (\Sigma_X^{-1} + A_k)^{-1}$, однако
+в $\widetilde{\Sigma}_j = \sum_i a_{ji}^2 (x_i - \mu_j)(x_i - \mu_j)\T$ среднее $\mu_j$
+вычисляется с весами $w_j$, тогда как квадраты весов $w_j^2$ имеют другое среднее $\mu_{2j} \ne \mu_{1j}$.
+Точная популяционная формула содержит положительно полуопределённое слагаемое ранга~1:
+\begin{equation}\label{eq:stilde-exact}
+  \widetilde{\Sigma}_j^{\mathrm{pop}}
+  = \eta_j \Bigl[\widetilde{V} + (\mu_{2j} - \mu_{1j})(\mu_{2j} - \mu_{1j})\T\Bigr], \qquad
+  \widetilde{V} = (\Sigma_X^{-1} + 2 A_k)^{-1}, \qquad
+  \eta_j = \frac{\E[w_j(X)^2]}{n\,\E[w_j(X)]^2}.
+\end{equation}
+
+\begin{example}[Постоянное асимптотическое смещение \texttt{PWilks} при фиксированном центре]
+\label{ex:pwilks-bias}
+Пусть $X \sim N(0, I_2)$, $A_k = I_2$, фиксированный центр $c = (2, 0)\T$, линейная функция
+$f(x) = b_\star\T x$ с $b_\star = \frac{1}{\sqrt{2}}(1, 1)\T$. Тогда $V = \frac{1}{2} I_2$,
+$\widetilde{V} = \frac{1}{3} I_2$, $\mu_1 = (1, 0)\T$, $\mu_2 = (\frac{4}{3}, 0)\T$, откуда
+$\widetilde{\Sigma}^{\mathrm{pop}} = \eta \diag(\frac{4}{9}, \frac{1}{3})$.
+Популяционный обобщённый собственный вектор $M_{\mathrm{cov}} v = \lambda \widetilde{\Sigma}^{\mathrm{pop}} v$
+пропорционален $(\widetilde{\Sigma}^{\mathrm{pop}})^{-1} V b_\star \propto (3, 4)\T$,
+что даёт постоянную угловую ошибку $\arccos(7 / (5\sqrt{2})) \approx 8{,}1301^\circ$ даже при $n \to \infty$.
+\end{example}
+
+\begin{proposition}[Исправленное двойное популяционное сжатие \texttt{PWilks}]
+\label{prop:pwilks-corrected}
+Пусть $X \sim N(0, I_d)$, центры $C \sim N(0, I_d)$ независимы от $X$, ядро гауссовское с точностью $A_k$,
+связь линейна $f(x) = B_\star\T x$, и берутся оба предела $n \to \infty$ и $J \to \infty$.
+Обозначим $D_k := A_k (I + A_k)^{-1} (I + 2A_k)^{-1}$, так что $\mu_2(c) - \mu_1(c) = D_k c$.
+Тогда усреднённая матрица $\overline{\widetilde{\Sigma}}_{\mathrm{pop}}$ коммутирует с $A_k$,
+а собственные значения матрицы $\overline{\widetilde{\Sigma}}_{\mathrm{pop}}^{-1} V$
+на собственном направлении $A_k$ с точностью $\tau \ge 0$ имеют точный рациональный вид:
+\begin{align}
+  \text{с весами масс } N_j\text{ (случай A):}\quad
+  \lambda_{\mathrm{eff,A}}(\tau) &= \frac{1 + 4\tau + 2\tau^2}{1 + 3\tau + \tau^2} \in [1, 2), \label{eq:lamA} \\
+  \text{без весов масс (случай B):}\quad
+  \lambda_{\mathrm{eff,B}}(\tau) &= \frac{1 + 3\tau}{1 + 2\tau} \in \Bigl[1, \frac{3}{2}\Bigr), \label{eq:lamB}
+\end{align}
+причём обе функции строго возрастают на $[0, \infty)$.
+Если внутрииндексные точности равны ($\tau_1 = \dots = \tau_m = \tau_\parallel > \tau_\perp \ge 0$)
+и $r := \lambda_{\mathrm{eff}}(\tau_\perp) / \lambda_{\mathrm{eff}}(\tau_\parallel)$, то один шаг
+$B_{k+1} = \operatorname{orth}(\overline{\widetilde{\Sigma}}_{\mathrm{pop}}^{-1} V B_\star)$
+сжимает все главные углы $\theta_{k,a} \in (0, \pi/2)$:
+\begin{equation}\label{eq:pwilks-contract}
+  \tan\theta_{k+1,a} = \frac{(1 - r)\tan\theta_{k,a}}{1 + r \tan^2\theta_{k,a}}
+  \le (1 - r)\tan\theta_{k,a}
+  < \begin{cases} \frac{1}{2}\tan\theta_{k,a} & \text{(случай A)}, \\ \frac{1}{3}\tan\theta_{k,a} & \text{(случай B)}. \end{cases}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Из гауссовского интегрирования $m_1(c) = \E_X[w(X;c)] = \det(I+A_k)^{-1/2} \exp(-\frac{1}{2} c\T A_k(I+A_k)^{-1} c)$
+и $m_2(c) = \E_X[w(X;c)^2] = \det(I+2A_k)^{-1/2} \exp(-\frac{1}{2} c\T 2A_k(I+2A_k)^{-1} c)$.
+В случае~A вес центра пропорционален $m_2(c)/m_1(c) \propto \exp(-\frac{1}{2} c\T D_k c)$,
+откуда под $C \sim N(0, I_d)$ плотность по $c$ гауссовская с ковариацией $(I + D_k)^{-1}$,
+и для координаты с точностью $\tau$ и $d(\tau) = \frac{\tau}{(1+\tau)(1+2\tau)}$ получаем
+$\tilde{v}_{\mathrm{eff,A}}(\tau) = \frac{1}{1+2\tau} + \frac{d(\tau)^2}{1 + d(\tau)} = \frac{1+3\tau+\tau^2}{(1+\tau)(1+4\tau+2\tau^2)}$,
+что после деления $v(\tau) = (1+\tau)^{-1}$ на $\tilde{v}_{\mathrm{eff,A}}(\tau)$ даёт~\eqref{eq:lamA}
+с $\lambda_{\mathrm{eff,A}}'(\tau) = \frac{1+2\tau+2\tau^2}{(1+3\tau+\tau^2)^2} > 0$.
+В случае~B вес центра пропорционален $m_2(c)/m_1(c)^2 \propto \exp(\frac{1}{2} c\T [2A_k(I+A_k)^{-1} - 2A_k(I+2A_k)^{-1}] c)$,
+эффективная точность по $c$ равна $p_B(\tau) = \frac{1+3\tau}{(1+\tau)(1+2\tau)} > 0$,
+откуда $\tilde{v}_{\mathrm{eff,B}}(\tau) = \frac{1}{1+2\tau} + \frac{d(\tau)^2}{p_B(\tau)} = \frac{1+2\tau}{(1+\tau)(1+3\tau)}$,
+что даёт~\eqref{eq:lamB} с $\lambda_{\mathrm{eff,B}}'(\tau) = (1+2\tau)^{-2} > 0$.
+При $\tau_1 = \dots = \tau_m = \tau_\parallel$ оператор $\overline{\widetilde{\Sigma}}_{\mathrm{pop}}^{-1} V
+= \lambda_\parallel P_{B_k} + \lambda_\perp (I_d - P_{B_k})$ действует раздельно в каждой
+канонической двумерной плоскости $(u_a, v_a)$ главных векторов $(B_k, B_\star)$, переводя
+$b_{\star,a} = \cos\theta_a u_a + \sin\theta_a v_a$ в вектор под углом $\phi_a$ к $u_a$ с $\tan\phi_a = r \tan\theta_a$;
+тогда $\theta_{k+1,a} = \theta_a - \phi_a$ и формула тангенса разности даёт~\eqref{eq:pwilks-contract}.
+\end{proof}
+
+\begin{remark}[Почему Семейство IV не выбрано основным]
+Гарантия~\eqref{eq:pwilks-contract} для \texttt{PWilks} разрушается при конечном наборе фиксированных центров
+(Контрпример~\ref{ex:pwilks-bias}), неизотропной $\Sigma_X$ без отбеливания, негауссовском $X$,
+нелинейном $f$ и неравных $\tau_a$. Для \texttt{DebLogDet} необходимо строго различать три уровня устойчивости:
+(i) популяционный гессиан $-\log\det(Y\T B_\star \Lambda B_\star\T Y)$ в $B_\star$ равен $2I$ независимо от $\kappa(\Lambda)$,
+(ii) эмпирическая матрица $\widehat{M} = \overline{\Sigma}^{-1}(M_{\mathrm{cov}} - \hat\sigma^2 \overline{\widetilde{\Sigma}})\overline{\Sigma}^{-1}$
+при ошибке $\hat\sigma^2$ может иметь $\lambda_{\min}(\widehat{M}) < 0$, требуя сдвига $\tau > -\lambda_{\min}(\widehat{M})$
+для вещественной определённости $\log\det$, и
+(iii) статистическая ошибка подпространства по теореме Дэвиса--Кахана остаётся порядка $\norm{\widehat{M}-M}_2 / \lambda_m(M)$.
+\end{remark}
+
+\begin{table}[htbp]
+\centering
+\caption{Сравнение четырёх семейств модификаций (после рецензирования).}
+\label{tab:families}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}L{2.7cm}YYY@{}}
+\toprule
+Семейство & Ключевые предположения & Доказанный результат & Точный пробел / причина отклонения \\
+\midrule
+\textbf{I. \texttt{LOO1-WLS} + $\beta \in (0,1)$ (выбрано)} & (A1)--(A3): $p(x)>0$ на открытом $\Omega$, $f \in C^2$, $\rank(M_g^{\mathrm{pop}})=m$ & Теоремы~\ref{thm:loo1-3term}--\ref{thm:beta-phase}: обнуление $O(\bar\ell)$-смещения, $O(h_k)$ глобального минимума без гауссовости $X$, 2-DGEMM, нет коллапса $\ell_k$ & Нет глобальной сходимости внешнего цикла и равномерного по сидам доминирования \\
+II. \texttt{LOO1-Quad-WLS} & $f \in C^3$, невырожденность моментов 4-го порядка, $N_{\mathrm{loc}} \gg m^2$ & Нулевая сигнальная невязка при $Y=B_\star$ для квадратичных $f$ & Плоское седло 4-го порядка $2(1-\rho^4)$ (Контрпример~\ref{ex:quad-flat}); высокий рычаг $q/N_{\mathrm{loc}}$ \\
+III. Дефляция & Разделённые уровни сигнала, малая ошибка $\theta_1$ & Упрощение поиска при точной сильной оси & Утечка $s_1 \sin\theta_1$ загрязняет слабые оси \\
+IV. \texttt{DebLogDet} / \texttt{PWilks} & Гауссовские $X, C \sim N(0, I_d)$ и гауссовское ядро (\texttt{PWilks}); точная $\hat\sigma^2$ (\texttt{DebLogDet}) & Двойное популяционное сжатие~\eqref{eq:pwilks-contract}; популяционный гессиан $2I$ & Смещение $8{,}13^\circ$ при фикс.\ центрах (Контрпример~\ref{ex:pwilks-bias}); неопределённость $\widehat{M}$ и $1/\lambda_m$ в Дэвисе--Кахане \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ============================================================================
+\section{Выбранный метод: \texttt{LOO1-WLS-ADP} и субкритическая анизотропия}
+\label{sec:method}
+
+На фиксированной внешней итерации с активными центрами $j \in \mathcal{A} := \{j : N_j > 0,\; k_j \ge k_{\min}\}$
+($k_{\min} \ge m + 2$), центрированными проекциями $Z_j(Y) = (X_{\mathcal{I}_j} - \mathbf{1}\mu_j\T) Y \in \R^{k_j \times m}$,
+диагональной матрицей весов $A_j = \diag(a_{ji})_{i \in \mathcal{I}_j}$ ($\sum_i a_{ji} = 1$)
+и центрированным откликом $\tilde{y}_j = y_{\mathcal{I}_j} - \bar{y}_j \mathbf{1}$ определяются:
+\begin{align}
+  G_j(Y) &:= Z_j(Y)\T A_j Z_j(Y) + \tau_j I_m = Y\T \Sigma_j Y + \tau_j I_m, \qquad \tau_j \ge 0, \label{eq:G}\\
+  c_j(Y) &:= G_j(Y)^{-1} Z_j(Y)\T A_j \tilde{y}_j, \qquad
+  r_j(Y) := \tilde{y}_j - Z_j(Y) c_j(Y), \label{eq:c-r}\\
+  P_{j,\tau}(Y) &:= a_j^{1/2}(a_j^{1/2})\T + A_j^{1/2} Z_j(Y) G_j(Y)^{-1} Z_j(Y)\T A_j^{1/2} \in \R^{k_j \times k_j}, \label{eq:P-hat}\\
+  \ell_{ji}(Y) &:= (P_{j,\tau}(Y))_{ii} = a_{ji} + a_{ji} z_{ji}(Y)\T G_j(Y)^{-1} z_{ji}(Y). \label{eq:lev}
+\end{align}
+Для порога отсечения $\ell_{\max} \in (0, 1)$ задаётся $\tilde\ell_{ji}(Y) := \min(\ell_{ji}(Y), \ell_{\max})$
+(либо opt-in $C^1$-гладкий порог $\tilde\ell_{ji}^{(\varepsilon)} := \ell_{\max} - \varepsilon \log(1 + e^{(\ell_{\max}-\ell_{ji})/\varepsilon})$ при $\varepsilon > 0$),
+и функционал \texttt{LOO1-WLS} имеет вид
+\begin{equation}\label{eq:F-loo1}
+  F_{\mathrm{LOO1}}(Y) := \sum_{j \in \mathcal{A}} N_j \sum_{i \in \mathcal{I}_j} a_{ji} \frac{r_{ji}(Y)^2}{1 - \tilde\ell_{ji}(Y)}.
+\end{equation}
+Отметим явное отличие от точного критерия leave-one-out PRESS, использующего знаменатель $(1 - \ell_{ji})^2$.
+
+\begin{theorem}[Точное 3-членное шумовое тождество для регуляризованного и отсечённого \texttt{LOO1}]
+\label{thm:loo1-3term}
+Пусть выполнена модель~\eqref{eq:model} с произвольными гетероскедастичными дисперсиями $\sigma_i^2 < \infty$,
+$k_j \ge m+2$, $\tau_j \ge 0$ (при $\tau_j = 0$ предполагается $Y\T \Sigma_j Y \succ 0$ и $\ell_{ji} < 1$),
+$\ell_{\max} \in (0, 1)$ и жёсткое отсечение $\tilde\ell_{ji} = \min(\ell_{ji}, \ell_{\max})$.
+\begin{enumerate}[label=(\alph*)]
+  \item Для шумовой компоненты остатка выполнено $A_j^{1/2} r_j^{\mathrm{noise}} = (I_{k_j} - P_{j,\tau}) A_j^{1/2} \varepsilon_{\mathcal{I}_j}$,
+  причём $0 \preceq P_{j,\tau} \preceq I_{k_j}$, а дефект неидемпотентности равен
+  \begin{equation}\label{eq:delta-tau}
+    \Delta_{j,\tau} := P_{j,\tau} - P_{j,\tau}^2 = \tau_j\, A_j^{1/2} Z_j G_j^{-2} Z_j\T A_j^{1/2} \succeq 0.
+  \end{equation}
+  Точное условное ожидание шумовой части равно $\sum_{r \in \mathcal{I}_j} a_{jr} \sigma_r^2\, C_{jr}(\tau_j, \ell_{\max})$, где
+  \begin{equation}\label{eq:3term}
+    C_{jr}(\tau_j, \ell_{\max}) - 1
+    = -\frac{(\ell_{jr} - \ell_{\max})_+}{1 - \ell_{\max}}
+      -\frac{(\Delta_{j,\tau})_{rr}}{1 - \tilde\ell_{jr}}
+      +\sum_{i \ne r} (P_{j,\tau})_{ir}^2 \frac{\tilde\ell_{ji} - \tilde\ell_{jr}}{(1 - \tilde\ell_{ji})(1 - \tilde\ell_{jr})}.
+  \end{equation}
+  \item Пусть $\bar\sigma_j^2 := \sum_{r \in \mathcal{I}_j} a_{jr} \sigma_r^2$,
+  $\ell_{\max,j} := \max_{i \in \mathcal{I}_j} \ell_{ji}(Y)$,
+  $\tilde\ell_{\max,j} := \max_i \tilde\ell_{ji}$, $\tilde\ell_{\min,j} := \min_i \tilde\ell_{ji}$.
+  Тогда без дополнительных предположений о $X$ и весах $a_{ji}$ справедливо
+  \begin{equation}\label{eq:3term-bound}
+  \begin{aligned}
+    &\abs{\E_\varepsilon\!\left[F_{\mathrm{LOO1}}^{\mathrm{noise}}(Y) \mid X\right] - \sum_{j \in \mathcal{A}} N_j \bar\sigma_j^2} \\
+    &\quad\le \sum_{j \in \mathcal{A}} N_j \bar\sigma_j^2
+      \Biggl[\frac{(\ell_{\max,j} - \ell_{\max})_+}{1 - \ell_{\max}}
+      + \frac{\tau_j}{\lambda_{\min}(Y\T \Sigma_j Y) + \tau_j}\,\frac{\ell_{\max,j}}{1 - \ell_{\max}} \\
+    &\qquad\qquad\qquad\quad + \frac{\ell_{\max,j}(\tilde\ell_{\max,j} - \tilde\ell_{\min,j})}{1 - \tilde\ell_{\max,j}}\Biggr].
+  \end{aligned}
+  \end{equation}
+  \item При $\tau_j = 0$, $\ell_{\max,j} \le \ell_{\max}$ и гомоскедастичности $\sigma_i^2 \equiv \sigma^2$:
+  (i) для сырого WLS ($\gamma=0$) имеет место точное смещение первого порядка
+  $\E_\varepsilon[F_{\mathrm{WLS}}^{\mathrm{noise}} \mid X] = \sigma^2 \sum_j N_j \bigl(1 - \sum_i a_{ji}^2 - \tr((Y\T \Sigma_j Y)^{-1}(Y\T \widetilde{\Sigma}_j Y))\bigr)$;
+  (ii) для точного PRESS ($\gamma=2$) смещение первого порядка положительно: $C_{jr}^{\mathrm{PRESS}} - 1 = +\frac{\ell_{jr}}{1-\ell_{jr}} + O(\ell_{\max,j}^2)$;
+  (iii) \texttt{LOO1} ($\gamma=1$) — единственная степень $(1-\ell_{ji})^{-\gamma}$, обнуляющая линейный по рычагам член:
+  для равных весов $a_{ji} = 1/k_j$ остаток тождественно равен нулю, а для неоднородных весов он имеет порядок $O(\ell_{\max,j}^2)$.
+  \item В координатах изотропного шара $w_i = A_k^{1/2}(x_i - c_j) \in B_2^d(0,1)$ для ядра Епанечникова
+  $w_{ji} = (1 - \norm{w_i}_2^2)_+$ отношение осей $\kappa(A_k)$ сокращается в силу аффинной инвариантности
+  $M_Y = A_k^{-1/2} Y = Q_{M_Y} R_{M_Y}$, и
+  \[
+    \ell_{ji}(Y) \le \frac{1}{N_j}\left(1 + \frac{(1 - \norm{w_i}_2^2)\norm{Q_{M_Y}\T(w_i - \bar{w}_j)}_2^2}{\lambda_{\min}(Q_{M_Y}\T \Sigma_j^{(w)} Q_{M_Y})}\right).
+  \]
+  Отсюда при гладкой локальной плотности $p(x) \in [p_{\min}, p_{\max}]$:
+  поточечно для фиксированного $Y$ имеем $\max_i \ell_{ji}(Y) = O((m + \log k_j)/N_j) \to 0$ при $N_j/(m+\log k_j) \to \infty$,
+  тогда как равномерная сходимость $\sup_{Y \in \Gr(d,m)} \max_i \ell_{ji}(Y) \to 0$ требует $N_j / d \to \infty$
+  (так как $\lambda_{\min}(\Sigma_j^{(w)}) \asymp (d+4)^{-1}$ лишь при $k_j \gg d$).
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+Опустим индекс $j$. В силу $\sum_i a_i z_i = 0$ проектор $P_0 = a^{1/2}(a^{1/2})\T$ ортогонален
+$P_{1,\tau} = A^{1/2} Z G^{-1} Z\T A^{1/2}$ ($P_0 P_{1,\tau} = 0$).
+Отсюда $A^{1/2} \tilde\varepsilon = (I - P_0) A^{1/2} \varepsilon$,
+$c^{\mathrm{noise}} = G^{-1} Z\T A^{1/2} (I - P_0) A^{1/2} \varepsilon = G^{-1} Z\T A \varepsilon$,
+следовательно $A^{1/2} r^{\mathrm{noise}} = (I - P_0 - P_{1,\tau}) A^{1/2} \varepsilon = (I - P_\tau) A^{1/2} \varepsilon$.
+Собственные значения $P_{1,\tau}$ равны $\frac{\lambda_a}{\lambda_a + \tau} \in [0, 1]$,
+поэтому $0 \preceq P_\tau \preceq I_k$ и
+$P_\tau - P_\tau^2 = P_{1,\tau} - P_{1,\tau}^2 = A^{1/2} Z G^{-1}[G - (G - \tau I_m)] G^{-1} Z\T A^{1/2} = \tau A^{1/2} Z G^{-2} Z\T A^{1/2} \succeq 0$.
+
+По условию $\Cov(\varepsilon_i, \varepsilon_r \mid X) = \sigma_i^2 \delta_{ir}$ имеем
+$\E_\varepsilon[a_i (r_i^{\mathrm{noise}})^2 \mid X] = \sum_r (I - P_\tau)_{ir}^2 a_r \sigma_r^2$, откуда
+$C_r = \sum_i (I - P_\tau)_{ir}^2 / (1 - \tilde\ell_i) = \frac{(1 - \ell_r)^2}{1 - \tilde\ell_r} + \sum_{i \ne r} \frac{(P_\tau)_{ir}^2}{1 - \tilde\ell_i}$.
+Из определения $\Delta_\tau = P_\tau - P_\tau^2$ следует
+$\sum_{i \ne r} (P_\tau)_{ir}^2 = (P_\tau^2)_{rr} - \ell_r^2 = \ell_r(1 - \ell_r) - (\Delta_\tau)_{rr}$.
+Прибавляя и вычитая $\frac{\sum_{i \ne r} (P_\tau)_{ir}^2}{1 - \tilde\ell_r}$, получаем
+\begin{align*}
+  C_r &= \frac{(1 - \ell_r)^2 + \ell_r(1 - \ell_r) - (\Delta_\tau)_{rr}}{1 - \tilde\ell_r}
+        + \sum_{i \ne r} (P_\tau)_{ir}^2 \left(\frac{1}{1-\tilde\ell_i} - \frac{1}{1-\tilde\ell_r}\right) \\
+      &= 1 - \frac{\ell_r - \tilde\ell_r}{1 - \tilde\ell_r} - \frac{(\Delta_\tau)_{rr}}{1 - \tilde\ell_r}
+        + \sum_{i \ne r} (P_\tau)_{ir}^2 \frac{\tilde\ell_i - \tilde\ell_r}{(1-\tilde\ell_i)(1-\tilde\ell_r)},
+\end{align*}
+что совпадает с~\eqref{eq:3term} ввиду $\ell_r - \tilde\ell_r = (\ell_r - \ell_{\max})_+$ и
+$\tilde\ell_r = \ell_{\max}$ при $\ell_r > \ell_{\max}$.
+
+Для оценки~\eqref{eq:3term-bound} заметим:
+(1) $(\Delta_\tau)_{rr} = \tau a_r z_r\T G^{-2} z_r \le \frac{\tau}{\lambda_{\min}(Y\T \Sigma Y) + \tau} a_r z_r\T G^{-1} z_r = \frac{\tau}{\lambda_{\min}(Y\T \Sigma Y) + \tau} (\ell_r - a_r)$;
+(2) поскольку $\tilde\ell_r \le \ell_r$, выполнено $\frac{1 - \ell_r}{1 - \tilde\ell_r} \le 1$, и значит
+\[
+  \abs{\sum_{i \ne r} (P_\tau)_{ir}^2 \frac{\tilde\ell_i - \tilde\ell_r}{(1-\tilde\ell_i)(1-\tilde\ell_r)}}
+  \le \frac{\tilde\ell_{\max} - \tilde\ell_{\min}}{(1 - \tilde\ell_{\max})(1 - \tilde\ell_r)} \ell_r(1 - \ell_r)
+  \le \frac{\ell_r(\tilde\ell_{\max} - \tilde\ell_{\min})}{1 - \tilde\ell_{\max}}.
+\]
+Суммирование с весами $a_r \sigma_r^2$ даёт~\eqref{eq:3term-bound}.
+В пункте~(c) при $\tau = 0$ и $\sigma_r^2 \equiv \sigma^2$ симметризация по парам $(i, r)$ даёт
+$\sum_r a_r(C_r - 1) = \frac{1}{2}\sum_{i \ne r} P_{ir}^2 \frac{(a_r - a_i)(\ell_i - \ell_r)}{(1-\ell_i)(1-\ell_r)}$,
+что тождественно равно $0$ при $a_i \equiv 1/k$. Для $\gamma=0$ сумма $\sum_r a_r(1 - \ell_r) = 1 - \sum_r a_r^2 - \tr((Y\T\Sigma Y)^{-1}(Y\T\widetilde{\Sigma} Y))$,
+а для $\gamma=2$ имеем $C_r^{\mathrm{PRESS}} = 1 + \frac{\ell_r}{1-\ell_r} + \sum_{i\ne r} P_{ir}^2[(1-\ell_i)^{-2} - (1-\ell_r)^{-2}]$.
+Пункт~(d) следует из подстановки $x_i - \mu_j = A_k^{-1/2}(w_i - \bar{w}_j)$, тождества
+$M_Y (M_Y\T \Sigma^{(w)} M_Y)^{-1} M_Y\T = Q_{M_Y} (Q_{M_Y}\T \Sigma^{(w)} Q_{M_Y})^{-1} Q_{M_Y}\T$
+и $a_{ji} = w_{ji}/N_j \le (1 - \norm{w_i}_2^2)/N_j$.
+\end{proof}
+
+\begin{theorem}[Популяционный минимум и идентифицируемость $F_{\mathrm{WLS}}^{\mathrm{pop}}$]
+\label{thm:wls-pop}
+Пусть выполнены условия:
+\begin{enumerate}[label=(A\arabic*)]
+  \item $X$ имеет непрерывную плотность $p(x) > 0$ на связном открытом множестве $\Omega \subset \R^d$
+  (что исключает вырожденные носители вида $X = (Z, Z)$); $f(x) = g(B_\star\T x) \in C^2(\Omega)$ с
+  $L_2 := \sup_{z \in B_\star\T \Omega} \norm{\nabla^2 g(z)}_2 < \infty$; подпространство $S_\star = \col(B_\star)$ минимально на $\Omega$.
+  \item Компактные окна $\supp(w_j) \subset \Omega$ ($A_k \succ 0$) имеют невырожденные локальные ковариации
+  $\Sigma_j^{\mathrm{pop}} \succ 0$ с $\underline{\lambda} := \min_j \lambda_{\min}(\Sigma_j^{\mathrm{pop}}) > 0$,
+  а матрица градиентов $M_g^{\mathrm{pop}} := \sum_{j=1}^J N_j^{\mathrm{pop}} \nabla f(\mu_j^{\mathrm{pop}}) \nabla f(\mu_j^{\mathrm{pop}})\T$
+  удовлетворяет $\rank(M_g^{\mathrm{pop}}) = m$ и $\operatorname{range}(M_g^{\mathrm{pop}}) = S_\star$.
+  \item Выполнено~\eqref{eq:model} с условно независимым шумом.
+\end{enumerate}
+Тогда для $F_{\mathrm{WLS}}^{\mathrm{pop}}(Y) := \sum_{j=1}^J N_j^{\mathrm{pop}} \min_{c_j \in \R^m} \E_{a_j}[(\tilde{f}_j(X) - (X - \mu_j^{\mathrm{pop}})\T Y c_j)^2]$:
+\begin{enumerate}[label=(\alph*)]
+  \item Положим $b_j := (\Sigma_j^{\mathrm{pop}})^{-1} c_j^{xf,\mathrm{pop}}$ и введём ортопроектор
+  \[
+    Q_j(Y) := (\Sigma_j^{\mathrm{pop}})^{1/2} Y (Y\T \Sigma_j^{\mathrm{pop}} Y)^{-1} Y\T (\Sigma_j^{\mathrm{pop}})^{1/2}.
+  \]
+  Тогда верно точное разложение
+  \begin{equation}\label{eq:wls-pyth}
+  \begin{aligned}
+    F_{\mathrm{WLS}}^{\mathrm{pop}}(Y)
+    &= C_{\mathrm{nl}} + \sum_{j=1}^J N_j^{\mathrm{pop}} \norm{(I_d - Q_j(Y))(\Sigma_j^{\mathrm{pop}})^{1/2} b_j}_2^2 \\
+    &= C_{\mathrm{nl}} + \sum_{j=1}^J N_j^{\mathrm{pop}} \min_{c_j \in \R^m} \norm{(\Sigma_j^{\mathrm{pop}})^{-1/2}(c_j^{xf,\mathrm{pop}} - \Sigma_j^{\mathrm{pop}} Y c_j)}_2^2.
+  \end{aligned}
+  \end{equation}
+  \item Если $b_j \in S_\star$ для всех $j$ и $\operatorname{span}\{b_1,\dots,b_J\} = S_\star$,
+  то $S_\star$ — единственный глобальный минимум $F_{\mathrm{WLS}}^{\mathrm{pop}}$ на $\Gr(d,m)$.
+  \item В общем $C^2$-случае без предположения гауссовости $X$ положим
+  $r_{\parallel, j} := \sup_{x \in \supp(w_j)} \norm{B_\star\T (x - \mu_j^{\mathrm{pop}})}_2$.
+  Тогда для любого глобального минимума $\widehat{Y}_{\mathrm{pop}} \in \argmin_{\Gr(d,m)} F_{\mathrm{WLS}}^{\mathrm{pop}}(Y)$:
+  \begin{equation}\label{eq:wls-nonasymp}
+    m\, D(P_{\widehat{Y}_{\mathrm{pop}}}, P_\star)^2
+    \le \frac{L_2^2 \sum_{j=1}^J N_j^{\mathrm{pop}} r_{\parallel, j}^4}{\underline{\lambda}\,\lambda_m(M_g^{\mathrm{pop}})}.
+  \end{equation}
+  Для компактного эллипсоида Епанечникова с $B_k$ близким к $B_\star$ и $\ell_{\min} > 0$
+  выполнены оценки $\underline{\lambda} = \Omega(h_k^2 / (d+4))$ и $r_{\parallel, j} = O(h_k / \sqrt{\ell_{\min}})$,
+  откуда $D(P_{\widehat{Y}_{\mathrm{pop}}}, P_\star) = O(\sqrt{d+4}\, h_k / (\ell_{\min}\sqrt{\bar\lambda_m})) \to 0$ при $h_k \downarrow 0$.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+Нелинейный остаток $r_j^{\mathrm{nl}}(X) = \tilde{f}_j(X) - (X-\mu_j^{\mathrm{pop}})\T b_j$ ортогонален
+$(X-\mu_j^{\mathrm{pop}})$ в $L^2(a_j)$, что даёт~\eqref{eq:wls-pyth} с $C_{\mathrm{nl}} = \sum_j N_j^{\mathrm{pop}} \E_{a_j}[r_j^{\mathrm{nl}}(X)^2]$.
+В пункте~(b) равенство $F_{\mathrm{WLS}}^{\mathrm{pop}}(Y) = C_{\mathrm{nl}}$ эквивалентно
+$(\Sigma_j^{\mathrm{pop}})^{1/2} b_j \in \col((\Sigma_j^{\mathrm{pop}})^{1/2} Y)$ $\iff$ $b_j \in \col(Y)$
+(ввиду $\Sigma_j^{\mathrm{pop}} \succ 0$) для всех $j$, что при $\operatorname{span}\{b_j\} = S_\star$
+однозначно влечёт $\col(Y) = S_\star$.
+
+В пункте~(c) разложение Тейлора в $\mu_j^{\mathrm{pop}}$ даёт
+$f(x) - f(\mu_j^{\mathrm{pop}}) = \nabla f(\mu_j^{\mathrm{pop}})\T(x - \mu_j^{\mathrm{pop}}) + \delta_j(x)$,
+где $|\delta_j(x)| \le \frac{L_2}{2} r_{\parallel, j}^2$ (поскольку $\nabla^2 f(\xi) = B_\star \nabla^2 g(B_\star\T \xi) B_\star\T$).
+Обозначим $v_j := (\Sigma_j^{\mathrm{pop}})^{1/2} \nabla f(\mu_j^{\mathrm{pop}})$ и
+$e_j := (\Sigma_j^{\mathrm{pop}})^{-1/2} \Cov_{a_j}(X, \delta_j(X))$, так что $(\Sigma_j^{\mathrm{pop}})^{1/2} b_j = v_j + e_j$.
+Для любого единичного $u \in \R^d$ с $U_j = (\Sigma_j^{\mathrm{pop}})^{-1/2}(X - \mu_j^{\mathrm{pop}})$
+($\E_{a_j}[U_j U_j\T] = I_d$) по Коши--Буняковскому
+$|u\T e_j| = |\Cov_{a_j}(u\T U_j, \delta_j(X))| \le \sqrt{\Var_{a_j}(\delta_j(X))} \le \frac{L_2}{2} r_{\parallel, j}^2$,
+откуда $\norm{e_j}_2 \le \frac{L_2}{2} r_{\parallel, j}^2$ независимо от $\kappa(\Sigma_j^{\mathrm{pop}})$.
+Так как $v_j \in \col((\Sigma_j^{\mathrm{pop}})^{1/2} B_\star)$, имеем $(I_d - Q_j(B_\star)) v_j = 0$ и
+$F_{\mathrm{WLS}}^{\mathrm{pop}}(B_\star) - C_{\mathrm{nl}} = \sum_j N_j^{\mathrm{pop}} \norm{(I_d - Q_j(B_\star)) e_j}_2^2 \le \sum_j N_j^{\mathrm{pop}} \norm{e_j}_2^2$.
+С другой стороны, из $\norm{a + b}_2^2 \ge \frac{1}{2}\norm{a}_2^2 - \norm{b}_2^2$ и
+$\norm{(I_d - Q_j(Y)) v_j}_2^2 = \min_c (\nabla f(\mu_j^{\mathrm{pop}}) - Y c)\T \Sigma_j^{\mathrm{pop}}(\nabla f(\mu_j^{\mathrm{pop}}) - Y c)
+\ge \underline{\lambda} \norm{(I_d - P_Y)\nabla f(\mu_j^{\mathrm{pop}})}_2^2$:
+\[
+  \sum_{j=1}^J N_j^{\mathrm{pop}} \norm{(I_d - Q_j(Y)) v_j}_2^2
+  \ge \underline{\lambda} \tr\!\bigl((I_d - P_Y) M_g^{\mathrm{pop}}\bigr)
+  \ge \underline{\lambda}\, \lambda_m(M_g^{\mathrm{pop}})\, m\, D(P_Y, P_\star)^2.
+\]
+Применяя $F_{\mathrm{WLS}}^{\mathrm{pop}}(\widehat{Y}_{\mathrm{pop}}) \le F_{\mathrm{WLS}}^{\mathrm{pop}}(B_\star)$,
+получаем $\frac{1}{2}\underline{\lambda}\lambda_m(M_g^{\mathrm{pop}}) m D^2 \le 2 \sum_j N_j^{\mathrm{pop}} \norm{e_j}_2^2
+\le \frac{L_2^2}{2}\sum_j N_j^{\mathrm{pop}} r_{\parallel, j}^4$, что даёт~\eqref{eq:wls-nonasymp}.
+\end{proof}
+
+\begin{theorem}[$O(m)$-инвариантность и точный градиент на $\Gr(d,m)$ за 2 DGEMM]
+\label{thm:grad}
+Для $F_{\mathrm{LOO1}}$ из~\eqref{eq:F-loo1} справедливы следующие утверждения:
+\begin{enumerate}[label=(\alph*)]
+  \item Для любого ортогонального $Q \in O(m)$ выполнено $F_{\mathrm{LOO1}}(Y Q) = F_{\mathrm{LOO1}}(Y)$
+  (как при жёстком, так и при $C^1$-гладком пороге $\tilde\ell_{ji}$), поэтому $F_{\mathrm{LOO1}}$
+  корректно определён на $\Gr(d, m)$.
+  \item На открытом множестве гладкости $\{\ell_{ji}(Y) \ne \ell_{\max}\ \forall j, i\}$ (или всюду на $\Gr(d,m)$
+  при $C^1$-гладком пороге $\varepsilon > 0$) обозначим для каждого активного центра $j$:
+  $s_i := (1 - \tilde\ell_{ji})^{-1}$, $u_i := 2 a_{ji} r_{ji} s_i$,
+  $v_i := a_{ji} r_{ji}^2 s_i^2 \frac{\partial \tilde\ell_{ji}}{\partial \ell_{ji}}$,
+  $H_j := Z_j G_j^{-1} \in \R^{k_j \times m}$,
+  $\lambda_j := G_j^{-1} Z_j\T u_j \in \R^m$,
+  $M_j := H_j\T \diag(a_{ji} v_i) H_j \in \R^{m \times m}$.
+  Тогда
+  \begin{align}
+    \nabla_{Z_j} f_j &= (-u_j + a_j \odot (Z_j \lambda_j)) c_j\T - (a_j \odot r_j) \lambda_j\T \nonumber\\
+                     &\quad + 2 \diag(a_j \odot v_j) H_j - 2 \diag(a_j) Z_j M_j, \label{eq:dZ}\\
+    \Gamma_j &= (I_{k_j} - a_j \mathbf{1}\T) \nabla_{Z_j} f_j, \qquad
+    \Gamma[\mathcal{I}_j] \mathrel{+}= N_j \Gamma_j \quad (\Gamma \in \R^{n \times m}), \label{eq:Gamma}\\
+    \nabla_Y F_{\mathrm{LOO1}}(Y) &= X\T \Gamma, \qquad
+    \operatorname{grad}_{\Gr} F_{\mathrm{LOO1}}(Y) = (I_d - Y Y\T)\, X\T \Gamma. \label{eq:grad-Y}
+  \end{align}
+  Амбиентная размерность $d$ участвует ровно в двух матричных произведениях: $U_{\mathrm{all}} = X Y$ ($2ndm$)
+  и $X\T \Gamma$ ($2ndm$), независимо от числа центров $J$.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+При замене $Y \mapsto Y Q$ имеем $Z_j \mapsto Z_j Q$, $G_j \mapsto Q\T G_j Q$ (в силу изотропности $\tau_j I_m$),
+$c_j \mapsto Q\T c_j$, поэтому $Z_j c_j$, $r_j$ и $\ell_{ji} = a_{ji} + a_{ji} z_{ji}\T G_j^{-1} z_{ji}$ инвариантны.
+Для дифференциала $\mathrm{d}f_j = \sum_i u_i \mathrm{d}r_i + \sum_i v_i \mathrm{d}\ell_i$:
+из $r_j = \tilde{y}_j - Z_j c_j$ и дифференцирования $G_j c_j = Z_j\T A_j \tilde{y}_j$ следует
+$G_j \mathrm{d}c_j = (\mathrm{d}Z_j)\T A_j r_j - Z_j\T A_j (\mathrm{d}Z_j) c_j$, откуда
+\[
+  u_j\T \mathrm{d}r_j = -u_j\T (\mathrm{d}Z_j) c_j - \lambda_j\T (G_j \mathrm{d}c_j)
+  = \ip{-u_j c_j\T - (A_j r_j)\lambda_j\T + (A_j Z_j \lambda_j) c_j\T}{\mathrm{d}Z_j}.
+\]
+Для рычагов $\mathrm{d}\ell_i = a_i e_i\T \mathrm{d}(Z_j G_j^{-1} Z_j\T) e_i$ использование
+$\mathrm{d}(G_j^{-1}) = -G_j^{-1}(\mathrm{d}G_j)G_j^{-1}$ и симметрии $M_j$ даёт
+$\sum_i v_i \mathrm{d}\ell_i = \ip{2 \diag(a_j \odot v_j) H_j - 2 A_j Z_j M_j}{\mathrm{d}Z_j}$, что доказывает~\eqref{eq:dZ}.
+Поскольку $Z_j = (I_{k_j} - \mathbf{1} a_j\T) X_{\mathcal{I}_j} Y$, сопряжённый оператор центрирования
+есть $(I_{k_j} - a_j \mathbf{1}\T)$, что даёт~\eqref{eq:Gamma}--\eqref{eq:grad-Y}.
+\end{proof}
+
+\begin{theorem}[Фазовый переход показателя спектра анизотропии $\beta$]
+\label{thm:beta-phase}
+В модельной задаче Теоремы~\ref{thm:quad-collapse} рассмотрим обобщённое правило обновления спектра
+$\ell_{k+1,a} = (s_a / s_1)^\beta$ ($\beta > 0$), порождающее для второй оси отображение
+\[
+  \ell_{k+1} = T_\beta(\ell_k) := \left(\frac{\varepsilon}{s_1}\,\frac{\ell_k}{h^2 + \ell_k}\right)^\beta,
+  \qquad \ell_0 > 0.
+\]
+Тогда при всех $\varepsilon > 0$, $h > 0$, $s_1 > 0$:
+\begin{enumerate}[label=(\alph*)]
+  \item При $\beta > 1$ выполнено $T_\beta'(0^+) = 0$; при $\varepsilon < s_1 \beta (\beta-1)^{-(\beta-1)/\beta} h^{2/\beta}$
+  положительных неподвижных точек нет и $\ell_k \to 0$ суперэкспоненциально.
+  \item При $\beta = 1$ выполнено $T_1'(0^+) = \varepsilon / (s_1 h^2)$; геометрический коллапс $\ell_k \to 0$
+  имеет место тогда и только тогда, когда $\varepsilon \le s_1 h^2$.
+  \item При $0 < \beta < 1$ функция $T_\beta$ строго возрастает и строго вогнута на $(0, \infty)$ с
+  $T_\beta'(0^+) = +\infty$; существует единственная положительная неподвижная точка $\ell^\star > 0$,
+  определяемая уравнением $(\ell^\star)^{(1-\beta)/\beta}(h^2 + \ell^\star) = \varepsilon / s_1$,
+  причём $\ell_k \to \ell^\star$ монотонно для любого $\ell_0 > 0$.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+Рассмотрим $\psi(\ell) := T_\beta(\ell)/\ell = (\varepsilon/s_1)^\beta \ell^{\beta - 1} (h^2 + \ell)^{-\beta}$ на $(0, \infty)$.
+При $\beta > 1$ функция $\psi$ стремится к $0$ при $\ell \to 0^+$ и $\ell \to +\infty$ и достигает
+единственного максимума в $\ell_{\mathrm{peak}} = (\beta - 1) h^2$, равного
+$(\varepsilon/s_1)^\beta \frac{(\beta-1)^{\beta-1}}{\beta^\beta h^2}$; условие $\psi(\ell_{\mathrm{peak}}) < 1$
+даёт порог пункта~(a) и монотонное убывание $\ell_k \to 0$ со скоростью $O(\ell_k^\beta)$.
+При $\beta = 1$ функция $\psi(\ell) = \frac{\varepsilon}{s_1(h^2 + \ell)}$ строго убывает от $\frac{\varepsilon}{s_1 h^2}$ к $0$,
+откуда следует~(b).
+При $0 < \beta < 1$ функция $\psi(\ell)$ строго убывает от $+\infty$ (при $\ell \to 0^+$) до $0$ (при $\ell \to +\infty$),
+поэтому уравнение $\psi(\ell^\star) = 1$ имеет единственное решение $\ell^\star > 0$.
+Поскольку $T_\beta(\ell) > \ell$ на $(0, \ell^\star)$ и $T_\beta(\ell) < \ell$ на $(\ell^\star, \infty)$,
+а $T_\beta$ строго возрастает, последовательность $\{\ell_k\}$ монотонно и ограниченно сходится к $\ell^\star$ из любого $\ell_0 > 0$.
+\end{proof}
+
+% ============================================================================
+\section{Алгоритм, реализация и вычислительная сложность}
+\label{sec:impl}
+
+Полная реализация выполнена на изолированной ветке \code{feat/loo1-wls-adp} (от коммита \code{2190b23})
+в четырёх коммитах (\code{7576283}, \code{42e2f7b}, \code{f9a7799}, \code{8804e90}) без изменения
+поведения \code{estimator="new"} и \code{estimator="legacy"}.
+
+\paragraph{Предобусловленный решатель на $\Gr(d,m)$ и защита числа обусловленности.}
+В \code{ADP/solver/loo1_wls.py} на каждом шаге внутреннего спуска строится симметричная матрица
+энергий локальных коэффициентов $R = \sum_{j \in \mathcal{A}} N_j c_j c_j\T \in \R^{m \times m}$,
+вычисляется её спектральное разложение $R = V \diag(\lambda) V\T$ (\code{scipy.linalg.eigh}),
+$\lambda_+ = \max(\lambda, 0)$, и задаётся регуляризация
+\begin{equation}\label{eq:cond-guard}
+  \tau_R := \rho_{\mathrm{reg}} \max\!\bigl(1,\; \tr(R_+)\bigr), \qquad
+  D := G_{\Gr} (R_+ + \tau_R I_m)^{-1}, \qquad
+  \kappa_2(R_+ + \tau_R I_m) \le 1 + \frac{1}{\rho_{\mathrm{reg}}}.
+\end{equation}
+\emph{Замечание о выборе $\tr(R_+)$:} использование $\tr(R_+)/m$ не гарантирует верхней границы $1 + 1/\rho_{\mathrm{reg}}$:
+для $R = \diag(3,0,0)$ и $\rho_{\mathrm{reg}} = 10^{-5}$ формула $\tau = 10^{-5}\max(1, \tr(R)/m)$ даёт
+$\kappa_2 = 300\,001$, тогда как~\eqref{eq:cond-guard} строго гарантирует $\kappa_2 = 100\,001 \le 10^5 + 1$.
+Направление $D$ повторно проецируется в горизонтальное пространство, начальный шаг масштабируется по
+Барзилаю--Борвейну ($t_{\mathrm{BB}} = \langle s_{\mathrm{tan}}, y_{\mathrm{tan}} \rangle / \langle y_{\mathrm{tan}}, y_{\mathrm{tan}} R_{\mathrm{reg}}^{-1} \rangle$),
+ретракция выполняется тонким SVD ($Y_{\mathrm{trial}} = U V\T$), а условие Армихо при отказе предобусловленного
+направления автоматически откатывается к непредобусловленному риманову градиенту $G_{\Gr}$.
+
+\paragraph{Векторизованное CSR-ядро и потоковый режим без \code{distance2}.}
+В \code{ADP/engine/common/loo1_wls.py} реализованы:
+\begin{itemize}
+  \item плоский CSR-контейнер \code{LOO1Neighborhoods}, собираемый потоково из блоков весов
+  (\code{build_loo1_neighborhoods}) без хранения плотной матрицы весов $(J, n)$;
+  \item чанкованная оценка \code{evaluate_loo1_wls} (\code{center_chunk=512}): ровно 2 DGEMM
+  (\code{X @ Y} и \code{X.T @ Gamma}), одномерные симметричные \code{np.add.reduceat}
+  (без тензоров $(E, m, m)$), единая батчевая факторизация \code{np.linalg.solve(G, [b | I_m])}
+  (без \code{np.linalg.inv}), переполнительно-устойчивый $C^1$-порог через \code{np.logaddexp}
+  и сборка $\Gamma$ через \code{np.bincount};
+  \item потоковые аналоги \code{pairwise_distance2_blocks}, \code{search_bandwidth_streaming},
+  \code{calculate_alpha_k_streaming}, \code{initialize_basis_local_streaming} и
+  \code{_calculate_multi_weight_streaming}, включаемые явно (\code{stream_distances=True})
+  либо автоматически при $N_J n_{\mathrm{train}} > 4 \cdot 10^6$, что полностью устраняет
+  матрицу \code{distance2} размера $8 J n$ байт при $N_J \approx n$.
+\end{itemize}
+
+\begin{table}[htbp]
+\centering
+\caption{Асимптотическая сложность, пиковая память (\texttt{float64} при $n=J=10^4$, $d=10^3$, $m=3$, $p=30$, $\bar{k}=60$, $B_c=128$) и обусловленность.}
+\label{tab:complexity}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}L{3.1cm}YYY@{}}
+\toprule
+Метод / ядро & Флопы на 1 оценку градиента & Память (\texttt{float64}) & Обусловленность / замечание \\
+\midrule
+Текущий ADP (скетч, Епанечников, плотный \code{distance2}) & $O(J p d m + J p m^2)$ & $5{,}6$~ГБ: $U$ ($2{,}4$~ГБ) + $\Phi$ ($2{,}4$~ГБ) + \code{distance2} ($0{,}8$~ГБ) & $\kappa_2(U_j Y)$ не ограничено; вырождение при $p = m+1$ \\
+\textbf{\texttt{LOO1-WLS-ADP}}, компактное ядро Епанечникова, потоковый режим & $4ndm + O(E m^2 + J m^3)$, $E = J\bar{k} \ll Jn$ ($4ndm = 1{,}2\cdot 10^8$, не зависит от $J$) & $\approx 95$~МБ: $X$ ($80$~МБ) + CSR $E=6\cdot 10^5$ ($\approx 10$~МБ) + блок \code{distance2} ($10$~МБ) & $\kappa_2(G_j) \le 1 + \tr(Y\T\Sigma_j Y)/\tau_j$; $\kappa_2(R_+ + \tau_R I) \le 1 + 1/\rho_{\mathrm{reg}}$ \\
+\texttt{LOO1-WLS-ADP}, неусечённое гауссовское ядро & $4ndm + O(J n m^2)$ ($E = Jn$, разреженности нет) & $O(nd + B_c n)$ потоково; хранение CSR ($1{,}6$~ГБ) невыгодно без усечения (\texttt{APPROXIMATE}) & То же; риск недополнения $\exp(-u)$ при $u > 745$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Публичный API и затронутые модули.}
+Конфигурация задаётся неизменяемым dataclass \code{LOO1WLSConfig} (\code{ADP/core/loo1_wls.py},
+реэкспортируется из \code{ADP}): значения по умолчанию \code{spectrum_exponent=0.5},
+\code{ridge=1e-4}, \code{leverage_cap=0.85}, \code{smooth_cap_eps=0.0},
+\code{preconditioner_reg=1e-3}, \code{center_chunk=512}, \code{stream_distances=None},
+\code{stream_distance_threshold=4_000_000}, \code{max_steps=25}, \code{tol=1e-6}.
+Интеграция выполнена в \code{ADP/core/ADP_Config.py} (допустим \code{estimator="loo1_wls"} и поле \code{loo1_wls}),
+\code{ADP/core/multi/ADP_multi_index.py} (выбор решателя \code{ADP.solver.loo1_wls.solve} по умолчанию)
+и \code{ADP/engine/common/index_fit.py} (ветка \code{_fit_multi_loo1_wls}, где \code{N_phi=0},
+в \code{trace} сохраняются нормированный \code{err = final_objective / sum(active_mass)} и
+\code{response_err = sum((test_Y - full_S)**2)}).
+Режим single-index (\code{ADP_single_index}) и \code{gpu=True} при \code{estimator="loo1_wls"}
+явно отклоняются исключением \code{NotImplementedError}.
+
+% ============================================================================
+\section{Верификация и экспериментальные результаты}
+\label{sec:results}
+
+\subsection{Модульные тесты, статический анализ и аудит кода}
+\label{sec:unit-tests}
+
+Набор \code{tests/test_loo1_wls.py} (коммит \code{42e2f7b}) разработан по TDD-циклу
+(сначала зафиксирован ожидаемый отказ RED при импорте, затем реализован код и получено прохождение GREEN):
+\begin{itemize}
+  \item \textbf{\code{tests/test_loo1_wls.py}:} 80 passed за $2{,}45$~с, 0 предупреждений
+  при жёсткой политике \code{filterwarnings = ["error"]} из \code{pyproject.toml}.
+  Проверены: валидация границ и \code{NotImplementedError}; 3-членное тождество Теоремы~\ref{thm:loo1-3term}
+  до $< 10^{-13}$ при $\tau > 0$ и активном отсечении, плюс точный нуль для boxcar при $\tau=0$;
+  $O(m)$-инвариантность ($< 10^{-14}$), центральные конечные разности на $\Gr(d,m)$
+  для жёсткого и $C^1$-гладкого порога ($< 10^{-8}$) и совпадение чанкованного ядра
+  с наивным эталоном ($< 10^{-12}$); фазовый переход Теоремы~\ref{thm:beta-phase};
+  защита обусловленности на $\diag(3,0,0)$ ($\kappa_2 = 100\,001$);
+  совпадение потокового и плотного режимов ($< 10^{-11}$); сквозное восстановление подпространства
+  на линейных, \texttt{Weak(8,2)} и \texttt{Mixture(8,2)} задачах.
+  \item \textbf{Совместимость и регрессия:} совместный прогон \code{tests/test_loo1_wls.py}
+  и \code{tests/test_index_models.py -k "not pilot"} — 116 passed за $5{,}81$~с (4 deselected);
+  в полном прогоне репозитория 1172 passed без регрессий в ядре ADP
+  (54 skipped и 32 падения / 5 ошибок сбора относятся к прежним нетронутым тестам и необязательным пакетам).
+  \item \textbf{Статический анализ и аудит:} \code{ruff check}, \code{ruff format --check}
+  на всех 9 новых/изменённых Python-файлах и \code{pyright} на всех 7 модулях \code{ADP/} и
+  \code{benchmarks/experiments/loo1_wls_study.py} — 0 ошибок, 0 предупреждений.
+  Независимый враждебный аудит диффа \code{ADP/} завершён с вердиктом \textbf{PASS} (0 блокирующих дефектов).
+\end{itemize}
+
+\subsection{Протокол парного бенчмарка}
+\label{sec:bench-protocol}
+
+Скрипт \code{benchmarks/experiments/loo1_wls_study.py} (коммит \code{f9a7799};
+отчёт \code{benchmarks/experiments/LOO1_WLS_REPORT.md}, сырые строки
+\code{benchmarks/results/loo1_wls_study/results.json}) выполнил 290/290 успешных
+прогонов без ошибок на Python~3.13.12, NumPy~2.5.2, SciPy~1.18.1 (Linux~x86\_64)
+при закреплённом однопоточном BLAS (\code{OPENBLAS_NUM_THREADS=1}, \code{OMP_NUM_THREADS=1},
+\code{MKL_NUM_THREADS=1}, \code{NUMEXPR_NUM_THREADS=1}).
+Время измерялось через \code{time.perf_counter()}, пиковая память — по \code{VmHWM}
+из \code{/proc/self/status} и \code{ru_maxrss} (в Suite~3 и Suite~4 каждый запуск выполнен
+в изолированном подпроцессе).
+
+Сравнивались на побитово идентичных $(X, y, B_\star)$:
+\begin{itemize}
+  \item \textbf{\texttt{LiveADP}:} \code{ADP_Config(N_J=NJ, h_min=hmin, N_loc=Nloc, lambda_penalty=0.05)}
+  с решателем \code{ADP_solver(grassman.solve, max_steps=20)};
+  \item \textbf{\texttt{LOO1-WLS} ($\beta \in \{0{,}5,\, 2/3\}$):} то же с \code{estimator="loo1_wls"}
+  и \code{LOO1WLSConfig(spectrum_exponent=beta, max_steps=25)}.
+\end{itemize}
+Наборы данных:
+\begin{enumerate}
+  \item \textbf{Suite~1:} \texttt{Weak(8,2)} ($X \sim N(0, I_8)$) и \texttt{Mixture(8,2)}
+  ($X = (Z + R)/\sqrt{2}$, $R_j \in \{\pm 1\}$ равновероятны), $n=960$, $d=8$, $m=2$,
+  $N_J = 816$ ($0{,}85n$), $h_{\min}=0{,}7$, $N_{\mathrm{loc}}=20$,
+  связь $\sin(z_1) + 0{,}25\cos(1{,}5 z_2)$, шум SD~$0{,}3$, сиды \code{4111800..4111805} (12 пар).
+  \item \textbf{Suite~2:} 7 семейств из \code{benchmarks/experiments/r_sdr/design.py}
+  ($n=1000$, $d=25$, $m=3$, $N_J=850$, $h_{\min}=0{,}5$, $N_{\mathrm{loc}}=30$, гауссовский $X$,
+  стандартизованный сигнал + шум SD~$0{,}3$, сиды \code{0..9}, 70 пар):
+  \texttt{additive} ($\sin z_1 + 0{,}5 z_2^2 + 0{,}35\tanh z_3$),
+  \texttt{quadratic} ($z_1^2 + 0{,}8 z_2^2 + 0{,}6 z_3^2 + 0{,}5 z_1 z_2 + 0{,}4 z_2 z_3$),
+  \texttt{multiplicative} ($z_1 z_2 z_3$),
+  \texttt{oscillatory} ($\sin(8 z_1)\cos(10 z_2) + \sin(12 z_3)$),
+  \texttt{saturating} ($\tanh(2 z_1) + \tanh(2 z_2)\tanh(2 z_3)$),
+  \texttt{localized} ($\exp(-\frac{1}{2}(z_1^2 + 2z_2^2 + 3z_3^2))$),
+  \texttt{nonsmooth} ($\max(z_1, z_2, z_3)$).
+  \item \textbf{Suite~3:} те же 7 семейств при $n=2000$, $d=50$, $m=3$, $N_J=1700$,
+  $h_{\min}=0{,}5$, $N_{\mathrm{loc}}=30$, сиды \code{0..2} (21 пара, изолированные подпроцессы).
+  \item \textbf{Suite~4:} проверка потоковой памяти при $n=4000$, $d=100$, $m=3$, $N_J=3400$,
+  \texttt{family-quadratic}, сид~\code{0} (\code{stream_distances=True} против \code{False}, изолированные подпроцессы).
+\end{enumerate}
+
+\subsection{Количественные результаты (Suite~1--4)}
+\label{sec:bench-tables}
+
+Критерий восстановления (recovery) определён как $D(\widehat{P}, P_\star) \le 0{,}1$;
+это эмпирический счётчик на данном протоколе, а не сертификат сходимости.
+
+\begin{table}[htbp]
+\centering
+\caption{Suite~1: \texttt{Weak(8,2)} и \texttt{Mixture(8,2)} ($n=960$, $d=8$, $m=2$, $N_J=816$, сиды \texttt{4111800..4111805}).}
+\label{tab:suite1}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}llrrrrr@{}}
+\toprule
+Задача & Метод & Rec $\le 0{,}1$ & Mean EDR & Med EDR & Med fit, с & VmHWM, МиБ \\
+\midrule
+\texttt{Weak(8,2)}    & \texttt{LiveADP}              & 1/6  & 0,1951 & 0,1885 & 1,053 & 111,1 \\
+                      & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 4/6  & 0,0900 & 0,0868 & 0,548 & 111,1 \\
+                      & \texttt{LOO1-WLS} ($\beta=2/3$)   & 4/6  & 0,0896 & 0,0840 & 0,568 & 111,1 \\
+\addlinespace[3pt]
+\texttt{Mixture(8,2)} & \texttt{LiveADP}              & 1/6  & 0,2452 & 0,2619 & 1,011 & 112,2 \\
+                      & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 6/6  & 0,0718 & 0,0757 & 0,550 & 112,2 \\
+                      & \texttt{LOO1-WLS} ($\beta=2/3$)   & 6/6  & 0,0725 & 0,0741 & 0,526 & 112,2 \\
+\midrule
+\textbf{Итого (12 пар)} & \texttt{LiveADP}            & 2/12 & 0,2201 & 0,2543 & 1,033 & 112,2 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & \textbf{10/12} & \textbf{0,0809} & 0,0799 & 0,550 & 112,2 \\
+                        & \texttt{LOO1-WLS} ($\beta=2/3$)   & \textbf{10/12} & 0,0811 & \textbf{0,0766} & \textbf{0,541} & 112,2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+В Suite~1 оба варианта \texttt{LOO1-WLS} выиграли 11/12 пар против \texttt{LiveADP}
+(медианное ускорение $1{,}89\times$ при $\beta=0{,}5$ и $1{,}91\times$ при $\beta=2/3$,
+средний $\Delta\text{EDR} = -0{,}1392$).
+Единственное ухудшение: \texttt{Weak(8,2)}, сид \code{4111803} ($0{,}1179 \to 0{,}1432$, $\Delta = +0{,}0252$ при $\beta=0{,}5$).
+
+\begin{table}[htbp]
+\centering
+\caption{Suite~2: семь семейств ($n=1000$, $d=25$, $m=3$, $N_J=850$, $h_{\min}=0{,}5$, $N_{\mathrm{loc}}=30$, сиды \texttt{0..9}, 70 пар).}
+\label{tab:suite2}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+Семейство & Метод & Rec $\le 0{,}1$ & Mean EDR & Med EDR & Med fit, с \\
+\midrule
+\texttt{additive}       & \texttt{LiveADP}              & 0/10 & 0,3617 & 0,3740 & 3,409 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 0/10 & 0,3844 & 0,3804 & 3,838 \\
+                        & \texttt{LOO1-WLS} ($\beta=2/3$)   & 0/10 & 0,3619 & 0,3531 & 3,762 \\
+\addlinespace[2pt]
+\texttt{localized}      & \texttt{LiveADP}              & 3/10 & 0,3368 & 0,3847 & 3,384 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 9/10 & 0,0732 & 0,0705 & 2,119 \\
+                        & \texttt{LOO1-WLS} ($\beta=2/3$)   & 9/10 & 0,0728 & 0,0667 & 2,047 \\
+\addlinespace[2pt]
+\texttt{multiplicative} & \texttt{LiveADP}              & 8/10 & 0,0934 & 0,0913 & 2,747 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 10/10 & 0,0765 & 0,0746 & 2,291 \\
+                        & \texttt{LOO1-WLS} ($\beta=2/3$)   & 10/10 & 0,0766 & 0,0750 & 2,368 \\
+\addlinespace[2pt]
+\texttt{nonsmooth}      & \texttt{LiveADP}              & 8/10 & 0,0913 & 0,0907 & 3,169 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 10/10 & 0,0775 & 0,0772 & 1,648 \\
+                        & \texttt{LOO1-WLS} ($\beta=2/3$)   & 10/10 & 0,0780 & 0,0775 & 1,674 \\
+\addlinespace[2pt]
+\texttt{oscillatory}    & \texttt{LiveADP}              & 0/10 & 0,9439 & 0,9375 & 3,232 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 0/10 & 0,9452 & 0,9477 & 2,851 \\
+                        & \texttt{LOO1-WLS} ($\beta=2/3$)   & 0/10 & 0,9434 & 0,9442 & 2,902 \\
+\addlinespace[2pt]
+\texttt{quadratic}      & \texttt{LiveADP}              & 0/10 & 0,2210 & 0,1427 & 3,357 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 0/10 & 0,1147 & 0,1145 & 2,078 \\
+                        & \texttt{LOO1-WLS} ($\beta=2/3$)   & 1/10 & 0,1157 & 0,1142 & 2,282 \\
+\addlinespace[2pt]
+\texttt{saturating}     & \texttt{LiveADP}              & 4/10 & 0,1130 & 0,1071 & 3,305 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 10/10 & 0,0754 & 0,0745 & 1,643 \\
+                        & \texttt{LOO1-WLS} ($\beta=2/3$)   & 10/10 & 0,0747 & 0,0719 & 1,684 \\
+\midrule
+\textbf{Итого (70 пар)} & \texttt{LiveADP}              & 23/70 & 0,3087 & 0,1225 & 3,286 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 39/70 & 0,2495 & \textbf{0,0861} & \textbf{2,231} \\
+                        & \texttt{LOO1-WLS} ($\beta=2/3$)   & \textbf{40/70} & \textbf{0,2461} & 0,0864 & 2,302 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+В Suite~2 оба варианта выиграли 55/70 пар (медианное ускорение $1{,}46\times$ при $\beta=0{,}5$,
+$1{,}43\times$ при $\beta=2/3$; средний $\Delta\text{EDR} = -0{,}0592$ и $-0{,}0626$).
+Наибольшее улучшение достигнуто на \texttt{localized} (сид~2: $0{,}5837 \to 0{,}0618$, $\Delta = -0{,}5219$);
+наихудшее ухудшение — на \texttt{additive} (при $\beta=0{,}5$ сид~7: $0{,}3737 \to 0{,}5490$, $\Delta = +0{,}1753$;
+при $\beta=2/3$ сид~5: $0{,}4099 \to 0{,}5233$, $\Delta = +0{,}1134$).
+
+\begin{table}[htbp]
+\centering
+\caption{Suite~3: масштабирование ($n=2000$, $d=50$, $m=3$, $N_J=1700$, сиды \texttt{0..2}, 21 пара, изолированные подпроцессы).}
+\label{tab:suite3}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}llrrrrr@{}}
+\toprule
+Семейство & Метод & Rec $\le 0{,}1$ & Mean EDR & Med EDR & Med fit, с & VmHWM, МиБ \\
+\midrule
+\texttt{additive}       & \texttt{LiveADP}              & 0/3 & 0,3475 & 0,3467 & 12,045 & 211,8 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 0/3 & 0,3481 & 0,3574 & 12,387 & 174,5 \\
+\texttt{localized}      & \texttt{LiveADP}              & 0/3 & 0,5073 & 0,5831 & 12,254 & 212,5 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 2/3 & 0,2093 & 0,0704 &  9,526 & 173,4 \\
+\texttt{multiplicative} & \texttt{LiveADP}              & 1/3 & 0,1009 & 0,1034 & 11,794 & 231,9 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 2/3 & 0,0971 & 0,0920 &  9,570 & 173,1 \\
+\texttt{nonsmooth}      & \texttt{LiveADP}              & 3/3 & 0,0835 & 0,0834 & 12,542 & 219,1 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 3/3 & 0,0801 & 0,0801 &  7,142 & 173,3 \\
+\texttt{oscillatory}    & \texttt{LiveADP}              & 0/3 & 0,9803 & 0,9826 & 11,583 & 230,6 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 0/3 & 0,9744 & 0,9702 & 10,981 & 174,1 \\
+\texttt{quadratic}      & \texttt{LiveADP}              & 0/3 & 0,1258 & 0,1213 & 11,896 & 217,2 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 0/3 & 0,1229 & 0,1257 &  8,038 & 173,1 \\
+\texttt{saturating}     & \texttt{LiveADP}              & 2/3 & 0,0966 & 0,0855 & 12,216 & 224,6 \\
+                        & \texttt{LOO1-WLS} ($\beta=0{,}5$) & 3/3 & 0,0713 & 0,0711 &  7,208 & 174,5 \\
+\midrule
+\textbf{Итого (21 пара)} & \texttt{LiveADP}             &  6/21 & 0,3203 & 0,1386 & 12,129 & 231,9 \\
+                         & \texttt{LOO1-WLS} ($\beta=0{,}5$) & \textbf{10/21} & \textbf{0,2719} & \textbf{0,1099} & \textbf{9,443} & \textbf{174,5} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+В Suite~3 \texttt{LOO1-WLS} выиграл 16/21 пар (средний $\Delta\text{EDR} = -0{,}0484$, медианное ускорение $1{,}32\times$,
+снижение максимальной пиковой памяти \texttt{VmHWM} на $24{,}8\%$: $231{,}9 \to 174{,}5$~МиБ).
+Наихудшее ухудшение: \texttt{additive}, сид~1 ($0{,}3296 \to 0{,}3574$, $\Delta = +0{,}0278$);
+наилучшее улучшение: \texttt{localized}, сид~1 ($0{,}5868 \to 0{,}0600$, $\Delta = -0{,}5268$).
+
+\begin{table}[htbp]
+\centering
+\caption{Suite~4: потоковый режим без матрицы \texttt{distance2} ($n=4000$, $d=100$, $m=3$, $N_J=3400$, \texttt{quadratic}, сид~0, изолированные подпроцессы).}
+\label{tab:suite4}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Конфигурация & EDR & Fit, с & VmHWM, МиБ & \texttt{ru\_maxrss}, МиБ \\
+\midrule
+\texttt{LOO1-WLS} ($\beta=0{,}5$, \code{stream_distances=False}) & 0,1379 & 43,734 & 427,9 & 427,9 \\
+\texttt{LOO1-WLS} ($\beta=0{,}5$, \code{stream_distances=True})  & 0,1379 & 70,647 & \textbf{188,7} & \textbf{188,7} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+В Suite~4 потоковый режим точно воспроизвёл EDR ($0{,}1379$), снизив пиковую память на $55{,}9\%$
+($427{,}9 \to 188{,}7$~МиБ) за счёт дополнительного времени пересчёта блоков расстояний ($1{,}62\times$).
+
+% ============================================================================
+\section{Границы применимости и точные оставшиеся пробелы}
+\label{sec:gaps}
+
+\paragraph{Самый сильный строго доказанный результат.}
+Установлены причины деградации текущего multi-index ADP (шумовое седло и инфляция скетча в
+Теореме~\ref{thm:noise-saddle}, квадратичный коллапс спектра $\beta=2$ в Теореме~\ref{thm:quad-collapse},
+минимаксная граница в Теореме~\ref{thm:assouad}). Для выбранного opt-in варианта \texttt{LOO1-WLS-ADP}
+строго доказаны: точное 3-членное разложение шумового ожидания с $\tau_j \ge 0$ и отсечением $\ell_{\max}$
+(Теорема~\ref{thm:loo1-3term}), неасимптотическая состоятельность глобального минимума $F_{\mathrm{WLS}}^{\mathrm{pop}}$
+без предположения гауссовости $X$ при явных условиях (A1)--(A3) (Теорема~\ref{thm:wls-pop}),
+$O(m)$-инвариантность и точный 2-DGEMM градиент на $\Gr(d,m)$ (Теорема~\ref{thm:grad}),
+устранение коллапса в модельной 1D-рекурсии для всех $\beta \in (0, 1)$ (Теорема~\ref{thm:beta-phase}),
+а также строгая верхняя граница обусловленности предобусловливателя $\kappa_2 \le 1 + 1/\rho_{\mathrm{reg}}$~\eqref{eq:cond-guard}.
+
+\paragraph{Точные оставшиеся пробелы (не доказаны и не решены).}
+\begin{enumerate}
+  \item \textbf{Отсутствие равномерного по сидам доминирования на конечной выборке:}
+  на \texttt{family-additive} наблюдаются ухудшения на отдельных сидах (до $+0{,}1753$ на сиде~7 при $(1000,25)$),
+  и средняя ошибка по 10 сидам при $\beta=0{,}5$ выше, чем у \texttt{LiveADP} ($0{,}3844$ против $0{,}3617$;
+  при $\beta=2/3$ среднее $0{,}3619$, медиана $0{,}3531$ против $0{,}3740$).
+  \item \textbf{Отсутствие глобальной теоремы сходимости внешнего цикла:}
+  Теорема~\ref{thm:wls-pop} относится к глобальному минимуму $F_{\mathrm{WLS}}^{\mathrm{pop}}$,
+  а Теорема~\ref{thm:beta-phase} — к модельной 1D-рекурсии при фиксированных $h, s_1$;
+  сходимость связанной невыпуклой стохастической динамики $(B_k, h_k, \alpha_k, \ell_k)$ не доказана.
+  \item \textbf{Неустранимость зависимости статистической ошибки от $\lambda_m$:}
+  конечная статистическая ошибка слабой оси остаётся ограниченной снизу Теоремой~\ref{thm:assouad}.
+  \item \textbf{Вырожденные градиентные режимы и высокие частоты:}
+  при нарушении условия (A2) ($\rank(M_g^{\mathrm{pop}}) < m$) либо при частотах, не разрешаемых шириной окна
+  (как в \texttt{family-oscillatory}, где оба метода дают EDR~$0{,}94\text{--}0{,}98$), локально-линейное приближение несостоятельно.
+  \item \textbf{Область численной устойчивости 2-DGEMM:}
+  \code{evaluate_loo1_wls} вычисляет \code{X @ Y} без копирования сдвинутой матрицы $X - X_0$ ради экономии памяти;
+  при экстремальном общем сдвиге признаков порядка $O(10^8)$ требуется предварительное центрирование $X$.
+  \item \textbf{Необходимость отложенной многосидовой валидации:}
+  проведённый бенчмарк (Suite~1--4) сравнивает \texttt{LOO1-WLS-ADP} с \texttt{LiveADP} на заданных сидах,
+  но не включает независимую отложенную валидацию с R-\texttt{MEANMAVE} на полных 15+ сидах и не даёт оснований
+  для автоматической смены режима по умолчанию.
+\end{enumerate}
+
+% ============================================================================
+\appendix
+\section{Карта артефактов ветки \texttt{feat/loo1-wls-adp}}
+\label{app:artifacts}
+
+\begin{table}[htbp]
+\centering
+\caption{Файлы и коммиты реализации на ветке \texttt{feat/loo1-wls-adp} (базовый коммит \texttt{2190b23}).}
+\label{tab:artifacts}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}lL{6.5cm}Y@{}}
+\toprule
+Коммит & Путь & Назначение \\
+\midrule
+\code{7576283} & \code{ADP/core/loo1_wls.py} & \code{LOO1WLSConfig} и валидация границ параметров \\
+\code{7576283} & \code{ADP/engine/common/loo1_wls.py} & CSR-окрестности, 2-DGEMM \code{evaluate_loo1_wls}, \code{subcritical_eigenvalues}, потоковый режим \\
+\code{7576283} & \code{ADP/solver/loo1_wls.py} & $R^{-1}$-предобусловленный Grassmann-решатель с гарантией~\eqref{eq:cond-guard} \\
+\code{7576283} & \code{ADP/core/ADP_Config.py}, \code{ADP/core/multi/ADP_multi_index.py}, \code{ADP/engine/common/index_fit.py}, \code{ADP/__init__.py} & Интеграция \code{estimator="loo1_wls"} и ветка \code{_fit_multi_loo1_wls} \\
+\code{42e2f7b} & \code{tests/test_loo1_wls.py} & 80 модульных и теоретических тестов (TDD) \\
+\code{f9a7799} & \code{benchmarks/experiments/loo1_wls_study.py}, \code{LOO1_WLS_REPORT.md}, \code{benchmarks/results/loo1_wls_study/results.json} & Скрипт, отчёт и сырые результаты парного бенчмарка (290 запусков) \\
+\code{8804e90} & \code{PLAN.md}, \code{docs/plans/2026-11-19-loo1-wls-adp.md}, \code{docs/agent-notes/STATE.md}, \code{DECISIONS.md}, \code{ADP/\{multi-index,solvers,index-pipeline\}.md} & Актуализированный план, состояние, журнал решений и локаторы исходников \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\end{document}

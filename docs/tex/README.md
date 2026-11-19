@@ -8,6 +8,7 @@
 |---|---|
 | Исходные single/multi-index и manifold спецификации | [multiindex.tex](multiindex.tex), [manifold.tex](manifold.tex), [manifold-ade.tex](manifold-ade.tex); [подробная карта формул](../agent-notes/tex/README.md) |
 | Описание реализации Grassmann на 2026-10-23 из EDR_code | [ADP_Grassmann_current.tex](ADP_Grassmann_current.tex), [PDF](ADP_Grassmann_current.pdf), [проверки и hashes](ADP_Grassmann_current.verification.md) |
+| Формализация opt-in варианта `LOO1-WLS-ADP` (`feat/loo1-wls-adp`) | [ADP_LOO1_WLS.tex](ADP_LOO1_WLS.tex), [PDF](ADP_LOO1_WLS.pdf) (сборка LuaLaTeX) |
 | Описание реализации из отдельного комплекта M | [archive/ADP_Grassmann_current.tex](archive/ADP_Grassmann_current.tex), [result/multi_index_algorithm.tex](result/multi_index_algorithm.tex); это отдельные снимки, не описание всех текущих API EDR_code |
 | Выводы и изложение экспериментов из M | [result/README.md](result/README.md) |
 | Исходные идеи, ответы и черновики из M | [data/README.md](data/README.md) |
