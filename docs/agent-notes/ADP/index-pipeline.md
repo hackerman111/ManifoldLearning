@@ -42,14 +42,18 @@ Opt-in SVD metric variants получают текущие alpha/eigenvalues/ten
 центрированные row formulas, что dense local path. Defaults сохранены.
 Маршрут, ограничения и coefficient mapping: [adaptive-centers.md](adaptive-centers.md).
 
+Opt-in вариант `ADP_Config(estimator="loo1_wls")` маршрутизируется из `fit_index:228-246` в `_fit_multi_loo1_wls:681-1031` (multi-index CPU-only): пропускает генерацию случайных направлений (`N_phi=0`), использует `LOO1Neighborhoods` и при `stream_distances=True` (либо $N_J n_{\rm train} > 4\times 10^6$) заменяет плотную `distance2` на потоковые аналоги инициализации, `search_bandwidth`, весов и `calculate_alpha_k`. См. [multi-index.md](multi-index.md#opt-in-вариант-estimatorloo1_wls-loo1-wls-adp).
+
 ## Локаторы
 
 | ID | Что проверять | Команда sed |
 |---|---|---|
-| SRC-IFIT-ENTRY | валидация, seed streams, центры, train/test protocol | `rtk proxy sed -n '195,291p' ADP/engine/common/index_fit.py` |
-| SRC-IFIT-INIT | ветвление режимов инициализации | `rtk proxy sed -n '53,133p' ADP/engine/common/index_fit.py` |
-| SRC-IFIT-LOOP | bandwidth, направления, веса, статистики и solver шаг | `rtk proxy sed -n '292,472p' ADP/engine/common/index_fit.py` |
-| SRC-IFIT-STOP | trace, step selection и metadata | `rtk proxy sed -n '472,647p' ADP/engine/common/index_fit.py` |
+| SRC-IFIT-ENTRY | валидация, seed streams, центры, train/test protocol | `rtk proxy sed -n '206,305p' ADP/engine/common/index_fit.py` |
+| SRC-IFIT-INIT | ветвление режимов инициализации | `rtk proxy sed -n '62,140p' ADP/engine/common/index_fit.py` |
+| SRC-IFIT-LOOP | bandwidth, направления, веса, статистики и solver шаг | `rtk proxy sed -n '306,486p' ADP/engine/common/index_fit.py` |
+| SRC-IFIT-STOP | trace, step selection и metadata | `rtk proxy sed -n '487,678p' ADP/engine/common/index_fit.py` |
+| SRC-IFIT-LOO1 | opt-in `_fit_multi_loo1_wls` (CSR + subcritical spectrum + streaming) | `rtk proxy sed -n '681,1031p' ADP/engine/common/index_fit.py` |
+| SRC-CFG | значения конфигурации и допустимые estimator/options | `rtk proxy sed -n '13,126p' ADP/core/ADP_Config.py` |
 | SRC-CALC-DIST-H | устойчивые расстояния и поиск bandwidth | `rtk proxy sed -n '16,109p' ADP/engine/common/calculus.py` |
 | SRC-CALC-RHO-DIR | rho и single/isotropic направления | `rtk proxy sed -n '136,258p' ADP/engine/common/calculus.py` |
 | SRC-CALC-ALPHA-DIR | multi alpha, exact support compaction и directions | `rtk proxy sed -n '259,422p' ADP/engine/common/calculus.py` |
@@ -60,7 +64,6 @@ Opt-in SVD metric variants получают текущие alpha/eigenvalues/ten
 | SRC-INIT-LOCAL | локальные ridge gradients / weighted gradient-PCA | `rtk proxy sed -n '14,184p' ADP/engine/common/initialize.py` |
 | SRC-INIT-CV | стабилизированный ridge и weighted leave-one-out выбор | `rtk proxy sed -n '185,284p' ADP/engine/common/initialize.py` |
 | SRC-INIT-OTHER | pilot/random init и канонизация базиса | `rtk proxy sed -n '285,424p' ADP/engine/common/initialize.py` |
-| SRC-CFG | значения конфигурации и допустимые estimator/options | `rtk proxy sed -n '12,119p' ADP/core/ADP_Config.py` |
 | SRC-STAT-REC | поля результата статистики | `rtk proxy sed -n '1,37p' ADP/core/ADP_Statistic.py` |
 
 Полный индекс каждого ID с диапазоном модуля находится в [README.md](README.md#каталог-исходников). В текущем `fit_index` профиль kernel передается как callable; для Epanechnikov `search_bandwidth` и `calculate_alpha_k` могут точно удалять уже невозможный нулевой support. См. `calculus.py`, а не считать это приближенным pruning.

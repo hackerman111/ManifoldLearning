@@ -28,6 +28,28 @@ LogDet/coverage отбор подключаются через `ADP_Config.exper
 Явные ESTIMATOR варианты; основной solver/default сохранён. API, источники,
 математические уточнения и evidence: [adaptive-centers.md](adaptive-centers.md).
 
+## Opt-in вариант `estimator="loo1_wls"` (`LOO1-WLS-ADP`)
+
+Подключается явно через `ADP_Config(estimator="loo1_wls", loo1_wls=LOO1WLSConfig(...))`
+и `ADP_multi_index` (single-index и `gpu=True` отклоняются через `NotImplementedError`;
+поведения `"new"` и `"legacy"` не изменены). Вместо случайного скетча $\Phi_j$ и
+квадратичного обновления спектра $\beta=2$:
+
+- оптимизирует локальный leave-one-out-корректированный WLS-функционал
+  $\sum_j N_j \sum_{i\in\mathcal{I}_j} a_{ji} r_{ji}^2 / (1 - \tilde\ell_{ji})$ по активным
+  CSR-окрестностям (`build_loo1_neighborhoods`, `evaluate_loo1_wls`) за **2 DGEMM**
+  ($U = X Y$, $\nabla_E = X^\top\Gamma$, амбиентная стоимость $4ndm$ без зависимости от $N_J$);
+- обновляет спектр анизотропии сублинейно `subcritical_eigenvalues` ($\ell_{k+1,a} = (s_a/s_1)^\beta$,
+  по умолчанию `spectrum_exponent=0.5`) во избежание квадратичного коллапса слабых направлений;
+- использует $R^{-1}$-предобусловленный Grassmann-решатель (`ADP.solver.loo1_wls.solve`) с
+  гарантией числа обусловленности $\tau = \rho_{\rm reg}\max(1, \operatorname{tr}(R_+))$,
+  полярной SVD-ретракцией и Armijo;
+- поддерживает потоковый `distance2`-free проход (`stream_distances=True` или авто при
+  $N_J n_{\rm train} > 4\times 10^6$).
+
+Источники: **SRC-LOO1-CFG**, **SRC-LOO1-ENGINE**, **SRC-LOO1-SOLVER**, **SRC-LOO1-DRIVER**.
+Проверки и парный бенчмарк: `tests/test_loo1_wls.py`, `benchmarks/experiments/LOO1_WLS_REPORT.md`.
+
 ## Веса и anisotropy
 
 Пусть `z_q` — q-я координата смещения вдоль ортонормированного EDR basis, `lambda_q` — сохраненный спектр, а `r²` — квадрат ортогонального остатка. Текущая функция `calculate_multi_weight` использует
@@ -353,5 +375,9 @@ differ).
 | SRC-GRASSMAN | profile/Jacobian/polar1-370, intrinsic372-403, combined solve405-810, block813-857 | `rtk proxy sed -n '1,857p' ADP/solver/grassman.py` |
 | SRC-GRASSMAN-EXP | failed-selection flat GN (32-571), full tangent GN (574-819) | `rtk proxy sed -n '1,819p' ADP/solver/grassman_exp.py` |
 | SRC-SVD-SOLVER | fixed-g rank-r objectives, default certified Cholesky/LSMR or experimental gradient-gain pairs, optional diagonal/metric scaling, prior completion or QR | `rtk proxy sed -n '1,1021p' ADP/solver/SVD.py` |
+| SRC-LOO1-CFG | `LOO1WLSConfig` parameters and validation | `rtk proxy sed -n '1,96p' ADP/core/loo1_wls.py` |
+| SRC-LOO1-ENGINE | CSR neighborhoods, chunked 2-DGEMM evaluation, subcritical eigenvalues, streaming distance2/bandwidth/alpha/init | `rtk proxy sed -n '1,932p' ADP/engine/common/loo1_wls.py` |
+| SRC-LOO1-SOLVER | `R^{-1}` preconditioned Grassmann solver with `tr(R_+)` guard | `rtk proxy sed -n '1,280p' ADP/solver/loo1_wls.py` |
+| SRC-LOO1-DRIVER | `_fit_multi_loo1_wls` sketch-free outer loop and streaming dispatch | `rtk proxy sed -n '681,1031p' ADP/engine/common/index_fit.py` |
 
 Все коды извлекаются из `ADP/`; полный каталог файлов — [README.md](README.md#каталог-исходников). Общая статистика и mass contract — [index-pipeline.md](index-pipeline.md).

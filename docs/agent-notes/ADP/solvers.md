@@ -286,6 +286,7 @@ Manifold `one_step` на каждом target строит local slopes и реш
 
 ## Совместимость и риск путаницы
 
+- `ADP.solver.loo1_wls.solve` — opt-in решатель исключительно для `ADP_Config(estimator="loo1_wls")`: принимает `(initial_index, X, neighborhoods)` вместо скетча `(U, I)`, применяет предобусловливатель $(R_+ + \tau I_m)^{-1}$ с защитой $\tau = \rho_{\rm reg}\max(1, \operatorname{tr}(R_+))$, полярную SVD-ретракцию и Armijo-откат (источник **SRC-LOO1-SOLVER**: `sed -n '1,280p' ADP/solver/loo1_wls.py`). Подробности: [multi-index.md](multi-index.md#opt-in-вариант-estimatorloo1_wls-loo1-wls-adp).
 - `ADP/core/ADP_Solver.py::ADP_solver.fit_current` — current путь, требует `HPAOResult`; `ADP_solver.fit` предназначен для legacy adapter-контракта.
 - `ADP/core/ADP_Solver.py::ADP_Solver.fit` — прежняя orchestration, вызывает legacy-shaped solver и возвращает индекс без `HPAOResult`.
 - `ADP/solver/legacy_lsmr.py` не является алиасом текущего HPAO `LSMR.py`.
