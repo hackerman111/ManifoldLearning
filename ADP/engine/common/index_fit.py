@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import cast
 
 import numpy as np
@@ -12,6 +12,7 @@ import numpy as np
 from ...core.ADP_Config import ADP_Config
 from ...core.ADP_Statistic import ADP_Statistics
 from ...core.experimental_centers import AdaptiveCentersConfig
+from ...core.loo1_wls import LOO1WLSConfig
 from ...solver.LSMR import HPAOResult
 from . import utils
 from .calculus import (
@@ -35,6 +36,14 @@ from .initialize import (
     initialize_basis_random,
 )
 from .logger import IndexProfiler
+from .loo1_wls import (
+    _calculate_multi_weight_streaming,
+    build_loo1_neighborhoods,
+    calculate_alpha_k_streaming,
+    initialize_basis_local_streaming,
+    search_bandwidth_streaming,
+    subcritical_eigenvalues,
+)
 from .statistic import calculate_statistics
 from .weights import calculate_multi_weight, calculate_weight
 
@@ -68,7 +77,9 @@ def validate_sizes(
         raise ValueError("pilot initialization is multi-index only")
     n_lin = config.N_lin or 2 * d
     n_centers = config.N_J or n
-    n_directions = config.N_phi or min(config.N_loc, d)
+    n_directions = (
+        0 if config.estimator == "loo1_wls" else (config.N_phi or min(config.N_loc, d))
+    )
     utils._check_model_sizes(
         n,
         d,
@@ -85,7 +96,7 @@ def validate_sizes(
             raise ValueError("N_loc cannot exceed the training-set size")
         if config.index_init in {"local", "local-cv"} and n_lin > training_size:
             raise ValueError("N_lin cannot exceed the training-set size")
-    if mode == "multi" and n_directions <= index_dim:
+    if mode == "multi" and config.estimator != "loo1_wls" and n_directions <= index_dim:
         raise ValueError("N_phi must exceed index_dim in multi mode")
     return n_lin, n_centers, n_directions
 
@@ -214,6 +225,26 @@ def fit_index(
     ESTIMATOR: перенос legacy-классов на этот явно выбранный HPAO-путь
     меняет local refit, нормировку и seed scheme; CLI-формулы сохранены.
     """
+    if config.estimator == "loo1_wls":
+        if mode != "multi":
+            raise NotImplementedError(
+                "estimator='loo1_wls' is only implemented for multi-index models"
+            )
+        if config.gpu:
+            raise NotImplementedError("estimator='loo1_wls' does not support gpu=True")
+        return _fit_multi_loo1_wls(
+            X,
+            Y,
+            config=config,
+            index_dim=index_dim,
+            solve=solve,
+            profiler=profiler,
+            progress=progress,
+            quality=quality,
+            displacement_scale=displacement_scale,
+            trace_indices=trace_indices,
+        )
+
     X, Y = utils._prepare_xy(X, Y, require_overdetermined=config.index_init != "random")
     n, d = X.shape
     n_lin, n_centers, n_directions = validate_sizes(config, mode, n, d, index_dim)
@@ -644,4 +675,357 @@ def fit_index(
         metadata["coefficient_center_indices"] = tuple(
             map(int, center_indices[np.asarray(selected_pool, dtype=np.intp)])
         )
+    return IndexFitResult(initial_index, index, coefficients, eigenvalues, metadata)
+
+
+def _fit_multi_loo1_wls(
+    X: np.ndarray,
+    Y: np.ndarray,
+    *,
+    config: ADP_Config,
+    index_dim: int,
+    solve: Callable[..., HPAOResult],
+    profiler: IndexProfiler,
+    progress: Callable[[dict], None] | None = None,
+    quality: Callable[[np.ndarray], float] | None = None,
+    displacement_scale: float | None = None,
+    trace_indices: bool = False,
+) -> IndexFitResult:
+    """Outer-цикл opt-in multi-index варианта LOO1-WLS-ADP без random sketch."""
+    X, Y = utils._prepare_xy(X, Y, require_overdetermined=config.index_init != "random")
+    n, d = X.shape
+    n_lin, n_centers, n_directions = validate_sizes(config, "multi", n, d, index_dim)
+    validate_experiment(config, "multi", n_centers, d, index_dim)
+    if config.h_min is None:
+        raise ValueError("h_min must be configured for the current index engine")
+
+    loo1_cfg = config.loo1_wls or LOO1WLSConfig()
+    center_seed, init_seed, _ = np.random.SeedSequence(config.seed).spawn(3)
+
+    with profiler.stage("initialization"):
+        center_rng = np.random.default_rng(center_seed)
+        center_indices = (
+            np.arange(n)
+            if n_centers == n
+            else center_rng.choice(n, size=n_centers, replace=False)
+        )
+        centers = X[center_indices].copy()
+        requested_displacement_scale = displacement_scale
+        displacement_scale = 0.0
+        if config.center_displacement > 0:
+            displacement_scale = (
+                float(requested_displacement_scale)
+                if requested_displacement_scale is not None
+                else float(np.sqrt(np.mean(np.var(X, axis=0))))
+            )
+            if not np.isfinite(displacement_scale) or displacement_scale <= 0:
+                raise ValueError("center displacement scale must be positive")
+            centers += (
+                config.center_displacement
+                * displacement_scale
+                * center_rng.standard_normal(centers.shape)
+            )
+
+        if config.training_set == "exclude_centers":
+            training_mask = np.ones(n, dtype=bool)
+            training_mask[center_indices] = False
+            training_X = X[training_mask]
+            training_Y = Y[training_mask]
+        else:
+            training_X = X
+            training_Y = Y
+        test_Y = Y[center_indices]
+
+        if loo1_cfg.stream_distances is None:
+            use_streaming = (
+                n_centers * len(training_X) > loo1_cfg.stream_distance_threshold
+            )
+        else:
+            use_streaming = bool(loo1_cfg.stream_distances)
+
+        init_rng = np.random.default_rng(init_seed)
+        distance2: np.ndarray | None = None
+        if not use_streaming:
+            distance2 = pairwise_distance2(training_X, centers)
+
+        if config.index_init == "random":
+            basis = initialize_basis_random(init_rng, d, index_dim)
+            initial_eigenvalues = np.empty(0)
+        elif config.index_init == "pilot":
+            basis = initialize_basis_pilot(
+                training_X,
+                training_Y,
+                index_dim,
+                seed=config.seed,
+            )
+            initial_eigenvalues = np.empty(0)
+        elif use_streaming:
+            basis, initial_eigenvalues = initialize_basis_local_streaming(
+                training_X,
+                training_Y,
+                centers,
+                n_lin,
+                config.kernel,
+                config.local_ridge,
+                index_dim,
+                mass_weighted=True,
+                ridge_selection=("loo" if config.index_init == "local-cv" else "fixed"),
+                block_size=config.batch_size,
+            )
+        else:
+            assert distance2 is not None
+            basis, initial_eigenvalues = initialize_basis_local_with_spectrum(
+                training_X,
+                training_Y,
+                centers,
+                distance2,
+                n_lin,
+                config.kernel,
+                config.local_ridge,
+                index_dim,
+                mass_weighted=True,
+                ridge_selection=("loo" if config.index_init == "local-cv" else "fixed"),
+            )
+        index = basis.T
+        initial_index = index.copy()
+        initial_quality = quality(index) if quality is not None else None
+
+    with profiler.stage("bandwidth"):
+        if use_streaming:
+            h = search_bandwidth_streaming(
+                training_X,
+                centers,
+                config.N_loc,
+                config.kernel,
+                lower=config.h_min,
+                block_size=config.batch_size,
+            )
+        else:
+            assert distance2 is not None
+            h = search_bandwidth(
+                distance2,
+                config.N_loc,
+                config.kernel,
+                lower=config.h_min,
+            )
+
+    min_neighbors = (
+        loo1_cfg.min_neighbors if loo1_cfg.min_neighbors is not None else index_dim + 2
+    )
+    factor = 1.0
+    eigenvalues = np.ones(index_dim, dtype=float)
+    diagnostics: dict[str, object] = {}
+    trace: list[dict[str, object]] = []
+    best_error = float("inf")
+    best_iteration = 0
+    best_index = index.copy()
+    best_eigenvalues = eigenvalues.copy()
+    best_diagnostics: dict[str, object] = {}
+    best_coefficients = np.empty(0)
+    stop_reason = "h_min"
+    outer_iteration = 0
+
+    while True:
+        effective_tensor = "orthogonal" if outer_iteration == 0 else config.multi_tensor
+        with profiler.stage("statistics"):
+            if use_streaming:
+                weights = _calculate_multi_weight_streaming(
+                    training_X,
+                    centers,
+                    index.T,
+                    eigenvalues,
+                    h,
+                    factor,
+                    config.kernel,
+                    block_size=config.batch_size,
+                    tensor=effective_tensor,
+                )
+            else:
+                weights = calculate_multi_weight(
+                    training_X,
+                    centers,
+                    index.T,
+                    eigenvalues,
+                    h,
+                    factor,
+                    config.kernel,
+                    block_size=config.batch_size,
+                    distance2=distance2,
+                    tensor=effective_tensor,
+                )
+            neighborhoods = build_loo1_neighborhoods(
+                training_X,
+                training_Y,
+                weights,
+                min_neighbors=min_neighbors,
+                total_centers=n_centers,
+            )
+
+        with profiler.stage("solver"):
+            result = solve(index, training_X, neighborhoods)
+            if not isinstance(result, HPAOResult):
+                raise TypeError("LOO1-WLS solver must return HPAOResult")
+            raw_index = np.array(result.index, dtype=float, copy=True)
+            raw_coefficients = np.asarray(result.coefficients, dtype=float)
+            if raw_index.shape != (index_dim, d) or raw_coefficients.shape != (
+                n_centers,
+                index_dim,
+            ):
+                raise RuntimeError("LOO1-WLS solver returned incompatible shapes")
+            if not (
+                np.all(np.isfinite(raw_index)) and np.all(np.isfinite(raw_coefficients))
+            ):
+                raise RuntimeError("LOO1-WLS solver returned non-finite values")
+            if not np.allclose(
+                raw_index @ raw_index.T,
+                np.eye(index_dim),
+                rtol=1e-8,
+                atol=1e-10,
+            ):
+                raise RuntimeError("LOO1-WLS solver returned a non-orthonormal index")
+
+            active_coefficients = raw_coefficients[neighborhoods.active_centers]
+            vt, eigenvalues = subcritical_eigenvalues(
+                active_coefficients,
+                neighborhoods.mass,
+                exponent=loo1_cfg.spectrum_exponent,
+            )
+            index = vt @ raw_index
+            signs = np.sign(
+                index[np.arange(len(index)), np.argmax(np.abs(index), axis=1)]
+            )
+            index *= np.where(signs == 0, 1.0, signs)[:, None]
+            # EXACT: поворот coefficients сохраняет локальные предсказания.
+            rotation = index @ raw_index.T
+            coefficients = raw_coefficients @ rotation.T
+            diagnostics = dict(result.diagnostics)
+
+        outer_iteration += 1
+        final_objective = float(cast(float, diagnostics["final_objective"]))
+        fit_error = final_objective / float(np.sum(neighborhoods.mass))
+        response_error = float(np.sum(np.square(test_Y - neighborhoods.full_S)))
+        step_quality = quality(index) if quality is not None else None
+        trace.append(
+            {
+                "iteration": outer_iteration - 1,
+                "h": float(h),
+                "factor_name": "alpha",
+                "factor": float(factor),
+                "h_over_factor": float(h / factor) if factor > 0 else float("inf"),
+                "err": fit_error,
+                "response_err": response_error,
+                "quality": step_quality,
+                "eigenvalues": tuple(float(value) for value in eigenvalues),
+                "tensor": effective_tensor,
+                "solver": diagnostics,
+            }
+        )
+        if trace_indices:
+            row = trace[-1]
+            row.update(diagnostics)
+            row["k"] = outer_iteration - 1
+            row["alpha"] = float(factor)
+            row["basis"] = index.T.copy()
+            row["mean_mass"] = float(np.mean(neighborhoods.full_mass))
+            row["distance_initial"] = float(
+                np.linalg.norm(index - (index @ initial_index.T) @ initial_index)
+                / np.sqrt(index_dim)
+            )
+        if progress is not None:
+            progress(deepcopy(trace[-1]))
+        if fit_error < best_error:
+            best_error = fit_error
+            best_iteration = outer_iteration - 1
+            best_index = index.copy()
+            best_eigenvalues = eigenvalues.copy()
+            best_diagnostics = diagnostics
+            best_coefficients = coefficients.copy()
+
+        del neighborhoods
+        if config.outer_steps is not None and outer_iteration >= config.outer_steps:
+            stop_reason = "outer_steps"
+            break
+        next_h = h / config.a
+        if next_h < config.h_min:
+            break
+
+        with profiler.stage("update"):
+            if use_streaming:
+                next_factor = calculate_alpha_k_streaming(
+                    training_X,
+                    centers,
+                    index.T,
+                    eigenvalues,
+                    next_h,
+                    config.N_loc,
+                    config.kernel,
+                    tensor=config.multi_tensor,
+                    block_size=config.batch_size,
+                )
+            else:
+                next_factor = calculate_alpha_k(
+                    training_X,
+                    centers,
+                    index.T,
+                    eigenvalues,
+                    next_h,
+                    config.N_loc,
+                    config.kernel,
+                    distance2=distance2,
+                    tensor=config.multi_tensor,
+                    block_size=config.batch_size,
+                )
+            if next_factor is None:
+                stop_reason = "local_mass_limit"
+                break
+            factor = next_factor
+            h = float(next_h)
+
+    last_diagnostics = diagnostics
+    if trace_indices:
+        trace[-1]["stop_reason"] = stop_reason
+    selected_iteration = outer_iteration - 1
+    if config.select_step == "best":
+        index = best_index
+        eigenvalues = best_eigenvalues
+        diagnostics = best_diagnostics
+        coefficients = best_coefficients
+        selected_iteration = best_iteration
+
+    metadata: dict[str, object] = {
+        "experimental_centers": experimental_metadata(config),
+        "loo1_wls": asdict(loo1_cfg),
+        "stream_distances": use_streaming,
+        "gpu": False,
+        "gpu_solver": False,
+        "N_lin": n_lin,
+        "N_J": n_centers,
+        "N_phi": n_directions,
+        "outer_iterations": outer_iteration,
+        "stop_reason": stop_reason,
+        "estimator": config.estimator,
+        "direction_mode": "none",
+        "multi_tensor": config.multi_tensor,
+        "selection": config.select_step,
+        "selected_iteration": selected_iteration,
+        "selected_error": (
+            best_error
+            if config.select_step == "best"
+            else trace[selected_iteration]["err"]
+        ),
+        "selected_eigenvalues": tuple(float(value) for value in eigenvalues),
+        "initial_quality": initial_quality,
+        "last_quality": trace[-1]["quality"],
+        "initial_eigenvalues": tuple(
+            float(value) for value in initial_eigenvalues[: index_dim + 1]
+        ),
+        "training_set": config.training_set,
+        "training_size": len(training_X),
+        "center_displacement": config.center_displacement,
+        "center_displacement_scale": displacement_scale,
+        "redraw_directions": config.redraw_directions,
+        "trace": trace,
+        "diagnostics": diagnostics,
+        "last_diagnostics": last_diagnostics,
+    }
     return IndexFitResult(initial_index, index, coefficients, eigenvalues, metadata)

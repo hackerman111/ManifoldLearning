@@ -7,6 +7,7 @@ from math import sqrt
 import numpy as np
 
 from .experimental_centers import AdaptiveCentersConfig
+from .loo1_wls import LOO1WLSConfig
 
 
 def epanechnikov(value: np.ndarray) -> np.ndarray:
@@ -49,6 +50,7 @@ class ADP_Config:
     gpu: bool = False
     gpu_solver: bool = False
     experimental_centers: AdaptiveCentersConfig | None = None
+    loo1_wls: LOO1WLSConfig | None = None
 
     def __post_init__(self) -> None:
         """Проверить границы конфигурации до запуска численного алгоритма.
@@ -91,8 +93,8 @@ class ADP_Config:
             raise ValueError(
                 "index_init must be 'local', 'local-cv', 'pilot', or 'random'"
             )
-        if self.estimator not in {"new", "legacy"}:
-            raise ValueError("estimator must be 'new' or 'legacy'")
+        if self.estimator not in {"new", "legacy", "loo1_wls"}:
+            raise ValueError("estimator must be 'new', 'legacy', or 'loo1_wls'")
         if self.direction_mode not in {"auto", "isotropic", "localized"}:
             raise ValueError(
                 "direction_mode must be 'auto', 'isotropic', or 'localized'"
@@ -117,3 +119,8 @@ class ADP_Config:
             self.experimental_centers, AdaptiveCentersConfig
         ):
             raise TypeError("experimental_centers must be AdaptiveCentersConfig")
+        if self.loo1_wls is not None:
+            if not isinstance(self.loo1_wls, LOO1WLSConfig):
+                raise TypeError("loo1_wls must be LOO1WLSConfig")
+            if self.estimator != "loo1_wls":
+                raise ValueError("loo1_wls requires estimator='loo1_wls'")

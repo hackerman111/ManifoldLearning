@@ -11,9 +11,12 @@ from ...engine.common import utils
 from ...engine.common.index_fit import fit_index
 from ...engine.common.logger import IndexProfiler
 from ...solver.grassman import solve as solve_grassman
-from ...solver.LSMR import solve as solve_lsmr
+from ...solver.loo1_wls import solve as solve_loo1_wls
+from ...solver.LSMR import HPAOResult, solve as solve_lsmr
 from ..ADP_Config import ADP_Config
 from ..ADP_Solver import ADP_solver
+from ..ADP_Statistic import ADP_Statistics
+from ..loo1_wls import LOO1WLSConfig
 from . import ADP_multi_index_utils as model_utils
 from .ADP_multi_index_result import ADP_multi_index_result
 
@@ -28,7 +31,14 @@ class ADP_multi_index:
         """Выбрать актуальный HPAO solver; custom solver возвращает HPAOResult."""
         self.index_dim = model_utils.validate_index_dim(index_dim)
         self.config = config or ADP_Config()
-        self.solver = solver or ADP_solver(solve_lsmr, max_steps=5, tol=1e-6)
+        if solver is None:
+            self.solver = (
+                ADP_solver(solve_loo1_wls)
+                if self.config.estimator == "loo1_wls"
+                else ADP_solver(solve_lsmr, max_steps=5, tol=1e-6)
+            )
+        else:
+            self.solver = solver
         self.ADP_multi_index_result = ADP_multi_index_result
 
     def fit(
@@ -44,11 +54,58 @@ class ADP_multi_index:
         выбор best/last и независимые потоки centers/init/directions.
         """
         config, solver = self.config, self.solver
-        if config.gpu_solver and solver.method not in (solve_lsmr, solve_grassman):
-            raise NotImplementedError(
-                "gpu_solver supports built-in LSMR or Grassmann; "
-                "use gpu=True, gpu_solver=False for CPU solvers"
-            )
+        solve_fn: Callable[..., HPAOResult]
+        if config.estimator == "loo1_wls":
+            if config.gpu:
+                raise NotImplementedError(
+                    "estimator='loo1_wls' does not support gpu=True"
+                )
+            if solver.method in (solve_lsmr, solve_grassman):
+                raise ValueError(
+                    "estimator='loo1_wls' requires ADP.solver.loo1_wls.solve"
+                )
+            if "config" in solver.settings:
+                raise ValueError("duplicate solver settings: config")
+            loo1_cfg = config.loo1_wls or LOO1WLSConfig()
+
+            def _solve_loo1(
+                index: np.ndarray,
+                training_X: np.ndarray,
+                neighborhoods: object,
+            ) -> HPAOResult:
+                return solver.method(
+                    index,
+                    training_X,
+                    neighborhoods,
+                    config=loo1_cfg,
+                    **solver.settings,
+                )
+
+            solve_fn = _solve_loo1
+            use_metric_context = False
+        else:
+            if config.gpu_solver and solver.method not in (solve_lsmr, solve_grassman):
+                raise NotImplementedError(
+                    "gpu_solver supports built-in LSMR or Grassmann; "
+                    "use gpu=True, gpu_solver=False for CPU solvers"
+                )
+
+            def _solve_hpao(
+                index: np.ndarray,
+                statistics: ADP_Statistics,
+                **metric_context: object,
+            ) -> HPAOResult:
+                return solver.fit_current(
+                    statistics,
+                    index,
+                    normalized=config.estimator == "new",
+                    lambda_prox=config.lambda_penalty,
+                    **metric_context,
+                )
+
+            solve_fn = _solve_hpao
+            use_metric_context = solver.settings.get("metric_power", 0) != 0
+
         profiler = IndexProfiler()
         try:
             fitted = fit_index(
@@ -58,14 +115,8 @@ class ADP_multi_index:
                 mode="multi",
                 index_dim=self.index_dim,
                 profiler=profiler,
-                solver_metric_context=solver.settings.get("metric_power", 0) != 0,
-                solve=lambda index, statistics, **metric_context: solver.fit_current(
-                    statistics,
-                    index,
-                    normalized=config.estimator == "new",
-                    lambda_prox=config.lambda_penalty,
-                    **metric_context,
-                ),
+                solver_metric_context=use_metric_context,
+                solve=solve_fn,
                 progress=progress,
                 trace_indices=True,
             )

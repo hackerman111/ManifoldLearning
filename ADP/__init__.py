@@ -1,11 +1,12 @@
 from importlib import import_module as _import_module
 from sys import modules as _modules
 
-from .core.ADP_Config import ADP_Config
+from .core.ADP_Config import ADP_Config, epanechnikov
 from .core.ADP_Data import ADP_Data
 from .core.ADP_Solver import ADP_Solver, ADP_solver, ADP_SolverResult
 from .core.ADP_Statistic import ADP_Statistics
 from .core.experimental_centers import AdaptiveCentersConfig
+from .core.loo1_wls import LOO1WLSConfig
 from .core.manifold.ADP_Manifold import ADP_Manifold, ADP_manifold
 from .core.manifold.ADP_Manifold_result import ADP_Manifold_result
 from .core.multi.ADP_multi_index import ADP_multi_index
@@ -56,12 +57,14 @@ __all__ = [
     "ADP_single_index_result",
     "ADP_solver",
     "AdaptiveCentersConfig",
+    "LOO1WLSConfig",
     "calculate_alpha_k",
     "calculate_h0",
     "calculate_multi_weight",
     "calculate_rho_k",
     "calculate_statistics",
     "calculate_weight",
+    "epanechnikov",
     "generate_isotropic_proj",
     "generate_multi_proj",
     "generate_proj",
